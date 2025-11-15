@@ -1,26 +1,30 @@
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:modular_pos/features/auth/data/auth_repository.dart';
+import 'package:modular_pos/features/auth/data/auth_session_store.dart';
+import 'package:modular_pos/features/auth/domain/models/auth_session.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
-import 'package:flutter_riverpod/legacy.dart'; 
 
 class LoginState {
   final bool isLoading;
-  final User? user;
+  final AuthSession? session;
   final String? error;
 
   const LoginState({
     this.isLoading = false,
-    this.user,
+    this.session,
     this.error,
   });
 
+  User? get user => session?.user;
+
   LoginState copyWith({
     bool? isLoading,
-    User? user,
+    AuthSession? session,
     String? error,
   }) {
     return LoginState(
       isLoading: isLoading ?? this.isLoading,
-      user: user ?? this.user,
+      session: session ?? this.session,
       error: error,
     );
   }
@@ -28,21 +32,35 @@ class LoginState {
 
 final loginControllerProvider =
     StateNotifierProvider<LoginController, LoginState>((ref) {
-  final repo = ref.read(authRepositoryProvider);
-  return LoginController(repo);
+  final repository = ref.read(authRepositoryProvider);
+  final store = ref.read(authSessionStoreProvider);
+  final initialSession = ref.read(initialAuthSessionProvider);
+  return LoginController(
+    repository: repository,
+    sessionStore: store,
+    initialSession: initialSession,
+  );
 });
 
 class LoginController extends StateNotifier<LoginState> {
-  LoginController(this._repo) : super(const LoginState());
+  LoginController({
+    required AuthRepository repository,
+    required AuthSessionStore sessionStore,
+    AuthSession? initialSession,
+  })  : _repository = repository,
+        _sessionStore = sessionStore,
+        super(LoginState(session: initialSession));
 
-  final AuthRepository _repo;
+  final AuthRepository _repository;
+  final AuthSessionStore _sessionStore;
 
   Future<void> login(String username, String password) async {
     state = state.copyWith(isLoading: true, error: null);
 
     try {
-      final user = await _repo.login(username, password);
-      state = state.copyWith(isLoading: false, user: user);
+      final session = await _repository.login(username, password);
+      await _sessionStore.save(session);
+      state = state.copyWith(isLoading: false, session: session);
     } catch (e) {
       state = state.copyWith(
         isLoading: false,
