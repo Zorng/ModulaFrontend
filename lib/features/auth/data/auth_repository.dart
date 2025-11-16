@@ -29,6 +29,7 @@ class RemoteAuthRepository implements AuthRepository {
   Future<AuthSession> login(String username, String password) async {
     final user = await _api.login(username: username, password: password);
     final now = DateTime.now().toUtc();
+    
 
     // TODO: replace placeholder tokens once backend is ready.
     return AuthSession(

@@ -3,7 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/theme/app_gradient.dart';
+import 'package:modular_pos/features/auth/domain/auth_token_provider.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
+
+const double _kSmallScreenMaxWidth = 600;
 class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
 
@@ -26,6 +29,12 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       (previous, next) {
         final user = next.user;
         if (!mounted || user == null) return;
+
+        // Update in-memory access token for network layer.
+        final token = next.session?.accessToken;
+        if (token != null && token.isNotEmpty) {
+          ref.read(authAccessTokenProvider.notifier).state = token;
+        }
         final route = switch (user.role.toLowerCase()) {
           'admin' => AppRoute.adminPortal.path,
           'cashier' => AppRoute.cashierPortal.path,
@@ -52,83 +61,176 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     final controller = ref.read(loginControllerProvider.notifier);
 
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: AppGradients.backgroundGradient,
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final isSmall = constraints.maxWidth < _kSmallScreenMaxWidth;
+
+          return Container(
+            decoration: const BoxDecoration(
+              gradient: AppGradients.backgroundGradient,
+            ),
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: isSmall
+                    ? _MobileLoginForm(
+                        state: state,
+                        controller: controller,
+                        usernameCtrl: _usernameCtrl,
+                        passwordCtrl: _passwordCtrl,
+                        obscurePassword: _obscurePassword,
+                        toggleObscure: () {
+                          setState(() {
+                            _obscurePassword = !_obscurePassword;
+                          });
+                        },
+                      )
+                    : _DesktopLoginForm(
+                        state: state,
+                        controller: controller,
+                        usernameCtrl: _usernameCtrl,
+                        passwordCtrl: _passwordCtrl,
+                        obscurePassword: _obscurePassword,
+                        toggleObscure: () {
+                          setState(() {
+                            _obscurePassword = !_obscurePassword;
+                          });
+                        },
+                      ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _MobileLoginForm extends StatelessWidget {
+  const _MobileLoginForm({
+    required this.state,
+    required this.controller,
+    required this.usernameCtrl,
+    required this.passwordCtrl,
+    required this.obscurePassword,
+    required this.toggleObscure,
+  });
+
+  final LoginState state;
+  final LoginController controller;
+  final TextEditingController usernameCtrl;
+  final TextEditingController passwordCtrl;
+  final bool obscurePassword;
+  final VoidCallback toggleObscure;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ShaderMask(
+          shaderCallback: (bounds) =>
+              AppGradients.textGradient.createShader(bounds),
+          child: Text(
+            'Modula',
+            style: Theme.of(context)
+                .textTheme
+                .headlineSmall
+                ?.copyWith(color: Colors.white),
+            textAlign: TextAlign.left,
+          ),
+        ),
+        Text(
+          'Login to Modula',
+          style: Theme.of(context).textTheme.displaySmall,
+          textAlign: TextAlign.left,
+        ),
+        const SizedBox(height: 28),
+        TextField(
+          controller: usernameCtrl,
+          decoration: const InputDecoration(labelText: 'Username'),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: passwordCtrl,
+          decoration: InputDecoration(
+            labelText: 'Password',
+            suffixIcon: IconButton(
+              icon: Icon(
+                obscurePassword ? Icons.visibility_off : Icons.visibility,
+              ),
+              onPressed: toggleObscure,
+            ),
+          ),
+          obscureText: obscurePassword,
+        ),
+        const SizedBox(height: 16),
+        if (state.error != null)
+          Text(
+            state.error!,
+            style: const TextStyle(color: Colors.red),
+          ),
+        const SizedBox(height: 8),
+        ElevatedButton(
+          onPressed: state.isLoading
+              ? null
+              : () {
+                  controller.login(
+                    usernameCtrl.text.trim(),
+                    passwordCtrl.text.trim(),
+                  );
+                },
+          child: state.isLoading
+              ? const CircularProgressIndicator()
+              : const Text('Login'),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          state.user != null
+              ? 'Welcome ${state.user!.name}'
+              : 'login to continue',
+        ),
+      ],
+    );
+  }
+}
+
+class _DesktopLoginForm extends StatelessWidget {
+  const _DesktopLoginForm({
+    required this.state,
+    required this.controller,
+    required this.usernameCtrl,
+    required this.passwordCtrl,
+    required this.obscurePassword,
+    required this.toggleObscure,
+  });
+
+  final LoginState state;
+  final LoginController controller;
+  final TextEditingController usernameCtrl;
+  final TextEditingController passwordCtrl;
+  final bool obscurePassword;
+  final VoidCallback toggleObscure;
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 420),
+      child: Card(
+        elevation: 4,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
         ),
         child: Padding(
-          padding: const EdgeInsets.all(18),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-            ShaderMask(
-              shaderCallback: (bounds) =>
-                  AppGradients.textGradient.createShader(bounds),
-              child: Text(
-                "Modula",
-                style: Theme.of(context)
-                    .textTheme
-                    .headlineSmall
-                    ?.copyWith(color: Colors.white),
-                textAlign: TextAlign.left,
-              ),
-            ),
-            Text(
-              "Login to Modula",
-              style: Theme.of(context).textTheme.displaySmall,
-              textAlign: TextAlign.left,
-            ),
-            const SizedBox(height: 28,),
-            TextField(
-              controller: _usernameCtrl,
-              decoration: const InputDecoration(labelText: 'Username'),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _passwordCtrl,
-              decoration: InputDecoration(
-                labelText: 'Password',
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    _obscurePassword ? Icons.visibility_off : Icons.visibility, 
-                  ),
-                  onPressed: () {
-                    setState(() {
-                      _obscurePassword = !_obscurePassword;
-                    });
-                  },
-                ),
-              ),
-              obscureText: _obscurePassword,
-            ),
-            const SizedBox(height: 16),
-            if (state.error != null)
-              Text(
-                state.error!,
-                style: const TextStyle(color: Colors.red),
-              ),
-            const SizedBox(height: 8),
-            ElevatedButton(
-              onPressed: state.isLoading
-                  ? null
-                  : () {
-                      controller.login(
-                        _usernameCtrl.text.trim(),
-                        _passwordCtrl.text.trim(),
-                      );
-                    },
-              child: state.isLoading
-                  ? const CircularProgressIndicator()
-                  : const Text('Login'),
-            ),
-            Consumer(builder: (context, ref, _) {
-              if(state.user != null) {
-                return Text("Welcome ${state.user?.name}"); 
-              }
-                return Text("login to continue");}
-              )
-          ],
+          padding: const EdgeInsets.all(24),
+          child: _MobileLoginForm(
+            state: state,
+            controller: controller,
+            usernameCtrl: usernameCtrl,
+            passwordCtrl: passwordCtrl,
+            obscurePassword: obscurePassword,
+            toggleObscure: toggleObscure,
           ),
         ),
       ),

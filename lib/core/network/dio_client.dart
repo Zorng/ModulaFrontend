@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:modular_pos/features/auth/domain/auth_token_provider.dart';
 
 final dioProvider = Provider<Dio>((ref) {
   final dio = Dio(
@@ -10,8 +11,17 @@ final dioProvider = Provider<Dio>((ref) {
     ),
   );
 
-  // Example: add log or auth interceptors here
-  // dio.interceptors.add(LogInterceptor(responseBody: true));
+  dio.interceptors.add(
+    InterceptorsWrapper(
+      onRequest: (options, handler) {
+        final token = ref.read(authAccessTokenProvider);
+        if (token != null && token.isNotEmpty) {
+          options.headers['Authorization'] = 'Bearer $token';
+        }
+        handler.next(options);
+      },
+    ),
+  );
 
   return dio;
 });
