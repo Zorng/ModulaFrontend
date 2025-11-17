@@ -56,10 +56,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       }
 
       // Authenticated but not allowed to access cashier portal → 404
-      if (path == AppRoute.cashierPortal.path &&
-          role != 'cashier' &&
-          role != 'manager' &&
-          role != 'admin') {
+      if (path == AppRoute.cashierPortal.path && role != 'cashier') {
         return '/404';
       }
 

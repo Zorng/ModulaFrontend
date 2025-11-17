@@ -5,7 +5,7 @@ import 'package:modular_pos/features/auth/domain/auth_token_provider.dart';
 final dioProvider = Provider<Dio>((ref) {
   final dio = Dio(
     BaseOptions(
-      baseUrl: 'https://api.modula.local', // TODO: env-based
+      baseUrl: 'https://localhost:3000', // TODO: env-based
       connectTimeout: const Duration(seconds: 10),
       receiveTimeout: const Duration(seconds: 10),
     ),

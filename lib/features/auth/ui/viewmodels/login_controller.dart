@@ -30,8 +30,7 @@ class LoginState {
   }
 }
 
-final loginControllerProvider =
-    StateNotifierProvider<LoginController, LoginState>((ref) {
+final loginControllerProvider = StateNotifierProvider<LoginController, LoginState>((ref) {
   final repository = ref.read(authRepositoryProvider);
   final store = ref.read(authSessionStoreProvider);
   final initialSession = ref.read(initialAuthSessionProvider);
@@ -64,7 +63,7 @@ class LoginController extends StateNotifier<LoginState> {
     } catch (e) {
       state = state.copyWith(
         isLoading: false,
-        error: 'Login failed', // you can inspect e for more details
+        error: 'Login failedasdfasdfasdfasd', // you can inspect e for more details
       );
     }
   }
