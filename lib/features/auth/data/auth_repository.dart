@@ -5,7 +5,7 @@ import 'package:modular_pos/features/auth/data/auth_api.dart';
 import 'package:modular_pos/features/auth/domain/models/auth_session.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
 
-const _useMockRepository = true;
+const _useMockRepository = false;
 
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
   if (_useMockRepository) {
@@ -27,18 +27,7 @@ class RemoteAuthRepository implements AuthRepository {
 
   @override
   Future<AuthSession> login(String username, String password) async {
-    final user = await _api.login(username: username, password: password);
-    final now = DateTime.now().toUtc();
-    
-
-    // TODO: replace placeholder tokens once backend is ready.
-    return AuthSession(
-      user: user,
-      accessToken: 'todo-access-token',
-      refreshToken: 'todo-refresh-token',
-      accessTokenExpiresAt: now.add(const Duration(minutes: 15)),
-      refreshTokenExpiresAt: now.add(const Duration(hours: 72)),
-    );
+    return _api.login(username: username, password: password);
   }
 }
 
@@ -64,10 +53,12 @@ class MockAuthRepository implements AuthRepository {
       user: record.user,
       accessToken: record.accessToken,
       refreshToken: record.refreshToken,
-      accessTokenExpiresAt:
-          now.add(Duration(seconds: record.accessTokenTtlSeconds)),
-      refreshTokenExpiresAt:
-          now.add(Duration(hours: record.refreshTokenTtlHours)),
+      accessTokenExpiresAt: now.add(
+        Duration(seconds: record.accessTokenTtlSeconds),
+      ),
+      refreshTokenExpiresAt: now.add(
+        Duration(hours: record.refreshTokenTtlHours),
+      ),
     );
   }
 
@@ -75,9 +66,7 @@ class MockAuthRepository implements AuthRepository {
     final List<dynamic> decoded = jsonDecode(_mockLoginData) as List<dynamic>;
     return decoded
         .map(
-          (entry) => _MockLoginRecord.fromJson(
-            entry as Map<String, dynamic>,
-          ),
+          (entry) => _MockLoginRecord.fromJson(entry as Map<String, dynamic>),
         )
         .toList(growable: false);
   }
@@ -131,7 +120,11 @@ const _mockLoginData = '''
     "user": {
       "id": "user_cashier_1",
       "name": "Demo Cashier",
-      "role": "cashier"
+      "role": "cashier",
+      "tenantId": "tenant_demo",
+      "branches": [
+        {"id": "branch_1", "name": "Main Branch"}
+      ]
     }
   },
   {
@@ -146,7 +139,11 @@ const _mockLoginData = '''
     "user": {
       "id": "user_manager_1",
       "name": "Demo Manager",
-      "role": "manager"
+      "role": "manager",
+      "tenantId": "tenant_demo",
+      "branches": [
+        {"id": "branch_1", "name": "Main Branch"}
+      ]
     }
   },
   {
@@ -161,7 +158,51 @@ const _mockLoginData = '''
     "user": {
       "id": "user_admin_1",
       "name": "Tenant Admin",
-      "role": "admin"
+      "role": "admin",
+      "tenantId": "tenant_demo",
+      "branches": [
+        {"id": "branch_1", "name": "Main Branch"},
+        {"id": "branch_2", "name": "Downtown"},
+        {"id": "branch_3", "name": "Airport"}
+      ]
+    }
+  },
+  {
+    "username": "admin@tenantb.app",
+    "password": "password123",
+    "tokens": {
+      "accessToken": "tenantb-admin-access-token",
+      "refreshToken": "tenantb-admin-refresh-token",
+      "accessTokenTtlSeconds": 900,
+      "refreshTokenTtlHours": 72
+    },
+    "user": {
+      "id": "user_admin_b_1",
+      "name": "Tenant B Admin",
+      "role": "admin",
+      "tenantId": "tenant_b",
+      "branches": [
+        {"id": "branch_b1", "name": "North"}
+      ]
+    }
+  },
+  {
+    "username": "cashier@tenantb.app",
+    "password": "password123",
+    "tokens": {
+      "accessToken": "tenantb-cashier-access-token",
+      "refreshToken": "tenantb-cashier-refresh-token",
+      "accessTokenTtlSeconds": 900,
+      "refreshTokenTtlHours": 72
+    },
+    "user": {
+      "id": "user_cashier_b_1",
+      "name": "Tenant B Cashier",
+      "role": "cashier",
+      "tenantId": "tenant_b",
+      "branches": [
+        {"id": "branch_b1", "name": "North"}
+      ]
     }
   }
 ]

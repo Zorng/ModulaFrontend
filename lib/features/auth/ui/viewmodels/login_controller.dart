@@ -1,6 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/legacy.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart' show Ref;
 import 'package:modular_pos/features/auth/data/auth_repository.dart';
 import 'package:modular_pos/features/auth/data/auth_session_store.dart';
+import 'package:modular_pos/features/auth/domain/auth_tenant_provider.dart';
+import 'package:modular_pos/features/auth/domain/auth_token_provider.dart';
 import 'package:modular_pos/features/auth/domain/models/auth_session.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
 
@@ -35,6 +40,7 @@ final loginControllerProvider = StateNotifierProvider<LoginController, LoginStat
   final store = ref.read(authSessionStoreProvider);
   final initialSession = ref.read(initialAuthSessionProvider);
   return LoginController(
+    ref: ref,
     repository: repository,
     sessionStore: store,
     initialSession: initialSession,
@@ -43,13 +49,20 @@ final loginControllerProvider = StateNotifierProvider<LoginController, LoginStat
 
 class LoginController extends StateNotifier<LoginState> {
   LoginController({
+    required this.ref,
     required AuthRepository repository,
     required AuthSessionStore sessionStore,
     AuthSession? initialSession,
   })  : _repository = repository,
         _sessionStore = sessionStore,
-        super(LoginState(session: initialSession));
+        super(LoginState(session: initialSession)) {
+    if (initialSession != null) {
+      // Defer provider updates to avoid mutating providers during build.
+      Future.microtask(() => _applySessionContext(initialSession));
+    }
+  }
 
+  final Ref ref;
   final AuthRepository _repository;
   final AuthSessionStore _sessionStore;
 
@@ -59,12 +72,19 @@ class LoginController extends StateNotifier<LoginState> {
     try {
       final session = await _repository.login(username, password);
       await _sessionStore.save(session);
+      _applySessionContext(session);
+
       state = state.copyWith(isLoading: false, session: session);
     } catch (e) {
       state = state.copyWith(
         isLoading: false,
-        error: 'Login failedasdfasdfasdfasd', // you can inspect e for more details
+        error: 'Login failed', // you can inspect e for more details
       );
     }
+  }
+
+  void _applySessionContext(AuthSession session) {
+    ref.read(authAccessTokenProvider.notifier).state = session.accessToken;
+    ref.read(authTenantIdProvider.notifier).state = session.user.tenantId;
   }
 }

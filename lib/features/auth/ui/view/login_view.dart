@@ -15,7 +15,7 @@ class LoginPage extends ConsumerStatefulWidget {
 }
 
 class _LoginPageState extends ConsumerState<LoginPage> {
-  final _usernameCtrl = TextEditingController();
+  final _phoneCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   bool _obscurePassword = true;
   ProviderSubscription<LoginState>? _loginSub;
@@ -50,7 +50,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   @override
   void dispose() {
     _loginSub?.close();
-    _usernameCtrl.dispose();
+    _phoneCtrl.dispose();
     _passwordCtrl.dispose();
     super.dispose();
   }
@@ -76,7 +76,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     ? _MobileLoginForm(
                         state: state,
                         controller: controller,
-                        usernameCtrl: _usernameCtrl,
+                        phoneCtrl: _phoneCtrl,
                         passwordCtrl: _passwordCtrl,
                         obscurePassword: _obscurePassword,
                         toggleObscure: () {
@@ -88,7 +88,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     : _DesktopLoginForm(
                         state: state,
                         controller: controller,
-                        usernameCtrl: _usernameCtrl,
+                        phoneCtrl: _phoneCtrl,
                         passwordCtrl: _passwordCtrl,
                         obscurePassword: _obscurePassword,
                         toggleObscure: () {
@@ -110,7 +110,7 @@ class _MobileLoginForm extends StatelessWidget {
   const _MobileLoginForm({
     required this.state,
     required this.controller,
-    required this.usernameCtrl,
+    required this.phoneCtrl,
     required this.passwordCtrl,
     required this.obscurePassword,
     required this.toggleObscure,
@@ -118,7 +118,7 @@ class _MobileLoginForm extends StatelessWidget {
 
   final LoginState state;
   final LoginController controller;
-  final TextEditingController usernameCtrl;
+  final TextEditingController phoneCtrl;
   final TextEditingController passwordCtrl;
   final bool obscurePassword;
   final VoidCallback toggleObscure;
@@ -148,8 +148,9 @@ class _MobileLoginForm extends StatelessWidget {
         ),
         const SizedBox(height: 28),
         TextField(
-          controller: usernameCtrl,
-          decoration: const InputDecoration(labelText: 'Username'),
+          controller: phoneCtrl,
+          keyboardType: TextInputType.phone,
+          decoration: const InputDecoration(labelText: 'Phone number'),
         ),
         const SizedBox(height: 8),
         TextField(
@@ -175,12 +176,12 @@ class _MobileLoginForm extends StatelessWidget {
         ElevatedButton(
           onPressed: state.isLoading
               ? null
-              : () {
-                  controller.login(
-                    usernameCtrl.text.trim(),
-                    passwordCtrl.text.trim(),
-                  );
-                },
+                  : () {
+                      controller.login(
+                        phoneCtrl.text.trim(),
+                        passwordCtrl.text.trim(),
+                      );
+                    },
           child: state.isLoading
               ? const CircularProgressIndicator()
               : const Text('Login'),
@@ -200,7 +201,7 @@ class _DesktopLoginForm extends StatelessWidget {
   const _DesktopLoginForm({
     required this.state,
     required this.controller,
-    required this.usernameCtrl,
+    required this.phoneCtrl,
     required this.passwordCtrl,
     required this.obscurePassword,
     required this.toggleObscure,
@@ -208,7 +209,7 @@ class _DesktopLoginForm extends StatelessWidget {
 
   final LoginState state;
   final LoginController controller;
-  final TextEditingController usernameCtrl;
+  final TextEditingController phoneCtrl;
   final TextEditingController passwordCtrl;
   final bool obscurePassword;
   final VoidCallback toggleObscure;
@@ -227,7 +228,7 @@ class _DesktopLoginForm extends StatelessWidget {
           child: _MobileLoginForm(
             state: state,
             controller: controller,
-            usernameCtrl: usernameCtrl,
+            phoneCtrl: phoneCtrl,
             passwordCtrl: passwordCtrl,
             obscurePassword: obscurePassword,
             toggleObscure: toggleObscure,
