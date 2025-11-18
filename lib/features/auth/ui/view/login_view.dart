@@ -2,11 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
+import 'package:modular_pos/core/theme/app_buttons.dart';
 import 'package:modular_pos/core/theme/app_gradient.dart';
+import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/features/auth/domain/auth_token_provider.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 
-const double _kSmallScreenMaxWidth = 600;
 class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
 
@@ -63,7 +64,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     return Scaffold(
       body: LayoutBuilder(
         builder: (context, constraints) {
-          final isSmall = constraints.maxWidth < _kSmallScreenMaxWidth;
+          final isSmall = AppBreakpoints.isSmall(constraints.maxWidth);
 
           return Container(
             decoration: const BoxDecoration(
@@ -173,7 +174,8 @@ class _MobileLoginForm extends StatelessWidget {
             style: const TextStyle(color: Colors.red),
           ),
         const SizedBox(height: 8),
-        ElevatedButton(
+        FilledButton(
+          style: AppButtons.primary(context),
           onPressed: state.isLoading
               ? null
                   : () {
@@ -183,7 +185,9 @@ class _MobileLoginForm extends StatelessWidget {
                       );
                     },
           child: state.isLoading
-              ? const CircularProgressIndicator()
+              ? const CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                )
               : const Text('Login'),
         ),
         const SizedBox(height: 8),

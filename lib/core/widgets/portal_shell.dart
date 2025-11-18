@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/core/widgets/portal_action.dart';
 
 class PortalShell extends StatefulWidget {
@@ -46,7 +47,8 @@ class _PortalShellState extends State<PortalShell> {
 
   @override
   Widget build(BuildContext context) {
-    final isWide = MediaQuery.of(context).size.width >= 900;
+    final width = MediaQuery.of(context).size.width;
+    final isWide = AppBreakpoints.isLarge(width);
     final action = widget.actions[_selectedIndex];
 
     return Scaffold(

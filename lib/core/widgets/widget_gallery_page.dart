@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
-import 'package:modular_pos/core/widgets/app_add_new_button.dart';
-import 'package:modular_pos/core/widgets/app_section_card.dart';
 import 'package:modular_pos/core/widgets/app_category_selector.dart';
 import 'package:modular_pos/core/widgets/app_kebab_menu.dart';
-import 'package:modular_pos/core/widgets/app_search_bar.dart';
+import 'package:modular_pos/core/widgets/app_search_add_bar.dart';
 import 'package:modular_pos/core/widgets/card_container.dart';
 import 'package:modular_pos/core/widgets/menu_item_card.dart';
 
@@ -52,18 +49,10 @@ class WidgetGalleryPage extends StatelessWidget {
                       // --- Top Action Bar ---
                       SizedBox(
                         height: 58,
-                        child: Row(
-                          // Stretch children to match the height of the tallest widget (the search bar).
-                          // crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            const Expanded(
-                              child: AppSearchBar(
-                                hintText: 'Search...',
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            AppAddNewButton(onPressed: () {}),
-                          ],
+                        child: AppSearchAddBar(
+                          searchHint: 'Search...',
+                          onSearchChanged: (val) {},
+                          onAddPressed: () {},
                         ),
                       ),
                       const SizedBox(height: 16),
