@@ -53,8 +53,10 @@ void main() {
 
 // Helper that uses the same parsing logic as AuthApi.login without Dio.
 AuthSession _parseFixture(Map<String, dynamic> data) {
-  final userJson = data['employee'] as Map<String, dynamic>? ?? {};
-  final tokens = data['tokens'] as Map<String, dynamic>? ?? {};
+  final userJson =
+      Map<String, dynamic>.from(data['employee'] as Map<String, dynamic>? ?? {});
+  final tokens =
+      Map<String, dynamic>.from(data['tokens'] as Map<String, dynamic>? ?? {});
   final assignments =
       (data['branch_assignments'] as List<dynamic>? ?? const <dynamic>[])
           .map((e) => e as Map<String, dynamic>)
