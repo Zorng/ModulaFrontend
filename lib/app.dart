@@ -7,6 +7,7 @@ import 'package:modular_pos/features/auth/ui/portals/admin_portal.dart';
 import 'package:modular_pos/features/auth/ui/portals/cashier_portal.dart';
 import 'package:modular_pos/features/auth/ui/view/login_view.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
+import 'package:modular_pos/core/widgets/widget_gallery_page.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -24,8 +25,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     redirect: (context, state) {
       final authState = ref.read(loginControllerProvider);
       final session = authState.session;
-      final path = state.uri.path; // <- use current path
+      final path = state.uri.path; // current path
       final isLoggingIn = path == AppRoute.login.path;
+
+      // Developer-only gallery should be reachable without auth.
+      if (path == AppRoute.components.path) {
+        return null;
+      }
 
       // Not authenticated: only allow /login
       if (session == null) {
@@ -70,6 +76,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoute.login.path,
         name: AppRoute.login.name,
         builder: (context, state) => const LoginPage(),
+      ),
+      GoRoute(
+        path: AppRoute.components.path,
+        name: AppRoute.components.name,
+        builder: (context, state) => const WidgetGalleryPage(),
       ),
       GoRoute(
         path: AppRoute.adminPortal.path,
