@@ -1,14 +1,18 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:modular_pos/features/auth/domain/auth_token_provider.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:modular_pos/features/auth/domain/auth_tenant_provider.dart';
+import 'package:modular_pos/features/auth/domain/auth_token_provider.dart';
 
 final dioProvider = Provider<Dio>((ref) {
+  final baseUrl = dotenv.env['API_BASE_URL'] ?? 'http://localhost:3000';
+
   final dio = Dio(
     BaseOptions(
-      baseUrl: 'https://localhost:3000', // TODO: env-based
-      connectTimeout: const Duration(seconds: 10),
-      receiveTimeout: const Duration(seconds: 10),
+      baseUrl: baseUrl,
+      connectTimeout: const Duration(seconds: 20),
+      receiveTimeout: const Duration(seconds: 20),
     ),
   );
 
@@ -27,6 +31,10 @@ final dioProvider = Provider<Dio>((ref) {
       },
     ),
   );
+
+  if (kDebugMode) {
+    dio.interceptors.add(LogInterceptor(responseBody: false));
+  }
 
   return dio;
 });

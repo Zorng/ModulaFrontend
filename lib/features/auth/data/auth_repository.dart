@@ -5,7 +5,7 @@ import 'package:modular_pos/features/auth/data/auth_api.dart';
 import 'package:modular_pos/features/auth/domain/models/auth_session.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
 
-const _useMockRepository = true;
+const _useMockRepository = false;
 
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
   if (_useMockRepository) {
@@ -27,17 +27,7 @@ class RemoteAuthRepository implements AuthRepository {
 
   @override
   Future<AuthSession> login(String username, String password) async {
-    final user = await _api.login(username: username, password: password);
-    final now = DateTime.now().toUtc();
-
-    // TODO: replace placeholder tokens once backend is ready.
-    return AuthSession(
-      user: user,
-      accessToken: 'todo-access-token',
-      refreshToken: 'todo-refresh-token',
-      accessTokenExpiresAt: now.add(const Duration(minutes: 15)),
-      refreshTokenExpiresAt: now.add(const Duration(hours: 72)),
-    );
+    return _api.login(username: username, password: password);
   }
 }
 

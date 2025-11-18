@@ -248,7 +248,7 @@ class _BranchSectionState extends State<_BranchSection> {
           (b) => b.id == _selectedBranchId,
           orElse: () => widget.branches.isNotEmpty
               ? widget.branches.first
-              : const UserBranch(id: '', name: 'No branch'),
+              : const UserBranch(id: '', name: 'No branch', role: '', active: false),
         );
 
     final branchSelector = widget.isWide

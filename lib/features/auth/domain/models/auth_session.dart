@@ -32,6 +32,8 @@ class AuthSession {
         'name': user.name,
         'role': user.role,
         'tenantId': user.tenantId,
+        'phone': user.phone,
+        'status': user.status,
         'branches': user.branches.map((b) => b.toJson()).toList(),
       },
       'accessTokenExpiresAt': accessTokenExpiresAt.toIso8601String(),
