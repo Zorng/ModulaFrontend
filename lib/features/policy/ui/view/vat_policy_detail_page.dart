@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:modular_pos/core/widgets/app_back_button.dart';
+import 'package:modular_pos/features/policy/ui/widgets/policy_detail_controls.dart';
 
 class VatPolicyDetailPage extends StatefulWidget {
   const VatPolicyDetailPage({
@@ -68,86 +69,36 @@ class _VatPolicyDetailPageState extends State<VatPolicyDetailPage> {
     setState(() => _errorText = null);
     final formattedRate = '$parsed%';
     widget.onSaved(_enabled, formattedRate);
-    Navigator.of(context).pop();
+    setState(() => _isEditing = false);
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        leading: const AppBackButton(),
-        title: const Align(
-          alignment: Alignment.centerLeft,
-          child: Text('VAT'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: _isEditing ? _cancelEdit : _startEdit,
-            child: Text(_isEditing ? 'Cancel' : 'Edit'),
-          ),
-        ],
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
+    return PolicyDetailScaffold(
+      title: 'Apply VAT',
+      isEditing: _isEditing,
+      onEditToggle: _isEditing ? _cancelEdit : _startEdit,
+      onSave: _saveChanges,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surface,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: Theme.of(context).colorScheme.outlineVariant,
-                width: 0.7,
+          PolicySettingGroup(
+            children: [
+              PolicySwitchTile(
+                title: 'Apply VAT',
+                subtitle: 'Show VAT line on sales and receipts',
+                value: _enabled,
+                enabled: _isEditing,
+                onChanged: (val) => setState(() => _enabled = val),
               ),
-            ),
-            child: Column(
-              children: [
-                SwitchListTile(
-                  title: const Text('Apply VAT'),
-                  subtitle: const Text('Show VAT line on sales and receipts'),
-                  value: _enabled,
-                  onChanged:
-                      _isEditing ? (val) => setState(() => _enabled = val) : null,
-                ),
-                const Divider(height: 1, indent: 16, endIndent: 16),
-                ListTile(
-                  title: const Text('VAT rate (%)'),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        _formattedRate,
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodyMedium
-                            ?.copyWith(
-                              color: _rateInteractionEnabled
-                                  ? Theme.of(context)
-                                      .colorScheme
-                                      .onSurfaceVariant
-                                  : Theme.of(context)
-                                      .colorScheme
-                                      .onSurface
-                                      .withOpacity(0.4),
-                            ),
-                      ),
-                      const SizedBox(width: 6),
-                      Icon(
-                        Icons.chevron_right,
-                        color: _rateInteractionEnabled
-                            ? null
-                            : Theme.of(context)
-                                .colorScheme
-                                .onSurface
-                                .withOpacity(0.4),
-                      ),
-                    ],
-                  ),
-                  enabled: _rateInteractionEnabled,
-                  onTap: _rateInteractionEnabled ? _openRateSheet : null,
-                ),
-              ],
-            ),
+              PolicyValueTile(
+                title: 'VAT rate (%)',
+                valueText: _formattedRate,
+                enabled: _rateInteractionEnabled,
+                onTap: _openRateSheet,
+                hint: 'Enable and edit rate',
+              ),
+            ],
           ),
           const SizedBox(height: 12),
           Text(
@@ -160,18 +111,6 @@ class _VatPolicyDetailPageState extends State<VatPolicyDetailPage> {
               child: Text(
                 _errorText!,
                 style: TextStyle(color: Theme.of(context).colorScheme.error),
-              ),
-            ),
-          if (_isEditing)
-            Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 8.0, vertical: 16),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: FilledButton(
-                  onPressed: _saveChanges,
-                  child: const Text('Save'),
-                ),
               ),
             ),
         ],

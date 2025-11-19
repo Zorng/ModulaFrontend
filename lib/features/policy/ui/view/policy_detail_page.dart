@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:modular_pos/core/widgets/app_back_button.dart';
+import 'package:modular_pos/features/policy/ui/widgets/policy_detail_controls.dart';
 import 'package:modular_pos/features/policy/ui/models/policy_models.dart';
 
 class PolicyDetailPage extends StatefulWidget {
@@ -44,96 +44,79 @@ class _PolicyDetailPageState extends State<PolicyDetailPage> {
 
   void _saveChanges() {
     widget.onSaved(_tempValue);
-    Navigator.of(context).pop();
+    setState(() => _isEditing = false);
   }
 
   @override
   Widget build(BuildContext context) {
     Widget content;
+    Widget? header;
 
     switch (widget.item.type) {
       case PolicyItemType.toggle:
-        content = SwitchListTile(
-          title: Text(widget.item.title),
-          subtitle:
-              widget.item.subtitle != null ? Text(widget.item.subtitle!) : null,
-          value: _tempValue as bool? ?? false,
-          onChanged: _isEditing
-              ? (value) => setState(() => _tempValue = value)
-              : null,
-        );
-        break;
-      case PolicyItemType.selector:
-        content = Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        content = PolicySettingGroup(
           children: [
-            if (widget.item.subtitle != null)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Text(
-                  widget.item.subtitle!,
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-              ),
-            if (widget.item.options != null)
-              ...widget.item.options!.map(
-                (option) => RadioListTile<String>(
-                  title: Text(option),
-                  value: option,
-                  groupValue: _tempValue as String?,
-                  onChanged: _isEditing
-                      ? (value) => setState(() => _tempValue = value)
-                      : null,
-                ),
-              ),
+            PolicySwitchTile(
+              title: widget.item.title,
+              subtitle: widget.item.subtitle,
+              value: _tempValue as bool? ?? false,
+              enabled: _isEditing,
+              onChanged: (value) => setState(() => _tempValue = value),
+            ),
           ],
         );
         break;
+      case PolicyItemType.selector:
+        final options = widget.item.options ?? const [];
+        if (widget.item.subtitle != null) {
+          header = Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Text(
+              widget.item.subtitle!,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          );
+        }
+        content = PolicySettingGroup(
+          children: options
+              .map(
+                (option) => PolicyRadioTile<String>(
+                  title: option,
+                  value: option,
+                  groupValue: _tempValue as String?,
+                  enabled: _isEditing,
+                  onChanged: (value) => setState(() => _tempValue = value),
+                ),
+              )
+              .toList(),
+        );
+        break;
       case PolicyItemType.info:
-        content = Padding(
-          padding: const EdgeInsets.all(16),
-          child: Text(widget.item.subtitle ?? 'No editable fields.'),
+        content = PolicySettingGroup(
+          children: [
+            ListTile(
+              title: Text(widget.item.subtitle ?? 'No editable fields.'),
+            ),
+          ],
         );
         break;
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        leading: const AppBackButton(),
-        title: Align(
-          alignment: Alignment.centerLeft,
-          child: Text(widget.item.title),
-        ),
-        actions: [
-          TextButton(
-            onPressed: widget.item.type == PolicyItemType.info
-                ? null
-                : (_isEditing ? _cancelEdit : _startEdit),
-            child: Text(_isEditing ? 'Cancel' : 'Edit'),
-          ),
+    return PolicyDetailScaffold(
+      title: widget.item.title,
+      isEditing: _isEditing,
+      onEditToggle: widget.item.type == PolicyItemType.info
+          ? () {}
+          : (_isEditing ? _cancelEdit : _startEdit),
+      onSave: widget.item.type == PolicyItemType.info ? null : _saveChanges,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (header != null) header!,
+          content,
         ],
       ),
-      body: SafeArea(
-        child: ListView(
-          children: [
-            const SizedBox(height: 8),
-            content,
-            if (_isEditing && widget.item.type != PolicyItemType.info)
-              Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: FilledButton(
-                    onPressed: _saveChanges,
-                    child: const Text('Save'),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
+      canSave: widget.item.type != PolicyItemType.info,
     );
   }
 }

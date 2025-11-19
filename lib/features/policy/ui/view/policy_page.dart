@@ -5,6 +5,8 @@ import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/core/widgets/app_back_button.dart';
 import 'package:modular_pos/core/widgets/app_search_bar.dart';
 import 'package:modular_pos/features/policy/ui/models/policy_models.dart';
+import 'package:modular_pos/features/policy/ui/view/early_check_in_detail_page.dart';
+import 'package:modular_pos/features/policy/ui/view/inventory_policy_detail_page.dart';
 import 'package:modular_pos/features/policy/ui/view/policy_detail_page.dart';
 import 'package:modular_pos/features/policy/ui/view/vat_policy_detail_page.dart';
 import 'package:modular_pos/features/policy/ui/widgets/policy_section.dart';
@@ -24,17 +26,23 @@ class _PolicyPageState extends State<PolicyPage> {
   // Demo state holders; replace with real policy data when wiring backend.
   final Map<String, bool> _toggleValues = {
     'apply_vat': true,
-    'deduct_inventory': true,
-    'auto_attendance': false,
+    'subtract_stock': true,
+    'use_recipes': false,
+    'expiry_tracking': false,
+    'cash_session_attendance': false,
+    'out_of_shift_approval': false,
+    'early_check_in_buffer': false,
     'require_session': true,
     'allow_paid_out': true,
-    'require_paid_out_approval': true,
+    'cash_refund_approval': false,
+    'manual_cash_adjustment': false,
   };
 
   final Map<String, String> _selectorValues = {
     'vat_rate': '10%',
     'usd_to_khr': '4100',
     'rounding_mode': 'Nearest',
+    'early_check_in_duration': '15 min',
   };
 
   List<PolicySectionData> get _sections => const [
@@ -72,10 +80,15 @@ class _PolicyPageState extends State<PolicyPage> {
           title: 'Inventory Behavior',
           items: [
             PolicyItem(
-              id: 'deduct_inventory',
-              title: 'Subtract inventory on sale finalize',
+              id: 'subtract_stock',
+              title: 'Subtract stock on sale',
               icon: Icons.inventory_2_outlined,
-              subtitle: 'Finalize sale reduces stock for mapped items',
+              type: PolicyItemType.toggle,
+            ),
+            PolicyItem(
+              id: 'expiry_tracking',
+              title: 'Expiry tracking',
+              icon: Icons.event_available_outlined,
               type: PolicyItemType.toggle,
             ),
           ],
@@ -84,20 +97,41 @@ class _PolicyPageState extends State<PolicyPage> {
           title: 'Attendance & Shifts',
           items: [
             PolicyItem(
-              id: 'auto_attendance',
-              title: 'Auto-attendance from cash session',
+              id: 'cash_session_attendance',
+              title: 'Cash Session Attendance',
               icon: Icons.access_time,
               subtitle: 'Start/close session will check-in/out staff',
               type: PolicyItemType.toggle,
             ),
+            PolicyItem(
+              id: 'out_of_shift_approval',
+              title: 'Out of shift approval',
+              icon: Icons.verified_outlined,
+              subtitle: 'Require approval when outside scheduled shift',
+              type: PolicyItemType.toggle,
+            ),
+            PolicyItem(
+              id: 'early_check_in_buffer',
+              title: 'Early check-in buffer',
+              icon: Icons.timer_outlined,
+              subtitle: 'Allow early punch-in within configured buffer',
+              type: PolicyItemType.toggle,
+            ),
+            PolicyItem(
+              id: 'manager_edit_permission',
+              title: 'Manager edit permission',
+              icon: Icons.build_outlined,
+              subtitle: 'Coming soon',
+              type: PolicyItemType.info,
+            ),
           ],
         ),
         PolicySectionData(
-          title: 'Cash Sessions & Drawer',
+          title: 'Cash Sessions Control',
           items: [
             PolicyItem(
               id: 'require_session',
-              title: 'Require session before cash sale',
+              title: 'Require cash session to sell',
               icon: Icons.lock_clock,
               subtitle: 'Cash sale blocked until a session starts',
               type: PolicyItemType.toggle,
@@ -110,10 +144,17 @@ class _PolicyPageState extends State<PolicyPage> {
               type: PolicyItemType.toggle,
             ),
             PolicyItem(
-              id: 'require_paid_out_approval',
-              title: 'Manager approval for over-limit paid-out',
-              icon: Icons.verified_user_outlined,
-              subtitle: 'Protect large paid-out transactions',
+              id: 'cash_refund_approval',
+              title: 'Cash refund approval',
+              icon: Icons.assignment_turned_in_outlined,
+              subtitle: 'Require approval before cash refunds',
+              type: PolicyItemType.toggle,
+            ),
+            PolicyItem(
+              id: 'manual_cash_adjustment',
+              title: 'Manual cash adjustment',
+              icon: Icons.tune_outlined,
+              subtitle: 'Allow manual drawer adjustments',
               type: PolicyItemType.toggle,
             ),
           ],
@@ -135,6 +176,42 @@ class _PolicyPageState extends State<PolicyPage> {
               setState(() {
                 _toggleValues[item.id] = enabled;
                 _selectorValues['vat_rate'] = rate;
+              });
+            },
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (item.id == 'subtract_stock') {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => InventoryPolicyDetailPage(
+          subtractStock: _toggleValues['subtract_stock'] ?? false,
+          useRecipes: _toggleValues['use_recipes'] ?? false,
+          onSaved: (subtractStock, useRecipes) {
+              setState(() {
+                _toggleValues['subtract_stock'] = subtractStock;
+                _toggleValues['use_recipes'] = useRecipes;
+              });
+            },
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (item.id == 'early_check_in_buffer') {
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => EarlyCheckInDetailPage(
+            enabled: _toggleValues['early_check_in_buffer'] ?? false,
+            duration: _selectorValues['early_check_in_duration'] ?? '15 min',
+            onSaved: (enabled, duration) {
+              setState(() {
+                _toggleValues['early_check_in_buffer'] = enabled;
+                _selectorValues['early_check_in_duration'] = duration;
               });
             },
           ),
@@ -192,12 +269,17 @@ class _PolicyPageState extends State<PolicyPage> {
           appBar: AppBar(
             automaticallyImplyLeading: false,
             leading: AppBackButton(
-              onPressed: () => context.go(AppRoute.adminPortal.path),
+              onPressed: () {
+                if (context.canPop()) {
+                  context.pop();
+                } else {
+                  context.go(AppRoute.adminPortal.path);
+                }
+              },
             ),
-            title: const Align(
-              alignment: Alignment.centerLeft,
-              child: Text('Settings'),
-            ),
+            titleSpacing: 0,
+            centerTitle: false,
+            title: const Text('Settings'),
           ),
           body: SafeArea(
             child: Center(

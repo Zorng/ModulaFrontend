@@ -96,9 +96,6 @@ class AdminPortal extends ConsumerWidget {
           : 'A',
       actions: actions,
       initialActionId: 'dashboard',
-      onSettingsTap: () {
-        context.go(AppRoute.policy.path);
-      },
     );
   }
 }
@@ -146,6 +143,7 @@ class _AdminHomeContent extends StatelessWidget {
     final isWide = MediaQuery.of(context).size.width >= 800;
     final branches = user?.branches ?? const [];
     final hasMultipleBranches = branches.length > 1;
+    final openPolicy = () => context.push(AppRoute.policy.path);
 
     final globalFeatures = [
       _FeatureEntry(
@@ -186,6 +184,7 @@ class _AdminHomeContent extends StatelessWidget {
       _FeatureEntry(
         title: 'Policy',
         icon: Icons.policy_outlined,
+        onTap: openPolicy,
       ),
     ];
 
@@ -432,9 +431,7 @@ class _FeatureCard extends StatelessWidget {
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        onTap: () {
-          // TODO: Wire navigation to the specific feature.
-        },
+        onTap: entry.onTap,
         child: Padding(
           padding: const EdgeInsets.all(10),
           child: Column(
@@ -470,8 +467,10 @@ class _FeatureEntry {
   const _FeatureEntry({
     required this.title,
     required this.icon,
+    this.onTap,
   });
 
   final String title;
   final IconData icon;
+  final VoidCallback? onTap;
 }

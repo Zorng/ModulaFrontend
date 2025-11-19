@@ -93,6 +93,9 @@ class PolicySection extends StatelessWidget {
     if (item.type == PolicyItemType.selector) {
       return selectorValues[item.id] ?? item.defaultValue ?? '';
     }
+    if (item.type == PolicyItemType.info) {
+      return item.subtitle ?? 'Coming soon';
+    }
     return null;
   }
 }
