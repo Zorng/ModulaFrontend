@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/widgets/portal_action.dart';
 import 'package:modular_pos/core/widgets/portal_shell.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
@@ -95,7 +97,7 @@ class AdminPortal extends ConsumerWidget {
       actions: actions,
       initialActionId: 'dashboard',
       onSettingsTap: () {
-        // TODO: Implement settings navigation
+        context.go(AppRoute.policy.path);
       },
     );
   }
