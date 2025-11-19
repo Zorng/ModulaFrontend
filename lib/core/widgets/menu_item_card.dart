@@ -109,7 +109,7 @@ class MenuItemCard extends StatelessWidget {
       height: double.infinity,
       child: Icon(
         Icons.local_cafe_outlined, // Example icon
-        color: Theme.of(context).colorScheme.surfaceVariant,
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
         size: 48,
       ),
     );

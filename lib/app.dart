@@ -6,6 +6,7 @@ import 'package:modular_pos/core/theme/app_theme.dart';
 import 'package:modular_pos/features/auth/ui/portals/admin_portal.dart';
 import 'package:modular_pos/features/auth/ui/portals/cashier_portal.dart';
 import 'package:modular_pos/features/auth/ui/view/login_view.dart';
+import 'package:modular_pos/features/menu/ui/view/menu_page.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/core/widgets/widget_gallery_page.dart';
 
@@ -81,6 +82,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoute.components.path,
         name: AppRoute.components.name,
         builder: (context, state) => const WidgetGalleryPage(),
+      ),
+      // Temporary route for developing and testing the MenuPage.
+      GoRoute(
+        path: '/menu',
+        builder: (context, state) => const MenuPage(),
       ),
       GoRoute(
         path: AppRoute.adminPortal.path,

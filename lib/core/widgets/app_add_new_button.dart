@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:modular_pos/core/theme/app_buttons.dart';
+import 'package:modular_pos/core/theme/responsive.dart';
 
 /// A standardized "Add New" button for consistent use across the app.
 ///
@@ -14,15 +16,26 @@ class AppAddNewButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    final scheme = Theme.of(context).colorScheme;
+
+    // Use slightly larger text on roomier layouts.
+    final textStyle = (AppBreakpoints.isSmall(width)
+            ? Theme.of(context).textTheme.labelMedium
+            : Theme.of(context).textTheme.labelLarge)
+        ?.copyWith(color: scheme.onPrimary);
+
     return FilledButton(
       onPressed: onPressed,
-      style: FilledButton.styleFrom(
-        // Use a less rounded shape than the default stadium border.
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(6.0),
-        ),
+      style: AppButtons.primary(
+        context,
+        compact: true,
+        textStyle: textStyle,
       ),
-      child: const Text('+ Add new'),
+      child: Text(
+        '+ Add new',
+        style: textStyle,
+      ),
     );
   }
 }
