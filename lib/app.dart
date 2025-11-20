@@ -12,6 +12,7 @@ import 'package:modular_pos/core/widgets/widget_gallery_page.dart';
 import 'package:modular_pos/features/policy/ui/view/policy_page.dart';
 import 'package:modular_pos/features/common/ui/settings_page.dart';
 import 'package:modular_pos/features/auth/ui/view/account_page.dart';
+import 'package:modular_pos/features/inventory/ui/view/inventory_home_page.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -69,6 +70,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       if (path == AppRoute.policy.path && role != 'admin') {
         return '/404';
       }
+      if (path == AppRoute.inventory.path && role != 'admin') {
+        return '/404';
+      }
 
       // Authenticated but not allowed to access cashier portal → 404
       if (path == AppRoute.cashierPortal.path && role != 'cashier') {
@@ -120,6 +124,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoute.cashierPortal.path,
         name: AppRoute.cashierPortal.name,
         builder: (context, state) => const CashierPortal(),
+      ),
+      GoRoute(
+        path: AppRoute.inventory.path,
+        name: AppRoute.inventory.name,
+        builder: (context, state) => const InventoryHomePage(),
       ),
     ],
   );

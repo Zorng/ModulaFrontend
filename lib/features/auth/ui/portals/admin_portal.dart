@@ -163,6 +163,7 @@ class _AdminHomeContent extends StatelessWidget {
       _FeatureEntry(
         title: 'Inventory',
         icon: Icons.inventory_2_outlined,
+        onTap: () => context.push(AppRoute.inventory.path),
       ),
       _FeatureEntry(
         title: 'Discounts',

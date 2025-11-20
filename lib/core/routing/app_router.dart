@@ -6,6 +6,7 @@ enum AppRoute {
   policy,
   account,
   settings,
+  inventory,
 }
 
 extension AppRoutePath on AppRoute {
@@ -17,6 +18,7 @@ extension AppRoutePath on AppRoute {
         AppRoute.policy => '/portal/admin/policy',
         AppRoute.account => '/account',
         AppRoute.settings => '/settings',
+        AppRoute.inventory => '/portal/admin/inventory',
       };
 
   String get name => switch (this) {
@@ -27,5 +29,6 @@ extension AppRoutePath on AppRoute {
         AppRoute.policy => 'policy',
         AppRoute.account => 'account',
         AppRoute.settings => 'settings',
+        AppRoute.inventory => 'inventory',
       };
 }
