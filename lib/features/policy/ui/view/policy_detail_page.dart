@@ -94,8 +94,9 @@ class _PolicyDetailPageState extends State<PolicyDetailPage> {
       case PolicyItemType.info:
         content = PolicySettingGroup(
           children: [
-            ListTile(
-              title: Text(widget.item.subtitle ?? 'No editable fields.'),
+            PolicyComingSoonTile(
+              title: widget.item.title,
+              subtitle: widget.item.subtitle ?? 'Coming soon',
             ),
           ],
         );

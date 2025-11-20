@@ -1,4 +1,12 @@
-enum AppRoute { login, adminPortal, cashierPortal, components, policy }
+enum AppRoute {
+  login,
+  adminPortal,
+  cashierPortal,
+  components,
+  policy,
+  account,
+  settings,
+}
 
 extension AppRoutePath on AppRoute {
   String get path => switch (this) {
@@ -7,6 +15,8 @@ extension AppRoutePath on AppRoute {
         AppRoute.cashierPortal => '/portal/cashier',
         AppRoute.components => '/components',
         AppRoute.policy => '/portal/admin/policy',
+        AppRoute.account => '/account',
+        AppRoute.settings => '/settings',
       };
 
   String get name => switch (this) {
@@ -15,5 +25,7 @@ extension AppRoutePath on AppRoute {
         AppRoute.cashierPortal => 'cashierPortal',
         AppRoute.components => 'components',
         AppRoute.policy => 'policy',
+        AppRoute.account => 'account',
+        AppRoute.settings => 'settings',
       };
 }

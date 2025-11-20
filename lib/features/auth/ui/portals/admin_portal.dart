@@ -96,6 +96,8 @@ class AdminPortal extends ConsumerWidget {
           : 'A',
       actions: actions,
       initialActionId: 'dashboard',
+      onProfileTap: () => context.push(AppRoute.account.path),
+      onSettingsTap: () => context.push(AppRoute.settings.path),
     );
   }
 }

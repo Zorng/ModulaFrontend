@@ -87,4 +87,11 @@ class LoginController extends StateNotifier<LoginState> {
     ref.read(authAccessTokenProvider.notifier).state = session.accessToken;
     ref.read(authTenantIdProvider.notifier).state = session.user.tenantId;
   }
+
+  Future<void> logout() async {
+    await _sessionStore.clear();
+    ref.read(authAccessTokenProvider.notifier).state = null;
+    ref.read(authTenantIdProvider.notifier).state = null;
+    state = const LoginState();
+  }
 }
