@@ -7,12 +7,14 @@ class PolicySwitchTile extends StatelessWidget {
     required this.title,
     required this.value,
     required this.enabled,
+    this.helper,
     this.subtitle,
     required this.onChanged,
   });
 
   final String title;
   final String? subtitle;
+  final String? helper;
   final bool value;
   final bool enabled;
   final ValueChanged<bool> onChanged;
@@ -33,7 +35,7 @@ class PolicySwitchTile extends StatelessWidget {
 
     return SwitchListTile.adaptive(
       title: Text(title),
-      subtitle: subtitle != null ? Text(subtitle!) : null,
+      subtitle: helper != null ? Text(helper!) : (subtitle != null ? Text(subtitle!) : null),
       value: value,
       onChanged: enabled ? onChanged : null,
       controlAffinity: ListTileControlAffinity.trailing,
