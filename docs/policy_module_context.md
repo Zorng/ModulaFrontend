@@ -50,14 +50,12 @@ The Policy screen should feel like **iOS Settings**:
 - At top: **Search bar**
   - Allows filtering by policy name/label (e.g., “VAT”, “rounding”, “attendance”).
 
-- Below: **Sections (grouped settings)**, for example:
+- Below: **Sections (grouped settings)**. In Capstone 1 we expose:
 
-  1. **Sales & Tax**
-  2. **Currency & Rounding**
-  3. **Inventory Behavior**
-  4. **Attendance & Shifts**
-  5. **Cash Sessions & Drawer Behavior**
-  6. **Multi-branch Behavior** (if applicable in Capstone 1)
+  1. **Tax & Currency**
+  2. **Inventory Behavior**
+  3. **Attendance & Shifts**
+  4. **Cash Sessions Control**
 
 Each section:
 - Has a header label (e.g., “Sales & Tax”).
@@ -83,58 +81,23 @@ Example row types:
 
 > Note: The exact list of policies depends on the backend spec. Below is a frontend view of how they should be grouped and presented, based on current design.
 
-### 4.1 Section: Sales & Tax
+### 4.1 Section: Tax & Currency
 
-Purpose: Settings that affect **checkout behavior** and tax.
+Purpose: Settings that affect **checkout behavior**, VAT, and dual currency totals.
 
 Example items:
 
 - **Apply VAT**
-  - Type: Toggle
-  - Default: Off
-  - Effect:
-    - If ON → Sales screens and receipts show VAT line.
-  - Detail screen:
-    - Toggle: On/Off
-    - VAT rate (%): numeric field (e.g., 10%)
-
-- **VAT applies after discount**
-  - (If supported in backend; otherwise this is implied behavior and can be explanatory text only.)
+  - Type: Toggle + detail page.
+  - Detail screen lets admins enable the toggle and edit the VAT rate (%). Validation prevents zero/negative rates.
+- **KHR per USD rate**
+  - Type: Selector with preset options (4000 / 4100 / 4150 / 4200).
+- **Rounding mode**
+  - Type: Selector (Nearest / Up / Down) controlling KHR rounding in receipts and payment dialogs.
 
 UX Behavior:
-- Cashier never sees a VAT toggle.
-- The Sales / eReceipt UI **reads** and follows this policy; changes only happen in Admin’s Policy screen.
-
----
-
-### 4.2 Section: Currency & Rounding
-
-Purpose: Controls how totals are shown in USD and KHR and how KHR is rounded for payment.
-
-Example items:
-
-- **KHR per USD rate**
-  - Type: Numeric input (e.g., 4100)
-  - Used to compute KHR display for all sales.
-
-- **KHR rounding step**
-  - Type: Selector
-  - Options: 50, 100, 500, etc.
-  - Example preview: “Round to nearest 100 KHR”
-
-- **Rounding mode**
-  - Type: Selector
-  - Options: Nearest, Up, Down
-  - Example preview:
-    - “10.23 USD → 41,943 KHR → 41,900 KHR (Nearest 100)”
-
-Effects:
-- Checkout screen displays:
-  - Exact USD total
-  - Rounded KHR total for **cash** payment.
-- eReceipt for customers shows both USD and KHR (rounded).
-
----
+- Cashiers never see these toggles; POS reads the policy and computes the correct values automatically.
+- Detail pages follow the iOS Settings pattern (search → card → detail) and require tapping “Edit” before changes are allowed.
 
 ### 4.3 Section: Inventory Behavior
 
@@ -142,16 +105,11 @@ Purpose: Controls whether sales affect inventory and how strictly.
 
 Example items:
 
-- **Subtract inventory on sale finalize**
-  - Type: Toggle
-  - Default: On (or Off depending on spec)
-  - If ON → a finalized sale reduces branch inventory according to recipe mapping.
-
-- **Apply inventory deduction only for mapped items**
-  - Can be just explanatory text (if it’s always true) or extra toggle, depending on backend.
-
-- Possibly a note: 
-  - “Inventory for some branches may not be tracked if this is off.”
+- **Subtract stock on sale**
+  - Type: Toggle + detail page.
+  - Detail screen also exposes **Use recipes for items**, which only becomes editable when subtraction is ON.
+- **Expiry tracking**
+  - Type: Toggle (simple on/off policy).
 
 From cashier UI:
 - No direct indication; inventory is updated in the background.
@@ -167,37 +125,36 @@ From Admin / Inventory UI:
 
 Example items:
 
-- **Auto-attendance from cash session**
-  - Type: Toggle
-  - Behavior:
-    - When ON: Starting a cash session counts as check-in; closing counts as check-out.
+- **Cash Session Attendance**
+  - Type: Toggle.
+  - When ON: Opening/closing a cash session checks staff in/out automatically.
 
-- **Allow manager to edit attendance time**
-  - Type: Toggle (if this is kept in Capstone 1)
-  - If ON: Manager can manually adjust check-in/check-out times in Attendance UI.
+- **Out of shift approval**
+  - Type: Toggle.
+  - Requires manager approval when punching outside scheduled shift.
+
+- **Early check-in buffer**
+  - Type: Toggle + detail page.
+  - Detail screen allows picking the buffer duration (15 min, 30 min, 1 hour). Duration selector is disabled unless the toggle is ON.
+
+- **Manager edit permission**
+  - Type: Info placeholder (shows “Coming soon”).
 
 Managers:
 - See the effect only in Attendance module; cannot change these settings if restricted.
 
 ---
 
-### 4.5 Section: Cash Sessions & Drawer
+### 4.5 Section: Cash Sessions Control
 
 Purpose: Controls required behavior for cash handling.
 
-Example items: (depending on final backend spec)
+Example items:
 
-- **Require session before cash sale**
-  - Type: Toggle
-  - If ON: Cashier must start a cash session before they can accept cash payment.
-
-- **Allow paid-out**
-  - Type: Toggle
-  - If ON: Paid-out actions are allowed during a cash session.
-
-- **Require manager approval for over-limit paid-out**
-  - Type: Toggle
-  - If ON: Over-limit paid-out must be approved by Manager.
+- **Require cash session to sell** (toggle)
+- **Allow paid-out** (toggle)
+- **Cash refund approval** (toggle)
+- **Manual cash adjustment** (toggle)
 
 These settings affect:
 - What the cashier can do on the sale & cash session UI.
@@ -267,11 +224,10 @@ Each row:
 - **Policy is not CRUD**; it’s a **fixed Settings UI**, like iOS Settings.
 - Tenants **edit values**, they don’t create policies.
 - Group policies into clear sections:
-  - Sales & Tax
-  - Currency & Rounding
+  - Tax & Currency
   - Inventory Behavior
   - Attendance & Shifts
-  - Cash Sessions & Drawer
+  - Cash Sessions Control
 - **Discounts and eReceipt configuration are separate modules**, not part of this screen.
 - Cashiers never see or change policies; they only see the effects in Sales, Inventory, Attendance, etc.
 
