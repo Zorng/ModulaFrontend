@@ -170,6 +170,30 @@ class PolicySettingGroup extends StatelessWidget {
   }
 }
 
+class PolicyComingSoonTile extends StatelessWidget {
+  const PolicyComingSoonTile({
+    super.key,
+    required this.title,
+    this.subtitle = 'Coming soon',
+    this.icon,
+  });
+
+  final String title;
+  final String subtitle;
+  final IconData? icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: icon != null ? Icon(icon) : null,
+      title: Text(title),
+      subtitle: Text(subtitle),
+      trailing: const Icon(Icons.lock_outline),
+      enabled: false,
+    );
+  }
+}
+
 class PolicyDetailScaffold extends StatelessWidget {
   const PolicyDetailScaffold({
     super.key,

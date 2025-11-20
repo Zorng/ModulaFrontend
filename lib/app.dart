@@ -10,6 +10,8 @@ import 'package:modular_pos/features/menu/ui/view/menu_page.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/core/widgets/widget_gallery_page.dart';
 import 'package:modular_pos/features/policy/ui/view/policy_page.dart';
+import 'package:modular_pos/features/common/ui/settings_page.dart';
+import 'package:modular_pos/features/auth/ui/view/account_page.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -105,6 +107,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const PolicyPage(),
       ),
       GoRoute(
+        path: AppRoute.account.path,
+        name: AppRoute.account.name,
+        builder: (context, state) => const AccountPage(),
+      ),
+      GoRoute(
+        path: AppRoute.settings.path,
+        name: AppRoute.settings.name,
+        builder: (context, state) => const SettingsPage(),
+      ),
+      GoRoute(
         path: AppRoute.cashierPortal.path,
         name: AppRoute.cashierPortal.name,
         builder: (context, state) => const CashierPortal(),
@@ -122,6 +134,7 @@ class ModulaApp extends ConsumerWidget {
     final router = ref.watch(appRouterProvider);
 
     return MaterialApp.router(
+      debugShowCheckedModeBanner: false,
       title: 'Modula POS',
       theme: AppTheme.light,
       routerConfig: router,
