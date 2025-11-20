@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/widgets/portal_action.dart';
 import 'package:modular_pos/core/widgets/portal_shell.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
@@ -94,9 +96,6 @@ class AdminPortal extends ConsumerWidget {
           : 'A',
       actions: actions,
       initialActionId: 'dashboard',
-      onSettingsTap: () {
-        // TODO: Implement settings navigation
-      },
     );
   }
 }
@@ -144,6 +143,7 @@ class _AdminHomeContent extends StatelessWidget {
     final isWide = MediaQuery.of(context).size.width >= 800;
     final branches = user?.branches ?? const [];
     final hasMultipleBranches = branches.length > 1;
+    final openPolicy = () => context.push(AppRoute.policy.path);
 
     final globalFeatures = [
       _FeatureEntry(
@@ -184,6 +184,7 @@ class _AdminHomeContent extends StatelessWidget {
       _FeatureEntry(
         title: 'Policy',
         icon: Icons.policy_outlined,
+        onTap: openPolicy,
       ),
     ];
 
@@ -430,9 +431,7 @@ class _FeatureCard extends StatelessWidget {
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        onTap: () {
-          // TODO: Wire navigation to the specific feature.
-        },
+        onTap: entry.onTap,
         child: Padding(
           padding: const EdgeInsets.all(10),
           child: Column(
@@ -468,8 +467,10 @@ class _FeatureEntry {
   const _FeatureEntry({
     required this.title,
     required this.icon,
+    this.onTap,
   });
 
   final String title;
   final IconData icon;
+  final VoidCallback? onTap;
 }

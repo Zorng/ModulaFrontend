@@ -9,6 +9,7 @@ import 'package:modular_pos/features/auth/ui/view/login_view.dart';
 import 'package:modular_pos/features/menu/ui/view/menu_page.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/core/widgets/widget_gallery_page.dart';
+import 'package:modular_pos/features/policy/ui/view/policy_page.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -62,6 +63,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         return '/404';
       }
 
+      // Authenticated but not allowed to access policy → 404
+      if (path == AppRoute.policy.path && role != 'admin') {
+        return '/404';
+      }
+
       // Authenticated but not allowed to access cashier portal → 404
       if (path == AppRoute.cashierPortal.path && role != 'cashier') {
         return '/404';
@@ -92,6 +98,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoute.adminPortal.path,
         name: AppRoute.adminPortal.name,
         builder: (context, state) => const AdminPortal(),
+      ),
+      GoRoute(
+        path: AppRoute.policy.path,
+        name: AppRoute.policy.name,
+        builder: (context, state) => const PolicyPage(),
       ),
       GoRoute(
         path: AppRoute.cashierPortal.path,
