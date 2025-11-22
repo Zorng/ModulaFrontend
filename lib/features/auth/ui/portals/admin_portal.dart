@@ -145,7 +145,7 @@ class _AdminHomeContent extends StatelessWidget {
     final isWide = MediaQuery.of(context).size.width >= 800;
     final branches = user?.branches ?? const [];
     final hasMultipleBranches = branches.length > 1;
-    final openPolicy = () => context.push(AppRoute.policy.path);
+    void openPolicy() => context.push(AppRoute.policy.path);
 
     final globalFeatures = [
       _FeatureEntry(

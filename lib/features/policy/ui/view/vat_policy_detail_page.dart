@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:modular_pos/core/widgets/app_back_button.dart';
 import 'package:modular_pos/features/policy/ui/widgets/policy_detail_controls.dart';
 
 class VatPolicyDetailPage extends StatefulWidget {

@@ -4,7 +4,9 @@ import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/widgets/app_kebab_menu.dart';
 import 'package:modular_pos/core/widgets/app_search_add_bar.dart';
+import 'package:modular_pos/features/inventory/domain/models/category_defaults.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
+import 'package:modular_pos/features/inventory/ui/viewmodels/category_controller.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_controller.dart';
 import 'package:modular_pos/features/inventory/ui/widgets/inventory_item_card.dart';
 
@@ -28,7 +30,6 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
     {'id': 'downtown', 'name': 'Downtown'},
     {'id': 'airport', 'name': 'Airport'},
   ];
-  final _categories = const ['All', 'Dairy', 'Packaging', 'Produce'];
 
   @override
   void dispose() {
@@ -39,6 +40,7 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
   @override
   Widget build(BuildContext context) {
     final inventoryState = ref.watch(stockInventoryControllerProvider);
+    final categoryState = ref.watch(categoryControllerProvider);
     final items = inventoryState.items;
     final activeFilters = _stateFilters ?? const <InventoryStockState>{};
     final filterLabel =
@@ -60,6 +62,11 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
         ? _aggregateItems(filtered)
         : filtered;
 
+    final categoryList = categoryState.categories.isEmpty
+        ? defaultInventoryCategories
+        : (categoryState.categories.map((c) => c.name).toList()..sort());
+    final categories = ['All', ...categoryList];
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Inventory'),
@@ -69,7 +76,7 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
             items: [
               KebabMenuItem(
                 label: 'Category management',
-                onTap: () => _showComingSoon(context, 'Category management'),
+                onTap: () => context.push(AppRoute.inventoryCategories.path),
               ),
               KebabMenuItem(
                 label: 'Stock item management',
@@ -96,10 +103,10 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
               onAddPressed: () => context.push(AppRoute.inventoryRestock.path),
             ),
             const SizedBox(height: 12),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: _categories.map((category) {
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                children: categories.map((category) {
                   final selected = category == _selectedCategory;
                   return Padding(
                     padding: const EdgeInsets.only(right: 8),
@@ -146,6 +153,9 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
             const SizedBox(height: 16),
             Expanded(
               child: Card(
+                elevation: 0,
+                color: Colors.transparent,
+                shadowColor: Colors.transparent,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
                 ),

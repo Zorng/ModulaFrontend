@@ -110,14 +110,14 @@ class _PolicyDetailPageState extends State<PolicyDetailPage> {
           ? () {}
           : (_isEditing ? _cancelEdit : _startEdit),
       onSave: widget.item.type == PolicyItemType.info ? null : _saveChanges,
+      canSave: widget.item.type != PolicyItemType.info,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (header != null) header!,
+          if (header != null) header,
           content,
         ],
       ),
-      canSave: widget.item.type != PolicyItemType.info,
     );
   }
 }

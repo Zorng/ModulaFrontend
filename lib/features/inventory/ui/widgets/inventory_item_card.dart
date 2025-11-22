@@ -17,25 +17,26 @@ class InventoryItemCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final onHandText = StockQuantityFormatter(
+    final formatter = StockQuantityFormatter(
       baseQty: item.onHand,
       pieceSize: item.pieceSize,
       baseUnit: item.baseUnit,
-    ).format();
+    );
+    final onHandLines = _quantityLines(formatter);
     final minText = StockQuantityFormatter(
       baseQty: item.minThreshold,
       pieceSize: item.pieceSize,
       baseUnit: item.baseUnit,
     ).format();
     return InkWell(
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(16),
       onTap: onTap,
       child: Card(
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: colorScheme.outlineVariant),
-        ),
+        elevation: 3,
+        color: Colors.white,
+        shadowColor: colorScheme.shadow.withValues(alpha: 0.2),
+        surfaceTintColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Row(
@@ -55,11 +56,19 @@ class InventoryItemCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      '${item.category} • ${_pieceLabel(item)}',
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodyMedium
-                          ?.copyWith(color: colorScheme.onSurfaceVariant),
+                      _pieceLabel(item),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      item.category,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -69,11 +78,9 @@ class InventoryItemCard extends StatelessWidget {
                         state: item.onHand == 0
                             ? InventoryStockState.outOfStock
                             : item.isLowStock
-                                ? InventoryStockState.lowStock
-                                : InventoryStockState.healthy,
-                      )
-                    else
-                      const SizedBox.shrink(),
+                            ? InventoryStockState.lowStock
+                            : InventoryStockState.healthy,
+                      ),
                   ],
                 ),
               ),
@@ -82,15 +89,20 @@ class InventoryItemCard extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text(
-                    onHandText,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          color: item.isLowStock ? colorScheme.error : null,
-                        ),
+                  ...onHandLines.map(
+                    (line) => Text(
+                      line,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: item.isLowStock ? colorScheme.error : null,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
-                  Text(
-                    'Min $minText',
-                    style: Theme.of(context).textTheme.bodySmall,
+                  ..._minLines(minText).map(
+                    (line) => Text(
+                      line,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
                   ),
                 ],
               ),
@@ -105,6 +117,31 @@ class InventoryItemCard extends StatelessWidget {
 String _pieceLabel(StockItem item) {
   if (item.pieceSize <= 1) return item.baseUnit;
   return '${item.pieceSize} ${item.baseUnit} per piece';
+}
+
+List<String> _quantityLines(StockQuantityFormatter formatter) {
+  if (formatter.pieceSize <= 1) {
+    return ['${formatter.baseQty} ${formatter.baseUnit}'];
+  }
+  final lines = <String>[];
+  if (formatter.pcs > 0) {
+    lines.add('${formatter.pcs} pcs');
+  }
+  if (formatter.remainder > 0) {
+    lines.add('${formatter.remainder} ${formatter.baseUnit}');
+  }
+  if (lines.isEmpty) {
+    lines.add('0 ${formatter.baseUnit}');
+  }
+  return lines;
+}
+
+List<String> _minLines(String formatted) {
+  if (!formatted.contains('+')) {
+    return ['Min $formatted'];
+  }
+  final parts = formatted.split('+').map((part) => part.trim()).toList();
+  return ['Min ${parts.first}', if (parts.length > 1) parts[1]];
 }
 
 class InventoryStatePill extends StatelessWidget {
@@ -147,9 +184,9 @@ class InventoryStatePill extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: textColor,
-                        fontWeight: FontWeight.w600,
-                      ),
+                    color: textColor,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ],
@@ -160,16 +197,16 @@ class InventoryStatePill extends StatelessWidget {
   }
 
   String _stateLabel(InventoryStockState state) => switch (state) {
-        InventoryStockState.healthy => 'Healthy',
-        InventoryStockState.lowStock => 'Low stock',
-        InventoryStockState.outOfStock => 'Out of stock',
-      };
+    InventoryStockState.healthy => 'Healthy',
+    InventoryStockState.lowStock => 'Low stock',
+    InventoryStockState.outOfStock => 'Out of stock',
+  };
 
   IconData _stateIcon(InventoryStockState state) => switch (state) {
-        InventoryStockState.healthy => Icons.check_circle,
-        InventoryStockState.lowStock => Icons.warning_amber,
-        InventoryStockState.outOfStock => Icons.error_outline,
-      };
+    InventoryStockState.healthy => Icons.check_circle,
+    InventoryStockState.lowStock => Icons.warning_amber,
+    InventoryStockState.outOfStock => Icons.error_outline,
+  };
 }
 
 class InventoryItemImage extends StatelessWidget {
@@ -182,8 +219,9 @@ class InventoryItemImage extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final trimmed = label.trim();
-    final initials =
-        trimmed.isNotEmpty ? trimmed.substring(0, 1).toUpperCase() : '?';
+    final initials = trimmed.isNotEmpty
+        ? trimmed.substring(0, 1).toUpperCase()
+        : '?';
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(12),
@@ -219,9 +257,9 @@ class _InitialsPlaceholder extends StatelessWidget {
       child: Text(
         initials,
         style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              color: scheme.onSecondaryContainer,
-              fontWeight: FontWeight.w600,
-            ),
+          color: scheme.onSecondaryContainer,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }

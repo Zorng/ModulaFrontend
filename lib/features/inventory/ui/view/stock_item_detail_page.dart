@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
-import 'package:modular_pos/features/inventory/domain/utils/stock_quantity_formatter.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_controller.dart';
+import 'package:modular_pos/features/inventory/ui/widgets/inventory_dropdown.dart';
 import 'package:modular_pos/features/inventory/ui/widgets/inventory_section_card.dart';
 
 class StockItemDetailPage extends ConsumerStatefulWidget {
@@ -18,7 +18,13 @@ class StockItemDetailPage extends ConsumerStatefulWidget {
 class _StockItemDetailPageState extends ConsumerState<StockItemDetailPage> {
   final _formKey = GlobalKey<FormState>();
   final _typeOptions = const ['Ingredient', 'Sellable'];
-  final _baseUnitOptions = const ['ml', 'g', 'pcs'];
+  final _categoryOptions = const [
+    'Dairy',
+    'Packaging',
+    'Produce',
+    'Sweetener',
+    'Uncategorized',
+  ];
 
   bool _isEditing = false;
   late StockItem _editableData;
@@ -38,11 +44,13 @@ class _StockItemDetailPageState extends ConsumerState<StockItemDetailPage> {
     _editableData = widget.item;
     _nameCtrl = TextEditingController(text: _editableData.name);
     _categoryCtrl = TextEditingController(text: _editableData.category);
-    _pieceSizeCtrl =
-        TextEditingController(text: _editableData.pieceSize.toString());
+    _pieceSizeCtrl = TextEditingController(
+      text: _editableData.pieceSize.toString(),
+    );
     _barcodeCtrl = TextEditingController(text: _editableData.barcode ?? '');
-    _lastRestockCtrl =
-        TextEditingController(text: _editableData.lastRestockDate);
+    _lastRestockCtrl = TextEditingController(
+      text: _editableData.lastRestockDate,
+    );
     _expiryCtrl = TextEditingController(text: _editableData.expiryDate);
     _selectedTypes = {..._editableData.usageTags};
     _baseUnit = _editableData.baseUnit;
@@ -95,26 +103,29 @@ class _StockItemDetailPageState extends ConsumerState<StockItemDetailPage> {
       category: _categoryCtrl.text.trim(),
       baseUnit: _baseUnit,
       pieceSize: pieceSize,
-      barcode:
-          _barcodeCtrl.text.trim().isEmpty ? null : _barcodeCtrl.text.trim(),
+      barcode: _barcodeCtrl.text.trim().isEmpty
+          ? null
+          : _barcodeCtrl.text.trim(),
       lastRestockDate: _lastRestockCtrl.text.trim(),
       expiryDate: _expiryCtrl.text.trim(),
       usageTags: _selectedTypes.toList(),
       isActive: _isActive,
     );
-    ref.read(stockInventoryControllerProvider.notifier).updateStockItem(updated);
+    ref
+        .read(stockInventoryControllerProvider.notifier)
+        .updateStockItem(updated);
     setState(() {
       _editableData = updated;
       _isEditing = false;
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Stock item saved (mock)')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Stock item saved (mock)')));
   }
 
   @override
   Widget build(BuildContext context) {
-    final chipColor = Theme.of(context).colorScheme.surfaceVariant;
+    final chipColor = Theme.of(context).colorScheme.surfaceContainerHighest;
     return Scaffold(
       appBar: AppBar(
         title: Text(_editableData.name),
@@ -148,40 +159,36 @@ class _StockItemDetailPageState extends ConsumerState<StockItemDetailPage> {
                         textCapitalization: TextCapitalization.words,
                         validator: (value) =>
                             value == null || value.trim().isEmpty
-                                ? 'Name is required'
-                                : null,
+                            ? 'Name is required'
+                            : null,
                       )
                     : InventoryDetailField(
                         label: 'Name',
                         value: _editableData.name,
                       ),
-                _buildEditableField(
-                  label: 'Category',
-                  controller: _categoryCtrl,
-                  enabled: _isEditing,
-                  capitalization: TextCapitalization.words,
-                ),
                 _isEditing
-                    ? DropdownButtonFormField<String>(
-                        value: _baseUnit,
-                        decoration:
-                            const InputDecoration(labelText: 'Base unit'),
-                        items: _baseUnitOptions
-                            .map(
-                              (unit) => DropdownMenuItem(
-                                value: unit,
-                                child: Text(unit.toUpperCase()),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (value) {
-                          if (value == null) return;
-                          setState(() => _baseUnit = value);
-                        },
+                    ? SizedBox(
+                        width: double.infinity,
+                        child: InventoryDropdown<String>(
+                          initialValue: _categoryCtrl.text,
+                          label: const Text('Category'),
+                          entries: _categoryOptions
+                              .map(
+                                (category) => DropdownMenuEntry(
+                                  value: category,
+                                  label: category,
+                                ),
+                              )
+                              .toList(),
+                          onSelected: (value) {
+                            if (value == null) return;
+                            setState(() => _categoryCtrl.text = value);
+                          },
+                        ),
                       )
                     : InventoryDetailField(
-                        label: 'Base unit',
-                        value: _baseUnit.toUpperCase(),
+                        label: 'Category',
+                        value: _categoryCtrl.text,
                       ),
                 _isEditing
                     ? TextFormField(
@@ -200,11 +207,12 @@ class _StockItemDetailPageState extends ConsumerState<StockItemDetailPage> {
                 _isEditing
                     ? TextFormField(
                         controller: _barcodeCtrl,
-                        decoration:
-                            const InputDecoration(labelText: 'Barcode'),
+                        decoration: const InputDecoration(labelText: 'Barcode'),
                       )
                     : InventoryDetailField(
-                        label: 'Barcode', value: _editableData.barcode ?? '—'),
+                        label: 'Barcode',
+                        value: _editableData.barcode ?? '—',
+                      ),
                 _isEditing
                     ? Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -256,33 +264,6 @@ class _StockItemDetailPageState extends ConsumerState<StockItemDetailPage> {
               ],
             ),
             const SizedBox(height: 16),
-            InventorySectionCard(
-              title: 'Stock status',
-              children: [
-                InventoryDetailField(
-                  label: 'Branch',
-                  value: _editableData.branchName,
-                ),
-                InventoryDetailField(
-                  label: 'On hand',
-                  value: _formatQuantity(_editableData.onHand),
-                ),
-                InventoryDetailField(
-                  label: 'Min threshold',
-                  value: _formatQuantity(_editableData.minThreshold),
-                ),
-                _buildEditableField(
-                  label: 'Last restock date',
-                  controller: _lastRestockCtrl,
-                  enabled: _isEditing,
-                ),
-                _buildEditableField(
-                  label: 'Expiry date',
-                  controller: _expiryCtrl,
-                  enabled: _isEditing,
-                ),
-              ],
-            ),
             if (_isEditing)
               Padding(
                 padding: const EdgeInsets.only(top: 16),
@@ -297,41 +278,6 @@ class _StockItemDetailPageState extends ConsumerState<StockItemDetailPage> {
     );
   }
 
-  Widget _buildEditableField({
-    required String label,
-    required TextEditingController controller,
-    bool enabled = false,
-    TextCapitalization capitalization = TextCapitalization.sentences,
-    TextInputType? keyboardType,
-  }) {
-    if (enabled &&
-        (controller == _lastRestockCtrl || controller == _expiryCtrl)) {
-      return TextFormField(
-        controller: controller,
-        readOnly: true,
-        decoration: InputDecoration(
-          labelText: label,
-          suffixIcon: IconButton(
-            icon: const Icon(Icons.calendar_today_outlined),
-            onPressed: () => _pickDate(controller),
-          ),
-        ),
-        onTap: () => _pickDate(controller),
-      );
-    } else if (enabled) {
-      return TextFormField(
-        controller: controller,
-        textCapitalization: capitalization,
-        keyboardType: keyboardType,
-        decoration: InputDecoration(labelText: label),
-      );
-    }
-    return InventoryDetailField(
-      label: label,
-      value: controller.text.isEmpty ? '—' : controller.text,
-    );
-  }
-
   String _pieceDescription() {
     final parsed = int.tryParse(_pieceSizeCtrl.text) ?? _editableData.pieceSize;
     if (parsed <= 1) {
@@ -340,75 +286,13 @@ class _StockItemDetailPageState extends ConsumerState<StockItemDetailPage> {
     return '$parsed $_baseUnit per piece';
   }
 
-  String _formatQuantity(int baseQty) {
-    final parsed = int.tryParse(_pieceSizeCtrl.text) ?? _editableData.pieceSize;
-    final safePiece = parsed <= 0 ? 1 : parsed;
-    return StockQuantityFormatter(
-      baseQty: baseQty,
-      pieceSize: safePiece,
-      baseUnit: _baseUnit,
-    ).format();
-  }
-
   String _initialsFor(String value) {
     final trimmed = value.trim();
     if (trimmed.isEmpty) return '?';
     return trimmed.substring(0, 1).toUpperCase();
   }
 
-  Future<void> _pickDate(TextEditingController controller) async {
-    if (!_isEditing) return;
-    final now = DateTime.now();
-    final initialDate = _parseDate(controller.text) ?? now;
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: initialDate,
-      firstDate: DateTime(now.year - 5),
-      lastDate: DateTime(now.year + 5),
-    );
-    if (picked != null) {
-      setState(() {
-        controller.text = _formatDate(picked);
-      });
-    }
-  }
-
-  DateTime? _parseDate(String value) {
-    if (value.isEmpty || value == '-') return null;
-    final parts = value.split(' ');
-    if (parts.length != 3) return null;
-    final monthIndex =
-        _monthNames.indexWhere((m) => m.toLowerCase() == parts[0].toLowerCase());
-    if (monthIndex == -1) return null;
-    final day = int.tryParse(parts[1].replaceAll(',', ''));
-    final year = int.tryParse(parts[2]);
-    if (day == null || year == null) return null;
-    return DateTime(year, monthIndex + 1, day);
-  }
-
-  String _formatDate(DateTime date) {
-    final month = _monthNames[date.month - 1];
-    final day = date.day.toString().padLeft(2, '0');
-    return '$month $day, ${date.year}';
-  }
 }
-
-const List<String> _monthNames = [
-  'Jan',
-  'Feb',
-  'Mar',
-  'Apr',
-  'May',
-  'Jun',
-  'Jul',
-  'Aug',
-  'Sep',
-  'Oct',
-  'Nov',
-  'Dec',
-];
-
-
 
 class _ImagePreview extends StatelessWidget {
   const _ImagePreview({this.imageUrl, required this.initials});
@@ -451,9 +335,9 @@ class _Placeholder extends StatelessWidget {
       child: Text(
         initials,
         style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-              color: scheme.onSecondaryContainer,
-              fontWeight: FontWeight.bold,
-            ),
+          color: scheme.onSecondaryContainer,
+          fontWeight: FontWeight.bold,
+        ),
       ),
     );
   }

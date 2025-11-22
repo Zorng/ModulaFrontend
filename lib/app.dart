@@ -12,6 +12,7 @@ import 'package:modular_pos/core/widgets/widget_gallery_page.dart';
 import 'package:modular_pos/features/policy/ui/view/policy_page.dart';
 import 'package:modular_pos/features/common/ui/settings_page.dart';
 import 'package:modular_pos/features/auth/ui/view/account_page.dart';
+import 'package:modular_pos/features/inventory/ui/view/category_management_page.dart';
 import 'package:modular_pos/features/inventory/ui/view/inventory_home_page.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
 import 'package:modular_pos/features/inventory/ui/view/add_stock_item_page.dart';
@@ -80,7 +81,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               path == AppRoute.inventoryAddItem.path ||
               path == AppRoute.inventoryStockDetail.path ||
               path == AppRoute.inventoryStockItems.path ||
-              path == AppRoute.inventoryRestock.path) &&
+              path == AppRoute.inventoryRestock.path ||
+              path == AppRoute.inventoryCategories.path) &&
           role != 'admin') {
         return '/404';
       }
@@ -184,6 +186,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoute.inventoryRestock.path,
         name: AppRoute.inventoryRestock.name,
         builder: (context, state) => const RestockStockItemPage(),
+      ),
+      GoRoute(
+        path: AppRoute.inventoryCategories.path,
+        name: AppRoute.inventoryCategories.name,
+        builder: (context, state) => const CategoryManagementPage(),
       ),
     ],
   );

@@ -3,12 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
 import 'package:modular_pos/features/inventory/domain/utils/stock_quantity_formatter.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_controller.dart';
+import 'package:modular_pos/features/inventory/ui/widgets/inventory_dropdown.dart';
 
 class RestockStockItemPage extends ConsumerStatefulWidget {
   const RestockStockItemPage({super.key});
 
   @override
-  ConsumerState<RestockStockItemPage> createState() => _RestockStockItemPageState();
+  ConsumerState<RestockStockItemPage> createState() =>
+      _RestockStockItemPageState();
 }
 
 class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
@@ -49,9 +51,11 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
     final branchEntries = _buildBranchEntries(items);
     final branchItems = _itemsForSelectedBranch(items);
     final hasItemSelection =
-        branchItems.any((item) => item.id == _selectedItemId) && _selectedItemId != null;
-    final selectedItem =
-        hasItemSelection ? branchItems.firstWhere((item) => item.id == _selectedItemId) : null;
+        branchItems.any((item) => item.id == _selectedItemId) &&
+        _selectedItemId != null;
+    final selectedItem = hasItemSelection
+        ? branchItems.firstWhere((item) => item.id == _selectedItemId)
+        : null;
 
     return Scaffold(
       appBar: AppBar(
@@ -61,149 +65,151 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
       body: inventoryState.isLoading && items.isEmpty
           ? const Center(child: CircularProgressIndicator())
           : items.isEmpty
-              ? const Center(child: Text('No stock items have been created yet.'))
-              : Form(
-                  key: _formKey,
-                  child: ListView(
-                    padding: const EdgeInsets.all(16),
-                    children: [
-                      Text(
-                        'Provide the branch, item, and quantity received. We keep track using base units (ml/g/pcs) behind the scenes.',
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                      const SizedBox(height: 16),
-                      _BranchSelector(
-                        entries: branchEntries,
-                        selectedBranchId: _selectedBranchId,
-                        onChanged: (value) {
-                          setState(() {
-                            _selectedBranchId = value;
-                            _selectedItemId = null;
-                            _itemCtrl?.clear();
-                            _pcsCtrl.text = '0';
-                            _extraCtrl.text = '0';
-                          });
-                        },
-                      ),
-                      const SizedBox(height: 12),
-                      _StockItemAutocomplete(
-                        items: branchItems,
-                        controller: _itemCtrl,
-                        selectedItemId: hasItemSelection ? _selectedItemId : null,
-                        onSelected: (item) {
-                          setState(() {
-                            _selectedItemId = item.id;
-                            _itemCtrl?.text = item.name;
-                            _pcsCtrl.text = '0';
-                            _extraCtrl.text = '0';
-                          });
-                        },
-                        onCleared: () {
-                          setState(() {
-                            _selectedItemId = null;
-                          });
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      if (selectedItem != null)
-                        _QuantityInputs(
-                          item: selectedItem,
-                          pcsCtrl: _pcsCtrl,
-                          extraCtrl: _extraCtrl,
-                        ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: _priceCtrl,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        decoration: const InputDecoration(
-                          labelText: 'Cost price per delivery',
-                          prefixText: '\$ ',
-                          hintText: 'Enter amount',
-                        ),
-                        validator: (value) {
-                          final price = double.tryParse(value?.trim() ?? '');
-                          if (price == null || price < 0) {
-                            return 'Enter a valid price';
-                          }
-                          return null;
-                        },
-                      ),
-                      if (selectedItem != null) ...[
-                        const SizedBox(height: 12),
-                        _StockSummary(item: selectedItem),
-                      ],
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        controller: _dateCtrl,
-                        readOnly: true,
-                        decoration: InputDecoration(
-                          labelText: 'Restock date',
-                          hintText: 'Select date',
-                          suffixIcon: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              if (_dateCtrl.text.isNotEmpty)
-                                IconButton(
-                                  icon: const Icon(Icons.clear),
-                                  tooltip: 'Clear date',
-                                  onPressed: () {
-                                    setState(() => _dateCtrl.clear());
-                                  },
-                                ),
-                              IconButton(
-                                icon: const Icon(Icons.calendar_today_outlined),
-                                onPressed: _pickDate,
-                              ),
-                            ],
-                          ),
-                        ),
-                        onTap: _pickDate,
-                      ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: _expiryCtrl,
-                        readOnly: true,
-                        decoration: InputDecoration(
-                          labelText: 'Expiry date (optional)',
-                          hintText: 'Select date',
-                          suffixIcon: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              if (_expiryCtrl.text.isNotEmpty)
-                                IconButton(
-                                  icon: const Icon(Icons.clear),
-                                  tooltip: 'Clear date',
-                                  onPressed: () {
-                                    setState(() => _expiryCtrl.clear());
-                                  },
-                                ),
-                              IconButton(
-                                icon: const Icon(Icons.calendar_today_outlined),
-                                onPressed: _pickExpiry,
-                              ),
-                            ],
-                          ),
-                        ),
-                        onTap: _pickExpiry,
-                      ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: _noteCtrl,
-                        decoration: const InputDecoration(
-                          labelText: 'Notes (optional)',
-                        ),
-                        maxLines: 3,
-                      ),
-                      const SizedBox(height: 24),
-                      FilledButton(
-                        onPressed: inventoryState.isLoading || _isSaving
-                            ? null
-                            : () => _submit(selectedItem),
-                        child: const Text('Record restock'),
-                      ),
-                    ],
+          ? const Center(child: Text('No stock items have been created yet.'))
+          : Form(
+              key: _formKey,
+              child: ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  Text(
+                    'Provide the branch, item, and quantity received. We keep track using base units (ml/g/pcs) behind the scenes.',
+                    style: Theme.of(context).textTheme.bodyMedium,
                   ),
-                ),
+                  const SizedBox(height: 16),
+                  _BranchSelector(
+                    entries: branchEntries,
+                    selectedBranchId: _selectedBranchId,
+                    onChanged: (value) {
+                      setState(() {
+                        _selectedBranchId = value;
+                        _selectedItemId = null;
+                        _itemCtrl?.clear();
+                        _pcsCtrl.text = '0';
+                        _extraCtrl.text = '0';
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  _StockItemAutocomplete(
+                    items: branchItems,
+                    controller: _itemCtrl,
+                    selectedItemId: hasItemSelection ? _selectedItemId : null,
+                    onSelected: (item) {
+                      setState(() {
+                        _selectedItemId = item.id;
+                        _itemCtrl?.text = item.name;
+                        _pcsCtrl.text = '0';
+                        _extraCtrl.text = '0';
+                      });
+                    },
+                    onCleared: () {
+                      setState(() {
+                        _selectedItemId = null;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  if (selectedItem != null)
+                    _QuantityInputs(
+                      item: selectedItem,
+                      pcsCtrl: _pcsCtrl,
+                      extraCtrl: _extraCtrl,
+                    ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _priceCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'Cost price per delivery',
+                      prefixText: '\$ ',
+                      hintText: 'Enter amount',
+                    ),
+                    validator: (value) {
+                      final price = double.tryParse(value?.trim() ?? '');
+                      if (price == null || price < 0) {
+                        return 'Enter a valid price';
+                      }
+                      return null;
+                    },
+                  ),
+                  if (selectedItem != null) ...[
+                    const SizedBox(height: 12),
+                    _StockSummary(item: selectedItem),
+                  ],
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _dateCtrl,
+                    readOnly: true,
+                    decoration: InputDecoration(
+                      labelText: 'Restock date',
+                      hintText: 'Select date',
+                      suffixIcon: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (_dateCtrl.text.isNotEmpty)
+                            IconButton(
+                              icon: const Icon(Icons.clear),
+                              tooltip: 'Clear date',
+                              onPressed: () {
+                                setState(() => _dateCtrl.clear());
+                              },
+                            ),
+                          IconButton(
+                            icon: const Icon(Icons.calendar_today_outlined),
+                            onPressed: _pickDate,
+                          ),
+                        ],
+                      ),
+                    ),
+                    onTap: _pickDate,
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _expiryCtrl,
+                    readOnly: true,
+                    decoration: InputDecoration(
+                      labelText: 'Expiry date (optional)',
+                      hintText: 'Select date',
+                      suffixIcon: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (_expiryCtrl.text.isNotEmpty)
+                            IconButton(
+                              icon: const Icon(Icons.clear),
+                              tooltip: 'Clear date',
+                              onPressed: () {
+                                setState(() => _expiryCtrl.clear());
+                              },
+                            ),
+                          IconButton(
+                            icon: const Icon(Icons.calendar_today_outlined),
+                            onPressed: _pickExpiry,
+                          ),
+                        ],
+                      ),
+                    ),
+                    onTap: _pickExpiry,
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _noteCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Notes (optional)',
+                    ),
+                    maxLines: 3,
+                  ),
+                  const SizedBox(height: 24),
+                  FilledButton(
+                    onPressed: inventoryState.isLoading || _isSaving
+                        ? null
+                        : () => _submit(selectedItem),
+                    child: const Text('Record restock'),
+                  ),
+                ],
+              ),
+            ),
     );
   }
 
@@ -219,9 +225,7 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
 
   List<StockItem> _itemsForSelectedBranch(List<StockItem> items) {
     if (_selectedBranchId == null) return const [];
-    return items
-        .where((item) => item.branchId == _selectedBranchId)
-        .toList()
+    return items.where((item) => item.branchId == _selectedBranchId).toList()
       ..sort((a, b) => a.name.compareTo(b.name));
   }
 
@@ -274,16 +278,17 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
     }
     final price = double.tryParse(_priceCtrl.text.trim());
     if (price == null || price < 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter a valid price')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Enter a valid price')));
       return;
     }
     setState(() => _isSaving = true);
     final pcs = int.tryParse(_pcsCtrl.text.trim()) ?? 0;
-    final extra = item.pieceSize > 1 ? int.tryParse(_extraCtrl.text.trim()) ?? 0 : 0;
-    final baseQty =
-        item.pieceSize > 1 ? pcs * item.pieceSize + extra : pcs;
+    final extra = item.pieceSize > 1
+        ? int.tryParse(_extraCtrl.text.trim()) ?? 0
+        : 0;
+    final baseQty = item.pieceSize > 1 ? pcs * item.pieceSize + extra : pcs;
     if (baseQty <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Quantity must be greater than zero')),
@@ -291,10 +296,14 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
       return;
     }
     try {
-      await ref.read(stockInventoryControllerProvider.notifier).restockItem(
+      await ref
+          .read(stockInventoryControllerProvider.notifier)
+          .restockItem(
             itemId: item.id,
             baseQty: baseQty,
-            restockDate: _dateCtrl.text.isEmpty ? _formatDate(DateTime.now()) : _dateCtrl.text,
+            restockDate: _dateCtrl.text.isEmpty
+                ? _formatDate(DateTime.now())
+                : _dateCtrl.text,
             expiryDate: _expiryCtrl.text.isEmpty ? null : _expiryCtrl.text,
           );
       if (!mounted) return;
@@ -308,9 +317,9 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
       Navigator.of(context).pop();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to record restock: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to record restock: $e')));
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -334,9 +343,7 @@ class _QuantityInputs extends StatelessWidget {
       return TextFormField(
         controller: pcsCtrl,
         keyboardType: TextInputType.number,
-        decoration: InputDecoration(
-          labelText: 'Quantity (${item.baseUnit})',
-        ),
+        decoration: InputDecoration(labelText: 'Quantity (${item.baseUnit})'),
         validator: (value) {
           final parsed = int.tryParse(value ?? '');
           if (parsed == null || parsed <= 0) {
@@ -397,23 +404,25 @@ class _BranchSelector extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return FormField<String>(
-      validator: (_) => selectedBranchId == null ? 'Please select a branch' : null,
-      builder: (state) => DropdownMenu<String>(
-        initialSelection: selectedBranchId,
-        requestFocusOnTap: false,
-        label: const Text('Branch'),
-        dropdownMenuEntries: entries
-            .map(
-              (entry) => DropdownMenuEntry(
-                value: entry.key,
-                label: entry.value,
-              ),
-            )
-            .toList(),
-        onSelected: (value) {
-          state.didChange(value);
-          onChanged(value);
-        },
+      validator: (_) =>
+          selectedBranchId == null ? 'Please select a branch' : null,
+      builder: (state) => SizedBox(
+        width: double.infinity,
+        child: InventoryDropdown<String>(
+          initialValue: selectedBranchId,
+          label: const Text('Branch'),
+          entries: entries
+              .map(
+                (entry) =>
+                    DropdownMenuEntry(value: entry.key, label: entry.value),
+              )
+              .toList(),
+          onSelected: (value) {
+            state.didChange(value);
+            onChanged(value);
+          },
+          errorText: state.errorText,
+        ),
       ),
     );
   }
@@ -440,7 +449,8 @@ class _StockItemAutocomplete extends StatefulWidget {
 
 class _StockItemAutocompleteState extends State<_StockItemAutocomplete> {
   final FocusNode _focusNode = FocusNode();
-  late final TextEditingController _fallbackController = TextEditingController();
+  late final TextEditingController _fallbackController =
+      TextEditingController();
 
   TextEditingController get _controller =>
       widget.controller ?? _fallbackController;
@@ -476,35 +486,35 @@ class _StockItemAutocompleteState extends State<_StockItemAutocomplete> {
           },
           fieldViewBuilder:
               (context, textController, focusNode, onFieldSubmitted) {
-            return TextFormField(
-              controller: textController,
-              focusNode: focusNode,
-              decoration: InputDecoration(
-                labelText: 'Stock item',
-                hintText: widget.items.isEmpty
-                    ? 'Select a branch first'
-                    : 'Search stock item',
-                errorText: state.errorText,
-                suffixIcon: textController.text.isEmpty
-                    ? null
-                    : IconButton(
-                        icon: const Icon(Icons.clear),
-                        tooltip: 'Clear',
-                        onPressed: () {
-                          _controller.clear();
-                          widget.onCleared();
-                          state.didChange(null);
-                        },
-                      ),
-              ),
-              onChanged: (_) {
-                if (widget.selectedItemId != null) {
-                  widget.onCleared();
-                  state.didChange(null);
-                }
+                return TextFormField(
+                  controller: textController,
+                  focusNode: focusNode,
+                  decoration: InputDecoration(
+                    labelText: 'Stock item',
+                    hintText: widget.items.isEmpty
+                        ? 'Select a branch first'
+                        : 'Search stock item',
+                    errorText: state.errorText,
+                    suffixIcon: textController.text.isEmpty
+                        ? null
+                        : IconButton(
+                            icon: const Icon(Icons.clear),
+                            tooltip: 'Clear',
+                            onPressed: () {
+                              _controller.clear();
+                              widget.onCleared();
+                              state.didChange(null);
+                            },
+                          ),
+                  ),
+                  onChanged: (_) {
+                    if (widget.selectedItemId != null) {
+                      widget.onCleared();
+                      state.didChange(null);
+                    }
+                  },
+                );
               },
-            );
-          },
           optionsViewBuilder: (context, onSelected, options) {
             final optionList = options.toList();
             if (optionList.isEmpty) {
@@ -561,17 +571,16 @@ class _StockSummary extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
-        color: Theme.of(context).colorScheme.surfaceVariant,
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             'Current on-hand',
-            style: Theme.of(context)
-                .textTheme
-                .labelMedium
-                ?.copyWith(fontWeight: FontWeight.w600),
+            style: Theme.of(
+              context,
+            ).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 4),
           Text(

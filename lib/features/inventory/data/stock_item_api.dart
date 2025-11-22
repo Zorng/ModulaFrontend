@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:modular_pos/features/inventory/domain/models/inventory_category.dart';
+import 'package:modular_pos/features/inventory/domain/models/stock_batch.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
 
 final stockItemApiProvider = Provider<StockItemApi>((ref) {
@@ -257,6 +259,96 @@ class StockItemApi {
     ),
   ];
 
+  final List<StockBatch> _batches = [
+    StockBatch(
+      id: 'main_milk_b1',
+      stockItemId: 'main_milk',
+      branchId: 'main',
+      onHand: 1800,
+      receivedDate: '2024-05-01',
+      expiryDate: '2024-05-15',
+    ),
+    StockBatch(
+      id: 'main_milk_b2',
+      stockItemId: 'main_milk',
+      branchId: 'main',
+      onHand: 1800,
+      receivedDate: '2024-05-10',
+      expiryDate: '2024-05-30',
+    ),
+    StockBatch(
+      id: 'main_beans_b1',
+      stockItemId: 'main_beans',
+      branchId: 'main',
+      onHand: 1300,
+      receivedDate: '2024-05-05',
+      expiryDate: null,
+    ),
+    StockBatch(
+      id: 'main_beans_b2',
+      stockItemId: 'main_beans',
+      branchId: 'main',
+      onHand: 1300,
+      receivedDate: '2024-05-12',
+      expiryDate: null,
+    ),
+    StockBatch(
+      id: 'main_sugar_b1',
+      stockItemId: 'main_sugar',
+      branchId: 'main',
+      onHand: 2700,
+      receivedDate: '2024-05-14',
+      expiryDate: '2024-08-10',
+    ),
+    StockBatch(
+      id: 'main_sugar_b2',
+      stockItemId: 'main_sugar',
+      branchId: 'main',
+      onHand: 2700,
+      receivedDate: '2024-05-20',
+      expiryDate: '2024-09-01',
+    ),
+    StockBatch(
+      id: 'dt_milk_b1',
+      stockItemId: 'dt_milk',
+      branchId: 'downtown',
+      onHand: 1200,
+      receivedDate: '2024-05-08',
+      expiryDate: '2024-05-20',
+    ),
+    StockBatch(
+      id: 'dt_milk_b2',
+      stockItemId: 'dt_milk',
+      branchId: 'downtown',
+      onHand: 1200,
+      receivedDate: '2024-05-16',
+      expiryDate: '2024-05-28',
+    ),
+    StockBatch(
+      id: 'ap_milk_b1',
+      stockItemId: 'ap_milk',
+      branchId: 'airport',
+      onHand: 900,
+      receivedDate: '2024-05-10',
+      expiryDate: '2024-05-22',
+    ),
+    StockBatch(
+      id: 'ap_milk_b2',
+      stockItemId: 'ap_milk',
+      branchId: 'airport',
+      onHand: 800,
+      receivedDate: '2024-05-18',
+      expiryDate: '2024-05-29',
+    ),
+  ];
+
+  final List<InventoryCategory> _categories = [
+    const InventoryCategory(id: 'cat_dairy', name: 'Dairy', isActive: true),
+    const InventoryCategory(id: 'cat_packaging', name: 'Packaging', isActive: true),
+    const InventoryCategory(id: 'cat_produce', name: 'Produce', isActive: true),
+    const InventoryCategory(id: 'cat_sweet', name: 'Sweetener', isActive: true),
+  ];
+
   Future<List<StockItem>> fetchItems() async {
     await Future<void>.delayed(const Duration(milliseconds: 300));
     return List.unmodifiable(_items);
@@ -282,8 +374,69 @@ class StockItemApi {
   Future<void> deleteItem(String id) async {
     await Future<void>.delayed(const Duration(milliseconds: 250));
     _items.removeWhere((element) => element.id == id);
+    _batches.removeWhere((batch) => batch.stockItemId == id);
   }
 
   String _generateId() =>
       'stock_${DateTime.now().microsecondsSinceEpoch.toString()}';
+
+  Future<List<StockBatch>> fetchBatches() async {
+    await Future<void>.delayed(const Duration(milliseconds: 250));
+    return List.unmodifiable(_batches);
+  }
+
+  Future<StockBatch> createBatch(StockBatch batch) async {
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+    final newBatch = batch.copyWith(id: _generateBatchId());
+    _batches.add(newBatch);
+    return newBatch;
+  }
+
+  Future<StockBatch> updateBatch(StockBatch batch) async {
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+    final index = _batches.indexWhere((element) => element.id == batch.id);
+    if (index == -1) {
+      throw StateError('Batch ${batch.id} not found');
+    }
+    _batches[index] = batch;
+    if (batch.onHand <= 0) {
+      _batches.removeAt(index);
+    }
+    return batch;
+  }
+
+  Future<void> deleteBatch(String id) async {
+    await Future<void>.delayed(const Duration(milliseconds: 150));
+    _batches.removeWhere((element) => element.id == id);
+  }
+
+  String _generateBatchId() => 'batch_${DateTime.now().microsecondsSinceEpoch}';
+
+  Future<List<InventoryCategory>> fetchCategories() async {
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+    return List.unmodifiable(_categories);
+  }
+
+  Future<InventoryCategory> createCategory(InventoryCategory category) async {
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+    final newCategory = category.copyWith(id: _generateCategoryId());
+    _categories.add(newCategory);
+    return newCategory;
+  }
+
+  Future<InventoryCategory> updateCategory(InventoryCategory category) async {
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+    final index = _categories.indexWhere((element) => element.id == category.id);
+    if (index == -1) throw StateError('Category ${category.id} not found');
+    _categories[index] = category;
+    return category;
+  }
+
+  Future<void> deleteCategory(String id) async {
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+    _categories.removeWhere((element) => element.id == id);
+  }
+
+  String _generateCategoryId() =>
+      'cat_${DateTime.now().microsecondsSinceEpoch.toString()}';
 }

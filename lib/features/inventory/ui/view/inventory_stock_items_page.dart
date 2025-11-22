@@ -4,17 +4,19 @@ import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/widgets/app_search_add_bar.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
-import 'package:modular_pos/features/inventory/domain/utils/stock_quantity_formatter.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_controller.dart';
+import 'package:modular_pos/features/inventory/ui/widgets/inventory_dropdown.dart';
 
 class InventoryStockItemsPage extends ConsumerStatefulWidget {
   const InventoryStockItemsPage({super.key});
 
   @override
-  ConsumerState<InventoryStockItemsPage> createState() => _InventoryStockItemsPageState();
+  ConsumerState<InventoryStockItemsPage> createState() =>
+      _InventoryStockItemsPageState();
 }
 
-class _InventoryStockItemsPageState extends ConsumerState<InventoryStockItemsPage> {
+class _InventoryStockItemsPageState
+    extends ConsumerState<InventoryStockItemsPage> {
   final _searchController = TextEditingController();
   String _categoryFilter = 'All';
   _ActiveFilter _activeFilter = _ActiveFilter.all;
@@ -29,14 +31,22 @@ class _InventoryStockItemsPageState extends ConsumerState<InventoryStockItemsPag
   Widget build(BuildContext context) {
     final inventoryState = ref.watch(stockInventoryControllerProvider);
     final items = inventoryState.items;
-    final categories = ['All', ...{for (final item in items) item.category}];
+    final categories = [
+      'All',
+      ...{for (final item in items) item.category},
+    ];
 
     final filtered = items.where((item) {
       final matchesCategory =
           _categoryFilter == 'All' || item.category == _categoryFilter;
-      final matchesSearch = _searchController.text.isEmpty ||
-          item.name.toLowerCase().contains(_searchController.text.toLowerCase()) ||
-          (item.barcode ?? '').toLowerCase().contains(_searchController.text.toLowerCase());
+      final matchesSearch =
+          _searchController.text.isEmpty ||
+          item.name.toLowerCase().contains(
+            _searchController.text.toLowerCase(),
+          ) ||
+          (item.barcode ?? '').toLowerCase().contains(
+            _searchController.text.toLowerCase(),
+          );
       final matchesActive = switch (_activeFilter) {
         _ActiveFilter.all => true,
         _ActiveFilter.active => item.isActive,
@@ -45,11 +55,15 @@ class _InventoryStockItemsPageState extends ConsumerState<InventoryStockItemsPag
       return matchesCategory && matchesSearch && matchesActive;
     }).toList();
 
+    final unique = <String, StockItem>{};
+    for (final item in filtered) {
+      unique.putIfAbsent(item.name.toLowerCase(), () => item);
+    }
+    final displayed = unique.values.toList()
+      ..sort((a, b) => a.name.compareTo(b.name));
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Stock items'),
-        centerTitle: false,
-      ),
+      appBar: AppBar(title: const Text('Stock items'), centerTitle: false),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -65,41 +79,44 @@ class _InventoryStockItemsPageState extends ConsumerState<InventoryStockItemsPag
             Row(
               children: [
                 Expanded(
-                  child: DropdownButtonFormField<String>(
-                    value: _categoryFilter,
-                    decoration: const InputDecoration(labelText: 'Category'),
-                    items: categories
+                  child: InventoryDropdown<String>(
+                    initialValue: _categoryFilter,
+                    label: const Text('Category'),
+                    entries: categories
                         .map(
-                          (category) => DropdownMenuItem(
+                          (category) => DropdownMenuEntry(
                             value: category,
-                            child: Text(category),
+                            label: category,
                           ),
                         )
                         .toList(),
-                    onChanged: (value) => setState(() => _categoryFilter = value ?? 'All'),
+                    onSelected: (value) =>
+                        setState(() => _categoryFilter = value ?? 'All'),
                   ),
                 ),
                 const SizedBox(width: 12),
                 SizedBox(
                   width: 200,
-                  child: DropdownButtonFormField<_ActiveFilter>(
-                    value: _activeFilter,
-                    decoration: const InputDecoration(labelText: 'Status'),
-                    items: const [
-                      DropdownMenuItem(
+                  child: InventoryDropdown<_ActiveFilter>(
+                    initialValue: _activeFilter,
+                    label: const Text('Status'),
+                    entries: const [
+                      DropdownMenuEntry(
                         value: _ActiveFilter.all,
-                        child: Text('All statuses'),
+                        label: 'All statuses',
                       ),
-                      DropdownMenuItem(
+                      DropdownMenuEntry(
                         value: _ActiveFilter.active,
-                        child: Text('Active'),
+                        label: 'Active',
                       ),
-                      DropdownMenuItem(
+                      DropdownMenuEntry(
                         value: _ActiveFilter.inactive,
-                        child: Text('Inactive'),
+                        label: 'Inactive',
                       ),
                     ],
-                    onChanged: (value) => setState(() => _activeFilter = value ?? _ActiveFilter.all),
+                    onSelected: (value) => setState(
+                      () => _activeFilter = value ?? _ActiveFilter.all,
+                    ),
                   ),
                 ),
               ],
@@ -107,28 +124,31 @@ class _InventoryStockItemsPageState extends ConsumerState<InventoryStockItemsPag
             const SizedBox(height: 16),
             Expanded(
               child: Card(
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                elevation: 0,
+                color: Colors.transparent,
+                shadowColor: Colors.transparent,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
                 child: inventoryState.isLoading
                     ? const Center(child: CircularProgressIndicator())
                     : inventoryState.error != null
-                        ? Center(
-                            child: Text(
-                              inventoryState.error!,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodyMedium
-                                  ?.copyWith(color: Theme.of(context).hintColor),
-                            ),
-                          )
-                        : ListView.separated(
-                            padding: const EdgeInsets.all(16),
-                            itemBuilder: (context, index) {
-                              final item = filtered[index];
-                              return _StockItemCard(item: item);
-                            },
-                            separatorBuilder: (_, __) => const SizedBox(height: 12),
-                            itemCount: filtered.length,
-                          ),
+                    ? Center(
+                        child: Text(
+                          inventoryState.error!,
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(color: Theme.of(context).hintColor),
+                        ),
+                      )
+                    : ListView.separated(
+                        padding: const EdgeInsets.all(16),
+                        itemBuilder: (context, index) {
+                          final item = displayed[index];
+                          return _StockItemCard(item: item);
+                        },
+                        separatorBuilder: (_, __) => const SizedBox(height: 12),
+                        itemCount: displayed.length,
+                      ),
               ),
             ),
           ],
@@ -146,64 +166,72 @@ class _StockItemCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final onHandText = StockQuantityFormatter(
-      baseQty: item.onHand,
-      pieceSize: item.pieceSize,
-      baseUnit: item.baseUnit,
-    ).format();
-    final minText = StockQuantityFormatter(
-      baseQty: item.minThreshold,
-      pieceSize: item.pieceSize,
-      baseUnit: item.baseUnit,
-    ).format();
     return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: scheme.outlineVariant),
-      ),
+      elevation: 3,
+      color: Colors.white,
+      shadowColor: scheme.shadow.withValues(alpha: 0.2),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        onTap: () => context.push(AppRoute.inventoryStockDetail.path, extra: item),
+        onTap: () =>
+            context.push(AppRoute.inventoryStockDetail.path, extra: item),
         child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            _StockItemImage(label: item.name, imageUrl: item.imageUrl),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(item.name, style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: 4),
-                  Text('${item.category} • ${_pieceLabel(item)}'),
-                  const SizedBox(height: 4),
-                  Text(
-                    item.isActive ? 'Active' : 'Inactive',
-                    style: TextStyle(
-                      color: item.isActive ? scheme.primary : scheme.error,
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              _StockItemImage(label: item.name, imageUrl: item.imageUrl),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.name,
+                      style: Theme.of(context).textTheme.titleMedium,
                     ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _pieceLabel(item),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      item.category,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      item.isActive ? 'Active' : 'Inactive',
+                      style: TextStyle(
+                        color: item.isActive ? scheme.primary : scheme.error,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    'Base: ${item.baseUnit}',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                  Text(
+                    'Piece: ${item.pieceSize}',
+                    style: Theme.of(context).textTheme.bodySmall,
                   ),
                 ],
               ),
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  onHandText,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                Text(
-                  'Min $minText',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ],
-            ),
-          ],
+            ],
+          ),
         ),
-      ),
       ),
     );
   }
@@ -219,7 +247,9 @@ class _StockItemImage extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final trimmed = label.trim();
-    final initials = trimmed.isNotEmpty ? trimmed.substring(0, 1).toUpperCase() : '?';
+    final initials = trimmed.isNotEmpty
+        ? trimmed.substring(0, 1).toUpperCase()
+        : '?';
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(12),
@@ -230,7 +260,8 @@ class _StockItemImage extends StatelessWidget {
             ? Image.network(
                 imageUrl!,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => _StockPlaceholder(initials: initials, scheme: scheme),
+                errorBuilder: (_, __, ___) =>
+                    _StockPlaceholder(initials: initials, scheme: scheme),
               )
             : _StockPlaceholder(initials: initials, scheme: scheme),
       ),
@@ -252,9 +283,9 @@ class _StockPlaceholder extends StatelessWidget {
       child: Text(
         initials,
         style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              color: scheme.onSecondaryContainer,
-              fontWeight: FontWeight.w600,
-            ),
+          color: scheme.onSecondaryContainer,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }

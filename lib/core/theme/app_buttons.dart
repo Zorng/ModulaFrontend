@@ -28,10 +28,10 @@ class AppButtons {
 
     return base.copyWith(
       visualDensity: const VisualDensity(horizontal: -2, vertical: -1),
-      padding: const MaterialStatePropertyAll(
+      padding: const WidgetStatePropertyAll(
         EdgeInsets.symmetric(horizontal: 10),
       ),
-      minimumSize: const MaterialStatePropertyAll(Size(0, 48)),
+      minimumSize: const WidgetStatePropertyAll(Size(0, 48)),
     );
   }
 
@@ -55,10 +55,10 @@ class AppButtons {
 
     return base.copyWith(
       visualDensity: const VisualDensity(horizontal: -2, vertical: -1),
-      padding: const MaterialStatePropertyAll(
+      padding: const WidgetStatePropertyAll(
         EdgeInsets.symmetric(horizontal: 10),
       ),
-      minimumSize: const MaterialStatePropertyAll(Size(0, 48)),
+      minimumSize: const WidgetStatePropertyAll(Size(0, 48)),
     );
   }
 }

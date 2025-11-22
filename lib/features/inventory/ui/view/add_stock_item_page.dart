@@ -2,7 +2,9 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:modular_pos/features/inventory/domain/models/category_defaults.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
+import 'package:modular_pos/features/inventory/ui/viewmodels/category_controller.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_controller.dart';
 import 'package:modular_pos/features/inventory/ui/widgets/inventory_section_card.dart';
 
@@ -37,13 +39,6 @@ class _AddStockItemPageState extends ConsumerState<AddStockItemPage> {
   String? _branchId;
   String? _branchName;
   final _selectedTypes = <String>{};
-
-  final _categories = const [
-    'Dairy',
-    'Packaging',
-    'Produce',
-    'Uncategorized',
-  ];
 
   final _branches = const [
     {'id': 'main', 'name': 'Main Branch'},
@@ -388,15 +383,19 @@ class _AddStockItemPageState extends ConsumerState<AddStockItemPage> {
   }
 
   Future<void> _showCategorySelector() async {
+    final categoryState = ref.read(categoryControllerProvider);
+    final categories = categoryState.categories.isEmpty
+        ? defaultInventoryCategories
+        : (categoryState.categories.map((c) => c.name).toList()..sort());
     final selection = await showModalBottomSheet<String>(
       context: context,
       showDragHandle: true,
       builder: (context) => SafeArea(
         child: ListView.separated(
           shrinkWrap: true,
-          itemCount: _categories.length,
+          itemCount: categories.length,
           itemBuilder: (context, index) {
-            final category = _categories[index];
+            final category = categories[index];
             final selected = category == _category;
             return ListTile(
               title: Text(category),
@@ -500,7 +499,6 @@ class _UploadImageTile extends StatelessWidget {
       child: CustomPaint(
         painter: _DashedBorderPainter(
           color: scheme.outline,
-          radius: 20,
         ),
         child: SizedBox(
           width: 220,
@@ -550,34 +548,29 @@ const List<String> _monthNames = [
 ];
 
 class _DashedBorderPainter extends CustomPainter {
-  const _DashedBorderPainter({
-    required this.color,
-    this.strokeWidth = 1.5,
-    this.radius = 16,
-    this.dashLength = 8,
-    this.gapLength = 6,
-  });
+  const _DashedBorderPainter({required this.color});
 
   final Color color;
-  final double strokeWidth;
-  final double radius;
-  final double dashLength;
-  final double gapLength;
+  static const double strokeWidth = 1.5;
+  static const double radius = 16;
+  static const double dashLength = 8;
+  static const double gapLength = 6;
 
   @override
   void paint(Canvas canvas, Size size) {
     final rect = Offset.zero & size;
-    final rrect = RRect.fromRectAndRadius(rect, Radius.circular(radius));
+    final rrect =
+        RRect.fromRectAndRadius(rect, Radius.circular(_DashedBorderPainter.radius));
 
     final paint = Paint()
       ..color = color
       ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeWidth;
+      ..strokeWidth = _DashedBorderPainter.strokeWidth;
 
     final dashedPath = _createDashedPath(
       Path()..addRRect(rrect),
-      dashLength,
-      gapLength,
+      _DashedBorderPainter.dashLength,
+      _DashedBorderPainter.gapLength,
     );
 
     canvas.drawPath(dashedPath, paint);
@@ -585,9 +578,7 @@ class _DashedBorderPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _DashedBorderPainter oldDelegate) {
-    return color != oldDelegate.color ||
-        strokeWidth != oldDelegate.strokeWidth ||
-        radius != oldDelegate.radius;
+    return color != oldDelegate.color;
   }
 }
 
