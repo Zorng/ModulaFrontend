@@ -7,6 +7,11 @@ enum AppRoute {
   account,
   settings,
   inventory,
+  inventoryAddItem,
+  inventoryStockDetail,
+  inventoryAdjustStock,
+  inventoryStockItems,
+  inventoryRestock,
 }
 
 extension AppRoutePath on AppRoute {
@@ -19,6 +24,11 @@ extension AppRoutePath on AppRoute {
         AppRoute.account => '/account',
         AppRoute.settings => '/settings',
         AppRoute.inventory => '/portal/admin/inventory',
+        AppRoute.inventoryAddItem => '/portal/admin/inventory/add-item',
+        AppRoute.inventoryStockDetail => '/portal/admin/inventory/detail',
+        AppRoute.inventoryAdjustStock => '/portal/admin/inventory/adjust',
+        AppRoute.inventoryStockItems => '/portal/admin/inventory/stock-items',
+        AppRoute.inventoryRestock => '/portal/admin/inventory/restock',
       };
 
   String get name => switch (this) {
@@ -30,5 +40,10 @@ extension AppRoutePath on AppRoute {
         AppRoute.account => 'account',
         AppRoute.settings => 'settings',
         AppRoute.inventory => 'inventory',
+        AppRoute.inventoryAddItem => 'inventoryAddItem',
+        AppRoute.inventoryStockDetail => 'inventoryStockDetail',
+        AppRoute.inventoryAdjustStock => 'inventoryAdjustStock',
+        AppRoute.inventoryStockItems => 'inventoryStockItems',
+        AppRoute.inventoryRestock => 'inventoryRestock',
       };
 }

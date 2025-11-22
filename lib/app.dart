@@ -13,6 +13,12 @@ import 'package:modular_pos/features/policy/ui/view/policy_page.dart';
 import 'package:modular_pos/features/common/ui/settings_page.dart';
 import 'package:modular_pos/features/auth/ui/view/account_page.dart';
 import 'package:modular_pos/features/inventory/ui/view/inventory_home_page.dart';
+import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
+import 'package:modular_pos/features/inventory/ui/view/add_stock_item_page.dart';
+import 'package:modular_pos/features/inventory/ui/view/stock_item_detail_page.dart';
+import 'package:modular_pos/features/inventory/ui/view/inventory_stock_items_page.dart';
+import 'package:modular_pos/features/inventory/ui/view/stock_adjust_quantity_page.dart';
+import 'package:modular_pos/features/inventory/ui/view/restock_stock_item_page.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -70,7 +76,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       if (path == AppRoute.policy.path && role != 'admin') {
         return '/404';
       }
-      if (path == AppRoute.inventory.path && role != 'admin') {
+      if ((path == AppRoute.inventory.path ||
+              path == AppRoute.inventoryAddItem.path ||
+              path == AppRoute.inventoryStockDetail.path ||
+              path == AppRoute.inventoryStockItems.path ||
+              path == AppRoute.inventoryRestock.path) &&
+          role != 'admin') {
         return '/404';
       }
 
@@ -129,6 +140,50 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoute.inventory.path,
         name: AppRoute.inventory.name,
         builder: (context, state) => const InventoryHomePage(),
+      ),
+      GoRoute(
+        path: AppRoute.inventoryAddItem.path,
+        name: AppRoute.inventoryAddItem.name,
+        builder: (context, state) => const AddStockItemPage(),
+      ),
+      GoRoute(
+        path: AppRoute.inventoryStockDetail.path,
+        name: AppRoute.inventoryStockDetail.name,
+        builder: (context, state) {
+          final item = state.extra is StockItem
+              ? state.extra as StockItem
+              : const StockItem(
+                  id: 'unknown',
+                  name: 'Unknown item',
+                  category: 'Uncategorized',
+                  baseUnit: 'pcs',
+                  pieceSize: 1,
+                  branchId: 'main',
+                  branchName: 'Main Branch',
+                  onHand: 0,
+                  minThreshold: 0,
+                  isActive: true,
+                );
+          return StockItemDetailPage(item: item);
+        },
+      ),
+      GoRoute(
+        path: AppRoute.inventoryAdjustStock.path,
+        name: AppRoute.inventoryAdjustStock.name,
+        builder: (context, state) {
+          final item = state.extra as StockItem;
+          return AdjustStockQuantityPage(item: item);
+        },
+      ),
+      GoRoute(
+        path: AppRoute.inventoryStockItems.path,
+        name: AppRoute.inventoryStockItems.name,
+        builder: (context, state) => const InventoryStockItemsPage(),
+      ),
+      GoRoute(
+        path: AppRoute.inventoryRestock.path,
+        name: AppRoute.inventoryRestock.name,
+        builder: (context, state) => const RestockStockItemPage(),
       ),
     ],
   );

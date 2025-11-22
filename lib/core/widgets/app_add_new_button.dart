@@ -10,9 +10,11 @@ class AppAddNewButton extends StatelessWidget {
   const AppAddNewButton({
     super.key,
     required this.onPressed,
+    this.label = '+ Add new',
   });
 
   final VoidCallback? onPressed;
+  final String label;
 
   @override
   Widget build(BuildContext context) {
@@ -32,10 +34,7 @@ class AppAddNewButton extends StatelessWidget {
         compact: true,
         textStyle: textStyle,
       ),
-      child: Text(
-        '+ Add new',
-        style: textStyle,
-      ),
+      child: Text(label, style: textStyle),
     );
   }
 }

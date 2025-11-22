@@ -1,58 +1,88 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:modular_pos/core/routing/app_router.dart';
+import 'package:modular_pos/core/widgets/app_kebab_menu.dart';
 import 'package:modular_pos/core/widgets/app_search_add_bar.dart';
+import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
+import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_controller.dart';
+import 'package:modular_pos/features/inventory/ui/widgets/inventory_item_card.dart';
 
-class InventoryHomePage extends StatefulWidget {
+class InventoryHomePage extends ConsumerStatefulWidget {
   const InventoryHomePage({super.key});
 
   @override
-  State<InventoryHomePage> createState() => _InventoryHomePageState();
+  ConsumerState<InventoryHomePage> createState() => _InventoryHomePageState();
 }
 
-class _InventoryHomePageState extends State<InventoryHomePage> {
-  String _selectedBranch = 'Main Branch';
+class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
+  String _selectedBranchId = 'all';
+  String _selectedBranchName = 'All branches';
   String _selectedCategory = 'All';
-  bool _lowStockOnly = false;
+  Set<InventoryStockState>? _stateFilters;
   final _searchController = TextEditingController();
 
-  final _branches = const ['Main Branch', 'Downtown', 'Airport'];
-  final _categories = const ['All', 'Dairy', 'Packaging', 'Produce'];
-  final _items = const [
-    _InventoryItem(
-      name: 'Milk 1000ml',
-      category: 'Dairy',
-      unit: 'pcs',
-      onHand: 24,
-      minThreshold: 20,
-    ),
-    _InventoryItem(
-      name: 'Straws Paper',
-      category: 'Packaging',
-      unit: 'pcs',
-      onHand: 12,
-      minThreshold: 30,
-    ),
-    _InventoryItem(
-      name: 'Oranges',
-      category: 'Produce',
-      unit: 'kg',
-      onHand: 18,
-      minThreshold: 15,
-    ),
+  final _branches = const [
+    {'id': 'all', 'name': 'All branches'},
+    {'id': 'main', 'name': 'Main Branch'},
+    {'id': 'downtown', 'name': 'Downtown'},
+    {'id': 'airport', 'name': 'Airport'},
   ];
+  final _categories = const ['All', 'Dairy', 'Packaging', 'Produce'];
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final filtered = _items.where((item) {
+    final inventoryState = ref.watch(stockInventoryControllerProvider);
+    final items = inventoryState.items;
+    final activeFilters = _stateFilters ?? const <InventoryStockState>{};
+    final filterLabel =
+        activeFilters.isEmpty ? 'Filters' : 'Filters (${activeFilters.length})';
+    final filtered = items.where((item) {
       final matchesCategory =
           _selectedCategory == 'All' || item.category == _selectedCategory;
+      final matchesBranch =
+          _selectedBranchId == 'all' || item.branchId == _selectedBranchId;
       final matchesSearch = _searchController.text.isEmpty ||
           item.name.toLowerCase().contains(_searchController.text.toLowerCase());
-      final matchesLowStock = !_lowStockOnly || item.isLowStock;
-      return matchesCategory && matchesSearch && matchesLowStock;
+      final stockState = _mapState(item);
+      final matchesState =
+          activeFilters.isEmpty || activeFilters.contains(stockState);
+      return matchesCategory && matchesBranch && matchesSearch && matchesState;
     }).toList();
 
+    final displayed = _selectedBranchId == 'all'
+        ? _aggregateItems(filtered)
+        : filtered;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Inventory')),
+      appBar: AppBar(
+        title: const Text('Inventory'),
+        centerTitle: false,
+        actions: [
+          AppKebabMenu(
+            items: [
+              KebabMenuItem(
+                label: 'Category management',
+                onTap: () => _showComingSoon(context, 'Category management'),
+              ),
+              KebabMenuItem(
+                label: 'Stock item management',
+                onTap: () => context.push(AppRoute.inventoryStockItems.path),
+              ),
+              KebabMenuItem(
+                label: 'Inventory journal',
+                onTap: () => _showComingSoon(context, 'Inventory journal'),
+              ),
+            ],
+          ),
+        ],
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -62,11 +92,8 @@ class _InventoryHomePageState extends State<InventoryHomePage> {
               searchHint: 'Search stock items',
               searchController: _searchController,
               onSearchChanged: (_) => setState(() {}),
-              onAddPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Add stock item coming soon')),
-                );
-              },
+              addButtonLabel: 'Restock',
+              onAddPressed: () => context.push(AppRoute.inventoryRestock.path),
             ),
             const SizedBox(height: 12),
             SingleChildScrollView(
@@ -91,20 +118,28 @@ class _InventoryHomePageState extends State<InventoryHomePage> {
               children: [
                 Expanded(
                   child: Text(
-                    '${filtered.length} item${filtered.length == 1 ? '' : 's'}',
+                    '${displayed.length} item${displayed.length == 1 ? '' : 's'}',
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
                 ),
-                TextButton.icon(
+                OutlinedButton.icon(
                   onPressed: _showBranchSelector,
                   icon: const Icon(Icons.store_outlined),
-                  label: Text(_selectedBranch),
+                  label: Text(_selectedBranchName),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(64, 40),
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                  ),
                 ),
                 const SizedBox(width: 8),
-                IconButton.outlined(
+                FilledButton.icon(
                   onPressed: _openFilterSheet,
-                  tooltip: 'Filters',
                   icon: const Icon(Icons.filter_list),
+                  label: Text(filterLabel),
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(64, 40),
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                  ),
                 ),
               ],
             ),
@@ -114,15 +149,46 @@ class _InventoryHomePageState extends State<InventoryHomePage> {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
                 ),
-                child: ListView.separated(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: filtered.length,
-                  itemBuilder: (context, index) {
-                    final item = filtered[index];
-                    return _InventoryRow(item: item);
-                  },
-                  separatorBuilder: (_, __) => const Divider(height: 1),
-                ),
+                child: inventoryState.isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : inventoryState.error != null
+                        ? Center(
+                            child: Text(
+                              inventoryState.error!,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.copyWith(color: Theme.of(context).hintColor),
+                            ),
+                          )
+                        : ListView.separated(
+                            padding: const EdgeInsets.all(16),
+                            itemCount: displayed.length,
+                            itemBuilder: (context, index) {
+                              final item = displayed[index];
+                              return InventoryItemCard(
+                                item: item,
+                                showState: _selectedBranchId != 'all',
+                                onTap: () {
+                                  if (item.branchId == 'all') {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'Select a branch to adjust stock',
+                                        ),
+                                      ),
+                                    );
+                                    return;
+                                  }
+                                  context.push(
+                                    AppRoute.inventoryAdjustStock.path,
+                                    extra: item,
+                                  );
+                                },
+                              );
+                            },
+                            separatorBuilder: (_, __) => const SizedBox(height: 12),
+                          ),
               ),
             ),
           ],
@@ -132,8 +198,9 @@ class _InventoryHomePageState extends State<InventoryHomePage> {
   }
 
   Future<void> _openFilterSheet() async {
-    var tempLowStock = _lowStockOnly;
-    final result = await showModalBottomSheet<bool>(
+    final activeFilters = _stateFilters ?? const <InventoryStockState>{};
+    final tempStates = {...activeFilters};
+    final result = await showModalBottomSheet<Set<InventoryStockState>>(
       context: context,
       showDragHandle: true,
       builder: (context) {
@@ -146,21 +213,51 @@ class _InventoryHomePageState extends State<InventoryHomePage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('Filters', style: Theme.of(context).textTheme.titleMedium),
-                  SwitchListTile.adaptive(
-                    title: const Text('Low stock only'),
-                    value: tempLowStock,
-                    onChanged: (value) => setModalState(() => tempLowStock = value),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Stock state',
+                    style: Theme.of(context).textTheme.bodyLarge,
                   ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: InventoryStockState.values.map((state) {
+                      final selected = tempStates.contains(state);
+                      return FilterChip(
+                        label: Text(_stateLabel(state)),
+                        selected: selected,
+                        avatar: Icon(
+                          _stateIcon(state),
+                          size: 16,
+                          color: selected ? Colors.white : Colors.black54,
+                        ),
+                        onSelected: (value) {
+                          setModalState(() {
+                            if (value) {
+                              tempStates.add(state);
+                            } else {
+                              tempStates.remove(state);
+                            }
+                          });
+                        },
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 24),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
                       TextButton(
-                        onPressed: () => setModalState(() => tempLowStock = false),
+                        onPressed: () {
+                          setModalState(() => tempStates.clear());
+                        },
                         child: const Text('Reset'),
                       ),
                       const SizedBox(width: 8),
                       FilledButton(
-                        onPressed: () => Navigator.of(context).pop(tempLowStock),
+                        onPressed: () =>
+                            Navigator.of(context).pop({...tempStates}),
                         child: const Text('Apply'),
                       ),
                     ],
@@ -174,12 +271,12 @@ class _InventoryHomePageState extends State<InventoryHomePage> {
     );
 
     if (result != null) {
-      setState(() => _lowStockOnly = result);
+      setState(() => _stateFilters = result);
     }
   }
 
   Future<void> _showBranchSelector() async {
-    final branch = await showModalBottomSheet<String>(
+    final selection = await showModalBottomSheet<Map<String, String>>(
       context: context,
       showDragHandle: true,
       builder: (context) {
@@ -188,9 +285,9 @@ class _InventoryHomePageState extends State<InventoryHomePage> {
             shrinkWrap: true,
             itemBuilder: (context, index) {
               final branch = _branches[index];
-              final selected = branch == _selectedBranch;
+              final selected = branch['id'] == _selectedBranchId;
               return ListTile(
-                title: Text(branch),
+                title: Text(branch['name']!),
                 trailing: selected ? const Icon(Icons.check) : null,
                 onTap: () => Navigator.of(context).pop(branch),
               );
@@ -202,102 +299,66 @@ class _InventoryHomePageState extends State<InventoryHomePage> {
       },
     );
 
-    if (branch != null) {
-      setState(() => _selectedBranch = branch);
+    if (selection != null) {
+      setState(() {
+        _selectedBranchId = selection['id']!;
+        _selectedBranchName = selection['name']!;
+      });
     }
   }
-}
 
-class _InventoryRow extends StatelessWidget {
-  const _InventoryRow({required this.item});
+  InventoryStockState _mapState(StockItem item) {
+    if (item.onHand == 0) return InventoryStockState.outOfStock;
+    if (item.isLowStock) return InventoryStockState.lowStock;
+    return InventoryStockState.healthy;
+  }
 
-  final _InventoryItem item;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return ListTile(
-      title: Text(item.name),
-      subtitle: Text(item.category),
-      trailing: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          Text('${item.onHand} ${item.unit}',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: item.isLowStock ? colorScheme.error : null,
-                  )),
-          Text('Min ${item.minThreshold}',
-              style: Theme.of(context).textTheme.bodySmall),
-        ],
-      ),
+  void _showComingSoon(BuildContext context, String feature) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('$feature coming soon')),
     );
   }
-}
 
-class _InventoryItem {
-  const _InventoryItem({
-    required this.name,
-    required this.category,
-    required this.unit,
-    required this.onHand,
-    required this.minThreshold,
-  });
-
-  final String name;
-  final String category;
-  final String unit;
-  final int onHand;
-  final int minThreshold;
-
-  bool get isLowStock => onHand < minThreshold;
-}
-
-extension on _InventoryHomePageState {
-  Future<void> _openFilterSheet() async {
-    var tempLowStock = _lowStockOnly;
-    final result = await showModalBottomSheet<bool>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            return Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Filters', style: Theme.of(context).textTheme.titleMedium),
-                  SwitchListTile.adaptive(
-                    title: const Text('Low stock only'),
-                    value: tempLowStock,
-                    onChanged: (value) => setModalState(() => tempLowStock = value),
-                  ),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      TextButton(
-                        onPressed: () => setModalState(() => tempLowStock = false),
-                        child: const Text('Reset'),
-                      ),
-                      const SizedBox(width: 8),
-                      FilledButton(
-                        onPressed: () => Navigator.of(context).pop(tempLowStock),
-                        child: const Text('Apply'),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
-
-    if (result != null) {
-      setState(() => _lowStockOnly = result);
+  List<StockItem> _aggregateItems(List<StockItem> items) {
+    final grouped = <String, List<StockItem>>{};
+    for (final item in items) {
+      final key =
+          '${item.name}|${item.category}|${item.baseUnit}|${item.pieceSize}|${item.barcode ?? ''}';
+      grouped.putIfAbsent(key, () => []).add(item);
     }
+
+    return grouped.entries.map((entry) {
+      final first = entry.value.first;
+      final totalOnHand =
+          entry.value.fold<int>(0, (sum, item) => sum + item.onHand);
+      final totalThreshold =
+          entry.value.fold<int>(0, (sum, item) => sum + item.minThreshold);
+      final mergedTags = <String>{};
+      for (final item in entry.value) {
+        mergedTags.addAll(item.usageTags);
+      }
+      return first.copyWith(
+        id: '${entry.key}_aggregate',
+        branchId: 'all',
+        branchName: 'All branches',
+        onHand: totalOnHand,
+        minThreshold: totalThreshold,
+        lastRestockDate: '-',
+        expiryDate: '-',
+        usageTags: mergedTags.toList(),
+      );
+    }).toList();
   }
 }
+
+String _stateLabel(InventoryStockState state) => switch (state) {
+      InventoryStockState.healthy => 'Healthy',
+      InventoryStockState.lowStock => 'Low stock',
+      InventoryStockState.outOfStock => 'Out of stock',
+    };
+
+IconData _stateIcon(InventoryStockState state) => switch (state) {
+      InventoryStockState.healthy => Icons.check_circle,
+      InventoryStockState.lowStock => Icons.warning_amber,
+      InventoryStockState.outOfStock => Icons.error_outline,
+    };
