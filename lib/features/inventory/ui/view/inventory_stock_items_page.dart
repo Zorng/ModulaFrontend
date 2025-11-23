@@ -141,7 +141,6 @@ class _InventoryStockItemsPageState
                         ),
                       )
                     : ListView.separated(
-                        padding: const EdgeInsets.all(16),
                         itemBuilder: (context, index) {
                           final item = displayed[index];
                           return _StockItemCard(item: item);
@@ -199,10 +198,20 @@ class _StockItemCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 2),
-                    Text(
-                      item.category,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: scheme.onSurfaceVariant,
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: scheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        item.category,
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: scheme.onSurfaceVariant,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 8),

@@ -4,6 +4,12 @@ import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/widgets/app_kebab_menu.dart';
 import 'package:modular_pos/core/widgets/app_search_add_bar.dart';
+import 'package:modular_pos/features/inventory/data/stock_item_api.dart'
+    show
+        InventoryMockScenario,
+        defaultMockScenario,
+        singleBranchId,
+        singleBranchName;
 import 'package:modular_pos/features/inventory/domain/models/category_defaults.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/category_controller.dart';
@@ -19,17 +25,21 @@ class InventoryHomePage extends ConsumerStatefulWidget {
 
 class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
   String _selectedBranchId = 'all';
-  String _selectedBranchName = 'All branches';
   String _selectedCategory = 'All';
   Set<InventoryStockState>? _stateFilters;
   final _searchController = TextEditingController();
 
-  final _branches = const [
-    {'id': 'all', 'name': 'All branches'},
-    {'id': 'main', 'name': 'Main Branch'},
-    {'id': 'downtown', 'name': 'Downtown'},
-    {'id': 'airport', 'name': 'Airport'},
-  ];
+  late final bool _isSingleBranchTenant;
+
+  @override
+  void initState() {
+    super.initState();
+    _isSingleBranchTenant =
+        defaultMockScenario == InventoryMockScenario.singleBranchFreshTenant;
+    if (_isSingleBranchTenant) {
+      _selectedBranchId = singleBranchId;
+    }
+  }
 
   @override
   void dispose() {
@@ -42,16 +52,23 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
     final inventoryState = ref.watch(stockInventoryControllerProvider);
     final categoryState = ref.watch(categoryControllerProvider);
     final items = inventoryState.items;
+    final branchEntries = _branchEntries(items);
+    final branchLabel = _branchLabel(branchEntries);
+    final canSelectBranch = branchEntries.length > 1;
     final activeFilters = _stateFilters ?? const <InventoryStockState>{};
-    final filterLabel =
-        activeFilters.isEmpty ? 'Filters' : 'Filters (${activeFilters.length})';
+    final filterLabel = activeFilters.isEmpty
+        ? 'Filters'
+        : 'Filters (${activeFilters.length})';
     final filtered = items.where((item) {
       final matchesCategory =
           _selectedCategory == 'All' || item.category == _selectedCategory;
       final matchesBranch =
           _selectedBranchId == 'all' || item.branchId == _selectedBranchId;
-      final matchesSearch = _searchController.text.isEmpty ||
-          item.name.toLowerCase().contains(_searchController.text.toLowerCase());
+      final matchesSearch =
+          _searchController.text.isEmpty ||
+          item.name.toLowerCase().contains(
+            _searchController.text.toLowerCase(),
+          );
       final stockState = _mapState(item);
       final matchesState =
           activeFilters.isEmpty || activeFilters.contains(stockState);
@@ -84,7 +101,7 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
               ),
               KebabMenuItem(
                 label: 'Inventory journal',
-                onTap: () => _showComingSoon(context, 'Inventory journal'),
+                onTap: () => context.push(AppRoute.inventoryJournal.path),
               ),
             ],
           ),
@@ -103,9 +120,9 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
               onAddPressed: () => context.push(AppRoute.inventoryRestock.path),
             ),
             const SizedBox(height: 12),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
                 children: categories.map((category) {
                   final selected = category == _selectedCategory;
                   return Padding(
@@ -130,9 +147,11 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
                   ),
                 ),
                 OutlinedButton.icon(
-                  onPressed: _showBranchSelector,
+                  onPressed: canSelectBranch
+                      ? () => _showBranchSelector(branchEntries)
+                      : null,
                   icon: const Icon(Icons.store_outlined),
-                  label: Text(_selectedBranchName),
+                  label: Text(branchLabel),
                   style: OutlinedButton.styleFrom(
                     minimumSize: const Size(64, 40),
                     padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -162,43 +181,40 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
                 child: inventoryState.isLoading
                     ? const Center(child: CircularProgressIndicator())
                     : inventoryState.error != null
-                        ? Center(
-                            child: Text(
-                              inventoryState.error!,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodyMedium
-                                  ?.copyWith(color: Theme.of(context).hintColor),
-                            ),
-                          )
-                        : ListView.separated(
-                            padding: const EdgeInsets.all(16),
-                            itemCount: displayed.length,
-                            itemBuilder: (context, index) {
-                              final item = displayed[index];
-                              return InventoryItemCard(
-                                item: item,
-                                showState: _selectedBranchId != 'all',
-                                onTap: () {
-                                  if (item.branchId == 'all') {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text(
-                                          'Select a branch to adjust stock',
-                                        ),
-                                      ),
-                                    );
-                                    return;
-                                  }
-                                  context.push(
-                                    AppRoute.inventoryAdjustStock.path,
-                                    extra: item,
-                                  );
-                                },
+                    ? Center(
+                        child: Text(
+                          inventoryState.error!,
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(color: Theme.of(context).hintColor),
+                        ),
+                      )
+                    : ListView.separated(
+                        itemCount: displayed.length,
+                        itemBuilder: (context, index) {
+                          final item = displayed[index];
+                          return InventoryItemCard(
+                            item: item,
+                            showState: _selectedBranchId != 'all',
+                            onTap: () {
+                              if (item.branchId == 'all') {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Select a branch to adjust stock',
+                                    ),
+                                  ),
+                                );
+                                return;
+                              }
+                              context.push(
+                                AppRoute.inventoryAdjustStock.path,
+                                extra: item,
                               );
                             },
-                            separatorBuilder: (_, __) => const SizedBox(height: 12),
-                          ),
+                          );
+                        },
+                        separatorBuilder: (_, __) => const SizedBox(height: 12),
+                      ),
               ),
             ),
           ],
@@ -222,7 +238,10 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Filters', style: Theme.of(context).textTheme.titleMedium),
+                  Text(
+                    'Filters',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
                   const SizedBox(height: 12),
                   Text(
                     'Stock state',
@@ -285,7 +304,8 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
     }
   }
 
-  Future<void> _showBranchSelector() async {
+  Future<void> _showBranchSelector(List<Map<String, String>> branches) async {
+    if (branches.length <= 1) return;
     final selection = await showModalBottomSheet<Map<String, String>>(
       context: context,
       showDragHandle: true,
@@ -294,7 +314,7 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
           child: ListView.separated(
             shrinkWrap: true,
             itemBuilder: (context, index) {
-              final branch = _branches[index];
+              final branch = branches[index];
               final selected = branch['id'] == _selectedBranchId;
               return ListTile(
                 title: Text(branch['name']!),
@@ -303,7 +323,7 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
               );
             },
             separatorBuilder: (_, __) => const Divider(height: 1),
-            itemCount: _branches.length,
+            itemCount: branches.length,
           ),
         );
       },
@@ -312,21 +332,53 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
     if (selection != null) {
       setState(() {
         _selectedBranchId = selection['id']!;
-        _selectedBranchName = selection['name']!;
       });
     }
+  }
+
+  List<Map<String, String>> _branchEntries(List<StockItem> items) {
+    if (items.isEmpty) {
+      return _isSingleBranchTenant
+          ? [
+              {'id': singleBranchId, 'name': singleBranchName},
+            ]
+          : [
+              {'id': 'all', 'name': 'All branches'},
+            ];
+    }
+    final map = <String, String>{};
+    for (final item in items) {
+      map[item.branchId] = item.branchName;
+    }
+    final entries = map.entries
+        .map((entry) => {'id': entry.key, 'name': entry.value})
+        .toList()
+      ..sort((a, b) => a['name']!.compareTo(b['name']!));
+    if (entries.length > 1) {
+      entries.insert(
+        0,
+        {'id': 'all', 'name': 'All branches'},
+      );
+    }
+    return entries;
+  }
+
+  String _branchLabel(List<Map<String, String>> branches) {
+    if (_selectedBranchId == 'all') return 'All branches';
+    for (final branch in branches) {
+      if (branch['id'] == _selectedBranchId) {
+        return branch['name']!;
+      }
+    }
+    if (_isSingleBranchTenant) return singleBranchName;
+    if (branches.isNotEmpty) return branches.first['name']!;
+    return 'All branches';
   }
 
   InventoryStockState _mapState(StockItem item) {
     if (item.onHand == 0) return InventoryStockState.outOfStock;
     if (item.isLowStock) return InventoryStockState.lowStock;
     return InventoryStockState.healthy;
-  }
-
-  void _showComingSoon(BuildContext context, String feature) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$feature coming soon')),
-    );
   }
 
   List<StockItem> _aggregateItems(List<StockItem> items) {
@@ -339,10 +391,14 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
 
     return grouped.entries.map((entry) {
       final first = entry.value.first;
-      final totalOnHand =
-          entry.value.fold<int>(0, (sum, item) => sum + item.onHand);
-      final totalThreshold =
-          entry.value.fold<int>(0, (sum, item) => sum + item.minThreshold);
+      final totalOnHand = entry.value.fold<int>(
+        0,
+        (sum, item) => sum + item.onHand,
+      );
+      final totalThreshold = entry.value.fold<int>(
+        0,
+        (sum, item) => sum + item.minThreshold,
+      );
       final mergedTags = <String>{};
       for (final item in entry.value) {
         mergedTags.addAll(item.usageTags);
@@ -362,13 +418,13 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
 }
 
 String _stateLabel(InventoryStockState state) => switch (state) {
-      InventoryStockState.healthy => 'Healthy',
-      InventoryStockState.lowStock => 'Low stock',
-      InventoryStockState.outOfStock => 'Out of stock',
-    };
+  InventoryStockState.healthy => 'Healthy',
+  InventoryStockState.lowStock => 'Low stock',
+  InventoryStockState.outOfStock => 'Out of stock',
+};
 
 IconData _stateIcon(InventoryStockState state) => switch (state) {
-      InventoryStockState.healthy => Icons.check_circle,
-      InventoryStockState.lowStock => Icons.warning_amber,
-      InventoryStockState.outOfStock => Icons.error_outline,
-    };
+  InventoryStockState.healthy => Icons.check_circle,
+  InventoryStockState.lowStock => Icons.warning_amber,
+  InventoryStockState.outOfStock => Icons.error_outline,
+};

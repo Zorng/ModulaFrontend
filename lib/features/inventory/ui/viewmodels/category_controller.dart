@@ -2,11 +2,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/features/inventory/data/inventory_category_repository.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_category.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/category_state.dart';
+import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_controller.dart';
 
 final categoryControllerProvider =
     NotifierProvider<CategoryController, CategoryState>(() {
-  return CategoryController();
-});
+      return CategoryController();
+    });
 
 class CategoryController extends Notifier<CategoryState> {
   late final InventoryCategoryRepository _repository;
@@ -51,6 +52,7 @@ class CategoryController extends Notifier<CategoryState> {
           if (existing.id == updated.id) updated else existing,
       ];
       state = state.copyWith(categories: categories, error: null);
+      await _refreshInventory();
     } catch (e) {
       state = state.copyWith(error: e.toString());
     }
@@ -60,11 +62,18 @@ class CategoryController extends Notifier<CategoryState> {
     try {
       await _repository.deleteCategory(id);
       state = state.copyWith(
-        categories: state.categories.where((category) => category.id != id).toList(),
+        categories: state.categories
+            .where((category) => category.id != id)
+            .toList(),
         error: null,
       );
+      await _refreshInventory();
     } catch (e) {
       state = state.copyWith(error: e.toString());
     }
+  }
+
+  Future<void> _refreshInventory() async {
+    await ref.read(stockInventoryControllerProvider.notifier).loadStockItems();
   }
 }

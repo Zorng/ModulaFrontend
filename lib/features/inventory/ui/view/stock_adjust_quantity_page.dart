@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
+import 'package:modular_pos/features/inventory/domain/models/inventory_journal_entry.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_batch.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
 import 'package:modular_pos/features/inventory/domain/utils/stock_quantity_formatter.dart';
+import 'package:modular_pos/features/inventory/ui/viewmodels/inventory_journal_controller.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_controller.dart';
 import 'package:modular_pos/features/inventory/ui/widgets/inventory_dropdown.dart';
 
@@ -83,13 +86,10 @@ class _AdjustStockQuantityPageState
           const SizedBox(height: 16),
           SegmentedButton<_AdjustmentType>(
             segments: const [
-              ButtonSegment(
-                value: _AdjustmentType.add,
-                label: Text('Add stock'),
-              ),
+              ButtonSegment(value: _AdjustmentType.add, label: Text('Add')),
               ButtonSegment(
                 value: _AdjustmentType.reduce,
-                label: Text('Reduce stock'),
+                label: Text('Remove'),
               ),
             ],
             selected: {_type},
@@ -207,6 +207,29 @@ class _AdjustStockQuantityPageState
       await ref
           .read(stockInventoryControllerProvider.notifier)
           .adjustBatch(batchId: batchId, delta: delta);
+      final actor = ref.read(loginControllerProvider).user?.name ?? 'System';
+      ref
+          .read(inventoryJournalControllerProvider.notifier)
+          .recordEntry(
+            InventoryJournalEntry(
+              id: 'ja-${DateTime.now().microsecondsSinceEpoch}',
+              itemId: widget.item.id,
+              itemName: widget.item.name,
+              branchId: widget.item.branchId,
+              branchName: widget.item.branchName,
+              reason: _type == _AdjustmentType.add
+                  ? InventoryJournalReason.add
+                  : InventoryJournalReason.remove,
+              delta: delta,
+              note: _noteCtrl.text.trim().isEmpty
+                  ? _type == _AdjustmentType.add
+                        ? 'Manual addition'
+                        : 'Manual reduction'
+                  : _noteCtrl.text.trim(),
+              actor: actor,
+              timestamp: DateTime.now(),
+            ),
+          );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('${_typeLabel()} of $magnitude applied')),

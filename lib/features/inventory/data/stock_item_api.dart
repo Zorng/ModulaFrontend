@@ -5,14 +5,76 @@ import 'package:modular_pos/features/inventory/domain/models/inventory_category.
 import 'package:modular_pos/features/inventory/domain/models/stock_batch.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
 
+enum InventoryMockScenario { establishedMultiBranch, singleBranchFreshTenant }
+
+const singleBranchId = 'branch_alpha';
+const singleBranchName = 'Alpha Roastery';
+const _singleBranchCategories = [
+  InventoryCategory(id: 'cat_alpha_coffee', name: 'Coffee', isActive: true),
+  InventoryCategory(id: 'cat_alpha_pack', name: 'Packaging', isActive: true),
+  InventoryCategory(
+    id: _uncategorizedId,
+    name: _uncategorizedName,
+    isActive: true,
+  ),
+];
+
+const _uncategorizedId = 'cat_uncategorized';
+const _uncategorizedName = 'Uncategorized';
+const _uncategorizedCategory = InventoryCategory(
+  id: _uncategorizedId,
+  name: _uncategorizedName,
+  isActive: true,
+);
+
+const InventoryMockScenario defaultMockScenario =
+    InventoryMockScenario.singleBranchFreshTenant;
+
 final stockItemApiProvider = Provider<StockItemApi>((ref) {
-  return StockItemApi();
+  return StockItemApi(scenario: defaultMockScenario);
 });
 
 class StockItemApi {
-  StockItemApi();
+  StockItemApi({InventoryMockScenario scenario = defaultMockScenario})
+    : _items = List.of(
+        scenario == InventoryMockScenario.establishedMultiBranch
+            ? _buildEstablishedItems()
+            : const [],
+      ),
+      _batches = List.of(
+        scenario == InventoryMockScenario.establishedMultiBranch
+            ? _buildEstablishedBatches()
+            : const [],
+      ),
+      _categories = List.of(
+        scenario == InventoryMockScenario.establishedMultiBranch
+            ? _buildEstablishedCategories()
+            : _singleBranchCategories,
+      );
 
-  final List<StockItem> _items = [
+  final List<StockItem> _items;
+  final List<StockBatch> _batches;
+  final List<InventoryCategory> _categories;
+
+  static List<StockItem> _buildEstablishedItems() => [
+    StockItem(
+      id: 'main_milk',
+      name: 'Whole Milk 1000ml',
+      category: 'Dairy',
+      baseUnit: 'ml',
+      pieceSize: 1000,
+      branchId: 'main',
+      branchName: 'Main Branch',
+      onHand: 3600,
+      minThreshold: 2500,
+      isActive: true,
+      barcode: 'MAIN-MILK-1L',
+      imageUrl:
+          'https://www.foremostthailand.com/wp-content/uploads/2022/03/plain-fat-0.png',
+      lastRestockDate: 'May 15, 2024',
+      expiryDate: 'May 30, 2024',
+      usageTags: const ['Ingredient'],
+    ),
     StockItem(
       id: 'main_milk',
       name: 'Whole Milk 1000ml',
@@ -259,7 +321,7 @@ class StockItemApi {
     ),
   ];
 
-  final List<StockBatch> _batches = [
+  static List<StockBatch> _buildEstablishedBatches() => [
     StockBatch(
       id: 'main_milk_b1',
       stockItemId: 'main_milk',
@@ -342,11 +404,12 @@ class StockItemApi {
     ),
   ];
 
-  final List<InventoryCategory> _categories = [
-    const InventoryCategory(id: 'cat_dairy', name: 'Dairy', isActive: true),
-    const InventoryCategory(id: 'cat_packaging', name: 'Packaging', isActive: true),
-    const InventoryCategory(id: 'cat_produce', name: 'Produce', isActive: true),
-    const InventoryCategory(id: 'cat_sweet', name: 'Sweetener', isActive: true),
+  static List<InventoryCategory> _buildEstablishedCategories() => const [
+    InventoryCategory(id: 'cat_dairy', name: 'Dairy', isActive: true),
+    InventoryCategory(id: 'cat_packaging', name: 'Packaging', isActive: true),
+    InventoryCategory(id: 'cat_produce', name: 'Produce', isActive: true),
+    InventoryCategory(id: 'cat_sweet', name: 'Sweetener', isActive: true),
+    _uncategorizedCategory,
   ];
 
   Future<List<StockItem>> fetchItems() async {
@@ -426,15 +489,42 @@ class StockItemApi {
 
   Future<InventoryCategory> updateCategory(InventoryCategory category) async {
     await Future<void>.delayed(const Duration(milliseconds: 200));
-    final index = _categories.indexWhere((element) => element.id == category.id);
+    final index = _categories.indexWhere(
+      (element) => element.id == category.id,
+    );
     if (index == -1) throw StateError('Category ${category.id} not found');
+    final previous = _categories[index];
     _categories[index] = category;
+    if (previous.name != category.name) {
+      for (var i = 0; i < _items.length; i++) {
+        final item = _items[i];
+        if (item.category == previous.name) {
+          _items[i] = item.copyWith(category: category.name);
+        }
+      }
+    }
     return category;
   }
 
   Future<void> deleteCategory(String id) async {
     await Future<void>.delayed(const Duration(milliseconds: 200));
-    _categories.removeWhere((element) => element.id == id);
+    if (id == _uncategorizedId) {
+      throw StateError(
+        'The default category $_uncategorizedName cannot be deleted.',
+      );
+    }
+    final index = _categories.indexWhere((element) => element.id == id);
+    if (index == -1) return;
+    final removed = _categories.removeAt(index);
+    for (var i = 0; i < _items.length; i++) {
+      final item = _items[i];
+      if (item.category == removed.name) {
+        _items[i] = item.copyWith(category: _uncategorizedName);
+      }
+    }
+    if (!_categories.any((category) => category.id == _uncategorizedId)) {
+      _categories.add(_uncategorizedCategory);
+    }
   }
 
   String _generateCategoryId() =>

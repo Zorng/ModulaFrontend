@@ -140,7 +140,6 @@ class _StockItemDetailPageState extends ConsumerState<StockItemDetailPage> {
       body: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.all(16),
           children: [
             Center(
               child: _ImagePreview(

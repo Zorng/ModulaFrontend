@@ -1,7 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
+import 'package:modular_pos/features/inventory/data/stock_item_api.dart'
+    show
+        InventoryMockScenario,
+        defaultMockScenario,
+        singleBranchId,
+        singleBranchName;
+import 'package:modular_pos/features/inventory/domain/models/inventory_journal_entry.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
 import 'package:modular_pos/features/inventory/domain/utils/stock_quantity_formatter.dart';
+import 'package:modular_pos/features/inventory/ui/viewmodels/inventory_journal_controller.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_controller.dart';
 import 'package:modular_pos/features/inventory/ui/widgets/inventory_dropdown.dart';
 
@@ -25,11 +34,17 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
   final _noteCtrl = TextEditingController();
   final _dateCtrl = TextEditingController();
   final _expiryCtrl = TextEditingController();
+  late final bool _isSingleBranchTenant;
 
   @override
   void initState() {
     super.initState();
     _itemCtrl = TextEditingController();
+    _isSingleBranchTenant =
+        defaultMockScenario == InventoryMockScenario.singleBranchFreshTenant;
+    if (_isSingleBranchTenant) {
+      _selectedBranchId = singleBranchId;
+    }
   }
 
   @override
@@ -88,6 +103,7 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
                         _extraCtrl.text = '0';
                       });
                     },
+                    enabled: !_isSingleBranchTenant,
                   ),
                   const SizedBox(height: 12),
                   _StockItemAutocomplete(
@@ -214,6 +230,9 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
   }
 
   List<MapEntry<String, String>> _buildBranchEntries(List<StockItem> items) {
+    if (_isSingleBranchTenant) {
+      return [MapEntry(singleBranchId, singleBranchName)];
+    }
     final map = <String, String>{};
     for (final item in items) {
       map[item.branchId] = item.branchName;
@@ -224,9 +243,10 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
   }
 
   List<StockItem> _itemsForSelectedBranch(List<StockItem> items) {
+    final sorted = [...items]..sort((a, b) => a.name.compareTo(b.name));
+    if (_isSingleBranchTenant) return sorted;
     if (_selectedBranchId == null) return const [];
-    return items.where((item) => item.branchId == _selectedBranchId).toList()
-      ..sort((a, b) => a.name.compareTo(b.name));
+    return sorted.where((item) => item.branchId == _selectedBranchId).toList();
   }
 
   void _pickDate() async {
@@ -305,6 +325,25 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
                 ? _formatDate(DateTime.now())
                 : _dateCtrl.text,
             expiryDate: _expiryCtrl.text.isEmpty ? null : _expiryCtrl.text,
+          );
+      final actor = ref.read(loginControllerProvider).user?.name ?? 'System';
+      ref
+          .read(inventoryJournalControllerProvider.notifier)
+          .recordEntry(
+            InventoryJournalEntry(
+              id: 'jr-${DateTime.now().microsecondsSinceEpoch}',
+              itemId: item.id,
+              itemName: item.name,
+              branchId: item.branchId,
+              branchName: item.branchName,
+              reason: InventoryJournalReason.restock,
+              delta: baseQty,
+              note: _noteCtrl.text.trim().isEmpty
+                  ? 'Restock recorded'
+                  : _noteCtrl.text.trim(),
+              actor: actor,
+              timestamp: DateTime.now(),
+            ),
           );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -395,14 +434,31 @@ class _BranchSelector extends StatelessWidget {
     required this.entries,
     required this.selectedBranchId,
     required this.onChanged,
+    this.enabled = true,
   });
 
   final List<MapEntry<String, String>> entries;
   final String? selectedBranchId;
   final ValueChanged<String?> onChanged;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
+    if (!enabled) {
+      final label = entries
+          .firstWhere(
+            (entry) => entry.key == selectedBranchId,
+            orElse: () => entries.first,
+          )
+          .value;
+      return SizedBox(
+        width: double.infinity,
+        child: InputDecorator(
+          decoration: const InputDecoration(labelText: 'Branch'),
+          child: Text(label),
+        ),
+      );
+    }
     return FormField<String>(
       validator: (_) =>
           selectedBranchId == null ? 'Please select a branch' : null,

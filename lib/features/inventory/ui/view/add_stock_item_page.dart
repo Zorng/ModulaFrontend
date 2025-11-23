@@ -2,6 +2,12 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:modular_pos/features/inventory/data/stock_item_api.dart'
+    show
+        InventoryMockScenario,
+        defaultMockScenario,
+        singleBranchId,
+        singleBranchName;
 import 'package:modular_pos/features/inventory/domain/models/category_defaults.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/category_controller.dart';
@@ -40,17 +46,17 @@ class _AddStockItemPageState extends ConsumerState<AddStockItemPage> {
   String? _branchName;
   final _selectedTypes = <String>{};
 
-  final _branches = const [
-    {'id': 'main', 'name': 'Main Branch'},
-    {'id': 'downtown', 'name': 'Downtown'},
-    {'id': 'airport', 'name': 'Airport'},
-  ];
+  late final bool _isSingleBranchTenant;
 
   @override
   void initState() {
     super.initState();
-    _branchId = _branches.first['id'];
-    _branchName = _branches.first['name'];
+    _isSingleBranchTenant =
+        defaultMockScenario == InventoryMockScenario.singleBranchFreshTenant;
+    if (_isSingleBranchTenant) {
+      _branchId = singleBranchId;
+      _branchName = singleBranchName;
+    }
   }
 
   @override
@@ -67,11 +73,16 @@ class _AddStockItemPageState extends ConsumerState<AddStockItemPage> {
 
   @override
   Widget build(BuildContext context) {
+    final inventoryState = ref.watch(stockInventoryControllerProvider);
+    final branchOptions = _branchOptions(inventoryState.items);
+    final branchSelectable = !_isSingleBranchTenant && branchOptions.length > 1;
+    final branchLabel = _branchName ??
+        (branchOptions.isNotEmpty
+            ? branchOptions.first['name']!
+            : 'No branches available');
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Add stock item'),
-        centerTitle: false,
-      ),
+      appBar: AppBar(title: const Text('Add stock item'), centerTitle: false),
       body: Form(
         key: _formKey,
         child: ListView(
@@ -108,7 +119,8 @@ class _AddStockItemPageState extends ConsumerState<AddStockItemPage> {
                       child: InputDecorator(
                         decoration: InputDecoration(
                           labelText: 'Base unit',
-                          helperText: 'ml for liquids, g for solids, pcs for countable items',
+                          helperText:
+                              'ml for liquids, g for solids, pcs for countable items',
                           errorText: state.errorText,
                         ),
                         child: Row(
@@ -118,8 +130,9 @@ class _AddStockItemPageState extends ConsumerState<AddStockItemPage> {
                               child: Text(
                                 _baseUnit ?? 'Select base unit',
                                 style: _baseUnit == null
-                                    ? textTheme.bodyMedium
-                                        ?.copyWith(color: hintColor)
+                                    ? textTheme.bodyMedium?.copyWith(
+                                        color: hintColor,
+                                      )
                                     : textTheme.bodyMedium,
                               ),
                             ),
@@ -170,8 +183,9 @@ class _AddStockItemPageState extends ConsumerState<AddStockItemPage> {
                             Text(
                               _category ?? 'Select category',
                               style: _category == null
-                                  ? textTheme.bodyMedium
-                                      ?.copyWith(color: hintColor)
+                                  ? textTheme.bodyMedium?.copyWith(
+                                      color: hintColor,
+                                    )
                                   : textTheme.bodyMedium,
                             ),
                             const Icon(Icons.expand_more),
@@ -190,22 +204,24 @@ class _AddStockItemPageState extends ConsumerState<AddStockItemPage> {
                     final hintColor = Theme.of(context).hintColor;
                     return InkWell(
                       borderRadius: BorderRadius.circular(12),
-                      onTap: _showBranchSelector,
+                      onTap: branchSelectable
+                          ? () => _showBranchSelector(branchOptions)
+                          : null,
                       child: InputDecorator(
-                        decoration: const InputDecoration(
-                          labelText: 'Branch',
-                        ),
+                        decoration: const InputDecoration(labelText: 'Branch'),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              _branchName ?? 'Select branch',
-                              style: _branchName == null
-                                  ? textTheme.bodyMedium
-                                      ?.copyWith(color: hintColor)
+                              branchLabel,
+                              style: branchOptions.isEmpty
+                                  ? textTheme.bodyMedium?.copyWith(
+                                      color: hintColor,
+                                    )
                                   : textTheme.bodyMedium,
                             ),
-                            const Icon(Icons.expand_more),
+                            if (branchSelectable)
+                              const Icon(Icons.expand_more),
                           ],
                         ),
                       ),
@@ -244,7 +260,9 @@ class _AddStockItemPageState extends ConsumerState<AddStockItemPage> {
                 TextFormField(
                   controller: _quantityCtrl,
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Starting quantity'),
+                  decoration: const InputDecoration(
+                    labelText: 'Starting quantity',
+                  ),
                 ),
                 TextFormField(
                   controller: _minThresholdCtrl,
@@ -280,10 +298,7 @@ class _AddStockItemPageState extends ConsumerState<AddStockItemPage> {
               ],
             ),
             const SizedBox(height: 24),
-            FilledButton(
-              onPressed: _submit,
-              child: const Text('Save item'),
-            ),
+            FilledButton(onPressed: _submit, child: const Text('Save item')),
           ],
         ),
       ),
@@ -293,15 +308,24 @@ class _AddStockItemPageState extends ConsumerState<AddStockItemPage> {
   void _submit() {
     final isValid = _formKey.currentState?.validate() ?? false;
     if (!isValid) return;
+    final inventoryState = ref.read(stockInventoryControllerProvider);
+    final branches = _branchOptions(inventoryState.items);
+    if (branches.isEmpty && !_isSingleBranchTenant) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No branches available. Create a branch before adding items.'),
+        ),
+      );
+      return;
+    }
     final controller = ref.read(stockInventoryControllerProvider.notifier);
     final quantity = int.tryParse(_quantityCtrl.text.trim()) ?? 0;
     final minThreshold = int.tryParse(_minThresholdCtrl.text.trim()) ?? 0;
     final pieceSize = int.tryParse(_pieceSizeCtrl.text.trim()) ?? 1;
-    final usageTags =
-        _selectedTypes.isEmpty ? <String>['Ingredient'] : _selectedTypes.toList();
-    final branch = _branchId == null
-        ? _branches.first
-        : _branches.firstWhere((b) => b['id'] == _branchId, orElse: () => _branches.first);
+    final usageTags = _selectedTypes.isEmpty
+        ? <String>['Ingredient']
+        : _selectedTypes.toList();
+    final branch = _resolveBranch(branches);
     final item = StockItem(
       id: '',
       name: _nameCtrl.text.trim(),
@@ -327,11 +351,44 @@ class _AddStockItemPageState extends ConsumerState<AddStockItemPage> {
 
     controller.addStockItem(item).then((_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Stock item added')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Stock item added')));
       Navigator.of(context).pop();
     });
+  }
+
+  List<Map<String, String>> _branchOptions(List<StockItem> items) {
+    if (items.isEmpty) {
+      return _isSingleBranchTenant
+          ? [
+              {'id': singleBranchId, 'name': singleBranchName},
+            ]
+          : const <Map<String, String>>[];
+    }
+    final map = <String, String>{};
+    for (final item in items) {
+      map[item.branchId] = item.branchName;
+    }
+    final entries = map.entries
+        .map((entry) => {'id': entry.key, 'name': entry.value})
+        .toList()
+      ..sort((a, b) => a['name']!.compareTo(b['name']!));
+    return entries;
+  }
+
+  Map<String, String> _resolveBranch(List<Map<String, String>> branches) {
+    if (branches.isEmpty) {
+      return {
+        'id': singleBranchId,
+        'name': singleBranchName,
+      };
+    }
+    if (_branchId == null) return branches.first;
+    return branches.firstWhere(
+      (branch) => branch['id'] == _branchId,
+      orElse: () => branches.first,
+    );
   }
 
   void _showComingSoonDialog(BuildContext context) {
@@ -416,16 +473,18 @@ class _AddStockItemPageState extends ConsumerState<AddStockItemPage> {
     }
   }
 
-  Future<void> _showBranchSelector() async {
+  Future<void> _showBranchSelector(List<Map<String, String>> branches) async {
+    if (_isSingleBranchTenant) return;
+    if (branches.isEmpty) return;
     final selection = await showModalBottomSheet<Map<String, String>>(
       context: context,
       showDragHandle: true,
       builder: (context) => SafeArea(
         child: ListView.separated(
           shrinkWrap: true,
-          itemCount: _branches.length,
+          itemCount: branches.length,
           itemBuilder: (context, index) {
-            final branch = _branches[index];
+            final branch = branches[index];
             final selected = branch['id'] == _branchId;
             return ListTile(
               title: Text(branch['name']!),
@@ -469,7 +528,10 @@ class _AddStockItemPageState extends ConsumerState<AddStockItemPage> {
     final parts = value.split(' ');
     if (parts.length != 3) return null;
     final month =
-        _monthNames.indexWhere((name) => name.toLowerCase() == parts[0].toLowerCase()) + 1;
+        _monthNames.indexWhere(
+          (name) => name.toLowerCase() == parts[0].toLowerCase(),
+        ) +
+        1;
     if (month <= 0) return null;
     final day = int.tryParse(parts[1].replaceAll(',', ''));
     final year = int.tryParse(parts[2]);
@@ -497,9 +559,7 @@ class _UploadImageTile extends StatelessWidget {
       borderRadius: BorderRadius.circular(20),
       onTap: onPressed,
       child: CustomPaint(
-        painter: _DashedBorderPainter(
-          color: scheme.outline,
-        ),
+        painter: _DashedBorderPainter(color: scheme.outline),
         child: SizedBox(
           width: 220,
           height: 220,
@@ -513,15 +573,17 @@ class _UploadImageTile extends StatelessWidget {
                 Text(
                   'Add item image',
                   textAlign: TextAlign.center,
-                  style: theme.textTheme.titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w600),
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   'PNG or JPG, up to 2MB',
                   textAlign: TextAlign.center,
-                  style: theme.textTheme.bodySmall
-                      ?.copyWith(color: scheme.onSurfaceVariant),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
                 ),
               ],
             ),
@@ -559,8 +621,10 @@ class _DashedBorderPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final rect = Offset.zero & size;
-    final rrect =
-        RRect.fromRectAndRadius(rect, Radius.circular(_DashedBorderPainter.radius));
+    final rrect = RRect.fromRectAndRadius(
+      rect,
+      Radius.circular(_DashedBorderPainter.radius),
+    );
 
     final paint = Paint()
       ..color = color

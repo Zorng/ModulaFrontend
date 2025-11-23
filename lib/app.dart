@@ -20,6 +20,9 @@ import 'package:modular_pos/features/inventory/ui/view/stock_item_detail_page.da
 import 'package:modular_pos/features/inventory/ui/view/inventory_stock_items_page.dart';
 import 'package:modular_pos/features/inventory/ui/view/stock_adjust_quantity_page.dart';
 import 'package:modular_pos/features/inventory/ui/view/restock_stock_item_page.dart';
+import 'package:modular_pos/features/inventory/domain/models/inventory_journal_summary.dart';
+import 'package:modular_pos/features/inventory/ui/view/inventory_journal_page.dart';
+import 'package:modular_pos/features/inventory/ui/view/inventory_journal_detail_page.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -82,7 +85,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               path == AppRoute.inventoryStockDetail.path ||
               path == AppRoute.inventoryStockItems.path ||
               path == AppRoute.inventoryRestock.path ||
-              path == AppRoute.inventoryCategories.path) &&
+              path == AppRoute.inventoryCategories.path ||
+              path == AppRoute.inventoryJournal.path ||
+              path == AppRoute.inventoryJournalDetail.path) &&
           role != 'admin') {
         return '/404';
       }
@@ -109,10 +114,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const WidgetGalleryPage(),
       ),
       // Temporary route for developing and testing the MenuPage.
-      GoRoute(
-        path: '/menu',
-        builder: (context, state) => const MenuPage(),
-      ),
+      GoRoute(path: '/menu', builder: (context, state) => const MenuPage()),
       GoRoute(
         path: AppRoute.adminPortal.path,
         name: AppRoute.adminPortal.name,
@@ -192,10 +194,22 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         name: AppRoute.inventoryCategories.name,
         builder: (context, state) => const CategoryManagementPage(),
       ),
+      GoRoute(
+        path: AppRoute.inventoryJournal.path,
+        name: AppRoute.inventoryJournal.name,
+        builder: (context, state) => const InventoryJournalPage(),
+      ),
+      GoRoute(
+        path: AppRoute.inventoryJournalDetail.path,
+        name: AppRoute.inventoryJournalDetail.name,
+        builder: (context, state) {
+          final summary = state.extra as InventoryJournalDaySummary;
+          return InventoryJournalDetailPage(summary: summary);
+        },
+      ),
     ],
   );
 });
-
 
 class ModulaApp extends ConsumerWidget {
   const ModulaApp({super.key});
