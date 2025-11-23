@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:modular_pos/features/inventory/domain/models/category_defaults.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
+import 'package:modular_pos/features/inventory/ui/viewmodels/category_controller.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_controller.dart';
 import 'package:modular_pos/features/inventory/ui/widgets/inventory_dropdown.dart';
 import 'package:modular_pos/features/inventory/ui/widgets/inventory_section_card.dart';
@@ -18,13 +20,6 @@ class StockItemDetailPage extends ConsumerStatefulWidget {
 class _StockItemDetailPageState extends ConsumerState<StockItemDetailPage> {
   final _formKey = GlobalKey<FormState>();
   final _typeOptions = const ['Ingredient', 'Sellable'];
-  final _categoryOptions = const [
-    'Dairy',
-    'Packaging',
-    'Produce',
-    'Sweetener',
-    'Uncategorized',
-  ];
 
   bool _isEditing = false;
   late StockItem _editableData;
@@ -126,6 +121,10 @@ class _StockItemDetailPageState extends ConsumerState<StockItemDetailPage> {
   @override
   Widget build(BuildContext context) {
     final chipColor = Theme.of(context).colorScheme.surfaceContainerHighest;
+    final categoryState = ref.watch(categoryControllerProvider);
+    final categoryOptions = categoryState.categories.isEmpty
+        ? List.of(defaultInventoryCategories)
+        : (categoryState.categories.map((c) => c.name).toList()..sort());
     return Scaffold(
       appBar: AppBar(
         title: Text(_editableData.name),
@@ -171,7 +170,7 @@ class _StockItemDetailPageState extends ConsumerState<StockItemDetailPage> {
                         child: InventoryDropdown<String>(
                           initialValue: _categoryCtrl.text,
                           label: const Text('Category'),
-                          entries: _categoryOptions
+                          entries: categoryOptions
                               .map(
                                 (category) => DropdownMenuEntry(
                                   value: category,
