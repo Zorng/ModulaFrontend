@@ -36,18 +36,10 @@ class MenuItemCard extends StatelessWidget {
           children: [
             // The vertical padding was removed here (top/bottom) to prevent overflow.
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8.0),
+              padding: const EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 0),
               child: AspectRatio(
                 aspectRatio: 160 / 142, // Keeps the 1:1 ratio
-                child: imagePath != null
-                    ? Image.asset(
-                        imagePath!,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) =>
-                            _buildPlaceholder(context),
-                      )
-                    // Use placeholder if imagePath is null
-                    : _buildPlaceholder(context),
+                child: _buildImage(context),
               ),
             ),
             // Use Expanded to allow the text section to fill remaining space,
@@ -99,6 +91,18 @@ class MenuItemCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Widget _buildImage(BuildContext context) {
+    if (imagePath != null) {
+      return Image.asset(
+        imagePath!,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => _buildPlaceholder(context),
+      );
+    } else {
+      return _buildPlaceholder(context);
+    }
   }
 
   /// A private helper widget to show a consistent placeholder.
