@@ -14,14 +14,12 @@ class AppSearchAddBar extends StatelessWidget {
     this.onSearchChanged,
     this.searchController,
     this.onAddPressed,
-    this.addButtonLabel = '+ Add new',
   });
 
   final String? searchHint;
   final ValueChanged<String>? onSearchChanged;
   final TextEditingController? searchController;
   final VoidCallback? onAddPressed;
-  final String addButtonLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -43,10 +41,7 @@ class AppSearchAddBar extends StatelessWidget {
             ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 110),
               child: IntrinsicWidth(
-                child: AppAddNewButton(
-                  onPressed: onAddPressed,
-                  label: addButtonLabel,
-                ),
+                child: AppAddNewButton(onPressed: onAddPressed),
               ),
             ),
           ],

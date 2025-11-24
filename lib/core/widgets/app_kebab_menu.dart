@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 
 /// Represents a single option in the [AppKebabMenu].
 class KebabMenuItem {
-  const KebabMenuItem({required this.label, required this.onTap});
+  const KebabMenuItem({
+    required this.label,
+    required this.onTap,
+  });
 
   final String label;
   final VoidCallback onTap;
@@ -12,7 +15,10 @@ class KebabMenuItem {
 ///
 /// It is configured by passing a list of [KebabMenuItem] objects.
 class AppKebabMenu extends StatelessWidget {
-  const AppKebabMenu({super.key, required this.items});
+  const AppKebabMenu({
+    super.key,
+    required this.items,
+  });
 
   final List<KebabMenuItem> items;
 
@@ -20,7 +26,6 @@ class AppKebabMenu extends StatelessWidget {
   Widget build(BuildContext context) {
     return PopupMenuButton<KebabMenuItem>(
       icon: const Icon(Icons.more_vert),
-      color: Colors.white,
       offset: const Offset(0, 40), // Position the menu below the button
       onSelected: (item) => item.onTap(),
       itemBuilder: (BuildContext context) {

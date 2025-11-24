@@ -114,21 +114,27 @@ class PolicyRadioTile<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final selected = value == groupValue;
+    final colorScheme = Theme.of(context).colorScheme;
+    final fillColor = WidgetStateProperty.resolveWith<Color?>(
+      (states) => states.contains(MaterialState.selected)
+          ? colorScheme.primary
+          : colorScheme.outlineVariant,
+    );
     final textColor = enabled
-        ? Theme.of(context).textTheme.bodyLarge?.color ?? scheme.onSurface
-        : scheme.onSurface.withValues(alpha: 0.4);
+        ? Theme.of(context).textTheme.bodyLarge?.color ?? colorScheme.onSurface
+        : colorScheme.onSurface.withValues(alpha: 0.4);
 
     return IgnorePointer(
       ignoring: !enabled,
-      child: ListTile(
-        leading: Icon(
-          selected ? Icons.radio_button_checked : Icons.radio_button_off,
-          color: selected ? scheme.primary : scheme.outlineVariant,
+      child: RadioListTile<T>(
+        title: Text(
+          title,
+          style: TextStyle(color: textColor),
         ),
-        title: Text(title, style: TextStyle(color: textColor)),
-        onTap: () => onChanged(value),
+        value: value,
+        groupValue: groupValue,
+        onChanged: onChanged,
+        fillColor: fillColor,
       ),
     );
   }
