@@ -8,6 +8,7 @@ import 'package:modular_pos/features/auth/ui/portals/cashier_portal.dart';
 import 'package:modular_pos/features/auth/ui/view/login_view.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/core/widgets/widget_gallery_page.dart';
+import 'package:modular_pos/features/menu/ui/view/menu_page.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -57,7 +58,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       }
 
       // Authenticated but not allowed to access admin portal → 404
-      if (path == AppRoute.adminPortal.path && role != 'admin') {
+      if ((path == AppRoute.adminPortal.path ||
+              path == AppRoute.adminMenu.path) &&
+          role != 'admin') {
         return '/404';
       }
 
@@ -86,6 +89,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoute.adminPortal.path,
         name: AppRoute.adminPortal.name,
         builder: (context, state) => const AdminPortal(),
+      ),
+      GoRoute(
+        path: AppRoute.adminMenu.path,
+        name: AppRoute.adminMenu.name,
+        builder: (context, state) => const MenuPage(),
       ),
       GoRoute(
         path: AppRoute.cashierPortal.path,
