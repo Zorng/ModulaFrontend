@@ -1,35 +1,32 @@
-class MenuCategory {
-  const MenuCategory({
+import 'package:equatable/equatable.dart';
+
+class InventoryCategory extends Equatable {
+  const InventoryCategory({
     required this.id,
     required this.name,
-    this.description = '',
-    this.isActive = true,
+    required this.isActive,
   });
 
   final String id;
   final String name;
-  final String description;
   final bool isActive;
 
-  MenuCategory copyWith({
+  InventoryCategory copyWith({
     String? id,
     String? name,
-    String? description,
     bool? isActive,
   }) {
-    return MenuCategory(
+    return InventoryCategory(
       id: id ?? this.id,
       name: name ?? this.name,
-      description: description ?? this.description,
       isActive: isActive ?? this.isActive,
     );
   }
 
-  factory MenuCategory.fromJson(Map<String, dynamic> json) {
-    return MenuCategory(
+  factory InventoryCategory.fromJson(Map<String, dynamic> json) {
+    return InventoryCategory(
       id: json['id'] as String,
       name: json['name'] as String,
-      description: json['description'] as String? ?? '',
       isActive: json['isActive'] as bool? ?? true,
     );
   }
@@ -37,7 +34,9 @@ class MenuCategory {
   Map<String, dynamic> toJson() => {
         'id': id,
         'name': name,
-        'description': description,
         'isActive': isActive,
       };
+
+  @override
+  List<Object?> get props => [id, name, isActive];
 }

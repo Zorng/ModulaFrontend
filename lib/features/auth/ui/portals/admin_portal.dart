@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/widgets/portal_action.dart';
 import 'package:modular_pos/core/widgets/portal_shell.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
-import 'package:modular_pos/features/menu/ui/view/menu_page.dart';
 
 class AdminPortal extends ConsumerWidget {
   const AdminPortal({super.key});
@@ -24,7 +25,10 @@ class AdminPortal extends ConsumerWidget {
         id: 'menu',
         label: 'Menu',
         icon: Icons.fastfood_outlined,
-        builder: (context) => const MenuPage(),
+        builder: (context) => _PlaceholderCard(
+          title: 'Menu Management',
+          content: 'Create/edit menu items, categories, modifiers.',
+        ),
       ),
       PortalAction(
         id: 'inventory',
@@ -92,9 +96,8 @@ class AdminPortal extends ConsumerWidget {
           : 'A',
       actions: actions,
       initialActionId: 'dashboard',
-      onSettingsTap: () {
-        // TODO: Implement settings navigation
-      },
+      onProfileTap: () => context.push(AppRoute.account.path),
+      onSettingsTap: () => context.push(AppRoute.settings.path),
     );
   }
 }
@@ -142,38 +145,29 @@ class _AdminHomeContent extends StatelessWidget {
     final isWide = MediaQuery.of(context).size.width >= 800;
     final branches = user?.branches ?? const [];
     final hasMultipleBranches = branches.length > 1;
+    void openPolicy() => context.push(AppRoute.policy.path);
 
     final globalFeatures = [
       _FeatureEntry(
         title: 'Branches',
         icon: Icons.store_mall_directory_outlined,
-        onTap: (context) => _showComingSoon(context, 'Branches'),
       ),
       _FeatureEntry(
         title: 'Staff',
         icon: Icons.group_outlined,
-        onTap: (context) => _showComingSoon(context, 'Staff'),
       ),
       _FeatureEntry(
         title: 'Menu',
         icon: Icons.fastfood_outlined,
-        onTap: (context) {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => const MenuPage(),
-            ),
-          );
-        },
       ),
       _FeatureEntry(
         title: 'Inventory',
         icon: Icons.inventory_2_outlined,
-        onTap: (context) => _showComingSoon(context, 'Inventory'),
+        onTap: () => context.push(AppRoute.inventory.path),
       ),
       _FeatureEntry(
         title: 'Discounts',
         icon: Icons.percent_outlined,
-        onTap: (context) => _showComingSoon(context, 'Discounts'),
       ),
     ];
 
@@ -181,22 +175,19 @@ class _AdminHomeContent extends StatelessWidget {
       _FeatureEntry(
         title: 'POS / Sales',
         icon: Icons.point_of_sale,
-        onTap: (context) => _showComingSoon(context, 'POS / Sales'),
       ),
       _FeatureEntry(
         title: 'Cash Sessions',
         icon: Icons.attach_money_outlined,
-        onTap: (context) => _showComingSoon(context, 'Cash Sessions'),
       ),
       _FeatureEntry(
         title: 'Orders',
         icon: Icons.receipt_long_outlined,
-        onTap: (context) => _showComingSoon(context, 'Orders'),
       ),
       _FeatureEntry(
         title: 'Policy',
         icon: Icons.policy_outlined,
-        onTap: (context) => _showComingSoon(context, 'Policy'),
+        onTap: openPolicy,
       ),
     ];
 
@@ -223,12 +214,6 @@ class _AdminHomeContent extends StatelessWidget {
           ),
         ],
       ],
-    );
-  }
-
-  void _showComingSoon(BuildContext context, String featureName) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$featureName module coming soon')),
     );
   }
 }
@@ -449,7 +434,7 @@ class _FeatureCard extends StatelessWidget {
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        onTap: entry.onTap == null ? null : () => entry.onTap!(context),
+        onTap: entry.onTap,
         child: Padding(
           padding: const EdgeInsets.all(10),
           child: Column(
@@ -490,5 +475,5 @@ class _FeatureEntry {
 
   final String title;
   final IconData icon;
-  final void Function(BuildContext context)? onTap;
+  final VoidCallback? onTap;
 }
