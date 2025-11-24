@@ -1,71 +1,29 @@
 class MenuItem {
+  final String id;
+  final String name;
+  final String category;
+  final double price;
+  final String? imagePath;
+  final int stock;
+
   const MenuItem({
     required this.id,
     required this.name,
-    required this.categoryId,
+    required this.category,
     required this.price,
-    this.imageUrl,
-    this.modifierGroupIds = const [],
-    this.description = '',
-    this.branchIds = const [],
+    this.imagePath,
+    this.stock = 0,
   });
 
-  final String id;
-  final String name;
-  final String categoryId;
-  final double price;
-  final String? imageUrl;
-  final List<String> modifierGroupIds;
-  final String description;
-  final List<String> branchIds;
-
-  MenuItem copyWith({
-    String? id,
-    String? name,
-    String? categoryId,
-    double? price,
-    String? imageUrl,
-    List<String>? modifierGroupIds,
-    String? description,
-    List<String>? branchIds,
-  }) {
-    return MenuItem(
-      id: id ?? this.id,
-      name: name ?? this.name,
-      categoryId: categoryId ?? this.categoryId,
-      price: price ?? this.price,
-      imageUrl: imageUrl ?? this.imageUrl,
-      modifierGroupIds: modifierGroupIds ?? this.modifierGroupIds,
-      description: description ?? this.description,
-      branchIds: branchIds ?? this.branchIds,
-    );
-  }
-
+  /// Creates a [MenuItem] from a JSON map.
   factory MenuItem.fromJson(Map<String, dynamic> json) {
     return MenuItem(
       id: json['id'] as String,
       name: json['name'] as String,
-      categoryId: json['categoryId'] as String,
+      category: json['category'] as String,
       price: (json['price'] as num).toDouble(),
-      imageUrl: json['imageUrl'] as String?,
-      modifierGroupIds: (json['modifierGroupIds'] as List<dynamic>? ?? const [])
-          .map((e) => e.toString())
-          .toList(),
-      description: json['description'] as String? ?? '',
-      branchIds: (json['branchIds'] as List<dynamic>? ?? const [])
-          .map((e) => e.toString())
-          .toList(),
+      imagePath: json['imagePath'] as String?,
+      stock: (json['stock'] as num?)?.toInt() ?? 0,
     );
   }
-
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        'categoryId': categoryId,
-        'price': price,
-        'imageUrl': imageUrl,
-        'modifierGroupIds': modifierGroupIds,
-        'description': description,
-        'branchIds': branchIds,
-      };
 }
