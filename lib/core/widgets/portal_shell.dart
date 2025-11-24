@@ -13,6 +13,7 @@ class PortalShell extends StatefulWidget {
     this.userRole,
     this.userInitial,
     this.onSettingsTap,
+    this.onProfileTap,
   });
 
   final String title;
@@ -23,6 +24,7 @@ class PortalShell extends StatefulWidget {
   final String? userRole;
   final String? userInitial;
   final VoidCallback? onSettingsTap;
+  final VoidCallback? onProfileTap;
 
   @override
   State<PortalShell> createState() => _PortalShellState();
@@ -63,12 +65,16 @@ class _PortalShellState extends State<PortalShell> {
           padding: const EdgeInsets.symmetric(horizontal: 18),
           child: Row(
             children: [
-              CircleAvatar(
-                radius: 18,
-                child: Text(
-                  widget.userInitial ??
-                      (widget.userName?.characters.first.toUpperCase() ?? '?'),
-                  style: const TextStyle(fontWeight: FontWeight.w700),
+              InkWell(
+                customBorder: const CircleBorder(),
+                onTap: widget.onProfileTap,
+                child: CircleAvatar(
+                  radius: 18,
+                  child: Text(
+                    widget.userInitial ??
+                        (widget.userName?.characters.first.toUpperCase() ?? '?'),
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
                 ),
               ),
               const SizedBox(width: 12),

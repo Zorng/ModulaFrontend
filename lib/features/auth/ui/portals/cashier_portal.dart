@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/widgets/portal_action.dart';
 import 'package:modular_pos/core/widgets/portal_shell.dart';
+import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 
-class CashierPortal extends StatelessWidget {
+class CashierPortal extends ConsumerWidget {
   const CashierPortal({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(loginControllerProvider).user;
     final actions = <PortalAction>[
       PortalAction(
         id: 'home',
@@ -55,8 +60,15 @@ class CashierPortal extends StatelessWidget {
     return PortalShell(
       title: 'Cashier Portal',
       subtitle: 'Cashier role',
+      userName: user?.name ?? 'Cashier',
+      userRole: user?.role ?? 'Cashier',
+      userInitial: user?.name.isNotEmpty == true
+          ? user!.name.characters.first.toUpperCase()
+          : 'C',
       actions: actions,
       initialActionId: 'home',
+      onProfileTap: () => context.push(AppRoute.account.path),
+      onSettingsTap: () => context.push(AppRoute.settings.path),
     );
   }
 }

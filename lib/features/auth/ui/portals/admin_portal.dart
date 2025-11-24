@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/widgets/portal_action.dart';
 import 'package:modular_pos/core/widgets/portal_shell.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
@@ -92,9 +94,8 @@ class AdminPortal extends ConsumerWidget {
           : 'A',
       actions: actions,
       initialActionId: 'dashboard',
-      onSettingsTap: () {
-        // TODO: Implement settings navigation
-      },
+      onProfileTap: () => context.push(AppRoute.account.path),
+      onSettingsTap: () => context.push(AppRoute.settings.path),
     );
   }
 }
@@ -142,6 +143,7 @@ class _AdminHomeContent extends StatelessWidget {
     final isWide = MediaQuery.of(context).size.width >= 800;
     final branches = user?.branches ?? const [];
     final hasMultipleBranches = branches.length > 1;
+    void openPolicy() => context.push(AppRoute.policy.path);
 
     final globalFeatures = [
       _FeatureEntry(
@@ -168,7 +170,7 @@ class _AdminHomeContent extends StatelessWidget {
       _FeatureEntry(
         title: 'Inventory',
         icon: Icons.inventory_2_outlined,
-        onTap: (context) => _showComingSoon(context, 'Inventory'),
+        onTap: () => context.push(AppRoute.inventory.path),
       ),
       _FeatureEntry(
         title: 'Discounts',
