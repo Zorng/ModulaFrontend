@@ -36,10 +36,18 @@ class MenuItemCard extends StatelessWidget {
           children: [
             // The vertical padding was removed here (top/bottom) to prevent overflow.
             Padding(
-              padding: const EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 0),
+              padding: const EdgeInsets.symmetric(horizontal: 8.0),
               child: AspectRatio(
                 aspectRatio: 160 / 142, // Keeps the 1:1 ratio
-                child: _buildImage(context),
+                child: imagePath != null
+                    ? Image.asset(
+                        imagePath!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) =>
+                            _buildPlaceholder(context),
+                      )
+                    // Use placeholder if imagePath is null
+                    : _buildPlaceholder(context),
               ),
             ),
             // Use Expanded to allow the text section to fill remaining space,
@@ -93,91 +101,17 @@ class MenuItemCard extends StatelessWidget {
     );
   }
 
-  Widget _buildImage(BuildContext context) {
-    if (imagePath != null) {
-      return Image.asset(
-        imagePath!,
-        fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) => _buildPlaceholder(context),
-      );
-    } else {
-      return _buildPlaceholder(context);
-    }
-  }
-
   /// A private helper widget to show a consistent placeholder.
   Widget _buildPlaceholder(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     return Container(
-      decoration: BoxDecoration(
-        color: scheme.surface,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: CustomPaint(
-        painter: _DashedBorderPainter(color: scheme.primary),
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.image_outlined,
-                color: scheme.outline,
-                size: 36,
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'No image',
-                style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      color: scheme.outline,
-                    ),
-              ),
-            ],
-          ),
-        ),
+      color: Theme.of(context).colorScheme.surfaceContainerLowest,
+      width: double.infinity,
+      height: double.infinity,
+      child: Icon(
+        Icons.local_cafe_outlined, // Example icon
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        size: 48,
       ),
     );
   }
-}
-
-class _DashedBorderPainter extends CustomPainter {
-  _DashedBorderPainter({required this.color});
-
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = 1.2
-      ..style = PaintingStyle.stroke;
-    const dashWidth = 6.0;
-    const dashSpace = 4.0;
-
-    Path createPath(Rect rect) {
-      return Path()
-        ..addRRect(
-          RRect.fromRectAndRadius(rect, const Radius.circular(12)),
-        );
-    }
-
-    final path = createPath(Offset.zero & size);
-    double distance = 0.0;
-    final totalLength = path.computeMetrics().fold<double>(0.0, (sum, metric) => sum + metric.length);
-
-    while (distance < totalLength) {
-      for (final metric in path.computeMetrics()) {
-        final start = metric.getTangentForOffset(distance)?.position;
-        final end = metric.getTangentForOffset(
-          (distance + dashWidth).clamp(0.0, metric.length),
-        )?.position;
-        if (start != null && end != null) {
-          canvas.drawLine(start, end, paint);
-        }
-        distance += dashWidth + dashSpace;
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
