@@ -1,40 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:modular_pos/core/widgets/app_category_selector.dart';
 import 'package:modular_pos/core/widgets/app_kebab_menu.dart';
 import 'package:modular_pos/core/widgets/app_search_add_bar.dart';
 import 'package:modular_pos/core/widgets/card_container.dart';
 import 'package:modular_pos/core/widgets/menu_item_card.dart';
-import 'package:modular_pos/features/menu/domain/models/menu_category.dart';
-import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
-import 'package:modular_pos/features/menu/ui/view/categories_management_page.dart';
-import 'package:modular_pos/features/menu/ui/view/menu_item_form_page.dart';
-import 'package:modular_pos/features/menu/ui/view/modifiers_management_page.dart';
-import 'package:modular_pos/features/menu/ui/view/view_menu_item_page.dart';
+import 'package:modular_pos/core/widgets/app_category_selector.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
+import 'package:modular_pos/features/menu/ui/viewmodels/menu_state.dart';
 
 class MenuPage extends ConsumerWidget {
   const MenuPage({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final menuState = ref.watch(menuViewModelProvider);
-    final List<_CategoryChip> categories = [
-      _CategoryChip(id: 'all', label: 'All'),
-      ...menuState.categories
-          .map((c) => _CategoryChip(id: c.id, label: c.name)),
-    ];
-    final selectedChip = categories.firstWhere(
-      (chip) => chip.id == menuState.selectedCategoryId,
-      orElse: () => categories.first,
-    );
-
-    final items = menuState.filteredItems;
-    final branchOptions = [
-      const _BranchOption(id: 'all', label: 'All branches'),
-      ...menuState.branches
-          .map((branch) => _BranchOption(id: branch.id, label: branch.name)),
-    ];
+    final state = ref.watch(menuViewModelProvider);
+    final viewModel = ref.read(menuViewModelProvider.notifier);
 
     return Scaffold(
       appBar: AppBar(
@@ -43,28 +23,8 @@ class MenuPage extends ConsumerWidget {
         actions: [
           AppKebabMenu(
             items: [
-              KebabMenuItem(
-                label: 'Categories Management',
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const CategoriesManagementPage(),
-                    ),
-                  );
-                },
-              ),
-              KebabMenuItem(
-                label: 'Modifiers Management',
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const ModifiersManagementPage(),
-                    ),
-                  );
-                },
-              ),
+              KebabMenuItem(label: 'Categories Management', onTap: () {}),
+              KebabMenuItem(label: 'Modifiers Management', onTap: () {}),
             ],
           ),
         ],
@@ -76,128 +36,52 @@ class MenuPage extends ConsumerWidget {
             const SizedBox(height: 16),
             AppSearchAddBar(
               searchHint: 'Search menu items...',
-              onSearchChanged: ref
-                  .read(menuViewModelProvider.notifier)
-                  .searchItems,
+              onSearchChanged: viewModel.searchItems,
               onAddPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const MenuItemFormPage(),
-                  ),
-                );
+                // TODO: Navigate to add new item page
               },
-            ),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: DropdownMenu<String>(
-                width: double.infinity,
-                initialSelection: menuState.selectedBranchId,
-                leadingIcon: const Icon(Icons.store_outlined),
-                label: const Text('Branch'),
-                dropdownMenuEntries: branchOptions
-                    .map(
-                      (option) => DropdownMenuEntry<String>(
-                        value: option.id,
-                        label: option.label,
-                      ),
-                    )
-                    .toList(),
-                onSelected: (value) {
-                  if (value == null) return;
-                  ref
-                      .read(menuViewModelProvider.notifier)
-                      .filterByBranch(value);
-                },
-              ),
             ),
             const SizedBox(height: 24),
             AppCategorySelector(
-              categories: categories.map((c) => c.label).toList(),
-              selectedCategory: selectedChip.label,
-              onCategorySelected: (label) {
-                final chip =
-                    categories.firstWhere((element) => element.label == label);
-                ref
-                    .read(menuViewModelProvider.notifier)
-                    .filterByCategory(chip.id);
-              },
+              categories: const [
+                'All', 'Coffee', 'Tea', 'Pastries', 'Juice', 'Smoothies'
+              ],
+              selectedCategory: state.selectedCategory,
+              onCategorySelected: viewModel.filterByCategory,
             ),
             const SizedBox(height: 24),
-            if (menuState.isLoading)
-              const Expanded(
-                child: Center(child: CircularProgressIndicator()),
-              )
-            else if (menuState.error != null)
-              Expanded(
-                child: Center(
-                  child: Text(menuState.error!,
-                      style: Theme.of(context).textTheme.bodyMedium),
-                ),
-              )
-            else if (items.isEmpty)
-              Expanded(
-                child: Center(
-                  child: Text(
-                    'No menu items match your filters.',
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                ),
-              )
-            else
-              Expanded(
-                child: CardContainer(
-                  itemCount: items.length,
-                  itemBuilder: (context, index) {
-                    final item = items[index];
-                    final categoryName = _resolveCategoryName(
-                      menuState.categories,
-                      item.categoryId,
-                    );
-                    return MenuItemCard(
-                      title: item.name,
-                      category: categoryName,
-                      price: item.price,
-                      imagePath: item.imageUrl,
-                      onTap: () => _openItemDetail(context, item),
-                    );
-                  },
-                ),
-              ),
+            Expanded(
+              child: _buildBody(context, state),
+            ),
           ],
         ),
       ),
     );
   }
 
-  void _openItemDetail(BuildContext context, MenuItem item) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => ViewMenuItemPage(menuItem: item),
-      ),
+  Widget _buildBody(BuildContext context, MenuState state) {
+    if (state.isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (state.error != null) {
+      return Center(child: Text('An error occurred: ${state.error}'));
+    }
+
+    return CardContainer(
+      itemCount: state.filteredItems.length,
+      itemBuilder: (context, index) {
+        final item = state.filteredItems[index];
+        return MenuItemCard(
+          title: item.name,
+          category: item.category,
+          price: item.price,
+          imagePath: item.imagePath,
+          onTap: () {
+            // TODO: Navigate to item details page
+          },
+        );
+      },
     );
   }
-}
-
-class _CategoryChip {
-  const _CategoryChip({required this.id, required this.label});
-  final String id;
-  final String label;
-}
-
-class _BranchOption {
-  const _BranchOption({required this.id, required this.label});
-  final String id;
-  final String label;
-}
-
-String _resolveCategoryName(List<MenuCategory> categories, String categoryId) {
-  for (final category in categories) {
-    if (category.id == categoryId) {
-      return category.name;
-    }
-  }
-  return 'Unassigned';
 }
