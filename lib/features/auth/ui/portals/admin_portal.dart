@@ -6,6 +6,7 @@ import 'package:modular_pos/core/widgets/portal_action.dart';
 import 'package:modular_pos/core/widgets/portal_shell.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
+import 'package:modular_pos/features/menu/ui/view/menu_page.dart';
 
 class AdminPortal extends ConsumerWidget {
   const AdminPortal({super.key});
@@ -25,10 +26,7 @@ class AdminPortal extends ConsumerWidget {
         id: 'menu',
         label: 'Menu',
         icon: Icons.fastfood_outlined,
-        builder: (context) => _PlaceholderCard(
-          title: 'Menu Management',
-          content: 'Create/edit menu items, categories, modifiers.',
-        ),
+        builder: (context) => const MenuPage(),
       ),
       PortalAction(
         id: 'inventory',
@@ -159,6 +157,7 @@ class _AdminHomeContent extends StatelessWidget {
       _FeatureEntry(
         title: 'Menu',
         icon: Icons.fastfood_outlined,
+        onTap: () => context.push(AppRoute.adminMenu.path),
       ),
       _FeatureEntry(
         title: 'Inventory',

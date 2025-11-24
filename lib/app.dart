@@ -71,8 +71,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         return homeForRole();
       }
 
-      // Authenticated but not allowed to access admin portal → 404
-      if (path == AppRoute.adminPortal.path && role != 'admin') {
+      // Authenticated but not allowed to access admin portal/menu → 404
+      if ((path == AppRoute.adminPortal.path ||
+              path == AppRoute.adminMenu.path) &&
+          role != 'admin') {
         return '/404';
       }
 
@@ -113,12 +115,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         name: AppRoute.components.name,
         builder: (context, state) => const WidgetGalleryPage(),
       ),
-      // Temporary route for developing and testing the MenuPage.
-      GoRoute(path: '/menu', builder: (context, state) => const MenuPage()),
       GoRoute(
         path: AppRoute.adminPortal.path,
         name: AppRoute.adminPortal.name,
         builder: (context, state) => const AdminPortal(),
+      ),
+      GoRoute(
+        path: AppRoute.adminMenu.path,
+        name: AppRoute.adminMenu.name,
+        builder: (context, state) => const MenuPage(),
       ),
       GoRoute(
         path: AppRoute.policy.path,
