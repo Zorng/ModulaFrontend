@@ -1,32 +1,71 @@
-// A simple data model for a menu item.
-import 'package:modular_pos/features/menu/ui/view/modifiers_management_page.dart';
-
 class MenuItem {
-  final String id;
-  final String name;
-  final String category;
-  final double price;
-  final String? imagePath;
-  final List<ModifierGroupInfo> modifierGroups;
-
-  MenuItem({
+  const MenuItem({
     required this.id,
     required this.name,
-    required this.category,
+    required this.categoryId,
     required this.price,
-    this.imagePath,
-    this.modifierGroups = const [],
+    this.imageUrl,
+    this.modifierGroupIds = const [],
+    this.description = '',
+    this.branchIds = const [],
   });
 
-  /// Creates a MenuItem from a JSON object.
-  factory MenuItem.fromJson(Map<String, dynamic> json) {
+  final String id;
+  final String name;
+  final String categoryId;
+  final double price;
+  final String? imageUrl;
+  final List<String> modifierGroupIds;
+  final String description;
+  final List<String> branchIds;
+
+  MenuItem copyWith({
+    String? id,
+    String? name,
+    String? categoryId,
+    double? price,
+    String? imageUrl,
+    List<String>? modifierGroupIds,
+    String? description,
+    List<String>? branchIds,
+  }) {
     return MenuItem(
-      id: json['id'],
-      name: json['name'],
-      category: json['category'],
-      price: (json['price'] as num).toDouble(),
-      imagePath: json['imagePath'],
-      modifierGroups: const [], // Assume no modifiers from API for now
+      id: id ?? this.id,
+      name: name ?? this.name,
+      categoryId: categoryId ?? this.categoryId,
+      price: price ?? this.price,
+      imageUrl: imageUrl ?? this.imageUrl,
+      modifierGroupIds: modifierGroupIds ?? this.modifierGroupIds,
+      description: description ?? this.description,
+      branchIds: branchIds ?? this.branchIds,
     );
   }
+
+  factory MenuItem.fromJson(Map<String, dynamic> json) {
+    return MenuItem(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      categoryId: json['categoryId'] as String,
+      price: (json['price'] as num).toDouble(),
+      imageUrl: json['imageUrl'] as String?,
+      modifierGroupIds: (json['modifierGroupIds'] as List<dynamic>? ?? const [])
+          .map((e) => e.toString())
+          .toList(),
+      description: json['description'] as String? ?? '',
+      branchIds: (json['branchIds'] as List<dynamic>? ?? const [])
+          .map((e) => e.toString())
+          .toList(),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'categoryId': categoryId,
+        'price': price,
+        'imageUrl': imageUrl,
+        'modifierGroupIds': modifierGroupIds,
+        'description': description,
+        'branchIds': branchIds,
+      };
 }

@@ -1,68 +1,120 @@
 import 'package:flutter/material.dart';
-import 'package:modular_pos/features/menu/ui/view/modifiers_management_page.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 import 'package:modular_pos/features/menu/ui/view/dashed_border_painter.dart';
+import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
 
 /// A form for creating a new modifier group.
-class AddModifierGroupPage extends StatefulWidget {
-  const AddModifierGroupPage({super.key, required this.onAdd});
+class AddModifierGroupPage extends ConsumerStatefulWidget {
+  const AddModifierGroupPage({super.key});
 
-  /// Callback function to pass the new modifier group back to the previous page.
-  final void Function(ModifierGroupInfo group) onAdd;
-  
   @override
-  State<AddModifierGroupPage> createState() => _AddModifierGroupPageState();
+  ConsumerState<AddModifierGroupPage> createState() =>
+      _AddModifierGroupPageState();
 }
 
-/// A simple data model to hold controllers for a single modifier option row.
 class ModifierOptionRow {
-  final String id;
-  final TextEditingController nameController;
-  final TextEditingController priceController;
-
   ModifierOptionRow()
       : id = UniqueKey().toString(),
         nameController = TextEditingController(),
         priceController = TextEditingController();
-}
-class _AddModifierGroupPageState extends State<AddModifierGroupPage> {
-  final _groupNameController = TextEditingController();
 
-  // Options for dropdowns
-  final _pricingBehaviors = ['Add-on (Extra)', 'Fixed (Size Based)', 'No Price Change'];
+  final String id;
+  final TextEditingController nameController;
+  final TextEditingController priceController;
+
+  void dispose() {
+    nameController.dispose();
+    priceController.dispose();
+  }
+}
+
+class _AddModifierGroupPageState
+    extends ConsumerState<AddModifierGroupPage> {
+  final _groupNameController = TextEditingController();
+  final _pricingBehaviors = [
+    'Add-on (Extra)',
+    'Fixed (Size Based)',
+    'No Price Change'
+  ];
   final _selectionTypes = ['Single Selection', 'Multiple Selection'];
+  final List<ModifierOptionRow> _options = [];
 
   String? _selectedPricingBehavior;
   String? _selectedSelectionType;
-  final List<ModifierOptionRow> _options = [];
-  
-  // Using a unique object/string to represent the "None" option for the radio group.
-  static const String _noneDefaultValue = 'none';
   String _selectedDefault = _noneDefaultValue;
+  bool _isFormValid = false;
 
+  static const String _noneDefaultValue = 'none';
+  bool get _isSingleSelection =>
+      _selectedSelectionType != null &&
+      _selectedSelectionType != 'Multiple Selection';
+  bool get _requiresPriceInput =>
+      _selectedPricingBehavior != 'No Price Change';
   @override
   void initState() {
     super.initState();
     _selectedPricingBehavior = _pricingBehaviors.first;
     _selectedSelectionType = _selectionTypes.first;
-    // "None" is selected as the default initially.
-    _selectedDefault = _noneDefaultValue;
+    _groupNameController.addListener(_validateForm);
   }
 
   @override
   void dispose() {
+    _groupNameController.removeListener(_validateForm);
     _groupNameController.dispose();
     for (final option in _options) {
-      option.nameController.dispose();
-      option.priceController.dispose();
+      option.dispose();
     }
     super.dispose();
   }
 
-  void _addOption() {
-    setState(() {
-      _options.add(ModifierOptionRow());
-    });
+  void _validateForm() {
+    final isValid = _groupNameController.text.trim().isNotEmpty;
+    if (_isFormValid != isValid) {
+      setState(() => _isFormValid = isValid);
+    }
   }
+
+  Future<void> _saveGroup() async {
+    final name = _groupNameController.text.trim();
+    if (name.isEmpty) return;
+
+    final group = ModifierGroup(
+      id: '',
+      name: name,
+      selectionType: _selectedSelectionType == 'Multiple Selection'
+          ? 'multiple'
+          : 'single',
+      pricingBehavior: _selectedPricingBehavior == 'Fixed (Size Based)'
+          ? 'fixed'
+          : _selectedPricingBehavior == 'No Price Change'
+              ? 'none'
+              : 'addon',
+      defaultOptionId: _isSingleSelection && _selectedDefault != _noneDefaultValue
+          ? _selectedDefault
+          : null,
+      options: _options
+          .map(
+            (row) => ModifierOption(
+              id: row.id,
+              name: row.nameController.text.trim(),
+              price: _requiresPriceInput
+                  ? double.tryParse(row.priceController.text) ?? 0
+                  : 0,
+            ),
+          )
+          .toList(),
+    );
+
+    await ref.read(menuViewModelProvider.notifier).addModifierGroup(group);
+    if (mounted) Navigator.pop(context);
+  }
+
+  void _addOption() {
+    setState(() => _options.add(ModifierOptionRow()));
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -70,81 +122,72 @@ class _AddModifierGroupPageState extends State<AddModifierGroupPage> {
         title: const Text('Add Modifier Group'),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
+        padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // --- Group Name ---
             _buildLabel('Group Name', isRequired: true),
             TextField(
               controller: _groupNameController,
-              decoration: const InputDecoration(hintText: 'e.g., Size, Toppings'),
+              decoration:
+                  const InputDecoration(hintText: 'e.g., Size, Toppings'),
             ),
             const SizedBox(height: 24),
-
-            // --- Pricing Behavior Dropdown ---
             _buildLabel('Pricing Behavior'),
-            DropdownButtonFormField<String>(
-              value: _selectedPricingBehavior,
-              items: _pricingBehaviors.map((String value) {
-                return DropdownMenuItem<String>(value: value, child: Text(value));
-              }).toList(),
-              onChanged: (String? newValue) {
-                setState(() {
-                  _selectedPricingBehavior = newValue;
-                });
-              },
+            DropdownMenu<String>(
+              initialSelection: _selectedPricingBehavior,
+              onSelected: (value) =>
+                  setState(() => _selectedPricingBehavior = value),
+              dropdownMenuEntries: _pricingBehaviors
+                  .map(
+                    (behavior) =>
+                        DropdownMenuEntry(value: behavior, label: behavior),
+                  )
+                  .toList(),
             ),
             const SizedBox(height: 24),
-
-            // --- Selection Type Dropdown ---
             _buildLabel('Selection Type'),
-            DropdownButtonFormField<String>(
-              value: _selectedSelectionType,
-              items: _selectionTypes.map((String value) {
-                return DropdownMenuItem<String>(value: value, child: Text(value));
-              }).toList(),
-              onChanged: (String? newValue) {
+            DropdownMenu<String>(
+              initialSelection: _selectedSelectionType,
+              onSelected: (value) {
                 setState(() {
-                  _selectedSelectionType = newValue;
+                  _selectedSelectionType = value;
+                  if (!_isSingleSelection) {
+                    _selectedDefault = _noneDefaultValue;
+                  }
                 });
               },
+              dropdownMenuEntries: _selectionTypes
+                  .map(
+                    (type) => DropdownMenuEntry(value: type, label: type),
+                  )
+                  .toList(),
             ),
             const SizedBox(height: 32),
-
-            // --- Options Header ---
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text('Options', style: Theme.of(context).textTheme.titleSmall),
-                Text('Select as default', style: Theme.of(context).textTheme.titleSmall),
+                if (_isSingleSelection)
+                  Text('Select as default',
+                      style: Theme.of(context).textTheme.titleSmall),
               ],
             ),
             const Divider(height: 16),
-
-            // --- "None" Option ---
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('None'),
-                Radio<String>(
-                  value: _noneDefaultValue,
-                  groupValue: _selectedDefault,
-                  onChanged: (String? value) {
-                    setState(() {
-                      _selectedDefault = value!;
-                    });
-                  },
-                ),
-              ],
-            ),
-
-            // --- Dynamic Option Rows ---
-            ..._options.map((option) => _buildOptionRow(option)),
-
+            if (_isSingleSelection)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('None'),
+                  _buildDefaultSelector(
+                    isSelected: _selectedDefault == _noneDefaultValue,
+                    onPressed: () =>
+                        setState(() => _selectedDefault = _noneDefaultValue),
+                  ),
+                ],
+              ),
+            ..._options.map(_buildOptionRow),
             const SizedBox(height: 16),
-
-            // --- Add Another Option Button ---
             InkWell(
               onTap: _addOption,
               child: CustomPaint(
@@ -170,27 +213,10 @@ class _AddModifierGroupPageState extends State<AddModifierGroupPage> {
           ],
         ),
       ),
-      // --- Bottom Create Button ---
       bottomNavigationBar: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(16),
         child: ElevatedButton(
-          onPressed: () {
-            final groupName = _groupNameController.text.trim();
-            if (groupName.isNotEmpty) {
-              // Create the new group info object.
-              final newGroup = ModifierGroupInfo(
-                name: groupName,
-                options: _options.map((row) {
-                  return ModifierOption(
-                    name: row.nameController.text.trim(),
-                    price: double.tryParse(row.priceController.text) ?? 0.0,
-                  );
-                }).toList(),
-              );
-              widget.onAdd(newGroup); // Pass the data back.
-              Navigator.pop(context); // Close the page.
-            }
-          },
+          onPressed: _isFormValid ? _saveGroup : null,
           style: ElevatedButton.styleFrom(
             minimumSize: const Size(double.infinity, 50),
           ),
@@ -200,12 +226,10 @@ class _AddModifierGroupPageState extends State<AddModifierGroupPage> {
     );
   }
 
-  /// Builds a single row for a modifier option.
   Widget _buildOptionRow(ModifierOptionRow option) {
     return Padding(
-      padding: const EdgeInsets.only(top: 8.0),
+      padding: const EdgeInsets.only(top: 8),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Expanded(
             flex: 4,
@@ -214,35 +238,47 @@ class _AddModifierGroupPageState extends State<AddModifierGroupPage> {
               decoration: const InputDecoration(hintText: 'Option Label'),
             ),
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            flex: 2,
-            child: TextField(
-              controller: option.priceController,
-              decoration: const InputDecoration(hintText: '+ \$0.00'),
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          if (_requiresPriceInput) ...[
+            const SizedBox(width: 16),
+            Expanded(
+              flex: 2,
+              child: TextField(
+                controller: option.priceController,
+                decoration: const InputDecoration(hintText: '+ \$0.00'),
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+              ),
             ),
-          ),
-          const SizedBox(width: 8),
-          Radio<String>(
-            value: option.id,
-            groupValue: _selectedDefault,
-            onChanged: (String? value) {
-              if (value != null) {
-                setState(() {
-                  _selectedDefault = value;
-                });
-              }
-            },
-          ),
+          ],
+          if (_isSingleSelection) ...[
+            const SizedBox(width: 8),
+            _buildDefaultSelector(
+              isSelected: _selectedDefault == option.id,
+              onPressed: () => setState(() => _selectedDefault = option.id),
+            ),
+          ],
         ],
       ),
     );
   }
-  /// Helper to build form field labels with an optional required star.
+
+  Widget _buildDefaultSelector({
+    required bool isSelected,
+    required VoidCallback onPressed,
+  }) {
+    return IconButton(
+      onPressed: onPressed,
+      icon: Icon(
+        isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+      ),
+      color: isSelected ? Theme.of(context).primaryColor : null,
+      tooltip: 'Set as default',
+    );
+  }
+
   Widget _buildLabel(String text, {bool isRequired = false}) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0),
+      padding: const EdgeInsets.only(bottom: 8),
       child: RichText(
         text: TextSpan(
           text: text,

@@ -1,62 +1,58 @@
 import 'package:flutter/material.dart';
-import 'package:modular_pos/features/menu/ui/view/modifiers_management_page.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 import 'package:modular_pos/features/menu/ui/view/dashed_border_painter.dart';
+import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
 
 /// A form for editing an existing modifier group.
-class EditModifierGroupPage extends StatefulWidget {
-  const EditModifierGroupPage({
-    super.key,
-    required this.groupToEdit,
-    required this.onSave,
-  });
+class EditModifierGroupPage extends ConsumerStatefulWidget {
+  const EditModifierGroupPage({super.key, required this.group});
 
-  final ModifierGroupInfo groupToEdit;
-  final void Function(ModifierGroupInfo updatedGroup) onSave;
+  final ModifierGroup group;
 
   @override
-  State<EditModifierGroupPage> createState() => _EditModifierGroupPageState();
+  ConsumerState<EditModifierGroupPage> createState() =>
+      _EditModifierGroupPageState();
 }
 
-/// A simple data model to hold controllers for a single modifier option row.
-class ModifierOptionRow {
-  final String id;
-  final TextEditingController nameController;
-  final TextEditingController priceController;
-
-  ModifierOptionRow({String? name, double? price})
-      : id = UniqueKey().toString(),
-        nameController = TextEditingController(text: name),
-        priceController = TextEditingController(text: price?.toStringAsFixed(2) ?? '');
-}
-
-class _EditModifierGroupPageState extends State<EditModifierGroupPage> {
+class _EditModifierGroupPageState
+    extends ConsumerState<EditModifierGroupPage> {
   late final TextEditingController _groupNameController;
-
-  // Options for dropdowns
+  late final List<_OptionRow> _options;
   final _pricingBehaviors = ['Add-on (Extra)', 'Fixed (Size Based)', 'No Price Change'];
   final _selectionTypes = ['Single Selection', 'Multiple Selection'];
 
-  String? _selectedPricingBehavior;
-  String? _selectedSelectionType;
-  final List<ModifierOptionRow> _options = [];
+  late String? _selectedPricingBehavior;
+  late String? _selectedSelectionType;
+  late String _selectedDefault;
 
-  // Using a unique object/string to represent the "None" option for the radio group.
-  static const String _noneDefaultValue = 'none';
-  String _selectedDefault = _noneDefaultValue;
+  static const _noneDefaultValue = 'none';
+  bool get _isSingleSelection =>
+      _selectedSelectionType != null &&
+      _selectedSelectionType != 'Multiple Selection';
+  bool get _requiresPriceInput =>
+      _selectedPricingBehavior != 'No Price Change';
 
   @override
   void initState() {
     super.initState();
-    _groupNameController = TextEditingController(text: widget.groupToEdit.name);
+    _groupNameController = TextEditingController(text: widget.group.name);
+    _options = widget.group.options
+        .map(
+          (option) => _OptionRow(
+            id: option.id,
+            name: option.name,
+            price: option.price,
+          ),
+        )
+        .toList();
 
-    // Pre-fill the form with existing data
-    _selectedPricingBehavior = _pricingBehaviors.first; // Placeholder
-    _selectedSelectionType = _selectionTypes.first;   // Placeholder
-    _selectedDefault = _noneDefaultValue;
-
-    // Pre-fill options from the group being edited.
-    for (final option in widget.groupToEdit.options) {
-      _options.add(ModifierOptionRow(name: option.name, price: option.price));
+    _selectedPricingBehavior = _mapPricingBehavior(widget.group.pricingBehavior);
+    _selectedSelectionType =
+        widget.group.selectionType == 'multiple' ? _selectionTypes.last : _selectionTypes.first;
+    _selectedDefault = widget.group.defaultOptionId ?? _noneDefaultValue;
+    if (!_isSingleSelection) {
+      _selectedDefault = _noneDefaultValue;
     }
   }
 
@@ -64,16 +60,66 @@ class _EditModifierGroupPageState extends State<EditModifierGroupPage> {
   void dispose() {
     _groupNameController.dispose();
     for (final option in _options) {
-      option.nameController.dispose();
-      option.priceController.dispose();
+      option.dispose();
     }
     super.dispose();
   }
 
+  String _mapPricingBehavior(String behavior) {
+    switch (behavior) {
+      case 'fixed':
+        return 'Fixed (Size Based)';
+      case 'none':
+        return 'No Price Change';
+      case 'addon':
+      default:
+        return 'Add-on (Extra)';
+    }
+  }
+
+  String _mapPricingBehaviorToValue(String? behavior) {
+    switch (behavior) {
+      case 'Fixed (Size Based)':
+        return 'fixed';
+      case 'No Price Change':
+        return 'none';
+      case 'Add-on (Extra)':
+      default:
+        return 'addon';
+    }
+  }
+
+  Future<void> _saveGroup() async {
+    final name = _groupNameController.text.trim();
+    if (name.isEmpty) return;
+
+    final updated = widget.group.copyWith(
+      name: name,
+      pricingBehavior: _mapPricingBehaviorToValue(_selectedPricingBehavior),
+      selectionType:
+          _selectedSelectionType == 'Multiple Selection' ? 'multiple' : 'single',
+      defaultOptionId: _isSingleSelection && _selectedDefault != _noneDefaultValue
+          ? _selectedDefault
+          : null,
+      options: _options
+          .map(
+            (row) => ModifierOption(
+              id: row.id,
+              name: row.nameController.text.trim(),
+              price: _requiresPriceInput
+                  ? double.tryParse(row.priceController.text) ?? 0
+                  : 0,
+            ),
+          )
+          .toList(),
+    );
+
+    await ref.read(menuViewModelProvider.notifier).updateModifierGroup(updated);
+    if (mounted) Navigator.pop(context);
+  }
+
   void _addOption() {
-    setState(() {
-      _options.add(ModifierOptionRow());
-    });
+    setState(() => _options.add(_OptionRow()));
   }
 
   @override
@@ -83,81 +129,71 @@ class _EditModifierGroupPageState extends State<EditModifierGroupPage> {
         title: const Text('Edit Modifier Group'),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
+        padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // --- Group Name ---
             _buildLabel('Group Name', isRequired: true),
             TextField(
               controller: _groupNameController,
               decoration: const InputDecoration(hintText: 'e.g., Size, Toppings'),
             ),
             const SizedBox(height: 24),
-
-            // --- Pricing Behavior Dropdown ---
             _buildLabel('Pricing Behavior'),
-            DropdownButtonFormField<String>(
-              value: _selectedPricingBehavior,
-              items: _pricingBehaviors.map((String value) {
-                return DropdownMenuItem<String>(value: value, child: Text(value));
-              }).toList(),
-              onChanged: (String? newValue) {
-                setState(() {
-                  _selectedPricingBehavior = newValue;
-                });
-              },
+            DropdownMenu<String>(
+              initialSelection: _selectedPricingBehavior,
+              onSelected: (value) =>
+                  setState(() => _selectedPricingBehavior = value),
+              dropdownMenuEntries: _pricingBehaviors
+                  .map(
+                    (behavior) =>
+                        DropdownMenuEntry(value: behavior, label: behavior),
+                  )
+                  .toList(),
             ),
             const SizedBox(height: 24),
-
-            // --- Selection Type Dropdown ---
             _buildLabel('Selection Type'),
-            DropdownButtonFormField<String>(
-              value: _selectedSelectionType,
-              items: _selectionTypes.map((String value) {
-                return DropdownMenuItem<String>(value: value, child: Text(value));
-              }).toList(),
-              onChanged: (String? newValue) {
+            DropdownMenu<String>(
+              initialSelection: _selectedSelectionType,
+              onSelected: (value) {
                 setState(() {
-                  _selectedSelectionType = newValue;
+                  _selectedSelectionType = value;
+                  if (!_isSingleSelection) {
+                    _selectedDefault = _noneDefaultValue;
+                  }
                 });
               },
+              dropdownMenuEntries: _selectionTypes
+                  .map(
+                    (type) => DropdownMenuEntry(value: type, label: type),
+                  )
+                  .toList(),
             ),
             const SizedBox(height: 32),
-
-            // --- Options Header ---
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text('Options', style: Theme.of(context).textTheme.titleSmall),
-                Text('Select as default', style: Theme.of(context).textTheme.titleSmall),
+                if (_isSingleSelection)
+                  Text('Select as default',
+                      style: Theme.of(context).textTheme.titleSmall),
               ],
             ),
             const Divider(height: 16),
-
-            // --- "None" Option ---
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('None'),
-                Radio<String>(
-                  value: _noneDefaultValue,
-                  groupValue: _selectedDefault,
-                  onChanged: (String? value) {
-                    setState(() {
-                      _selectedDefault = value!;
-                    });
-                  },
-                ),
-              ],
-            ),
-
-            // --- Dynamic Option Rows ---
-            ..._options.map((option) => _buildOptionRow(option)),
-
+            if (_isSingleSelection)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('None'),
+                  _DefaultSelector(
+                    isSelected: _selectedDefault == _noneDefaultValue,
+                    onPressed: () =>
+                        setState(() => _selectedDefault = _noneDefaultValue),
+                  ),
+                ],
+              ),
+            ..._options.map(_buildOptionRow),
             const SizedBox(height: 16),
-
-            // --- Add Another Option Button ---
             InkWell(
               onTap: _addOption,
               child: CustomPaint(
@@ -183,26 +219,10 @@ class _EditModifierGroupPageState extends State<EditModifierGroupPage> {
           ],
         ),
       ),
-      // --- Bottom Save Button ---
       bottomNavigationBar: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(16),
         child: ElevatedButton(
-          onPressed: () {
-            final groupName = _groupNameController.text.trim();
-            if (groupName.isNotEmpty) {
-              final updatedGroup = ModifierGroupInfo(
-                name: groupName,
-                options: _options.map((row) {
-                  return ModifierOption(
-                    name: row.nameController.text.trim(),
-                    price: double.tryParse(row.priceController.text) ?? 0.0,
-                  );
-                }).toList(),
-              );
-              widget.onSave(updatedGroup);
-              Navigator.pop(context);
-            }
-          },
+          onPressed: _saveGroup,
           style: ElevatedButton.styleFrom(
             minimumSize: const Size(double.infinity, 50),
           ),
@@ -212,44 +232,97 @@ class _EditModifierGroupPageState extends State<EditModifierGroupPage> {
     );
   }
 
-  /// Builds a single row for a modifier option.
-  Widget _buildOptionRow(ModifierOptionRow option) {
+  Widget _buildOptionRow(_OptionRow option) {
     return Padding(
-      padding: const EdgeInsets.only(top: 8.0),
+      padding: const EdgeInsets.only(top: 8),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Expanded(flex: 4, child: TextField(controller: option.nameController, decoration: const InputDecoration(hintText: 'Option Label'))),
-          const SizedBox(width: 16),
-          Expanded(flex: 2, child: TextField(controller: option.priceController, decoration: const InputDecoration(hintText: '+ \$0.00'), keyboardType: const TextInputType.numberWithOptions(decimal: true))),
-          const SizedBox(width: 8),
-          Radio<String>(
-            value: option.id,
-            groupValue: _selectedDefault,
-            onChanged: (String? value) {
-              if (value != null) {
-                setState(() {
-                  _selectedDefault = value;
-                });
-              }
-            },
+          Expanded(
+            flex: 4,
+            child: TextField(
+              controller: option.nameController,
+              decoration: const InputDecoration(hintText: 'Option Label'),
+            ),
           ),
+          if (_requiresPriceInput) ...[
+            const SizedBox(width: 16),
+            Expanded(
+              flex: 2,
+              child: TextField(
+                controller: option.priceController,
+                decoration: const InputDecoration(hintText: '+ \$0.00'),
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+              ),
+            ),
+          ],
+          if (_isSingleSelection) ...[
+            const SizedBox(width: 8),
+            _DefaultSelector(
+              isSelected: _selectedDefault == option.id,
+              onPressed: () => setState(() => _selectedDefault = option.id),
+            ),
+          ],
         ],
       ),
     );
   }
 
-  /// Helper to build form field labels with an optional required star.
   Widget _buildLabel(String text, {bool isRequired = false}) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0),
+      padding: const EdgeInsets.only(bottom: 8),
       child: RichText(
         text: TextSpan(
           text: text,
           style: Theme.of(context).textTheme.titleSmall,
-          children: [if (isRequired) const TextSpan(text: ' *', style: TextStyle(color: Colors.red))],
+          children: [
+            if (isRequired)
+              const TextSpan(
+                text: ' *',
+                style: TextStyle(color: Colors.red),
+              ),
+          ],
         ),
       ),
+    );
+  }
+}
+
+class _OptionRow {
+  _OptionRow({
+    String? id,
+    String? name,
+    double? price,
+  })  : id = id ?? UniqueKey().toString(),
+        nameController = TextEditingController(text: name),
+        priceController =
+            TextEditingController(text: price?.toStringAsFixed(2) ?? '');
+
+  final String id;
+  final TextEditingController nameController;
+  final TextEditingController priceController;
+
+  void dispose() {
+    nameController.dispose();
+    priceController.dispose();
+  }
+}
+
+class _DefaultSelector extends StatelessWidget {
+  const _DefaultSelector({required this.isSelected, required this.onPressed});
+
+  final bool isSelected;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      onPressed: onPressed,
+      icon: Icon(
+        isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+      ),
+      color: isSelected ? Theme.of(context).primaryColor : null,
+      tooltip: 'Set as default',
     );
   }
 }

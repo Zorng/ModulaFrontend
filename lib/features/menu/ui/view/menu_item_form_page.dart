@@ -1,183 +1,357 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:modular_pos/features/menu/domain/models/menu_branch.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
-import 'package:modular_pos/features/menu/ui/view/modifiers_management_page.dart';
+import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 import 'package:modular_pos/features/menu/ui/view/dashed_border_painter.dart';
+import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
 
 /// A form for creating or editing a menu item.
-class MenuItemFormPage extends StatefulWidget {
+class MenuItemFormPage extends ConsumerStatefulWidget {
   const MenuItemFormPage({
     super.key,
-    this.itemId,
     this.initialItem,
-    this.onAdd,
-    this.onSave,
-    this.categories = const [],
-    this.modifierGroups = const [],
   });
 
-  /// If provided, the form will be in 'edit' mode for this item.
-  final String? itemId;
   final MenuItem? initialItem;
-  final void Function(MenuItem newItem)? onAdd;
-  final void Function(MenuItem updatedItem)? onSave;
-  final List<String> categories;
-  final List<ModifierGroupInfo> modifierGroups;
 
   @override
-  State<MenuItemFormPage> createState() => _MenuItemFormPageState();
+  ConsumerState<MenuItemFormPage> createState() => _MenuItemFormPageState();
 }
 
-class _MenuItemFormPageState extends State<MenuItemFormPage> {
-  bool get isEditing => widget.itemId != null;
-
-  // Controllers to manage text field state and listen for changes.
+class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
   late final TextEditingController _nameController;
   late final TextEditingController _priceController;
-
-  bool _isActive = true;
   bool _isFormValid = false;
+  String? _selectedCategoryId;
+  final Set<String> _selectedModifierGroupIds = {};
+  final Set<String> _selectedBranchIds = {};
+  bool _hasInitializedBranchSelection = false;
 
-  // Mock data for dropdowns
-  // final _categories = ['Coffee', 'Tea', 'Pastries', 'Juice']; // Now passed in
-  final _branches = ['All Branches', 'Main Branch', 'Downtown'];
-  String? _selectedCategory;  
-  final Set<String> _selectedBranches = {};
-
-  // To track which modifiers are selected for this item
-  final Set<ModifierGroupInfo> _selectedModifiers = {};
+  bool get isEditing => widget.initialItem != null;
 
   @override
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.initialItem?.name);
-    _priceController = TextEditingController(text: widget.initialItem?.price.toStringAsFixed(2));
-
-    if (isEditing && widget.initialItem != null) {
-      // Pre-fill form for editing
-      _selectedCategory = widget.initialItem!.category;
-      _selectedBranches.add('All Branches'); // Placeholder
-      _selectedModifiers.addAll(widget.initialItem!.modifierGroups);
-      _isActive = true; // Placeholder
-    } else {
-      // Default values for creating a new item
-      final availableCategories = widget.categories.where((c) => c != 'All').toList();
-      if (availableCategories.isNotEmpty) {
-        _selectedCategory = availableCategories.first;
-      }
-    }
-    
-    // Add listeners to validate the form whenever the text changes.
+    _priceController = TextEditingController(
+      text: widget.initialItem?.price.toStringAsFixed(2),
+    );
+    _selectedCategoryId = widget.initialItem?.categoryId;
+    _selectedModifierGroupIds
+        .addAll(widget.initialItem?.modifierGroupIds ?? const []);
+    _selectedBranchIds.addAll(widget.initialItem?.branchIds ?? const []);
+    _hasInitializedBranchSelection = _selectedBranchIds.isNotEmpty;
     _nameController.addListener(_validateForm);
     _priceController.addListener(_validateForm);
+    _validateForm();
   }
 
   @override
   void dispose() {
-    // Clean up the controllers when the widget is disposed.
     _nameController.dispose();
     _priceController.dispose();
     super.dispose();
   }
 
   void _validateForm() {
-    final isValid = _nameController.text.isNotEmpty &&
-        _priceController.text.isNotEmpty &&
-        _selectedBranches.isNotEmpty;
+    final isValid = _nameController.text.trim().isNotEmpty &&
+        (_priceController.text.trim().isNotEmpty) &&
+        _selectedCategoryId != null;
     if (_isFormValid != isValid) {
-      setState(() {
-        _isFormValid = isValid;
+      setState(() => _isFormValid = isValid);
+    }
+  }
+
+  Future<void> _save() async {
+    final notifier = ref.read(menuViewModelProvider.notifier);
+    final allBranches = ref.read(menuViewModelProvider).branches;
+    final item = MenuItem(
+      id: widget.initialItem?.id ?? '',
+      name: _nameController.text.trim(),
+      categoryId: _selectedCategoryId!,
+      price: double.tryParse(_priceController.text.trim()) ?? 0,
+      imageUrl: widget.initialItem?.imageUrl,
+      modifierGroupIds: _selectedModifierGroupIds.toList(),
+      description: widget.initialItem?.description ?? '',
+      branchIds: _selectedBranchIds.isNotEmpty
+          ? _selectedBranchIds.toList()
+          : allBranches.map((branch) => branch.id).toList(),
+    );
+    if (isEditing) {
+      await notifier.updateMenuItem(item);
+    } else {
+      await notifier.addMenuItem(item);
+    }
+    if (mounted) Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = ref.watch(menuViewModelProvider);
+    final categories = state.categories;
+    final modifierGroups = state.modifierGroups;
+    final branches = state.branches;
+
+    if (categories.isEmpty) {
+      return Scaffold(
+        appBar: AppBar(
+          title: Text(isEditing ? 'Edit Item' : 'Add Item'),
+        ),
+        body: const Center(
+          child: Text('Add a category before creating menu items.'),
+        ),
+      );
+    }
+
+    if (_selectedCategoryId == null && categories.isNotEmpty) {
+      _selectedCategoryId = categories.first.id;
+      _validateForm();
+    }
+
+    if (!_hasInitializedBranchSelection &&
+        _selectedBranchIds.isEmpty &&
+        branches.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _selectedBranchIds.isNotEmpty) return;
+        setState(() {
+          _selectedBranchIds.addAll(branches.map((b) => b.id));
+          _hasInitializedBranchSelection = true;
+          _validateForm();
+        });
       });
     }
+
+    final branchNameLookup = {
+      for (final branch in branches) branch.id: branch.name,
+    };
+    final modifierNameLookup = {
+      for (final group in modifierGroups) group.id: group.name,
+    };
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(isEditing ? 'Edit Item' : 'Add Item'),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildLabel('Item Name', isRequired: true),
+            TextField(
+              controller: _nameController,
+              decoration: const InputDecoration(hintText: 'Enter item name'),
+            ),
+            const SizedBox(height: 16),
+            _buildLabel('Base price', isRequired: true),
+            TextField(
+              controller: _priceController,
+              decoration: const InputDecoration(hintText: '0.00'),
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+            ),
+            const SizedBox(height: 16),
+            _buildLabel('Category', isRequired: true),
+            DropdownMenu<String>(
+              initialSelection: _selectedCategoryId,
+              onSelected: (value) {
+                setState(() => _selectedCategoryId = value);
+                _validateForm();
+              },
+              dropdownMenuEntries: categories
+                  .map(
+                    (category) => DropdownMenuEntry(
+                      value: category.id,
+                      label: category.name,
+                    ),
+                  )
+                  .toList(),
+            ),
+            const SizedBox(height: 24),
+            Text('Branches', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            if (branches.isEmpty)
+              Text(
+                'No branches available.',
+                style: Theme.of(context)
+                    .textTheme
+                    .bodyMedium
+                    ?.copyWith(color: Colors.grey),
+              )
+            else
+              _buildSelectionChips(
+                context: context,
+                selectedIds: _selectedBranchIds,
+                addButtonLabel: '+ Select branches',
+                labelResolver: (id) => branchNameLookup[id] ?? 'Unknown branch',
+                onAddTap: () => _showBranchSelection(branches, context),
+                onRemove: (id) =>
+                    setState(() => _selectedBranchIds.remove(id)),
+              ),
+            const SizedBox(height: 24),
+            Text('Modifier Groups',
+                style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            if (modifierGroups.isEmpty)
+              Text(
+                'No modifier groups. Add one first.',
+                style: Theme.of(context)
+                    .textTheme
+                    .bodyMedium
+                    ?.copyWith(color: Colors.grey),
+              )
+            else
+              _buildSelectionChips(
+                context: context,
+                selectedIds: _selectedModifierGroupIds,
+                addButtonLabel: '+ Add modifier',
+                labelResolver: (id) => modifierNameLookup[id] ?? 'Unknown',
+                onAddTap: () =>
+                    _showModifierSelection(modifierGroups, context),
+                onRemove: (id) =>
+                    setState(() => _selectedModifierGroupIds.remove(id)),
+              ),
+          ],
+        ),
+      ),
+      bottomNavigationBar: Padding(
+        padding: const EdgeInsets.all(16),
+        child: ElevatedButton(
+          onPressed: _isFormValid ? _save : null,
+          style: ElevatedButton.styleFrom(
+            minimumSize: const Size(double.infinity, 50),
+          ),
+          child: Text(isEditing ? 'Save Changes' : 'Create Item'),
+        ),
+      ),
+    );
   }
 
-  void _createItem() {
-    if (_isFormValid) {
-      final newItem = MenuItem(
-        id: DateTime.now().toIso8601String(), // Unique ID
-        name: _nameController.text.trim(),
-        category: _selectedCategory!,
-        price: double.tryParse(_priceController.text) ?? 0.0,
-        imagePath: null, // No image upload for now
-        modifierGroups: _selectedModifiers.toList(),
-      );
-      widget.onAdd?.call(newItem);
-      Navigator.pop(context);
-    }
-  }
-
-  void _saveChanges() {
-    if (_isFormValid) {
-      final updatedItem = MenuItem(
-        id: widget.itemId!,
-        name: _nameController.text.trim(),
-        category: _selectedCategory!,
-        price: double.tryParse(_priceController.text) ?? 0.0,
-        imagePath: widget.initialItem?.imagePath, // Preserve original image for now
-        modifierGroups: _selectedModifiers.toList(),
-      );
-      widget.onSave?.call(updatedItem);
-      Navigator.pop(context); // Pop back to the view page
-    }
-  }
-
-  void _showAddModifierSheet() {
-    showModalBottomSheet(
+  Future<void> _showModifierSelection(
+    List<ModifierGroup> groups,
+    BuildContext context,
+  ) async {
+    await _showCheckboxSelectionSheet<ModifierGroup>(
       context: context,
-      backgroundColor: Colors.white,
-      isScrollControlled: true, // Allows the sheet to have a custom height.
+      title: 'Select modifier groups',
+      items: groups,
+      selectedValues: _selectedModifierGroupIds,
+      idBuilder: (group) => group.id,
+      titleBuilder: (group) => group.name,
+      subtitleBuilder: (group) =>
+          '${group.options.length} options • ${group.selectionType == 'single' ? 'Single' : 'Multiple'}',
+      onApply: (selection) {
+        setState(() {
+          _selectedModifierGroupIds
+            ..clear()
+            ..addAll(selection);
+        });
+      },
+    );
+  }
+
+  Future<void> _showBranchSelection(
+    List<MenuBranch> branches,
+    BuildContext context,
+  ) async {
+    await _showCheckboxSelectionSheet<MenuBranch>(
+      context: context,
+      title: 'Select branches',
+      items: branches,
+      selectedValues: _selectedBranchIds,
+      idBuilder: (branch) => branch.id,
+      titleBuilder: (branch) => branch.name,
+      onApply: (selection) {
+        setState(() {
+          _selectedBranchIds
+            ..clear()
+            ..addAll(selection);
+          _hasInitializedBranchSelection = true;
+        });
+      },
+    );
+  }
+
+  Future<void> _showCheckboxSelectionSheet<T>({
+    required BuildContext context,
+    required String title,
+    required List<T> items,
+    required Set<String> selectedValues,
+    required String Function(T) idBuilder,
+    required String Function(T) titleBuilder,
+    String Function(T)? subtitleBuilder,
+    required void Function(Set<String>) onApply,
+  }) async {
+    final itemIds = items.map(idBuilder).toList();
+    final selections = List<bool>.generate(
+      itemIds.length,
+      (index) => selectedValues.contains(itemIds[index]),
+    );
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
       builder: (context) {
-        // Use a StatefulWidget for the sheet's content to manage its own state.
         return StatefulBuilder(
-          builder: (BuildContext context, StateSetter setSheetState) {
-            return SizedBox(
-              height: MediaQuery.of(context).size.height * 0.8, // 80% of screen height
-              width: double.infinity,
+          builder: (context, setSheetState) {
+            return Padding(
+              padding: const EdgeInsets.all(16),
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  // --- Header ---
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(24, 16, 16, 8),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text('Add Modifier Groups', style: Theme.of(context).textTheme.titleLarge),
-                        IconButton(
-                          icon: const Icon(Icons.close),
-                          onPressed: () => Navigator.pop(context),
-                        ),
-                      ],
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(title,
+                          style: Theme.of(context).textTheme.titleMedium),
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Flexible(
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: items.length,
+                      itemBuilder: (context, index) {
+                        final item = items[index];
+                        final id = itemIds[index];
+                        final isSelected = selections[index];
+                        final subtitleText = subtitleBuilder != null
+                            ? subtitleBuilder(item)
+                            : null;
+                        return CheckboxListTile(
+                          key: ValueKey(id),
+                          value: isSelected,
+                          title: Text(titleBuilder(item)),
+                          subtitle:
+                              subtitleText != null ? Text(subtitleText) : null,
+                          onChanged: (value) {
+                            setSheetState(() {
+                              selections[index] = value ?? false;
+                            });
+                          },
+                        );
+                      },
                     ),
                   ),
-                  // --- Body ---
-                  Expanded(
-                    child: widget.modifierGroups.isEmpty
-                        ? Center(
-                            child: Text('No Modifier Groups available', style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Colors.grey)),
-                          )
-                        : ListView.builder(
-                            itemCount: widget.modifierGroups.length,
-                            itemBuilder: (context, index) {
-                              final group = widget.modifierGroups[index];
-                              final isSelected = _selectedModifiers.contains(group);
-                              return CheckboxListTile(
-                                title: Text(group.name),
-                                subtitle: Text('${group.options.length} options'),
-                                value: isSelected,
-                                onChanged: (bool? value) {
-                                  setSheetState(() {
-                                    if (value == true) {
-                                      _selectedModifiers.add(group);
-                                    } else {
-                                      _selectedModifiers.remove(group);
-                                    }
-                                  });
-                                  // Also update the main page state to reflect changes immediately
-                                  setState(() {});
-                                },
-                              );
-                            },
-                          ),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: FilledButton(
+                      onPressed: () {
+                        final updatedSelection = <String>{};
+                        for (var i = 0; i < selections.length; i++) {
+                          if (selections[i]) {
+                            updatedSelection.add(itemIds[i]);
+                          }
+                        }
+                        onApply(updatedSelection);
+                        Navigator.pop(context);
+                      },
+                      child: const Text('Apply'),
+                    ),
                   ),
                 ],
               ),
@@ -188,70 +362,60 @@ class _MenuItemFormPageState extends State<MenuItemFormPage> {
     );
   }
 
-  void _showBranchSelectionSheet() {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (BuildContext context, StateSetter setSheetState) {
-            return Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 16, 16, 8),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('Assign to Branches', style: Theme.of(context).textTheme.titleLarge),
-                      IconButton(
-                        icon: const Icon(Icons.close),
-                        onPressed: () => Navigator.pop(context),
-                      ),
-                    ],
-                  ),
+  Widget _buildSelectionChips({
+    required BuildContext context,
+    required Iterable<String> selectedIds,
+    required String Function(String id) labelResolver,
+    required String addButtonLabel,
+    required VoidCallback onAddTap,
+    required void Function(String id) onRemove,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: selectedIds
+              .map((id) => Chip(
+                    label: Text(labelResolver(id)),
+                    onDeleted: () => onRemove(id),
+                  ))
+              .toList(),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: InkWell(
+            onTap: onAddTap,
+            child: CustomPaint(
+              foregroundPainter: DashedBorderPainter(
+                color: Theme.of(context).primaryColor,
+              ),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
                 ),
-                Expanded(
-                  child: ListView.builder(
-                    itemCount: _branches.length,
-                    itemBuilder: (context, index) {
-                      final branch = _branches[index];
-                      final isSelected = _selectedBranches.contains(branch);
-                      return CheckboxListTile(
-                        title: Text(branch),
-                        value: isSelected,
-                        onChanged: (bool? value) {
-                          setSheetState(() {
-                            if (value == true) {
-                              if (branch == 'All Branches') {
-                                _selectedBranches.clear();
-                                _selectedBranches.add(branch);
-                              } else {
-                                _selectedBranches.remove('All Branches');
-                                _selectedBranches.add(branch);
-                              }
-                            } else {
-                              _selectedBranches.remove(branch);
-                            }
-                          });
-                          // Update the main form page UI
-                          setState(() {});
-                          _validateForm();
-                        },
-                      );
-                    },
-                  ),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(8),
                 ),
-              ],
-            );
-          },
-        );
-      },
+                child: Text(addButtonLabel,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodyMedium),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
-  /// Helper to build form field labels with an optional required star.
   Widget _buildLabel(String text, {bool isRequired = false}) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0),
+      padding: const EdgeInsets.only(bottom: 8),
       child: RichText(
         text: TextSpan(
           text: text,
@@ -263,213 +427,6 @@ class _MenuItemFormPageState extends State<MenuItemFormPage> {
                 style: TextStyle(color: Colors.red),
               ),
           ],
-        ),
-      ),
-    );
-  }
-
-  void _removeModifier(ModifierGroupInfo modifier) {
-    setState(() {
-      _selectedModifiers.remove(modifier);
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(isEditing ? 'Edit Item' : 'Create New Item'),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // --- Image Upload Area ---
-            Center(
-              child: Container(
-                width: 159.69,
-                height: 149,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade200,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Center(
-                  child: Icon(Icons.add_a_photo_outlined, color: Colors.grey, size: 40),
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // --- Item Name ---
-            _buildLabel('Item Name', isRequired: true),
-            TextField(
-              controller: _nameController,
-              decoration: const InputDecoration(hintText: 'Enter item name'),
-            ),
-            const SizedBox(height: 16),
-
-            // --- Description ---
-            _buildLabel('Description'),
-            const TextField(
-              decoration: InputDecoration(hintText: 'Enter item description'),
-              maxLines: 3,
-            ),
-            const SizedBox(height: 16),
-
-            // --- Base Price ---
-            _buildLabel('Base price', isRequired: true),
-            TextField(
-              controller: _priceController,
-              decoration: const InputDecoration(hintText: '0.00'),
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            ),
-            const SizedBox(height: 16),
-
-            // --- Category Dropdown ---
-            _buildLabel('Category', isRequired: true),
-            DropdownButtonFormField<String>(
-              value: _selectedCategory,
-              items: widget.categories.where((c) => c != 'All').map((String value) {
-                return DropdownMenuItem<String>(value: value, child: Text(value));
-              }).toList(),
-              onChanged: (String? newValue) {
-                setState(() {
-                  _selectedCategory = newValue;
-                });
-              },
-            ),
-            const SizedBox(height: 16),
-
-            // --- Assign to Branch Dropdown ---
-            _buildLabel('Assign to Branch', isRequired: true),
-            InkWell(
-              onTap: _showBranchSelectionSheet,
-              child: InputDecorator(
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  contentPadding: EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
-                ),
-                child: Wrap(
-                  spacing: 8.0,
-                  runSpacing: 4.0,
-                  children: _selectedBranches.isEmpty
-                      ? [const Text('Select branches...', style: TextStyle(color: Colors.grey))]
-                      : _selectedBranches.map((branch) {
-                          return Chip(
-                            label: Text(branch),
-                            onDeleted: () {
-                              setState(() {
-                                _selectedBranches.remove(branch);
-                                _validateForm();
-                              });
-                            },
-                          );
-                        }).toList(),
-                ),
-              ),
-            ),            const SizedBox(height: 24),
-
-            // --- Modifier Group ---
-            Text('Modifier Group', style: textTheme.titleMedium),
-            const SizedBox(height: 8),
-            // Display selected modifiers
-            ..._selectedModifiers.map((group) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8.0),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Container(
-                          padding: const EdgeInsets.all(12.0),
-                          decoration: BoxDecoration(
-                            border: Border.all(color: Colors.grey.shade300),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(group.name, style: textTheme.titleMedium),
-                              const Divider(),
-                              ...group.options.map((option) {
-                                return Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 4.0),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Text(option.name, style: textTheme.bodyLarge),
-                                      if (option.price > 0)
-                                        Text(
-                                          '+\$${option.price.toStringAsFixed(2)}',
-                                          style: textTheme.bodyMedium?.copyWith(color: Colors.grey.shade700),
-                                        ),
-                                    ],
-                                  ),
-                                );
-                              }),
-                            ],
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.delete_outline, color: Colors.red),
-                        onPressed: () => _removeModifier(group),
-                      ),
-                    ],
-                  ),
-                )),
-            InkWell(onTap: _showAddModifierSheet, child: CustomPaint(
-                foregroundPainter: DashedBorderPainter(
-                  color: Theme.of(context).primaryColor, // Primary color for border
-                ),
-                child: Container(
-                  height: 50,
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primaryContainer, // Light orange for background
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Center(
-                    child: Text(
-                      '+ Add another option',
-                      style: TextStyle(color: Colors.black), // Black text
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // --- Set Active Switch ---
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text('Set Active', style: textTheme.titleMedium),
-                CupertinoSwitch(
-                  value: _isActive,
-                  activeColor: Theme.of(context).primaryColor,
-                  onChanged: (bool value) {
-                    setState(() {
-                      _isActive = value;
-                    });
-                  },
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-      // --- Bottom Create Button ---
-      bottomNavigationBar: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: ElevatedButton(
-          onPressed: _isFormValid ? (isEditing ? _saveChanges : _createItem) : null,
-          style: ElevatedButton.styleFrom(
-            minimumSize: const Size(double.infinity, 50),
-          ),
-          child: Text(isEditing ? 'Save Changes' : 'Create Item'),
         ),
       ),
     );

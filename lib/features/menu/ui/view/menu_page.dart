@@ -1,94 +1,40 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:modular_pos/core/widgets/app_category_selector.dart';
 import 'package:modular_pos/core/widgets/app_kebab_menu.dart';
 import 'package:modular_pos/core/widgets/app_search_add_bar.dart';
 import 'package:modular_pos/core/widgets/card_container.dart';
 import 'package:modular_pos/core/widgets/menu_item_card.dart';
-import 'package:modular_pos/core/widgets/app_category_selector.dart';
+import 'package:modular_pos/features/menu/domain/models/menu_category.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
 import 'package:modular_pos/features/menu/ui/view/categories_management_page.dart';
 import 'package:modular_pos/features/menu/ui/view/menu_item_form_page.dart';
-import 'package:modular_pos/features/menu/ui/view/view_menu_item_page.dart';
 import 'package:modular_pos/features/menu/ui/view/modifiers_management_page.dart';
+import 'package:modular_pos/features/menu/ui/view/view_menu_item_page.dart';
+import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
 
-class MenuPage extends StatefulWidget {
+class MenuPage extends ConsumerWidget {
   const MenuPage({super.key});
 
   @override
-  State<MenuPage> createState() => _MenuPageState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final menuState = ref.watch(menuViewModelProvider);
+    final List<_CategoryChip> categories = [
+      _CategoryChip(id: 'all', label: 'All'),
+      ...menuState.categories
+          .map((c) => _CategoryChip(id: c.id, label: c.name)),
+    ];
+    final selectedChip = categories.firstWhere(
+      (chip) => chip.id == menuState.selectedCategoryId,
+      orElse: () => categories.first,
+    );
 
-class _MenuPageState extends State<MenuPage> {
-  // Mock data for UI display, replacing the ViewModel
-  final List<MenuItem> _allItems = List.generate(
-    20,
-    (index) {
-      final category = ['Coffee', 'Tea', 'Pastries'][index % 3];
-      return MenuItem(
-        id: 'item-$index',
-        name: '$category Item ${index + 1}',
-        category: category,
-        price: 3.50 + (index * 0.25),
-        imagePath: 'assets/images/latte.jpg',
-      );
-    },
-  );
-  late List<MenuItem> _filteredItems;
-  String _selectedCategory = 'All';
-  final List<String> _categories = const ['All', 'Coffee', 'Tea', 'Pastries'];
-  // Mock data for available modifier groups
-  final List<ModifierGroupInfo> _modifierGroups = [    
-    ModifierGroupInfo(
-      name: 'Size',
-      options: [
-        ModifierOption(name: 'Small', price: 2.50),
-        ModifierOption(name: 'Medium', price: 3.50),
-        ModifierOption(name: 'Large', price: 4.50),
-      ],
-    ),
-    ModifierGroupInfo(
-      name: 'Sugar Level',
-      options: [
-        ModifierOption(name: '100%'),
-        ModifierOption(name: '75%'),
-        ModifierOption(name: '50%'),
-        ModifierOption(name: '25%'),
-      ],
-    ),
-    ModifierGroupInfo(name: 'Toppings', options: [ModifierOption(name: 'Boba', price: 0.50)]),
-    ModifierGroupInfo(name: 'Ice Level', options: [ModifierOption(name: 'Regular'), ModifierOption(name: 'Less Ice')]),
-  ];
-
-  @override
-  void initState() {
-    super.initState();
-    _filteredItems = _allItems;
-  }
-
-  void _filterByCategory(String category) {
-    setState(() {
-      _selectedCategory = category;
-      if (category == 'All') {
-        _filteredItems = _allItems;
-      } else {
-        _filteredItems =
-            _allItems.where((item) => item.category == category).toList();
-      }
-    });
-  }
-
-  void _searchItems(String query) {
-    setState(() {
-      _filteredItems = _allItems.where((item) {
-        final matchesQuery = item.name.toLowerCase().contains(query.toLowerCase());
-        final matchesCategory =
-            _selectedCategory == 'All' || item.category == _selectedCategory;
-        return matchesQuery && matchesCategory;
-      }).toList();
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
+    final items = menuState.filteredItems;
+    final branchOptions = [
+      const _BranchOption(id: 'all', label: 'All branches'),
+      ...menuState.branches
+          .map((branch) => _BranchOption(id: branch.id, label: branch.name)),
+    ];
 
     return Scaffold(
       appBar: AppBar(
@@ -98,17 +44,27 @@ class _MenuPageState extends State<MenuPage> {
           AppKebabMenu(
             items: [
               KebabMenuItem(
-                  label: 'Categories Management',
-                  onTap: () {
-                    Navigator.push(context,
-                        MaterialPageRoute(builder: (context) => const CategoriesManagementPage()));
-                  }),
+                label: 'Categories Management',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const CategoriesManagementPage(),
+                    ),
+                  );
+                },
+              ),
               KebabMenuItem(
-                  label: 'Modifiers Management',
-                  onTap: () {
-                    Navigator.push(context,
-                        MaterialPageRoute(builder: (context) => const ModifiersManagementPage()));
-                  }),
+                label: 'Modifiers Management',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const ModifiersManagementPage(),
+                    ),
+                  );
+                },
+              ),
             ],
           ),
         ],
@@ -120,64 +76,128 @@ class _MenuPageState extends State<MenuPage> {
             const SizedBox(height: 16),
             AppSearchAddBar(
               searchHint: 'Search menu items...',
-              onSearchChanged: _searchItems,
+              onSearchChanged: ref
+                  .read(menuViewModelProvider.notifier)
+                  .searchItems,
               onAddPressed: () {
-                Navigator.push(context, MaterialPageRoute(builder: (context) {
-                  return MenuItemFormPage(
-                    categories: _categories,
-                    modifierGroups: _modifierGroups,
-                    onAdd: (newItem) {
-                      setState(() {
-                        _allItems.insert(0, newItem); // Add to the top of the list
-                        _filterByCategory(_selectedCategory); // Re-apply current filter
-                      });
-                    },
-                  );
-                }));
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const MenuItemFormPage(),
+                  ),
+                );
               },
             ),
             const SizedBox(height: 24),
-            AppCategorySelector(
-              categories: _categories,
-              selectedCategory: _selectedCategory,
-              onCategorySelected: _filterByCategory,
-            ),
-            const SizedBox(height: 24),
-            Expanded(
-              child: CardContainer(
-                itemCount: _filteredItems.length,
-                itemBuilder: (context, index) {
-                  final item = _filteredItems[index];
-                  return MenuItemCard(
-                    title: item.name,
-                    category: item.category,
-                    price: item.price,
-                    imagePath: item.imagePath,
-                    onTap: () {
-                      Navigator.push(context, MaterialPageRoute(builder: (context) {
-                        return ViewMenuItemPage(
-                          menuItem: item,
-                          categories: _categories,
-                          modifierGroups: _modifierGroups,
-                          onItemUpdated: (updatedItem) {
-                            setState(() {
-                              final index = _allItems.indexWhere((i) => i.id == updatedItem.id);
-                              if (index != -1) {
-                                _allItems[index] = updatedItem;
-                                _filterByCategory(_selectedCategory);
-                              }
-                            });
-                          },
-                        );
-                      }));
-                    },
-                  );
+            SizedBox(
+              width: double.infinity,
+              child: DropdownMenu<String>(
+                width: double.infinity,
+                initialSelection: menuState.selectedBranchId,
+                leadingIcon: const Icon(Icons.store_outlined),
+                label: const Text('Branch'),
+                dropdownMenuEntries: branchOptions
+                    .map(
+                      (option) => DropdownMenuEntry<String>(
+                        value: option.id,
+                        label: option.label,
+                      ),
+                    )
+                    .toList(),
+                onSelected: (value) {
+                  if (value == null) return;
+                  ref
+                      .read(menuViewModelProvider.notifier)
+                      .filterByBranch(value);
                 },
               ),
             ),
+            const SizedBox(height: 24),
+            AppCategorySelector(
+              categories: categories.map((c) => c.label).toList(),
+              selectedCategory: selectedChip.label,
+              onCategorySelected: (label) {
+                final chip =
+                    categories.firstWhere((element) => element.label == label);
+                ref
+                    .read(menuViewModelProvider.notifier)
+                    .filterByCategory(chip.id);
+              },
+            ),
+            const SizedBox(height: 24),
+            if (menuState.isLoading)
+              const Expanded(
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (menuState.error != null)
+              Expanded(
+                child: Center(
+                  child: Text(menuState.error!,
+                      style: Theme.of(context).textTheme.bodyMedium),
+                ),
+              )
+            else if (items.isEmpty)
+              Expanded(
+                child: Center(
+                  child: Text(
+                    'No menu items match your filters.',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                ),
+              )
+            else
+              Expanded(
+                child: CardContainer(
+                  itemCount: items.length,
+                  itemBuilder: (context, index) {
+                    final item = items[index];
+                    final categoryName = _resolveCategoryName(
+                      menuState.categories,
+                      item.categoryId,
+                    );
+                    return MenuItemCard(
+                      title: item.name,
+                      category: categoryName,
+                      price: item.price,
+                      imagePath: item.imageUrl,
+                      onTap: () => _openItemDetail(context, item),
+                    );
+                  },
+                ),
+              ),
           ],
         ),
       ),
     );
   }
+
+  void _openItemDetail(BuildContext context, MenuItem item) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ViewMenuItemPage(menuItem: item),
+      ),
+    );
+  }
+}
+
+class _CategoryChip {
+  const _CategoryChip({required this.id, required this.label});
+  final String id;
+  final String label;
+}
+
+class _BranchOption {
+  const _BranchOption({required this.id, required this.label});
+  final String id;
+  final String label;
+}
+
+String _resolveCategoryName(List<MenuCategory> categories, String categoryId) {
+  for (final category in categories) {
+    if (category.id == categoryId) {
+      return category.name;
+    }
+  }
+  return 'Unassigned';
 }
