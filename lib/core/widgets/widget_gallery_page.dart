@@ -5,9 +5,14 @@ import 'package:modular_pos/core/widgets/app_search_add_bar.dart';
 import 'package:modular_pos/core/widgets/card_container.dart';
 import 'package:modular_pos/core/widgets/menu_item_card.dart';
 
-class WidgetGalleryPage extends StatelessWidget {
+class WidgetGalleryPage extends StatefulWidget {
   const WidgetGalleryPage({super.key});
 
+  @override
+  State<WidgetGalleryPage> createState() => _WidgetGalleryPageState();
+}
+
+class _WidgetGalleryPageState extends State<WidgetGalleryPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(

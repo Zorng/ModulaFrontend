@@ -6,9 +6,9 @@ import 'package:modular_pos/core/theme/app_theme.dart';
 import 'package:modular_pos/features/auth/ui/portals/admin_portal.dart';
 import 'package:modular_pos/features/auth/ui/portals/cashier_portal.dart';
 import 'package:modular_pos/features/auth/ui/view/login_view.dart';
-import 'package:modular_pos/features/menu/ui/view/menu_page.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/core/widgets/widget_gallery_page.dart';
+import 'package:modular_pos/features/menu/ui/view/menu_page.dart';
 import 'package:modular_pos/features/policy/ui/view/policy_page.dart';
 import 'package:modular_pos/features/common/ui/settings_page.dart';
 import 'package:modular_pos/features/auth/ui/view/account_page.dart';
@@ -72,7 +72,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       }
 
       // Authenticated but not allowed to access admin portal → 404
-      if (path == AppRoute.adminPortal.path && role != 'admin') {
+      if ((path == AppRoute.adminPortal.path ||
+              path == AppRoute.adminMenu.path) &&
+          role != 'admin') {
         return '/404';
       }
 
@@ -113,14 +115,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         name: AppRoute.components.name,
         builder: (context, state) => const WidgetGalleryPage(),
       ),
-      // Temporary route for developing and testing the MenuPage.
-      GoRoute(path: '/menu', builder: (context, state) => const MenuPage()),
       GoRoute(
         path: AppRoute.adminPortal.path,
         name: AppRoute.adminPortal.name,
         builder: (context, state) => const AdminPortal(),
       ),
       GoRoute(
+        path: AppRoute.adminMenu.path,
+        name: AppRoute.adminMenu.name,
+        builder: (context, state) => const MenuPage(),
         path: AppRoute.policy.path,
         name: AppRoute.policy.name,
         builder: (context, state) => const PolicyPage(),
