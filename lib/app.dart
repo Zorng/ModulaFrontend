@@ -12,6 +12,17 @@ import 'package:modular_pos/core/widgets/widget_gallery_page.dart';
 import 'package:modular_pos/features/policy/ui/view/policy_page.dart';
 import 'package:modular_pos/features/common/ui/settings_page.dart';
 import 'package:modular_pos/features/auth/ui/view/account_page.dart';
+import 'package:modular_pos/features/inventory/ui/view/category_management_page.dart';
+import 'package:modular_pos/features/inventory/ui/view/inventory_home_page.dart';
+import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
+import 'package:modular_pos/features/inventory/ui/view/add_stock_item_page.dart';
+import 'package:modular_pos/features/inventory/ui/view/stock_item_detail_page.dart';
+import 'package:modular_pos/features/inventory/ui/view/inventory_stock_items_page.dart';
+import 'package:modular_pos/features/inventory/ui/view/stock_adjust_quantity_page.dart';
+import 'package:modular_pos/features/inventory/ui/view/restock_stock_item_page.dart';
+import 'package:modular_pos/features/inventory/domain/models/inventory_journal_summary.dart';
+import 'package:modular_pos/features/inventory/ui/view/inventory_journal_page.dart';
+import 'package:modular_pos/features/inventory/ui/view/inventory_journal_detail_page.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -69,6 +80,17 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       if (path == AppRoute.policy.path && role != 'admin') {
         return '/404';
       }
+      if ((path == AppRoute.inventory.path ||
+              path == AppRoute.inventoryAddItem.path ||
+              path == AppRoute.inventoryStockDetail.path ||
+              path == AppRoute.inventoryStockItems.path ||
+              path == AppRoute.inventoryRestock.path ||
+              path == AppRoute.inventoryCategories.path ||
+              path == AppRoute.inventoryJournal.path ||
+              path == AppRoute.inventoryJournalDetail.path) &&
+          role != 'admin') {
+        return '/404';
+      }
 
       // Authenticated but not allowed to access cashier portal → 404
       if (path == AppRoute.cashierPortal.path && role != 'cashier') {
@@ -92,10 +114,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const WidgetGalleryPage(),
       ),
       // Temporary route for developing and testing the MenuPage.
-      GoRoute(
-        path: '/menu',
-        builder: (context, state) => const MenuPage(),
-      ),
+      GoRoute(path: '/menu', builder: (context, state) => const MenuPage()),
       GoRoute(
         path: AppRoute.adminPortal.path,
         name: AppRoute.adminPortal.name,
@@ -121,10 +140,76 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         name: AppRoute.cashierPortal.name,
         builder: (context, state) => const CashierPortal(),
       ),
+      GoRoute(
+        path: AppRoute.inventory.path,
+        name: AppRoute.inventory.name,
+        builder: (context, state) => const InventoryHomePage(),
+      ),
+      GoRoute(
+        path: AppRoute.inventoryAddItem.path,
+        name: AppRoute.inventoryAddItem.name,
+        builder: (context, state) => const AddStockItemPage(),
+      ),
+      GoRoute(
+        path: AppRoute.inventoryStockDetail.path,
+        name: AppRoute.inventoryStockDetail.name,
+        builder: (context, state) {
+          final item = state.extra is StockItem
+              ? state.extra as StockItem
+              : const StockItem(
+                  id: 'unknown',
+                  name: 'Unknown item',
+                  category: 'Uncategorized',
+                  baseUnit: 'pcs',
+                  pieceSize: 1,
+                  branchId: 'main',
+                  branchName: 'Main Branch',
+                  onHand: 0,
+                  minThreshold: 0,
+                  isActive: true,
+                );
+          return StockItemDetailPage(item: item);
+        },
+      ),
+      GoRoute(
+        path: AppRoute.inventoryAdjustStock.path,
+        name: AppRoute.inventoryAdjustStock.name,
+        builder: (context, state) {
+          final item = state.extra as StockItem;
+          return AdjustStockQuantityPage(item: item);
+        },
+      ),
+      GoRoute(
+        path: AppRoute.inventoryStockItems.path,
+        name: AppRoute.inventoryStockItems.name,
+        builder: (context, state) => const InventoryStockItemsPage(),
+      ),
+      GoRoute(
+        path: AppRoute.inventoryRestock.path,
+        name: AppRoute.inventoryRestock.name,
+        builder: (context, state) => const RestockStockItemPage(),
+      ),
+      GoRoute(
+        path: AppRoute.inventoryCategories.path,
+        name: AppRoute.inventoryCategories.name,
+        builder: (context, state) => const CategoryManagementPage(),
+      ),
+      GoRoute(
+        path: AppRoute.inventoryJournal.path,
+        name: AppRoute.inventoryJournal.name,
+        builder: (context, state) => const InventoryJournalPage(),
+      ),
+      GoRoute(
+        path: AppRoute.inventoryJournalDetail.path,
+        name: AppRoute.inventoryJournalDetail.name,
+        builder: (context, state) {
+          final summary = state.extra as InventoryJournalDaySummary;
+          return InventoryJournalDetailPage(summary: summary);
+        },
+      ),
     ],
   );
 });
-
 
 class ModulaApp extends ConsumerWidget {
   const ModulaApp({super.key});

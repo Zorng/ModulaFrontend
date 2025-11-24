@@ -137,7 +137,6 @@ class PolicyTile extends StatelessWidget {
     );
 
     final titleStyle = Theme.of(context).textTheme.titleMedium;
-    final subtitleStyle = Theme.of(context).textTheme.bodyMedium;
 
     return Column(
       children: [
