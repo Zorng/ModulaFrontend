@@ -31,6 +31,13 @@ class MenuMockDataSource {
     return List<Map<String, dynamic>>.from(_modifierGroups);
   }
 
+  Future<List<Map<String, dynamic>>> fetchModifierOptions(String groupId) async {
+    final group =
+        _modifierGroups.firstWhere((g) => g['id'] == groupId, orElse: () => {});
+    final options = group['options'] as List<dynamic>? ?? const [];
+    return options.whereType<Map<String, dynamic>>().toList(growable: false);
+  }
+
   Future<List<Map<String, dynamic>>> fetchMenuItems() async {
     return List<Map<String, dynamic>>.from(_menuItems);
   }

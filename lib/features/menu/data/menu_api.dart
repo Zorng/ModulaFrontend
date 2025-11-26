@@ -77,20 +77,44 @@ class MenuApi {
     }
   }
 
-  Future<List<Map<String, dynamic>>> fetchMenuItems({String? branchId}) async {
-    if (_mock != null) return _mock!.fetchMenuItems();
-    if (branchId == null || branchId.isEmpty) {
-      return const [];
-    }
+  Future<List<Map<String, dynamic>>> fetchModifierOptions(
+      String modifierGroupId) async {
+    if (_mock != null) return _mock!.fetchModifierOptions(modifierGroupId);
     final dio = _requireDio();
     try {
-      final response = await dio.get<Map<String, dynamic>>(
-        '$_menuPrefix/items/by-branch',
-        queryParameters: {'branchId': branchId},
+      final response = await dio.get<dynamic>(
+        '$_menuPrefix/modifiers/groups/$modifierGroupId/options',
       );
       final data = response.data;
       if (data == null) return const [];
-      final items = data['items'] ?? data['data'] ?? data;
+      final options = data is Map<String, dynamic>
+          ? data['options'] ?? data['data'] ?? data
+          : data;
+      return _mapList(options);
+    } on DioException catch (error) {
+      throw MenuApiException.fromDio(error);
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> fetchMenuItems({String? branchId}) async {
+    if (_mock != null) return _mock!.fetchMenuItems();
+    final dio = _requireDio();
+    final bool hasBranch = branchId != null && branchId.isNotEmpty;
+    final String path = hasBranch
+        ? '$_menuPrefix/items/by-branch'
+        : '$_menuPrefix/items';
+    final Map<String, dynamic>? query =
+        hasBranch ? {'branchId': branchId} : null;
+    try {
+      final response = await dio.get<dynamic>(
+        path,
+        queryParameters: query,
+      );
+      final data = response.data;
+      if (data == null) return const [];
+      final items = data is Map<String, dynamic>
+          ? data['items'] ?? data['data'] ?? data
+          : data;
       return _mapList(items);
     } on DioException catch (error) {
       throw MenuApiException.fromDio(error);
@@ -218,15 +242,25 @@ class MenuApi {
     }
   }
 
-  Future<Map<String, dynamic>> createMenuItem(Map<String, dynamic> payload) async {
+  Future<Map<String, dynamic>> createMenuItem(
+    Map<String, dynamic> payload, {
+    String? imagePath,
+    List<int>? imageBytes,
+  }) async {
     if (_mock != null) return _mock!.createMenuItem(payload);
     final dio = _requireDio();
     try {
       final body = Map<String, dynamic>.from(payload)
         ..removeWhere((key, value) => key == 'id' || value == null);
+      final formData = FormData.fromMap(body);
+      final imagePart = await _buildImagePart(
+        imagePath: imagePath,
+        imageBytes: imageBytes,
+      );
+      if (imagePart != null) formData.files.add(MapEntry('image', imagePart));
       final response = await dio.post<Map<String, dynamic>>(
         '$_menuPrefix/items',
-        data: body,
+        data: formData,
       );
       return response.data ?? const {};
     } on DioException catch (error) {
@@ -234,7 +268,11 @@ class MenuApi {
     }
   }
 
-  Future<Map<String, dynamic>> updateMenuItem(Map<String, dynamic> payload) async {
+  Future<Map<String, dynamic>> updateMenuItem(
+    Map<String, dynamic> payload, {
+    String? imagePath,
+    List<int>? imageBytes,
+  }) async {
     if (_mock != null) return _mock!.updateMenuItem(payload);
     final dio = _requireDio();
     final itemId = payload['id']?.toString();
@@ -244,14 +282,39 @@ class MenuApi {
     final updateMap = Map<String, dynamic>.from(payload)
       ..removeWhere((key, value) => key == 'id' || value == null);
     try {
+      final formData = FormData.fromMap(updateMap);
+      final imagePart = await _buildImagePart(
+        imagePath: imagePath,
+        imageBytes: imageBytes,
+      );
+      if (imagePart != null) formData.files.add(MapEntry('image', imagePart));
       final response = await dio.patch<Map<String, dynamic>>(
         '$_menuPrefix/items/$itemId',
-        data: updateMap,
+        data: formData,
       );
       return response.data ?? const {};
     } on DioException catch (error) {
       throw MenuApiException.fromDio(error);
     }
+  }
+
+  Future<MultipartFile?> _buildImagePart({
+    String? imagePath,
+    List<int>? imageBytes,
+  }) async {
+    if (imagePath != null && imagePath.isNotEmpty) {
+      return MultipartFile.fromFile(
+        imagePath,
+        filename: imagePath.split('/').last,
+      );
+    }
+    if (imageBytes != null && imageBytes.isNotEmpty) {
+      return MultipartFile.fromBytes(
+        imageBytes,
+        filename: 'upload.jpg',
+      );
+    }
+    return null;
   }
 
   Future<void> deleteMenuItem(String menuItemId) async {
@@ -281,8 +344,8 @@ class MenuApi {
     }
     final dio = _requireDio();
     try {
-      await dio.post<void>(
-        '$_menuPrefix/items/$menuItemId/availability',
+      await dio.put<void>(
+        '$_menuPrefix/items/$menuItemId/branches/availability',
         data: {
           'branchId': branchId,
           'isAvailable': isAvailable,
@@ -307,8 +370,8 @@ class MenuApi {
     }
     final dio = _requireDio();
     try {
-      await dio.post<void>(
-        '$_menuPrefix/items/$menuItemId/price-override',
+      await dio.put<void>(
+        '$_menuPrefix/items/$menuItemId/branches/price',
         data: {
           'branchId': branchId,
           'priceUsd': priceUsd,

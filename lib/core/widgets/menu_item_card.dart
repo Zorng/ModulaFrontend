@@ -1,8 +1,10 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:modular_pos/core/widgets/network_image_helper_stub.dart'
+    if (dart.library.html) 'package:modular_pos/core/widgets/network_image_helper_web.dart';
+import 'package:modular_pos/features/menu/ui/view/dashed_border_painter.dart';
 
-/// A card widget to display a menu item with an image, title, category, and price.
-///
-/// This is a core component for the sales and menu management screens.
+/// Card for a menu item with image, category, and price.
 class MenuItemCard extends StatelessWidget {
   const MenuItemCard({
     super.key,
@@ -13,7 +15,6 @@ class MenuItemCard extends StatelessWidget {
     this.onTap,
   });
 
-  // Made imagePath optional for placeholder
   final String? imagePath;
   final String title;
   final String category;
@@ -34,27 +35,31 @@ class MenuItemCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // The vertical padding was removed here (top/bottom) to prevent overflow.
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8.0),
+              padding: const EdgeInsets.fromLTRB(8, 10, 8, 0),
               child: AspectRatio(
-                aspectRatio: 160 / 142, // Keeps the 1:1 ratio
-                child: imagePath != null
-                    ? Image.asset(
-                        imagePath!,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) =>
+                aspectRatio: 160 / 142,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    imagePath != null && imagePath!.isNotEmpty
+                        ? buildAdaptiveNetworkImage(
+                            imagePath!,
                             _buildPlaceholder(context),
-                      )
-                    // Use placeholder if imagePath is null
-                    : _buildPlaceholder(context),
+                          )
+                        : _buildPlaceholder(context),
+                    Positioned.fill(
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.translucent,
+                        onTap: onTap,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-            // Use Expanded to allow the text section to fill remaining space,
-            // preventing vertical overflow.
             Expanded(
               child: Padding(
-                // Reduce vertical padding to finally eliminate the overflow.
                 padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -71,7 +76,6 @@ class MenuItemCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
                         Flexible(
-                          // Replace Chip with a more lightweight Container to prevent overflow.
                           child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                             decoration: BoxDecoration(
@@ -103,14 +107,35 @@ class MenuItemCard extends StatelessWidget {
 
   /// A private helper widget to show a consistent placeholder.
   Widget _buildPlaceholder(BuildContext context) {
-    return Container(
-      color: Theme.of(context).colorScheme.surfaceContainerLowest,
-      width: double.infinity,
-      height: double.infinity,
-      child: Icon(
-        Icons.local_cafe_outlined, // Example icon
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        size: 48,
+    final theme = Theme.of(context);
+    final color = theme.primaryColor;
+    final textStyle =
+        theme.textTheme.bodySmall?.copyWith(color: color, fontWeight: FontWeight.w600);
+
+    const radius = 12.0;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(radius),
+      child: CustomPaint(
+        foregroundPainter: DashedBorderPainter(
+          color: color,
+          strokeWidth: 1.4,
+          dashWidth: 6,
+          dashSpace: 4,
+          borderRadius: radius,
+        ),
+        child: Container(
+          width: double.infinity,
+          height: double.infinity,
+          alignment: Alignment.center,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.image_outlined, color: color, size: 32),
+              const SizedBox(height: 6),
+              Text('No image', style: textStyle),
+            ],
+          ),
+        ),
       ),
     );
   }

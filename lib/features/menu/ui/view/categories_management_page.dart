@@ -7,11 +7,27 @@ import 'package:modular_pos/features/menu/ui/view/edit_category_page.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
 
 /// A page for managing menu categories.
-class CategoriesManagementPage extends ConsumerWidget {
+class CategoriesManagementPage extends ConsumerStatefulWidget {
   const CategoriesManagementPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<CategoriesManagementPage> createState() =>
+      _CategoriesManagementPageState();
+}
+
+class _CategoriesManagementPageState
+    extends ConsumerState<CategoriesManagementPage> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(menuViewModelProvider.notifier).refreshCategories();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final menuState = ref.watch(menuViewModelProvider);
     final categories = menuState.categories;
     final items = menuState.allItems;
@@ -38,30 +54,32 @@ class CategoriesManagementPage extends ConsumerWidget {
             ),
             const SizedBox(height: 16),
             Expanded(
-              child: categories.isEmpty
-                  ? const Center(child: Text('No categories yet'))
-                  : ListView.builder(
-                      itemCount: categories.length,
-                      itemBuilder: (context, index) {
-                        final category = categories[index];
-                        final count = items
-                            .where((item) => item.categoryId == category.id)
-                            .length;
-                        return _CategoryTile(
-                          category: category,
-                          itemCount: count,
-                          onTap: category.isActive
-                              ? () => Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) =>
-                                          EditCategoryPage(category: category),
-                                    ),
-                                  )
-                              : null,
-                        );
-                      },
-                    ),
+              child: menuState.isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : categories.isEmpty
+                      ? const Center(child: Text('No categories yet'))
+                      : ListView.builder(
+                          itemCount: categories.length,
+                          itemBuilder: (context, index) {
+                            final category = categories[index];
+                            final count = items
+                                .where((item) => item.categoryId == category.id)
+                                .length;
+                            return _CategoryTile(
+                              category: category,
+                              itemCount: count,
+                              onTap: category.isActive
+                                  ? () => Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => EditCategoryPage(
+                                              category: category),
+                                        ),
+                                      )
+                                  : null,
+                            );
+                          },
+                        ),
             ),
           ],
         ),

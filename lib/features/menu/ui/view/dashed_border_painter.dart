@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 class DashedBorderPainter extends CustomPainter {
@@ -5,12 +7,14 @@ class DashedBorderPainter extends CustomPainter {
   final double strokeWidth;
   final double dashWidth;
   final double dashSpace;
+  final double borderRadius;
 
   DashedBorderPainter({
     this.color = Colors.grey,
     this.strokeWidth = 1.0,
     this.dashWidth = 4.0,
     this.dashSpace = 4.0,
+    this.borderRadius = 8.0,
   });
 
   @override
@@ -18,10 +22,22 @@ class DashedBorderPainter extends CustomPainter {
     final paint = Paint()
       ..color = color
       ..strokeWidth = strokeWidth
-      ..style = PaintingStyle.stroke;
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
 
     final path = Path();
-    path.addRRect(RRect.fromRectAndRadius(Rect.fromLTWH(0, 0, size.width, size.height), const Radius.circular(8)));
+    final inset = strokeWidth / 2;
+    path.addRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(
+          inset,
+          inset,
+          size.width - strokeWidth,
+          size.height - strokeWidth,
+        ),
+        Radius.circular(borderRadius),
+      ),
+    );
 
     final dashPath = _createDashedPath(path, dashWidth, dashSpace);
     canvas.drawPath(dashPath, paint);
@@ -31,13 +47,15 @@ class DashedBorderPainter extends CustomPainter {
   bool shouldRepaint(CustomPainter oldDelegate) => false;
 
   Path _createDashedPath(Path source, double dashWidth, double dashSpace) {
-    final path = Path();
-    final dashCount = (source.computeMetrics().first.length / (dashWidth + dashSpace)).floor();
-    final metric = source.computeMetrics().first;
-
-    for (int i = 0; i < dashCount; ++i) {
-      path.addPath(metric.extractPath(i * (dashWidth + dashSpace), (i * (dashWidth + dashSpace)) + dashWidth), Offset.zero);
+    final dashedPath = Path();
+    for (final metric in source.computeMetrics()) {
+      var distance = 0.0;
+      while (distance < metric.length) {
+        final double end = math.min(distance + dashWidth, metric.length);
+        dashedPath.addPath(metric.extractPath(distance, end), Offset.zero);
+        distance += dashWidth + dashSpace;
+      }
     }
-    return path;
+    return dashedPath;
   }
 }

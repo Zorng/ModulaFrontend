@@ -13,11 +13,24 @@ import 'package:modular_pos/features/menu/ui/view/modifiers_management_page.dart
 import 'package:modular_pos/features/menu/ui/view/view_menu_item_page.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
 
-class MenuPage extends ConsumerWidget {
+class MenuPage extends ConsumerStatefulWidget {
   const MenuPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<MenuPage> createState() => _MenuPageState();
+}
+
+class _MenuPageState extends ConsumerState<MenuPage> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(menuViewModelProvider.notifier).loadMenu();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final menuState = ref.watch(menuViewModelProvider);
     final List<_CategoryChip> categories = [
       _CategoryChip(id: 'all', label: 'All'),

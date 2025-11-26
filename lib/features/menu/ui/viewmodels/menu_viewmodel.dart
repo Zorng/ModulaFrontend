@@ -12,12 +12,12 @@ final menuViewModelProvider =
     NotifierProvider<MenuViewModel, MenuState>(MenuViewModel.new);
 
 class MenuViewModel extends Notifier<MenuState> {
-  late final MenuRepository _menuRepository;
   bool _hasRequestedInitialLoad = false;
+
+  MenuRepository get _menuRepository => ref.read(menuRepositoryProvider);
 
   @override
   MenuState build() {
-    _menuRepository = ref.read(menuRepositoryProvider);
     final loginState = ref.watch(loginControllerProvider);
     if (loginState.session == null) {
       _hasRequestedInitialLoad = false;
@@ -32,16 +32,31 @@ class MenuViewModel extends Notifier<MenuState> {
     try {
       state = state.copyWith(isLoading: true, error: null);
       final userBranches = _resolveUserBranches();
-      final requestedBranchId = branchId ??
-          (state.selectedBranchId != 'all' ? state.selectedBranchId : null) ??
-          (userBranches.isNotEmpty ? userBranches.first.id : null);
+      final fallbackBranchId =
+          userBranches.isNotEmpty ? userBranches.first.id : null;
+      final isExplicitAll = branchId == 'all';
+      final wasAllPreviously =
+          branchId == null && state.selectedBranchId == 'all';
+      final noAssignedBranches = userBranches.isEmpty;
+      final shouldFetchAll = isExplicitAll ||
+          wasAllPreviously ||
+          (noAssignedBranches && branchId == null);
+      final requestedBranchId = shouldFetchAll
+          ? null
+          : branchId ??
+              (state.selectedBranchId != 'all' ? state.selectedBranchId : null) ??
+              fallbackBranchId;
       final bundle = await _menuRepository.fetchMenuData(
         branchId: requestedBranchId,
+        branchIdsForHydration: shouldFetchAll
+            ? userBranches.map((b) => b.id).toList()
+            : null,
       );
       final branches =
           userBranches.isNotEmpty ? userBranches : bundle.branches;
-      final selectedBranch =
-          requestedBranchId ?? (branches.isNotEmpty ? branches.first.id : 'all');
+      final selectedBranch = shouldFetchAll
+          ? 'all'
+          : requestedBranchId ?? (branches.isNotEmpty ? branches.first.id : 'all');
       state = state.copyWith(
         isLoading: false,
         allItems: bundle.items,
@@ -51,6 +66,34 @@ class MenuViewModel extends Notifier<MenuState> {
         branches: branches,
         selectedCategoryId: 'all',
         selectedBranchId: selectedBranch,
+      );
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e.toString());
+    }
+  }
+
+  Future<void> refreshCategories({bool? isActive}) async {
+    try {
+      state = state.copyWith(isLoading: true, error: null);
+      final categories =
+          await _menuRepository.fetchCategoriesOnly(isActive: isActive);
+      state = state.copyWith(
+        isLoading: false,
+        categories: categories,
+        filteredItems: _applyFilters(items: state.allItems),
+      );
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e.toString());
+    }
+  }
+
+  Future<void> refreshModifierGroups() async {
+    try {
+      state = state.copyWith(isLoading: true, error: null);
+      final groups = await _menuRepository.fetchModifierGroupsOnly();
+      state = state.copyWith(
+        isLoading: false,
+        modifierGroups: groups,
       );
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
@@ -74,13 +117,6 @@ class MenuViewModel extends Notifier<MenuState> {
   }
 
   Future<void> filterByBranch(String branchId) async {
-    if (branchId == 'all') {
-      state = state.copyWith(
-        selectedBranchId: 'all',
-        filteredItems: _applyFilters(branchId: 'all'),
-      );
-      return;
-    }
     await loadMenu(branchId: branchId);
   }
 
@@ -124,8 +160,17 @@ class MenuViewModel extends Notifier<MenuState> {
     state = state.copyWith(modifierGroups: groups);
   }
 
-  Future<void> addMenuItem(MenuItem item) async {
-    final created = await _menuRepository.createMenuItem(item);
+  Future<void> addMenuItem(
+    MenuItem item, {
+    String? imagePath,
+    List<int>? imageBytes,
+  }) async {
+    final created =
+        await _menuRepository.createMenuItem(
+      item,
+      imagePath: imagePath,
+      imageBytes: imageBytes,
+    );
     final items = [created, ...state.allItems];
     state = state.copyWith(
       allItems: items,
@@ -135,8 +180,17 @@ class MenuViewModel extends Notifier<MenuState> {
     );
   }
 
-  Future<void> updateMenuItem(MenuItem item) async {
-    final updated = await _menuRepository.updateMenuItem(item);
+  Future<void> updateMenuItem(
+    MenuItem item, {
+    String? imagePath,
+    List<int>? imageBytes,
+  }) async {
+    final updated =
+        await _menuRepository.updateMenuItem(
+      item,
+      imagePath: imagePath,
+      imageBytes: imageBytes,
+    );
     final items = [
       for (final existing in state.allItems)
         if (existing.id == updated.id) updated else existing,

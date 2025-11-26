@@ -21,15 +21,17 @@ class ModifierOption {
   }
 
   factory ModifierOption.fromJson(Map<String, dynamic> json) {
+    final priceRaw =
+        json['priceAdjustmentUsd'] ?? json['price'] ?? json['priceUsd'] ?? 0;
+    final double parsedPrice = priceRaw is num
+        ? priceRaw.toDouble()
+        : double.tryParse(priceRaw.toString()) ?? 0;
     return ModifierOption(
-      id: json['id'] as String,
+      id: json['id']?.toString() ?? '',
       name: (json['label'] as String?) ??
-          json['name'] as String? ??
+          json['name']?.toString() ??
           'Option',
-      price: (json['priceAdjustmentUsd'] as num?)
-              ?.toDouble() ??
-          (json['price'] as num?)?.toDouble() ??
-          0,
+      price: parsedPrice,
       isDefault: json['isDefault'] as bool? ?? false,
     );
   }
@@ -84,14 +86,14 @@ class ModifierGroup {
 
   factory ModifierGroup.fromJson(Map<String, dynamic> json) {
     return ModifierGroup(
-      id: json['id'] as String,
-      name: json['name'] as String,
+      id: json['id']?.toString() ?? '',
+      name: json['name']?.toString() ?? 'Modifier Group',
       selectionType: (json['selectionType'] as String? ?? 'single').toLowerCase(),
       pricingBehavior: (json['pricingBehavior'] as String? ?? 'addon').toLowerCase(),
       options: (json['options'] as List<dynamic>? ?? const [])
           .map((option) => ModifierOption.fromJson(option as Map<String, dynamic>))
           .toList(),
-      defaultOptionId: json['defaultOptionId'] as String?,
+      defaultOptionId: json['defaultOptionId']?.toString(),
       isRequired: json['isRequired'] as bool?,
     );
   }

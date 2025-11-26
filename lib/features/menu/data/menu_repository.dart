@@ -32,7 +32,10 @@ class MenuRepository {
   const MenuRepository(this._api);
   final MenuApi _api;
 
-  Future<MenuDataBundle> fetchMenuData({String? branchId}) async {
+  Future<MenuDataBundle> fetchMenuData({
+    String? branchId,
+    List<String>? branchIdsForHydration,
+  }) async {
     final branchesFuture = _api.fetchBranches();
     final categoriesFuture = _api.fetchCategories();
     final modifiersFuture = _api.fetchModifierGroups();
@@ -40,14 +43,29 @@ class MenuRepository {
     final branchesRaw = await branchesFuture;
     final categoriesRaw = await categoriesFuture;
     final modifiersRaw = await modifiersFuture;
-    final itemsRaw = await itemsFuture;
+    List<Map<String, dynamic>> itemsRaw = const [];
+    try {
+      itemsRaw = await itemsFuture;
+      if (branchId != null && branchId.isNotEmpty) {
+        itemsRaw = _ensureBranchOnItems(itemsRaw, branchId);
+      } else {
+        final fallbackBranchIds =
+            branchIdsForHydration ?? _extractBranchIds(branchesRaw);
+        itemsRaw = await _hydrateBranchAssignments(
+          itemsRaw,
+          fallbackBranchIds,
+        );
+      }
+    } catch (_) {
+      // If menu items fail to load (e.g., invalid branch), still return categories/modifiers/branches.
+      itemsRaw = const [];
+    }
 
     final branches =
         branchesRaw.map((json) => MenuBranch.fromJson(json)).toList();
     final categories =
         categoriesRaw.map((json) => MenuCategory.fromJson(json)).toList();
-    final modifierGroups =
-        modifiersRaw.map((json) => ModifierGroup.fromJson(json)).toList();
+    final modifierGroups = await _hydrateModifierOptions(modifiersRaw);
     final items =
         itemsRaw.map((json) => MenuItem.fromJson(json)).toList();
 
@@ -57,6 +75,16 @@ class MenuRepository {
       modifierGroups: modifierGroups,
       branches: branches,
     );
+  }
+
+  Future<List<MenuCategory>> fetchCategoriesOnly({bool? isActive}) async {
+    final categoriesRaw = await _api.fetchCategories(isActive: isActive);
+    return categoriesRaw.map((json) => MenuCategory.fromJson(json)).toList();
+  }
+
+  Future<List<ModifierGroup>> fetchModifierGroupsOnly() async {
+    final modifiersRaw = await _api.fetchModifierGroups();
+    return _hydrateModifierOptions(modifiersRaw);
   }
 
   Future<MenuCategory> createCategory(MenuCategory category) async {
@@ -142,14 +170,44 @@ class MenuRepository {
     return ModifierGroup.fromJson(json);
   }
 
-  Future<MenuItem> createMenuItem(MenuItem item) async {
-    final json = await _api.createMenuItem(_menuItemPayload(item));
-    return MenuItem.fromJson(json);
+  Future<MenuItem> createMenuItem(
+    MenuItem item, {
+    String? imagePath,
+    List<int>? imageBytes,
+  }) async {
+    final json =
+        await _api.createMenuItem(
+      _menuItemPayload(item),
+      imagePath: imagePath,
+      imageBytes: imageBytes,
+    );
+    final created = MenuItem.fromJson(json);
+    await _syncBranchAvailability(created.id, item.branchIds);
+    await _syncModifierAttachments(created.id, item.modifierGroupIds);
+    return created.copyWith(
+      branchIds: item.branchIds,
+      modifierGroupIds: item.modifierGroupIds,
+    );
   }
 
-  Future<MenuItem> updateMenuItem(MenuItem item) async {
-    final json = await _api.updateMenuItem(_menuItemPayload(item));
-    return MenuItem.fromJson(json);
+  Future<MenuItem> updateMenuItem(
+    MenuItem item, {
+    String? imagePath,
+    List<int>? imageBytes,
+  }) async {
+    final json =
+        await _api.updateMenuItem(
+      _menuItemPayload(item),
+      imagePath: imagePath,
+      imageBytes: imageBytes,
+    );
+    final updated = MenuItem.fromJson(json);
+    await _syncBranchAvailability(updated.id, item.branchIds);
+    await _syncModifierAttachments(updated.id, item.modifierGroupIds);
+    return updated.copyWith(
+      branchIds: item.branchIds,
+      modifierGroupIds: item.modifierGroupIds,
+    );
   }
 
   Future<void> deleteMenuItem(String menuItemId) {
@@ -195,10 +253,49 @@ class MenuRepository {
     };
   }
 
+  Future<void> _syncBranchAvailability(
+    String menuItemId,
+    List<String> branchIds,
+  ) async {
+    if (menuItemId.isEmpty || branchIds.isEmpty) return;
+    final uniqueBranchIds = branchIds.toSet();
+    final futures = <Future<void>>[];
+    for (final branchId in uniqueBranchIds) {
+      if (branchId.isEmpty) continue;
+      futures.add(
+        _api.setBranchAvailability(
+          menuItemId: menuItemId,
+          branchId: branchId,
+          isAvailable: true,
+        ),
+      );
+    }
+    await Future.wait(futures);
+  }
+
+  Future<void> _syncModifierAttachments(
+    String menuItemId,
+    List<String> modifierGroupIds,
+  ) async {
+    if (menuItemId.isEmpty || modifierGroupIds.isEmpty) return;
+    final uniqueModifierIds = modifierGroupIds.toSet();
+    final futures = <Future<void>>[];
+    for (final modifierId in uniqueModifierIds) {
+      if (modifierId.isEmpty) continue;
+      futures.add(
+        _api.attachModifierToItem(
+          menuItemId,
+          {'modifierGroupId': modifierId},
+        ),
+      );
+    }
+    await Future.wait(futures);
+  }
+
   String _formatSelectionType(String value) {
     final normalized = value.trim().toUpperCase();
     if (normalized == 'MULTIPLE' || normalized == 'MULTI') {
-      return 'MULTIPLE';
+      return 'MULTI';
     }
     return 'SINGLE';
   }
@@ -213,5 +310,104 @@ class MenuRepository {
       default:
         return 'ADDON';
     }
+  }
+
+  Map<String, dynamic> _normalizeModifierJson(Map<String, dynamic> json) {
+    if (json.containsKey('props') && json['props'] is Map) {
+      final props =
+          Map<String, dynamic>.from(json['props'] as Map);
+      final remainder = Map<String, dynamic>.from(json)..remove('props');
+      return {...props, ...remainder};
+    }
+    return json;
+  }
+
+  List<Map<String, dynamic>> _ensureBranchOnItems(
+    List<Map<String, dynamic>> items,
+    String branchId,
+  ) {
+    if (branchId.isEmpty) return items;
+    return items.map((item) {
+      final existing = (item['branchIds'] as List?)
+              ?.map((e) => e.toString())
+              .toSet() ??
+          <String>{};
+      if (existing.contains(branchId)) return item;
+      return {
+        ...item,
+        'branchIds': [...existing, branchId],
+      };
+    }).toList();
+  }
+
+  Future<List<Map<String, dynamic>>> _hydrateBranchAssignments(
+    List<Map<String, dynamic>> baseItems,
+    List<String> branchIds,
+  ) async {
+    if (baseItems.isEmpty || branchIds.isEmpty) return baseItems;
+    final assignments = <String, Set<String>>{};
+    await Future.wait(
+      branchIds.map((branchId) async {
+        try {
+          final branchItems =
+              await _api.fetchMenuItems(branchId: branchId);
+          for (final raw in branchItems) {
+            final itemId = raw['id']?.toString();
+            if (itemId == null || itemId.isEmpty) continue;
+            assignments.putIfAbsent(itemId, () => <String>{}).add(branchId);
+          }
+        } catch (_) {
+          // Ignore branch failures—items will simply lack branch info for that branch.
+        }
+      }),
+    );
+
+    if (assignments.isEmpty) return baseItems;
+    return baseItems.map((item) {
+      final itemId = item['id']?.toString();
+      if (itemId == null || itemId.isEmpty) return item;
+      final assignedBranches = assignments[itemId];
+      if (assignedBranches == null || assignedBranches.isEmpty) return item;
+      final existing = (item['branchIds'] as List?)
+              ?.map((e) => e.toString())
+              .toSet() ??
+          <String>{};
+      existing.addAll(assignedBranches);
+      return {
+        ...item,
+        'branchIds': existing.toList(),
+      };
+    }).toList();
+  }
+
+  List<String> _extractBranchIds(List<Map<String, dynamic>> branches) {
+    return branches
+        .map((branch) => branch['id']?.toString())
+        .where((id) => id != null && id.isNotEmpty)
+        .cast<String>()
+        .toList();
+  }
+
+  Future<List<ModifierGroup>> _hydrateModifierOptions(
+    List<Map<String, dynamic>> modifiersRaw,
+  ) async {
+    final groups = modifiersRaw
+        .map((json) => ModifierGroup.fromJson(_normalizeModifierJson(json)))
+        .toList();
+    if (groups.isEmpty) return groups;
+
+    final futures = groups.map((group) async {
+      if (group.options.isNotEmpty || group.id.isEmpty) return group;
+      try {
+        final optionsRaw = await _api.fetchModifierOptions(group.id);
+        final options =
+            optionsRaw.map((option) => ModifierOption.fromJson(option)).toList();
+        return group.copyWith(options: options);
+      } catch (_) {
+        return group;
+      }
+    });
+
+    return Future.wait(futures);
   }
 }

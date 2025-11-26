@@ -8,12 +8,29 @@ import 'package:modular_pos/features/menu/ui/view/view_modifier_group_page.dart'
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
 
 /// A page for managing modifier groups.
-class ModifiersManagementPage extends ConsumerWidget {
+class ModifiersManagementPage extends ConsumerStatefulWidget {
   const ModifiersManagementPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final modifierGroups = ref.watch(menuViewModelProvider).modifierGroups;
+  ConsumerState<ModifiersManagementPage> createState() =>
+      _ModifiersManagementPageState();
+}
+
+class _ModifiersManagementPageState
+    extends ConsumerState<ModifiersManagementPage> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(menuViewModelProvider.notifier).refreshModifierGroups();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final menuState = ref.watch(menuViewModelProvider);
+    final modifierGroups = menuState.modifierGroups;
 
     return Scaffold(
       appBar: AppBar(
@@ -37,15 +54,17 @@ class ModifiersManagementPage extends ConsumerWidget {
             ),
             const SizedBox(height: 16),
             Expanded(
-              child: modifierGroups.isEmpty
-                  ? const Center(child: Text('No modifier groups yet'))
-                  : ListView.builder(
-                      itemCount: modifierGroups.length,
-                      itemBuilder: (context, index) {
-                        final group = modifierGroups[index];
-                        return _ModifierGroupTile(group: group);
-                      },
-                    ),
+              child: menuState.isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : modifierGroups.isEmpty
+                      ? const Center(child: Text('No modifier groups yet'))
+                      : ListView.builder(
+                          itemCount: modifierGroups.length,
+                          itemBuilder: (context, index) {
+                            final group = modifierGroups[index];
+                            return _ModifierGroupTile(group: group);
+                          },
+                        ),
             ),
           ],
         ),

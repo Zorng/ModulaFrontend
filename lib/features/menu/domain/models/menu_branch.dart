@@ -9,8 +9,8 @@ class MenuBranch {
 
   factory MenuBranch.fromJson(Map<String, dynamic> json) {
     return MenuBranch(
-      id: json['id'] as String,
-      name: json['name'] as String,
+      id: json['id']?.toString() ?? '',
+      name: json['name']?.toString() ?? 'Branch',
     );
   }
 
