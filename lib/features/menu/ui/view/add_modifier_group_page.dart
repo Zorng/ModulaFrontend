@@ -84,8 +84,8 @@ class _AddModifierGroupPageState
       id: '',
       name: name,
       selectionType: _selectedSelectionType == 'Multiple Selection'
-          ? 'multiple'
-          : 'single',
+          ? 'MULTI'
+          : 'SINGLE',
       pricingBehavior: _selectedPricingBehavior == 'Fixed (Size Based)'
           ? 'fixed'
           : _selectedPricingBehavior == 'No Price Change'
@@ -102,6 +102,7 @@ class _AddModifierGroupPageState
               price: _requiresPriceInput
                   ? double.tryParse(row.priceController.text) ?? 0
                   : 0,
+              isDefault: _isSingleSelection && _selectedDefault == row.id,
             ),
           )
           .toList(),

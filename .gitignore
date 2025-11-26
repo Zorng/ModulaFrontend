@@ -53,3 +53,4 @@ app.*.map.json
 
 # Environment
 .env
+/apiContracts

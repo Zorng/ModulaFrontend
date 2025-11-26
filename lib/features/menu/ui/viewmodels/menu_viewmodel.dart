@@ -1,7 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/menu/data/menu_repository.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_category.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
+import 'package:modular_pos/features/menu/domain/models/menu_branch.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_state.dart';
 
@@ -11,31 +13,44 @@ final menuViewModelProvider =
 
 class MenuViewModel extends Notifier<MenuState> {
   late final MenuRepository _menuRepository;
+  bool _hasRequestedInitialLoad = false;
 
   @override
   MenuState build() {
     _menuRepository = ref.read(menuRepositoryProvider);
-    _init();
+    final loginState = ref.watch(loginControllerProvider);
+    if (loginState.session == null) {
+      _hasRequestedInitialLoad = false;
+    } else if (!_hasRequestedInitialLoad) {
+      _hasRequestedInitialLoad = true;
+      Future.microtask(loadMenu);
+    }
     return const MenuState();
   }
 
-  void _init() {
-    Future.microtask(loadMenu);
-  }
-
-  Future<void> loadMenu() async {
+  Future<void> loadMenu({String? branchId}) async {
     try {
       state = state.copyWith(isLoading: true, error: null);
-      final bundle = await _menuRepository.fetchMenuData();
+      final userBranches = _resolveUserBranches();
+      final requestedBranchId = branchId ??
+          (state.selectedBranchId != 'all' ? state.selectedBranchId : null) ??
+          (userBranches.isNotEmpty ? userBranches.first.id : null);
+      final bundle = await _menuRepository.fetchMenuData(
+        branchId: requestedBranchId,
+      );
+      final branches =
+          userBranches.isNotEmpty ? userBranches : bundle.branches;
+      final selectedBranch =
+          requestedBranchId ?? (branches.isNotEmpty ? branches.first.id : 'all');
       state = state.copyWith(
         isLoading: false,
         allItems: bundle.items,
         filteredItems: bundle.items,
         categories: bundle.categories,
         modifierGroups: bundle.modifierGroups,
-        branches: bundle.branches,
+        branches: branches,
         selectedCategoryId: 'all',
-        selectedBranchId: 'all',
+        selectedBranchId: selectedBranch,
       );
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
@@ -58,12 +73,15 @@ class MenuViewModel extends Notifier<MenuState> {
     );
   }
 
-  void filterByBranch(String branchId) {
-    final filtered = _applyFilters(branchId: branchId);
-    state = state.copyWith(
-      selectedBranchId: branchId,
-      filteredItems: filtered,
-    );
+  Future<void> filterByBranch(String branchId) async {
+    if (branchId == 'all') {
+      state = state.copyWith(
+        selectedBranchId: 'all',
+        filteredItems: _applyFilters(branchId: 'all'),
+      );
+      return;
+    }
+    await loadMenu(branchId: branchId);
   }
 
   Future<void> addCategory({
@@ -151,5 +169,21 @@ class MenuViewModel extends Notifier<MenuState> {
           search.isEmpty || item.name.toLowerCase().contains(search);
       return matchesCategory && matchesBranch && matchesQuery;
     }).toList();
+  }
+
+  List<MenuBranch> _resolveUserBranches() {
+    final loginState = ref.read(loginControllerProvider);
+    final assignments = loginState.session?.user.branches ?? const [];
+    return assignments
+        .where((branch) =>
+            branch.active &&
+            (branch.branchId.isNotEmpty || branch.id.isNotEmpty))
+        .map(
+          (branch) => MenuBranch(
+            id: branch.branchId.isNotEmpty ? branch.branchId : branch.id,
+            name: branch.name.isNotEmpty ? branch.name : 'Branch',
+          ),
+        )
+        .toList();
   }
 }

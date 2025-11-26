@@ -109,6 +109,7 @@ class _EditModifierGroupPageState
               price: _requiresPriceInput
                   ? double.tryParse(row.priceController.text) ?? 0
                   : 0,
+              isDefault: _isSingleSelection && _selectedDefault == row.id,
             ),
           )
           .toList(),
