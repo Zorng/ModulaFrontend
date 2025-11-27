@@ -32,6 +32,7 @@ class ViewMenuItemPage extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
+        centerTitle: false,
         title: Text(latestItem.name),
         actions: [
           TextButton(
@@ -87,6 +88,7 @@ class ViewMenuItemPage extends ConsumerWidget {
             else
               ...modifiers.map(
                 (group) => Card(
+                  color: Colors.grey.shade100,
                   margin: const EdgeInsets.only(bottom: 12),
                   child: Padding(
                     padding: const EdgeInsets.all(12),

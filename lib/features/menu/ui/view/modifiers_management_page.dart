@@ -18,6 +18,8 @@ class ModifiersManagementPage extends ConsumerStatefulWidget {
 
 class _ModifiersManagementPageState
     extends ConsumerState<ModifiersManagementPage> {
+  String _searchQuery = '';
+
   @override
   void initState() {
     super.initState();
@@ -30,10 +32,15 @@ class _ModifiersManagementPageState
   @override
   Widget build(BuildContext context) {
     final menuState = ref.watch(menuViewModelProvider);
-    final modifierGroups = menuState.modifierGroups;
+    final modifierGroups = menuState.modifierGroups
+        .where(
+          (group) => group.name.toLowerCase().contains(_searchQuery.toLowerCase()),
+        )
+        .toList();
 
     return Scaffold(
       appBar: AppBar(
+        centerTitle: false,
         title: const Text('Modifiers Management'),
       ),
       body: Padding(
@@ -42,7 +49,9 @@ class _ModifiersManagementPageState
           children: [
             AppSearchAddBar(
               searchHint: 'Search modifiers...',
-              onSearchChanged: (_) {},
+              onSearchChanged: (value) {
+                setState(() => _searchQuery = value);
+              },
               onAddPressed: () {
                 Navigator.push(
                   context,
@@ -90,6 +99,7 @@ class _ModifierGroupTile extends StatelessWidget {
         );
       },
       child: Card(
+        color: Colors.white,
         margin: const EdgeInsets.only(bottom: 12),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),

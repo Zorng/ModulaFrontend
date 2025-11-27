@@ -52,6 +52,7 @@ class _MenuPageState extends ConsumerState<MenuPage> {
     return Scaffold(
       appBar: AppBar(
         leading: const BackButton(),
+        centerTitle: false,
         title: const Text('Menu'),
         actions: [
           AppKebabMenu(

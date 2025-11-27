@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/menu/data/menu_repository.dart';
@@ -46,6 +47,17 @@ class MenuViewModel extends Notifier<MenuState> {
           : branchId ??
               (state.selectedBranchId != 'all' ? state.selectedBranchId : null) ??
               fallbackBranchId;
+      final snapshotBranchId = requestedBranchId ?? fallbackBranchId;
+      if (snapshotBranchId != null) {
+        // Quick snapshot fetch for debugging payload structure.
+        try {
+          final snapshot =
+              await _menuRepository.fetchMenuSnapshot(snapshotBranchId);
+          debugPrint('Menu snapshot payload: $snapshot');
+        } catch (e) {
+          debugPrint('Menu snapshot failed: $e');
+        }
+      }
       final bundle = await _menuRepository.fetchMenuData(
         branchId: requestedBranchId,
         branchIdsForHydration: shouldFetchAll
@@ -145,6 +157,19 @@ class MenuViewModel extends Notifier<MenuState> {
     state = state.copyWith(categories: categories);
   }
 
+  Future<void> deleteCategory(String categoryId) async {
+    await _menuRepository.deleteCategory(categoryId);
+    final categories =
+        state.categories.where((category) => category.id != categoryId).toList();
+    final items =
+        state.allItems.where((item) => item.categoryId != categoryId).toList();
+    state = state.copyWith(
+      categories: categories,
+      allItems: items,
+      filteredItems: _applyFilters(items: items),
+    );
+  }
+
   Future<void> addModifierGroup(ModifierGroup group) async {
     final created = await _menuRepository.createModifierGroup(group);
     final modifierGroups = [...state.modifierGroups, created];
@@ -158,6 +183,26 @@ class MenuViewModel extends Notifier<MenuState> {
         if (existing.id == updated.id) updated else existing,
     ];
     state = state.copyWith(modifierGroups: groups);
+  }
+
+  Future<void> deleteModifierGroup(String groupId) async {
+    await _menuRepository.deleteModifierGroup(groupId);
+    final groups =
+        state.modifierGroups.where((group) => group.id != groupId).toList();
+    final items = state.allItems
+        .map(
+          (item) => item.copyWith(
+            modifierGroupIds: item.modifierGroupIds
+                .where((id) => id != groupId)
+                .toList(),
+          ),
+        )
+        .toList();
+    state = state.copyWith(
+      modifierGroups: groups,
+      allItems: items,
+      filteredItems: _applyFilters(items: items),
+    );
   }
 
   Future<void> addMenuItem(
@@ -200,6 +245,16 @@ class MenuViewModel extends Notifier<MenuState> {
       filteredItems: _applyFilters(
         items: items,
       ),
+    );
+  }
+
+  Future<void> deleteMenuItem(String menuItemId) async {
+    await _menuRepository.deleteMenuItem(menuItemId);
+    final items =
+        state.allItems.where((item) => item.id != menuItemId).toList();
+    state = state.copyWith(
+      allItems: items,
+      filteredItems: _applyFilters(items: items),
     );
   }
 

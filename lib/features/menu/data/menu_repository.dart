@@ -36,11 +36,37 @@ class MenuRepository {
     String? branchId,
     List<String>? branchIdsForHydration,
   }) async {
-    final branchesFuture = _api.fetchBranches();
+    final branchesRaw = await _api.fetchBranches();
+
+    // Prefer snapshot hydration when we have at least one branch to target.
+    final snapshotTargetBranchId = (branchId?.isNotEmpty ?? false)
+        ? branchId!
+        : (branchIdsForHydration != null && branchIdsForHydration.isNotEmpty)
+            ? branchIdsForHydration.first
+            : null;
+    if (snapshotTargetBranchId != null) {
+      try {
+        final snapshot = await _api.fetchMenuSnapshot(snapshotTargetBranchId);
+        final bundle = _bundleFromSnapshot(
+          snapshot,
+          snapshotTargetBranchId,
+          branchesRaw,
+          overrideBranchIds: branchIdsForHydration,
+        );
+        if (bundle.items.isNotEmpty ||
+            bundle.categories.isNotEmpty ||
+            bundle.modifierGroups.isNotEmpty) {
+          return bundle;
+        }
+      } catch (_) {
+        // Fallback to legacy flow below on snapshot failure.
+      }
+    }
+
+    // Legacy flow: fetch pieces separately.
     final categoriesFuture = _api.fetchCategories();
     final modifiersFuture = _api.fetchModifierGroups();
     final itemsFuture = _api.fetchMenuItems(branchId: branchId);
-    final branchesRaw = await branchesFuture;
     final categoriesRaw = await categoriesFuture;
     final modifiersRaw = await modifiersFuture;
     List<Map<String, dynamic>> itemsRaw = const [];
@@ -80,6 +106,10 @@ class MenuRepository {
   Future<List<MenuCategory>> fetchCategoriesOnly({bool? isActive}) async {
     final categoriesRaw = await _api.fetchCategories(isActive: isActive);
     return categoriesRaw.map((json) => MenuCategory.fromJson(json)).toList();
+  }
+
+  Future<Map<String, dynamic>> fetchMenuSnapshot(String branchId) {
+    return _api.fetchMenuSnapshot(branchId);
   }
 
   Future<List<ModifierGroup>> fetchModifierGroupsOnly() async {
@@ -168,6 +198,10 @@ class MenuRepository {
     };
     final json = await _api.updateModifierGroup(payload);
     return ModifierGroup.fromJson(json);
+  }
+
+  Future<void> deleteModifierGroup(String groupId) async {
+    await _api.deleteModifierGroup(groupId);
   }
 
   Future<MenuItem> createMenuItem(
@@ -401,7 +435,9 @@ class MenuRepository {
       try {
         final optionsRaw = await _api.fetchModifierOptions(group.id);
         final options =
-            optionsRaw.map((option) => ModifierOption.fromJson(option)).toList();
+            optionsRaw.map((option) {
+              return ModifierOption.fromJson(_normalizeOptionJson(option));
+            }).toList();
         return group.copyWith(options: options);
       } catch (_) {
         return group;
@@ -409,5 +445,99 @@ class MenuRepository {
     });
 
     return Future.wait(futures);
+  }
+
+  Map<String, dynamic> _normalizeOptionJson(Map<String, dynamic> json) {
+    if (json.containsKey('props') && json['props'] is Map) {
+      final props = Map<String, dynamic>.from(json['props'] as Map);
+      final remainder = Map<String, dynamic>.from(json)..remove('props');
+      return {...props, ...remainder};
+    }
+    return json;
+  }
+
+  MenuDataBundle _bundleFromSnapshot(
+    Map<String, dynamic> snapshot,
+    String branchId,
+    List<Map<String, dynamic>> branchesRaw, {
+    List<String>? overrideBranchIds,
+  }) {
+    final branchList =
+        branchesRaw.map((json) => MenuBranch.fromJson(json)).toList();
+    final categoriesRaw = snapshot['categories'] as List<dynamic>? ?? const [];
+    final categories = <MenuCategory>[];
+    final items = <MenuItem>[];
+    final modifierMap = <String, Map<String, dynamic>>{};
+
+    for (final rawCategory in categoriesRaw) {
+      if (rawCategory is! Map<String, dynamic>) continue;
+      final category = MenuCategory.fromJson(rawCategory);
+      categories.add(category);
+      final itemList = rawCategory['items'] as List<dynamic>? ?? const [];
+      for (final rawItem in itemList) {
+        if (rawItem is! Map<String, dynamic>) continue;
+        final itemMap = Map<String, dynamic>.from(rawItem)
+          ..putIfAbsent('categoryId', () => category.id)
+          ..putIfAbsent('branchIds', () => overrideBranchIds ?? [branchId]);
+        items.add(MenuItem.fromJson(itemMap));
+
+        final mods = rawItem['modifiers'] as List<dynamic>? ?? const [];
+        for (final mod in mods) {
+          if (mod is! Map<String, dynamic>) continue;
+          final modId =
+              mod['groupId']?.toString() ?? mod['id']?.toString() ?? '';
+          if (modId.isEmpty) continue;
+          final existing = modifierMap[modId];
+          final existingOptions =
+              existing?['options'] as List<dynamic>? ?? const [];
+          final newOptions = (mod['options'] as List<dynamic>? ?? const [])
+              .whereType<Map<String, dynamic>>()
+              .map(_normalizeOptionJson)
+              .toList();
+
+          final mergedOptions = <String, Map<String, dynamic>>{};
+          for (final opt in existingOptions.whereType<Map<String, dynamic>>()) {
+            final id = opt['id']?.toString() ?? '';
+            if (id.isEmpty) continue;
+            mergedOptions[id] = opt;
+          }
+          for (final opt in newOptions) {
+            final id = opt['id']?.toString() ?? '';
+            if (id.isEmpty) continue;
+            mergedOptions[id] = opt;
+          }
+
+          modifierMap[modId] = {
+            'id': modId,
+            'name': mod['groupName'] ??
+                mod['name'] ??
+                existing?['name'] ??
+                'Modifier Group',
+            'selectionType': (mod['selectionType'] ??
+                    existing?['selectionType'] ??
+                    'single')
+                .toString(),
+            'pricingBehavior':
+                (mod['pricingBehavior'] ?? existing?['pricingBehavior'] ?? 'addon')
+                    .toString(),
+            'options': mergedOptions.values.toList(),
+            'defaultOptionId':
+                mod['defaultOptionId'] ?? existing?['defaultOptionId'],
+            'isRequired': mod['isRequired'] ?? existing?['isRequired'],
+          };
+        }
+      }
+    }
+
+    final modifierGroups = modifierMap.values
+        .map((json) => ModifierGroup.fromJson(_normalizeModifierJson(json)))
+        .toList();
+
+    return MenuDataBundle(
+      items: items,
+      categories: categories,
+      modifierGroups: modifierGroups,
+      branches: branchList,
+    );
   }
 }

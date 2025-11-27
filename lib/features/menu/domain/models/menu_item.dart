@@ -57,8 +57,9 @@ class MenuItem {
     final modifierIds = <String>[];
     if (rawModifierIds is List) {
       for (final entry in rawModifierIds) {
-        if (entry is Map && entry['id'] != null) {
-          modifierIds.add(entry['id'].toString());
+        if (entry is Map) {
+          final id = entry['id'] ?? entry['modifierGroupId'] ?? entry['groupId'];
+          if (id != null) modifierIds.add(id.toString());
         } else if (entry != null) {
           modifierIds.add(entry.toString());
         }

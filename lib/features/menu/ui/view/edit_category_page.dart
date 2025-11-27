@@ -50,6 +50,7 @@ class _EditCategoryPageState extends ConsumerState<EditCategoryPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        centerTitle: false,
         title: Text(_isEditing ? 'Edit Category' : widget.category.name),
         actions: [
           TextButton(
@@ -92,6 +93,35 @@ class _EditCategoryPageState extends ConsumerState<EditCategoryPage> {
                     onChanged: (value) => setState(() => _isActive = value),
                   ),
                 ],
+              ),
+              const SizedBox(height: 24),
+              Align(
+                alignment: Alignment.centerRight,
+                child: FilledButton(
+                  style: FilledButton.styleFrom(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    backgroundColor:
+                        Theme.of(context).colorScheme.secondaryContainer,
+                  ),
+                  onPressed: _isEditing
+                      ? () async {
+                          await ref
+                              .read(menuViewModelProvider.notifier)
+                              .deleteCategory(widget.category.id);
+                          if (mounted) Navigator.pop(context);
+                        }
+                      : null,
+                  child: Text(
+                    'Delete',
+                    style: TextStyle(
+                      color: _isEditing
+                          ? Colors.red.shade700
+                          : Colors.grey.shade500,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
               ),
             ],
           ),

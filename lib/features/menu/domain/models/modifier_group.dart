@@ -26,11 +26,14 @@ class ModifierOption {
     final double parsedPrice = priceRaw is num
         ? priceRaw.toDouble()
         : double.tryParse(priceRaw.toString()) ?? 0;
+    final rawName = json['label'] ??
+        json['name'] ??
+        json['optionName'] ??
+        json['title'] ??
+        json['value'];
     return ModifierOption(
       id: json['id']?.toString() ?? '',
-      name: (json['label'] as String?) ??
-          json['name']?.toString() ??
-          'Option',
+      name: rawName?.toString() ?? 'Option',
       price: parsedPrice,
       isDefault: json['isDefault'] as bool? ?? false,
     );

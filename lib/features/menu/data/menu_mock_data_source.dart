@@ -87,6 +87,10 @@ class MenuMockDataSource {
     return _modifierGroups[index];
   }
 
+  Future<void> deleteModifierGroup(String groupId) async {
+    _modifierGroups.removeWhere((g) => g['id'] == groupId);
+  }
+
   Future<Map<String, dynamic>> addModifierOption(
       Map<String, dynamic> payload) async {
     final groupId = payload['modifierGroupId'];

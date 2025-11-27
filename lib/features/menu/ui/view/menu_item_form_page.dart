@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:modular_pos/core/widgets/network_image_helper_stub.dart'
+    if (dart.library.html) 'package:modular_pos/core/widgets/network_image_helper_web.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_branch.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
@@ -112,9 +114,10 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
 
     if (categories.isEmpty) {
       return Scaffold(
-        appBar: AppBar(
-          title: Text(isEditing ? 'Edit Item' : 'Add Item'),
-        ),
+      appBar: AppBar(
+        centerTitle: false,
+        title: Text(isEditing ? 'Edit Item' : 'Add Item'),
+      ),
         body: const Center(
           child: Text('Add a category before creating menu items.'),
         ),
@@ -148,6 +151,7 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
 
     return Scaffold(
       appBar: AppBar(
+        centerTitle: false,
         title: Text(isEditing ? 'Edit Item' : 'Add Item'),
       ),
       body: SingleChildScrollView(
@@ -236,13 +240,48 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
       ),
       bottomNavigationBar: Padding(
         padding: const EdgeInsets.all(16),
-        child: ElevatedButton(
-          onPressed: _isFormValid ? _save : null,
-          style: ElevatedButton.styleFrom(
-            minimumSize: const Size(double.infinity, 50),
-          ),
-          child: Text(isEditing ? 'Save Changes' : 'Create Item'),
-        ),
+        child: isEditing
+            ? Row(
+                children: [
+                  Expanded(
+                    flex: 1,
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 12),
+                        backgroundColor:
+                            Theme.of(context).colorScheme.secondaryContainer,
+                      ),
+                      onPressed: _deleteItem,
+                      child: Text(
+                        'Delete',
+                        style: TextStyle(
+                          color: Colors.red.shade700,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 1,
+                    child: ElevatedButton(
+                      onPressed: _isFormValid ? _save : null,
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(48),
+                      ),
+                      child: const Text('Save Changes'),
+                    ),
+                  ),
+                ],
+              )
+            : ElevatedButton(
+                onPressed: _isFormValid ? _save : null,
+                style: ElevatedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 50),
+                ),
+                child: const Text('Create Item'),
+              ),
       ),
     );
   }
@@ -256,33 +295,23 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
 
     Widget content;
     if (hasLocal) {
-      final imageWidget = _selectedImageBytes != null
+      content = _selectedImageBytes != null
           ? Image.memory(
               _selectedImageBytes!,
               fit: BoxFit.cover,
               width: double.infinity,
-              height: 170,
+              height: double.infinity,
             )
           : Image.file(
               File(_selectedImagePath!),
               fit: BoxFit.cover,
               width: double.infinity,
-              height: 170,
+              height: double.infinity,
             );
-      content = ClipRRect(
-        borderRadius: BorderRadius.circular(radius),
-        child: imageWidget,
-      );
     } else if (hasRemote) {
-      content = ClipRRect(
-        borderRadius: BorderRadius.circular(radius),
-        child: Image.network(
-          _existingImageUrl!,
-          fit: BoxFit.cover,
-          width: double.infinity,
-          height: 170,
-          errorBuilder: (_, __, ___) => _buildUploadPlaceholder(color, radius),
-        ),
+      content = buildAdaptiveNetworkImage(
+        _existingImageUrl!,
+        _buildUploadPlaceholder(color, radius),
       );
     } else {
       content = _buildUploadPlaceholder(color, radius);
@@ -295,7 +324,36 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
         width: double.infinity,
         child: AspectRatio(
           aspectRatio: 160 / 142,
-          child: content,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(radius),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                ColorFiltered(
+                  colorFilter: ColorFilter.mode(
+                    Colors.black.withOpacity(0.25),
+                    BlendMode.darken,
+                  ),
+                  child: content,
+                ),
+                Align(
+                  alignment: Alignment.center,
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.35),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Text(
+                      'Tap to upload',
+                      style: TextStyle(color: Colors.white, fontSize: 13),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -348,6 +406,17 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
           ),
         ),
       );
+    }
+  }
+
+  Future<void> _deleteItem() async {
+    final id = widget.initialItem?.id ?? '';
+    if (id.isEmpty) return;
+    await ref.read(menuViewModelProvider.notifier).deleteMenuItem(id);
+    if (!mounted) return;
+    Navigator.of(context).pop();
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
     }
   }
 

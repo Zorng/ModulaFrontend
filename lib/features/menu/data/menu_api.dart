@@ -77,6 +77,27 @@ class MenuApi {
     }
   }
 
+  Future<Map<String, dynamic>> fetchMenuSnapshot(String branchId) async {
+    if (_mock != null) {
+      return {
+        'branchId': branchId,
+        'items': await _mock!.fetchMenuItems(),
+        'categories': await _mock!.fetchCategories(),
+        'modifierGroups': await _mock!.fetchModifierGroups(),
+      };
+    }
+    final dio = _requireDio();
+    try {
+      final response = await dio.get<Map<String, dynamic>>(
+        '$_menuPrefix/snapshot',
+        queryParameters: {'branchId': branchId},
+      );
+      return response.data ?? const {};
+    } on DioException catch (error) {
+      throw MenuApiException.fromDio(error);
+    }
+  }
+
   Future<List<Map<String, dynamic>>> fetchModifierOptions(
       String modifierGroupId) async {
     if (_mock != null) return _mock!.fetchModifierOptions(modifierGroupId);
@@ -325,6 +346,18 @@ class MenuApi {
     final dio = _requireDio();
     try {
       await dio.delete<void>('$_menuPrefix/items/$menuItemId');
+    } on DioException catch (error) {
+      throw MenuApiException.fromDio(error);
+    }
+  }
+
+  Future<void> deleteModifierGroup(String groupId) async {
+    if (_mock != null) {
+      return _mock!.deleteModifierGroup(groupId);
+    }
+    final dio = _requireDio();
+    try {
+      await dio.delete<void>('$_menuPrefix/modifiers/groups/$groupId');
     } on DioException catch (error) {
       throw MenuApiException.fromDio(error);
     }
