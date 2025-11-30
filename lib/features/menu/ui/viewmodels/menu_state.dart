@@ -13,6 +13,9 @@ class MenuState {
     this.categories = const [],
     this.modifierGroups = const [],
     this.branches = const [],
+    this.hydratedItems = const {},
+    this.hydratedModifierGroups = const {},
+    this.hydrationErrors = const {},
     this.selectedCategoryId = 'all',
     this.selectedBranchId = 'all',
     this.searchQuery = '',
@@ -25,6 +28,9 @@ class MenuState {
   final List<MenuCategory> categories;
   final List<ModifierGroup> modifierGroups;
   final List<MenuBranch> branches;
+  final Map<String, MenuItem> hydratedItems;
+  final Map<String, ModifierGroup> hydratedModifierGroups;
+  final Map<String, String> hydrationErrors;
   final String selectedCategoryId;
   final String selectedBranchId;
   final String searchQuery;
@@ -37,6 +43,9 @@ class MenuState {
     List<MenuCategory>? categories,
     List<ModifierGroup>? modifierGroups,
     List<MenuBranch>? branches,
+    Map<String, MenuItem>? hydratedItems,
+    Map<String, ModifierGroup>? hydratedModifierGroups,
+    Map<String, String>? hydrationErrors,
     String? selectedCategoryId,
     String? selectedBranchId,
     String? searchQuery,
@@ -49,6 +58,10 @@ class MenuState {
       categories: categories ?? this.categories,
       modifierGroups: modifierGroups ?? this.modifierGroups,
       branches: branches ?? this.branches,
+      hydratedItems: hydratedItems ?? this.hydratedItems,
+      hydratedModifierGroups:
+          hydratedModifierGroups ?? this.hydratedModifierGroups,
+      hydrationErrors: hydrationErrors ?? this.hydrationErrors,
       selectedCategoryId: selectedCategoryId ?? this.selectedCategoryId,
       selectedBranchId: selectedBranchId ?? this.selectedBranchId,
       searchQuery: searchQuery ?? this.searchQuery,

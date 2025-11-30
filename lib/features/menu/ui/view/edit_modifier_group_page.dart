@@ -89,7 +89,9 @@ class _EditModifierGroupPageState
 
   Future<void> _saveGroup() async {
     final name = _groupNameController.text.trim();
-    if (name.isEmpty) return;
+    if (name.isEmpty) {
+      return;
+    }
 
     final updated = widget.group.copyWith(
       name: name,
@@ -158,11 +160,14 @@ class _EditModifierGroupPageState
     setState(() => _options.add(_OptionRow()));
   }
 
-  Future<void> _deleteGroup() async {
-    await ref
-        .read(menuViewModelProvider.notifier)
-        .deleteModifierGroup(widget.group.id);
-    if (mounted) Navigator.pop(context);
+  void _removeOption(_OptionRow option) {
+    setState(() {
+      _options.remove(option);
+      option.dispose();
+      if (_selectedDefault == option.id) {
+        _selectedDefault = _noneDefaultValue;
+      }
+    });
   }
 
   @override
@@ -303,22 +308,54 @@ class _EditModifierGroupPageState
       padding: const EdgeInsets.only(top: 8),
       child: Row(
         children: [
+          IconButton(
+            onPressed: () => _removeOption(option),
+            icon: const Icon(Icons.delete_outline),
+            tooltip: 'Remove option',
+          ),
+          const SizedBox(width: 8),
           Expanded(
             flex: 4,
             child: TextField(
               controller: option.nameController,
-              decoration: const InputDecoration(hintText: 'Option Label'),
+              decoration: InputDecoration(
+                hintText: 'Option Label',
+                hintStyle: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(color: Colors.grey[600]),
+              ),
             ),
           ),
           if (_requiresPriceInput) ...[
             const SizedBox(width: 16),
             Expanded(
               flex: 2,
-              child: TextField(
-                controller: option.priceController,
-                decoration: const InputDecoration(hintText: '+ \$0.00'),
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
+              child: Row(
+                children: [
+                  Text(
+                    '+ \$ ',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                  Expanded(
+                    child: TextField(
+                      controller: option.priceController,
+                      decoration: InputDecoration(
+                        hintText: '0.00',
+                        hintStyle: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(color: Colors.grey[600]),
+                        contentPadding: const EdgeInsets.symmetric(
+                          vertical: 12,
+                          horizontal: 4,
+                        ),
+                      ),
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],

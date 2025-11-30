@@ -93,13 +93,16 @@ class _MenuPageState extends ConsumerState<MenuPage> {
               onSearchChanged: ref
                   .read(menuViewModelProvider.notifier)
                   .searchItems,
-              onAddPressed: () {
-                Navigator.push(
+              onAddPressed: () async {
+                final result = await Navigator.push<MenuItem>(
                   context,
                   MaterialPageRoute(
                     builder: (context) => const MenuItemFormPage(),
                   ),
                 );
+                if (result != null && mounted) {
+                  await ref.read(menuViewModelProvider.notifier).loadMenu();
+                }
               },
             ),
             const SizedBox(height: 24),
@@ -185,13 +188,16 @@ class _MenuPageState extends ConsumerState<MenuPage> {
     );
   }
 
-  void _openItemDetail(BuildContext context, MenuItem item) {
-    Navigator.push(
+  Future<void> _openItemDetail(BuildContext context, MenuItem item) async {
+    await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => ViewMenuItemPage(menuItem: item),
       ),
     );
+    if (mounted) {
+      await ref.read(menuViewModelProvider.notifier).loadMenu();
+    }
   }
 }
 

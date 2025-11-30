@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:modular_pos/features/menu/domain/models/menu_category.dart';
 import 'package:modular_pos/core/widgets/network_image_helper_stub.dart'
     if (dart.library.html) 'package:modular_pos/core/widgets/network_image_helper_web.dart';
+import 'package:modular_pos/features/menu/domain/models/menu_category.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
+import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
+import 'package:modular_pos/features/menu/ui/view/dashed_border_painter.dart';
 import 'package:modular_pos/features/menu/ui/view/menu_item_form_page.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
-import 'package:modular_pos/features/menu/ui/view/dashed_border_painter.dart';
 
-/// A page to view the details of a menu item.
+/// A page to view the details of a menu item using only the hydrated item/modifier data.
 class ViewMenuItemPage extends ConsumerWidget {
   const ViewMenuItemPage({super.key, required this.menuItem});
 
@@ -17,14 +18,36 @@ class ViewMenuItemPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final menuState = ref.watch(menuViewModelProvider);
-    final latestItem = menuState.allItems
-        .firstWhere((item) => item.id == menuItem.id, orElse: () => menuItem);
+    final menuVm = ref.read(menuViewModelProvider.notifier);
+    final hydratedItem = menuState.hydratedItems[menuItem.id];
+    final hydrationError = menuState.hydrationErrors[menuItem.id];
+
+    if (hydratedItem == null) {
+      // Trigger hydration if missing and show loading.
+      menuVm.loadItemWithModifiers(menuItem.id);
+      return Scaffold(
+        appBar: AppBar(
+          centerTitle: false,
+          title: Text(
+            menuItem.name.isNotEmpty ? menuItem.name : 'Menu Item',
+          ),
+        ),
+        body: Center(
+          child: hydrationError != null
+              ? Text('Failed to load item details.\n$hydrationError')
+              : const CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    final latestItem = hydratedItem;
     final categoryName = _resolveCategoryName(
       menuState.categories,
       latestItem.categoryId,
     );
-    final modifiers = menuState.modifierGroups
-        .where((group) => latestItem.modifierGroupIds.contains(group.id))
+    final modifiers = latestItem.modifierGroupIds
+        .map((id) => menuState.hydratedModifierGroups[id])
+        .whereType<ModifierGroup>()
         .toList();
     final branches = menuState.branches
         .where((branch) => latestItem.branchIds.contains(branch.id))
@@ -36,13 +59,16 @@ class ViewMenuItemPage extends ConsumerWidget {
         title: Text(latestItem.name),
         actions: [
           TextButton(
-            onPressed: () {
-              Navigator.push(
+            onPressed: () async {
+              final updated = await Navigator.push<MenuItem>(
                 context,
                 MaterialPageRoute(
                   builder: (_) => MenuItemFormPage(initialItem: latestItem),
                 ),
               );
+              if (updated != null && context.mounted) {
+                await menuVm.loadItemWithModifiers(updated.id);
+              }
             },
             child: const Text('Edit'),
           ),

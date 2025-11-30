@@ -43,6 +43,9 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(menuViewModelProvider.notifier).loadMenu();
+    });
     _nameController = TextEditingController(text: widget.initialItem?.name);
     _priceController = TextEditingController(
       text: widget.initialItem?.price.toStringAsFixed(2),
@@ -89,20 +92,22 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
           ? _selectedBranchIds.toList()
           : allBranches.map((branch) => branch.id).toList(),
     );
+    MenuItem saved;
     if (isEditing) {
-      await notifier.updateMenuItem(
+      saved = await notifier.updateMenuItem(
         item,
         imagePath: kIsWeb ? null : _selectedImagePath,
         imageBytes: _selectedImageBytes,
       );
     } else {
-      await notifier.addMenuItem(
+      saved = await notifier.addMenuItem(
         item,
         imagePath: kIsWeb ? null : _selectedImagePath,
         imageBytes: _selectedImageBytes,
       );
     }
-    if (mounted) Navigator.pop(context);
+    await notifier.loadItemWithModifiers(saved.id);
+    if (mounted) Navigator.pop(context, saved);
   }
 
   @override
@@ -331,26 +336,27 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
               children: [
                 ColorFiltered(
                   colorFilter: ColorFilter.mode(
-                    Colors.black.withOpacity(0.25),
+                    Colors.black.withValues(alpha: 0.25),
                     BlendMode.darken,
                   ),
                   child: content,
                 ),
-                Align(
-                  alignment: Alignment.center,
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.35),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Text(
-                      'Tap to upload',
-                      style: TextStyle(color: Colors.white, fontSize: 13),
+                if (hasLocal || hasRemote)
+                  Align(
+                    alignment: Alignment.center,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.35),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Text(
+                        'Tap to upload',
+                        style: TextStyle(color: Colors.white, fontSize: 13),
+                      ),
                     ),
                   ),
-                ),
               ],
             ),
           ),

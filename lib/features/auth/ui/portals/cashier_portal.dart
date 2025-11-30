@@ -12,6 +12,7 @@ class CashierPortal extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(loginControllerProvider).user;
+    void openSale() => context.push(AppRoute.sale.path);
     final actions = <PortalAction>[
       PortalAction(
         id: 'home',
@@ -23,10 +24,8 @@ class CashierPortal extends ConsumerWidget {
         id: 'pos',
         label: 'POS',
         icon: Icons.point_of_sale,
-        builder: (context) => const _PlaceholderCard(
-          title: 'POS',
-          content: 'Sales entry for cashier.',
-        ),
+        onSelected: (_) => openSale(),
+        builder: (context) => _SaleShortcutCard(onOpenSale: openSale),
       ),
       PortalAction(
         id: 'cash_sessions',
@@ -79,17 +78,21 @@ class _CashierHomeContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isWide = MediaQuery.of(context).size.width >= 800;
-    const features = [
-      _FeatureEntry(title: 'POS / Sales', icon: Icons.point_of_sale),
+    final features = [
       _FeatureEntry(
+        title: 'POS / Sales',
+        icon: Icons.point_of_sale,
+        onTap: () => context.push(AppRoute.sale.path),
+      ),
+      const _FeatureEntry(
         title: 'Cash Sessions',
         icon: Icons.attach_money_outlined,
       ),
-      _FeatureEntry(
+      const _FeatureEntry(
         title: 'Orders',
         icon: Icons.receipt_long_outlined,
       ),
-      _FeatureEntry(
+      const _FeatureEntry(
         title: 'X Report',
         icon: Icons.description_outlined,
       ),
@@ -128,9 +131,7 @@ class _FeatureCard extends StatelessWidget {
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        onTap: () {
-          // TODO: Wire navigation to the specific feature.
-        },
+        onTap: entry.onTap,
         child: Padding(
           padding: const EdgeInsets.all(10),
           child: Column(
@@ -166,10 +167,49 @@ class _FeatureEntry {
   const _FeatureEntry({
     required this.title,
     required this.icon,
+    this.onTap,
   });
 
   final String title;
   final IconData icon;
+  final VoidCallback? onTap;
+}
+
+class _SaleShortcutCard extends StatelessWidget {
+  const _SaleShortcutCard({required this.onOpenSale});
+
+  final VoidCallback onOpenSale;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'POS / Sale',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Start a draft by adding menu items, then pre-checkout and finalize.',
+            ),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: onOpenSale,
+              icon: const Icon(Icons.point_of_sale),
+              label: const Text('Open Sale'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _PlaceholderCard extends StatelessWidget {

@@ -15,12 +15,16 @@ class AdminPortal extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final session = ref.watch(loginControllerProvider).session;
     final user = session?.user;
+    void openSale() => context.push(AppRoute.sale.path);
     final actions = <PortalAction>[
       PortalAction(
         id: 'dashboard',
         label: 'Dashboard',
         icon: Icons.dashboard_outlined,
-        builder: (context) => _AdminHomeContent(user: user),
+        builder: (context) => _AdminHomeContent(
+          user: user,
+          onOpenSale: openSale,
+        ),
       ),
       PortalAction(
         id: 'menu',
@@ -50,10 +54,8 @@ class AdminPortal extends ConsumerWidget {
         id: 'sales',
         label: 'POS',
         icon: Icons.point_of_sale,
-        builder: (context) => _PlaceholderCard(
-          title: 'POS',
-          content: 'Sales entry for admin; mirrors cashier POS with extras.',
-        ),
+        onSelected: (_) => openSale(),
+        builder: (context) => _SaleShortcutCard(onOpenSale: openSale),
       ),
       PortalAction(
         id: 'cash_sessions',
@@ -133,10 +135,48 @@ class _PlaceholderCard extends StatelessWidget {
   }
 }
 
+class _SaleShortcutCard extends StatelessWidget {
+  const _SaleShortcutCard({required this.onOpenSale});
+
+  final VoidCallback onOpenSale;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'POS / Sale',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Launch the sale screen used by cashiers with admin permissions.',
+            ),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: onOpenSale,
+              icon: const Icon(Icons.point_of_sale),
+              label: const Text('Open Sale'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _AdminHomeContent extends StatelessWidget {
-  const _AdminHomeContent({this.user});
+  const _AdminHomeContent({this.user, this.onOpenSale});
 
   final User? user;
+  final VoidCallback? onOpenSale;
 
   @override
   Widget build(BuildContext context) {
@@ -174,6 +214,7 @@ class _AdminHomeContent extends StatelessWidget {
       _FeatureEntry(
         title: 'POS / Sales',
         icon: Icons.point_of_sale,
+        onTap: onOpenSale,
       ),
       _FeatureEntry(
         title: 'Cash Sessions',

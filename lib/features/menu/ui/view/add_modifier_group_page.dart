@@ -262,8 +262,12 @@ class _AddModifierGroupPageState
             flex: 4,
             child: TextField(
               controller: option.nameController,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 hintText: 'Option Label',
+                hintStyle: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(color: Colors.grey[600]),
                 labelText: 'Option Label *',
               ),
               onChanged: (_) => _validateForm(),
@@ -282,11 +286,15 @@ class _AddModifierGroupPageState
                   Expanded(
                     child: TextField(
                       controller: option.priceController,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         hintText: '0.00',
-                        contentPadding: EdgeInsets.symmetric(
+                        hintStyle: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(color: Colors.grey[600]),
+                        contentPadding: const EdgeInsets.symmetric(
                           vertical: 12,
-                          horizontal: 12,
+                          horizontal: 4,
                         ),
                       ),
                       keyboardType: const TextInputType.numberWithOptions(

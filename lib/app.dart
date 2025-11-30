@@ -10,6 +10,7 @@ import 'package:modular_pos/features/menu/ui/view/menu_page.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/core/widgets/widget_gallery_page.dart';
 import 'package:modular_pos/features/policy/ui/view/policy_page.dart';
+import 'package:modular_pos/features/sale/ui/view/sale_page.dart';
 import 'package:modular_pos/features/common/ui/settings_page.dart';
 import 'package:modular_pos/features/auth/ui/view/account_page.dart';
 import 'package:modular_pos/features/inventory/ui/view/category_management_page.dart';
@@ -211,6 +212,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           final summary = state.extra as InventoryJournalDaySummary;
           return InventoryJournalDetailPage(summary: summary);
         },
+      ),
+      GoRoute(
+        path: AppRoute.sale.path,
+        name: AppRoute.sale.name,
+        builder: (context, state) => const SalePage(),
       ),
     ],
   );

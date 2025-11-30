@@ -34,7 +34,8 @@ class MenuApi {
   final MenuMockDataSource? _mock;
 
   Future<List<Map<String, dynamic>>> fetchBranches() async {
-    if (_mock != null) return _mock!.fetchBranches();
+    final mock = _mock;
+    if (mock != null) return mock.fetchBranches();
     // TODO: replace with real endpoint once available.
     return const [];
   }
@@ -42,12 +43,13 @@ class MenuApi {
   Future<List<Map<String, dynamic>>> fetchCategories({
     bool? isActive,
   }) async {
-    if (_mock != null) {
-      return _mock!.fetchCategories(isActive: isActive);
+    final mock = _mock;
+    if (mock != null) {
+      return mock.fetchCategories(isActive: isActive);
     }
     final dio = _requireDio();
     try {
-      final response = await dio.get<Map<String, dynamic>>(
+      final response = await dio.get<dynamic>(
         '$_menuPrefix/categories',
         queryParameters: isActive == null ? null : {'isActive': isActive},
       );
@@ -62,7 +64,8 @@ class MenuApi {
   }
 
   Future<List<Map<String, dynamic>>> fetchModifierGroups() async {
-    if (_mock != null) return _mock!.fetchModifierGroups();
+    final mock = _mock;
+    if (mock != null) return mock.fetchModifierGroups();
     final dio = _requireDio();
     try {
       final response = await dio.get<dynamic>('$_menuPrefix/modifiers/groups');
@@ -78,12 +81,13 @@ class MenuApi {
   }
 
   Future<Map<String, dynamic>> fetchMenuSnapshot(String branchId) async {
-    if (_mock != null) {
+    final mock = _mock;
+    if (mock != null) {
       return {
         'branchId': branchId,
-        'items': await _mock!.fetchMenuItems(),
-        'categories': await _mock!.fetchCategories(),
-        'modifierGroups': await _mock!.fetchModifierGroups(),
+        'items': await mock.fetchMenuItems(),
+        'categories': await mock.fetchCategories(),
+        'modifierGroups': await mock.fetchModifierGroups(),
       };
     }
     final dio = _requireDio();
@@ -100,7 +104,8 @@ class MenuApi {
 
   Future<List<Map<String, dynamic>>> fetchModifierOptions(
       String modifierGroupId) async {
-    if (_mock != null) return _mock!.fetchModifierOptions(modifierGroupId);
+    final mock = _mock;
+    if (mock != null) return mock.fetchModifierOptions(modifierGroupId);
     final dio = _requireDio();
     try {
       final response = await dio.get<dynamic>(
@@ -118,7 +123,8 @@ class MenuApi {
   }
 
   Future<List<Map<String, dynamic>>> fetchMenuItems({String? branchId}) async {
-    if (_mock != null) return _mock!.fetchMenuItems();
+    final mock = _mock;
+    if (mock != null) return mock.fetchMenuItems();
     final dio = _requireDio();
     final bool hasBranch = branchId != null && branchId.isNotEmpty;
     final String path = hasBranch
@@ -142,9 +148,29 @@ class MenuApi {
     }
   }
 
+  Future<Map<String, dynamic>> fetchMenuItemWithModifiers(
+    String menuItemId,
+  ) async {
+    final mock = _mock;
+    if (mock != null) {
+      // Mock not implemented; return empty.
+      return const {};
+    }
+    final dio = _requireDio();
+    try {
+      final response = await dio.get<dynamic>(
+        '$_menuPrefix/items/$menuItemId/with-modifiers',
+      );
+      return (response.data as Map<String, dynamic>?) ?? const {};
+    } on DioException catch (error) {
+      throw MenuApiException.fromDio(error);
+    }
+  }
+
   Future<Map<String, dynamic>> createCategory(
       Map<String, dynamic> payload) async {
-    if (_mock != null) return _mock!.createCategory(payload);
+    final mock = _mock;
+    if (mock != null) return mock.createCategory(payload);
     final dio = _requireDio();
     try {
       final body = Map<String, dynamic>.from(payload)
@@ -161,7 +187,8 @@ class MenuApi {
 
   Future<Map<String, dynamic>> updateCategory(
       Map<String, dynamic> payload) async {
-    if (_mock != null) return _mock!.updateCategory(payload);
+    final mock = _mock;
+    if (mock != null) return mock.updateCategory(payload);
     final dio = _requireDio();
     final categoryId = payload['id']?.toString();
     if (categoryId == null) {
@@ -183,7 +210,8 @@ class MenuApi {
   }
 
   Future<void> deleteCategory(String categoryId) async {
-    if (_mock != null) return _mock!.deleteCategory(categoryId);
+    final mock = _mock;
+    if (mock != null) return mock.deleteCategory(categoryId);
     final dio = _requireDio();
     try {
       await dio.delete<void>('$_menuPrefix/categories/$categoryId');
@@ -194,7 +222,8 @@ class MenuApi {
 
   Future<Map<String, dynamic>> createModifierGroup(
       Map<String, dynamic> payload) async {
-    if (_mock != null) return _mock!.createModifierGroup(payload);
+    final mock = _mock;
+    if (mock != null) return mock.createModifierGroup(payload);
     final dio = _requireDio();
     try {
       final body = Map<String, dynamic>.from(payload)
@@ -211,7 +240,8 @@ class MenuApi {
 
   Future<Map<String, dynamic>> updateModifierGroup(
       Map<String, dynamic> payload) async {
-    if (_mock != null) return _mock!.updateModifierGroup(payload);
+    final mock = _mock;
+    if (mock != null) return mock.updateModifierGroup(payload);
     final dio = _requireDio();
     final groupId = payload['id']?.toString();
     if (groupId == null) {
@@ -230,9 +260,57 @@ class MenuApi {
     }
   }
 
+  Future<Map<String, dynamic>> updateModifierOption(
+    String optionId,
+    Map<String, dynamic> payload,
+  ) async {
+    final mock = _mock;
+    if (mock != null) return payload..['id'] = optionId;
+    final dio = _requireDio();
+    try {
+      final body = Map<String, dynamic>.from(payload)
+        ..removeWhere((key, value) => value == null || key == 'id');
+      final response = await dio.patch<Map<String, dynamic>>(
+        '$_menuPrefix/modifiers/options/$optionId',
+        data: body,
+      );
+      return response.data ?? const {};
+    } on DioException catch (error) {
+      throw MenuApiException.fromDio(error);
+    }
+  }
+
+  Future<void> deleteModifierOption(String optionId) async {
+    final mock = _mock;
+    if (mock != null) return;
+    final dio = _requireDio();
+    try {
+      await dio.delete<void>('$_menuPrefix/modifiers/options/$optionId');
+    } on DioException catch (error) {
+      throw MenuApiException.fromDio(error);
+    }
+  }
+
+  Future<void> detachModifierFromItem({
+    required String menuItemId,
+    required String modifierGroupId,
+  }) async {
+    final mock = _mock;
+    if (mock != null) return;
+    final dio = _requireDio();
+    try {
+      await dio.delete<void>(
+        '$_menuPrefix/items/$menuItemId/modifiers/$modifierGroupId',
+      );
+    } on DioException catch (error) {
+      throw MenuApiException.fromDio(error);
+    }
+  }
+
   Future<Map<String, dynamic>> addModifierOption(
       Map<String, dynamic> payload) async {
-    if (_mock != null) return _mock!.addModifierOption(payload);
+    final mock = _mock;
+    if (mock != null) return mock.addModifierOption(payload);
     final dio = _requireDio();
     try {
       final body = Map<String, dynamic>.from(payload)
@@ -251,7 +329,8 @@ class MenuApi {
     String menuItemId,
     Map<String, dynamic> payload,
   ) async {
-    if (_mock != null) return _mock!.attachModifierToItem(menuItemId, payload);
+    final mock = _mock;
+    if (mock != null) return mock.attachModifierToItem(menuItemId, payload);
     final dio = _requireDio();
     try {
       await dio.post<void>(
@@ -268,7 +347,8 @@ class MenuApi {
     String? imagePath,
     List<int>? imageBytes,
   }) async {
-    if (_mock != null) return _mock!.createMenuItem(payload);
+    final mock = _mock;
+    if (mock != null) return mock.createMenuItem(payload);
     final dio = _requireDio();
     try {
       final body = Map<String, dynamic>.from(payload)
@@ -294,7 +374,8 @@ class MenuApi {
     String? imagePath,
     List<int>? imageBytes,
   }) async {
-    if (_mock != null) return _mock!.updateMenuItem(payload);
+    final mock = _mock;
+    if (mock != null) return mock.updateMenuItem(payload);
     final dio = _requireDio();
     final itemId = payload['id']?.toString();
     if (itemId == null) {
@@ -339,8 +420,9 @@ class MenuApi {
   }
 
   Future<void> deleteMenuItem(String menuItemId) async {
-    if (_mock != null) {
-      await _mock!.deleteMenuItem(menuItemId);
+    final mock = _mock;
+    if (mock != null) {
+      await mock.deleteMenuItem(menuItemId);
       return;
     }
     final dio = _requireDio();
@@ -352,8 +434,9 @@ class MenuApi {
   }
 
   Future<void> deleteModifierGroup(String groupId) async {
-    if (_mock != null) {
-      return _mock!.deleteModifierGroup(groupId);
+    final mock = _mock;
+    if (mock != null) {
+      return mock.deleteModifierGroup(groupId);
     }
     final dio = _requireDio();
     try {
@@ -368,8 +451,9 @@ class MenuApi {
     required String branchId,
     required bool isAvailable,
   }) async {
-    if (_mock != null) {
-      return _mock!.setBranchAvailability(
+    final mock = _mock;
+    if (mock != null) {
+      return mock.setBranchAvailability(
         menuItemId: menuItemId,
         branchId: branchId,
         isAvailable: isAvailable,
@@ -394,8 +478,9 @@ class MenuApi {
     required String branchId,
     required double priceUsd,
   }) async {
-    if (_mock != null) {
-      return _mock!.setPriceOverride(
+    final mock = _mock;
+    if (mock != null) {
+      return mock.setPriceOverride(
         menuItemId: menuItemId,
         branchId: branchId,
         priceUsd: priceUsd,

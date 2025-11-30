@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/core/widgets/app_search_add_bar.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_category.dart';
 import 'package:modular_pos/features/menu/ui/view/add_category_page.dart';
-import 'package:modular_pos/features/menu/ui/view/edit_category_page.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
 
 /// A page for managing menu categories.
@@ -244,7 +243,7 @@ class _EditCategorySheetState extends ConsumerState<_EditCategorySheet> {
                     color: Theme.of(context)
                         .colorScheme
                         .secondaryContainer
-                        .withOpacity(0.6),
+                        .withValues(alpha: 0.6),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Row(

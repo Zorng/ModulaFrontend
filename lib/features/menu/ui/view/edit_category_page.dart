@@ -43,7 +43,8 @@ class _EditCategoryPageState extends ConsumerState<EditCategoryPage> {
       isActive: _isActive,
     );
     await ref.read(menuViewModelProvider.notifier).updateCategory(updated);
-    if (mounted) Navigator.pop(context);
+    if (!mounted) return;
+    Navigator.pop(context);
   }
 
   @override

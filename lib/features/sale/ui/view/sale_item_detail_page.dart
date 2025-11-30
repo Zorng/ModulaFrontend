@@ -1,0 +1,458 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:modular_pos/core/widgets/network_image_helper_stub.dart'
+    if (dart.library.html) 'package:modular_pos/core/widgets/network_image_helper_web.dart';
+import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
+import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
+import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
+
+class SaleItemDetailPage extends ConsumerStatefulWidget {
+  const SaleItemDetailPage({
+    super.key,
+    required this.item,
+  });
+
+  final MenuItem item;
+
+  @override
+  ConsumerState<SaleItemDetailPage> createState() => _SaleItemDetailPageState();
+}
+
+class _SaleItemDetailPageState extends ConsumerState<SaleItemDetailPage> {
+  late int _quantity;
+  late Map<String, Set<String>> _selectedOptionIds;
+
+  List<ModifierGroup> _applicableGroups(
+    MenuItem item,
+    List<ModifierGroup> groups,
+  ) {
+    final ids = item.modifierGroupIds.toSet();
+    return groups.where((group) => ids.contains(group.id)).toList();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _quantity = 1;
+    _selectedOptionIds = {};
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final vm = ref.read(menuViewModelProvider.notifier);
+      vm.loadItemWithModifiers(widget.item.id).then((_) {
+        final refreshed = _applicableGroups(
+          widget.item,
+          ref.read(menuViewModelProvider).modifierGroups,
+        );
+        _seedDefaultSelections(refreshed);
+      });
+    });
+  }
+
+  void _seedDefaultSelections(List<ModifierGroup> groups) {
+    for (final group in groups) {
+      final defaults = <String>{};
+      final options = group.options;
+      if (group.selectionType == 'single') {
+        final defaultId =
+            group.defaultOptionId ?? (options.isNotEmpty ? options.first.id : null);
+        if (defaultId != null) defaults.add(defaultId);
+      } else {
+        for (final option in options) {
+          if (option.isDefault) defaults.add(option.id);
+        }
+      }
+      if (defaults.isNotEmpty) {
+        _selectedOptionIds[group.id] = defaults;
+      }
+    }
+  }
+
+  void _seedMissingSelections(List<ModifierGroup> groups) {
+    var didUpdate = false;
+    for (final group in groups) {
+      if (_selectedOptionIds.containsKey(group.id)) continue;
+      final defaults = <String>{};
+      if (group.selectionType == 'single') {
+        final defaultId =
+            group.defaultOptionId ?? (group.options.isNotEmpty ? group.options.first.id : null);
+        if (defaultId != null) defaults.add(defaultId);
+      } else {
+        for (final option in group.options) {
+          if (option.isDefault) defaults.add(option.id);
+        }
+      }
+      if (defaults.isNotEmpty) {
+        _selectedOptionIds[group.id] = defaults;
+        didUpdate = true;
+      }
+    }
+    if (didUpdate) {
+      setState(() {});
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final menuState = ref.watch(menuViewModelProvider);
+    final hydratedItem =
+        menuState.hydratedItems[widget.item.id] ?? widget.item;
+    final modifiers = hydratedItem.modifierGroupIds
+        .map((id) => menuState.hydratedModifierGroups[id])
+        .whereType<ModifierGroup>()
+        .toList();
+    _seedMissingSelections(modifiers);
+
+    if (modifiers.isEmpty && menuState.hydratedItems[widget.item.id] == null) {
+      return Scaffold(
+        appBar: AppBar(
+          title: Text(widget.item.name),
+          centerTitle: false,
+        ),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(hydratedItem.name),
+        centerTitle: false,
+      ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Center(
+                child: SizedBox(
+                  width: MediaQuery.of(context).size.width * 0.5,
+                  child: AspectRatio(
+                    aspectRatio: 1,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        color: Theme.of(context)
+                            .colorScheme
+                            .surfaceContainerHighest
+                            .withValues(alpha: 0.3),
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: _SaleImage(
+                        imageUrl: hydratedItem.imageUrl,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      hydratedItem.name,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                  ),
+                  Text(
+                    '\$${hydratedItem.price.toStringAsFixed(2)}',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleLarge
+                        ?.copyWith(fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: modifiers.isEmpty
+                  ? const Center(
+                      child: Text('No modifiers for this item.'),
+                    )
+                  : ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                      itemCount: modifiers.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      itemBuilder: (context, index) {
+                        final group = modifiers[index];
+                        final selected = _selectedOptionIds[group.id] ?? {};
+                        return _ModifierGroupSection(
+                          group: group,
+                          selectedOptionIds: selected,
+                          onSelectionChanged: (newSelection) {
+                            setState(() {
+                              _selectedOptionIds[group.id] = newSelection;
+                            });
+                          },
+                        );
+                      },
+              ),
+            ),
+          ],
+        ),
+      ),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.08),
+                blurRadius: 8,
+                offset: const Offset(0, -2),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  Text(
+                    'Total',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const Spacer(),
+                  Text(
+                    '\$${_computeTotal(hydratedItem, modifiers, _selectedOptionIds, _quantity).toStringAsFixed(2)}',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleLarge
+                        ?.copyWith(fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  _QuantityStepper(
+                    quantity: _quantity,
+                    onChanged: (value) => setState(() => _quantity = value),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: FilledButton(
+                        onPressed: () {
+                          final result = SaleItemSelectionResult(
+                            item: hydratedItem,
+                            quantity: _quantity,
+                            selectedOptionIds: {
+                              for (final entry in _selectedOptionIds.entries)
+                                entry.key: entry.value.toList(),
+                            },
+                          );
+                          Navigator.pop(context, result);
+                        },
+                        child: const Text('Add Item'),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class SaleItemSelectionResult {
+  const SaleItemSelectionResult({
+    required this.item,
+    required this.quantity,
+    required this.selectedOptionIds,
+  });
+
+  final MenuItem item;
+  final int quantity;
+  final Map<String, List<String>> selectedOptionIds;
+}
+
+class _SaleImage extends StatelessWidget {
+  const _SaleImage({this.imageUrl});
+
+  final String? imageUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasUrl = imageUrl != null && imageUrl!.isNotEmpty;
+    final placeholder = Container(
+      alignment: Alignment.center,
+      child: const Icon(
+        Icons.local_cafe_outlined,
+        size: 48,
+      ),
+    );
+    if (!hasUrl) return placeholder;
+    return buildAdaptiveNetworkImage(imageUrl!, placeholder);
+  }
+}
+
+double _computeTotal(
+  MenuItem item,
+  List<ModifierGroup> groups,
+  Map<String, Set<String>> selections,
+  int quantity,
+) {
+  double addon = 0;
+  for (final group in groups) {
+    final selected = selections[group.id];
+    Set<String> chosen;
+    if (selected != null && selected.isNotEmpty) {
+      chosen = selected;
+    } else {
+      // Fallback to defaults
+      final defaults = group.options.where((o) => o.isDefault).map((o) => o.id).toSet();
+      if (defaults.isNotEmpty) {
+        chosen = defaults;
+      } else if (group.options.isNotEmpty) {
+        chosen = {group.options.first.id};
+      } else {
+        chosen = {};
+      }
+    }
+    for (final option in group.options) {
+      if (chosen.contains(option.id)) {
+        addon += option.price;
+      }
+    }
+  }
+  return (item.price + addon) * quantity;
+}
+
+class _QuantityStepper extends StatelessWidget {
+  const _QuantityStepper({
+    required this.quantity,
+    required this.onChanged,
+  });
+
+  final int quantity;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Text('Qty'),
+        const SizedBox(width: 8),
+        IconButton(
+          onPressed: quantity > 1 ? () => onChanged(quantity - 1) : null,
+          icon: const Icon(Icons.remove_circle_outline),
+        ),
+        Text(
+          '$quantity',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        IconButton(
+          onPressed: () => onChanged(quantity + 1),
+          icon: const Icon(Icons.add_circle_outline),
+        ),
+      ],
+    );
+  }
+}
+
+class _ModifierGroupSection extends StatelessWidget {
+  const _ModifierGroupSection({
+    required this.group,
+    required this.selectedOptionIds,
+    required this.onSelectionChanged,
+  });
+
+  final ModifierGroup group;
+  final Set<String> selectedOptionIds;
+  final ValueChanged<Set<String>> onSelectionChanged;
+
+  bool get _isSingle => group.selectionType == 'single';
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                group.name,
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              if (group.isRequired == true) ...[
+                const SizedBox(width: 8),
+                Chip(
+                  label: const Text('Required'),
+                  padding: EdgeInsets.zero,
+                  visualDensity: VisualDensity.compact,
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 4),
+          ...group.options.map((option) {
+            final isSelected = selectedOptionIds.contains(option.id);
+            final priceDelta = option.price;
+            final priceLabel =
+                priceDelta == 0 ? '' : ' (+\$${priceDelta.toStringAsFixed(2)})';
+            final highlightColor =
+                Theme.of(context).colorScheme.primary.withValues(alpha: 0.08);
+            final tile = Container(
+              decoration: BoxDecoration(
+                color: isSelected ? highlightColor : null,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: _isSingle
+                  ? RadioListTile<String>(
+                      value: option.id,
+                      groupValue: selectedOptionIds.isNotEmpty
+                          ? selectedOptionIds.first
+                          : null,
+                      title: Text('${option.name}$priceLabel'),
+                      dense: true,
+                      contentPadding: const EdgeInsets.only(left: 4, right: 8),
+                      onChanged: (value) {
+                        if (value == null) return;
+                        onSelectionChanged({value});
+                      },
+                    )
+                  : CheckboxListTile(
+                      value: isSelected,
+                      dense: true,
+                      contentPadding: const EdgeInsets.only(left: 4, right: 8),
+                      controlAffinity: ListTileControlAffinity.leading,
+                      title: Text('${option.name}$priceLabel'),
+                      onChanged: (checked) {
+                        final updated = {...selectedOptionIds};
+                        if (checked == true) {
+                          updated.add(option.id);
+                        } else {
+                          updated.remove(option.id);
+                        }
+                        onSelectionChanged(updated);
+                      },
+                    ),
+            );
+
+            if (_isSingle) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: tile,
+              );
+            } else {
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: tile,
+              );
+            }
+          }),
+        ],
+      ),
+    );
+  }
+}

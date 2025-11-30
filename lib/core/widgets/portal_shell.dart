@@ -115,7 +115,14 @@ class _PortalShellState extends State<PortalShell> {
                       leading: Icon(item.icon),
                       title: Text(item.label),
                       selected: selected,
-                      onTap: () => setState(() => _selectedIndex = index),
+                      onTap: () {
+                        setState(() => _selectedIndex = index);
+                        final onSelected = item.onSelected;
+                        if (onSelected != null) {
+                          onSelected(context);
+                          return;
+                        }
+                      },
                     );
                   },
                 ),
