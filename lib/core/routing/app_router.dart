@@ -16,6 +16,7 @@ enum AppRoute {
   inventoryCategories,
   inventoryJournal,
   inventoryJournalDetail,
+  orders,
   sale,
 }
 
@@ -38,6 +39,7 @@ extension AppRoutePath on AppRoute {
     AppRoute.inventoryCategories => '/portal/admin/inventory/categories',
     AppRoute.inventoryJournal => '/portal/admin/inventory/journal',
     AppRoute.inventoryJournalDetail => '/portal/admin/inventory/journal/detail',
+    AppRoute.orders => '/orders',
     AppRoute.sale => '/sale',
   };
 
@@ -59,6 +61,7 @@ extension AppRoutePath on AppRoute {
     AppRoute.inventoryCategories => 'inventoryCategories',
     AppRoute.inventoryJournal => 'inventoryJournal',
     AppRoute.inventoryJournalDetail => 'inventoryJournalDetail',
+    AppRoute.orders => 'orders',
     AppRoute.sale => 'sale',
   };
 }

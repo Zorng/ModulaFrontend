@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/core/theme/responsive.dart';
@@ -228,7 +229,18 @@ class _MenuCatalog extends StatelessWidget {
               ),
             );
             if (selection != null && context.mounted) {
-              ref.read(saleCartProvider.notifier).addSelection(selection);
+              try {
+                await ref.read(saleCartProvider.notifier).addSelection(selection);
+              } catch (e, st) {
+                if (kDebugMode) {
+                  debugPrint('Add item failed: $e');
+                  debugPrintStack(stackTrace: st);
+                }
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Failed to add item: $e')),
+                );
+              }
             }
           },
         );

@@ -21,55 +21,21 @@ class SaleItemDetailPage extends ConsumerStatefulWidget {
 class _SaleItemDetailPageState extends ConsumerState<SaleItemDetailPage> {
   late int _quantity;
   late Map<String, Set<String>> _selectedOptionIds;
-
-  List<ModifierGroup> _applicableGroups(
-    MenuItem item,
-    List<ModifierGroup> groups,
-  ) {
-    final ids = item.modifierGroupIds.toSet();
-    return groups.where((group) => ids.contains(group.id)).toList();
-  }
+  late Future<(MenuItem, List<ModifierGroup>)> _loadFuture;
+  bool _hasRetried = false;
 
   @override
   void initState() {
     super.initState();
     _quantity = 1;
     _selectedOptionIds = {};
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final vm = ref.read(menuViewModelProvider.notifier);
-      vm.loadItemWithModifiers(widget.item.id).then((_) {
-        final refreshed = _applicableGroups(
-          widget.item,
-          ref.read(menuViewModelProvider).modifierGroups,
-        );
-        _seedDefaultSelections(refreshed);
-      });
-    });
+    _loadFuture =
+        ref.read(menuViewModelProvider.notifier).loadItemWithModifiers(widget.item.id);
   }
 
-  void _seedDefaultSelections(List<ModifierGroup> groups) {
+  Map<String, Set<String>> _initialSelections(List<ModifierGroup> groups) {
+    final map = <String, Set<String>>{};
     for (final group in groups) {
-      final defaults = <String>{};
-      final options = group.options;
-      if (group.selectionType == 'single') {
-        final defaultId =
-            group.defaultOptionId ?? (options.isNotEmpty ? options.first.id : null);
-        if (defaultId != null) defaults.add(defaultId);
-      } else {
-        for (final option in options) {
-          if (option.isDefault) defaults.add(option.id);
-        }
-      }
-      if (defaults.isNotEmpty) {
-        _selectedOptionIds[group.id] = defaults;
-      }
-    }
-  }
-
-  void _seedMissingSelections(List<ModifierGroup> groups) {
-    var didUpdate = false;
-    for (final group in groups) {
-      if (_selectedOptionIds.containsKey(group.id)) continue;
       final defaults = <String>{};
       if (group.selectionType == 'single') {
         final defaultId =
@@ -81,182 +47,215 @@ class _SaleItemDetailPageState extends ConsumerState<SaleItemDetailPage> {
         }
       }
       if (defaults.isNotEmpty) {
-        _selectedOptionIds[group.id] = defaults;
-        didUpdate = true;
+        map[group.id] = defaults;
       }
     }
-    if (didUpdate) {
-      setState(() {});
-    }
+    return map;
   }
 
   @override
   Widget build(BuildContext context) {
     final menuState = ref.watch(menuViewModelProvider);
-    final hydratedItem =
-        menuState.hydratedItems[widget.item.id] ?? widget.item;
-    final modifiers = hydratedItem.modifierGroupIds
-        .map((id) => menuState.hydratedModifierGroups[id])
-        .whereType<ModifierGroup>()
-        .toList();
-    _seedMissingSelections(modifiers);
+    return FutureBuilder<(MenuItem, List<ModifierGroup>)?>(
+      future: _loadFuture,
+      builder: (context, snapshot) {
+        final tuple = snapshot.data;
+        final hydratedItemFromState = menuState.hydratedItems[widget.item.id];
+        final itemToUse = tuple?.$1 ?? hydratedItemFromState ?? widget.item;
 
-    if (modifiers.isEmpty && menuState.hydratedItems[widget.item.id] == null) {
-      return Scaffold(
-        appBar: AppBar(
-          title: Text(widget.item.name),
-          centerTitle: false,
-        ),
-        body: const Center(child: CircularProgressIndicator()),
-      );
-    }
+        final fetchedMods = tuple?.$2 ?? const <ModifierGroup>[];
+        final hydratedMods = itemToUse.modifierGroupIds
+            .map((id) => menuState.hydratedModifierGroups[id])
+            .whereType<ModifierGroup>()
+            .toList();
+        var modifiers = fetchedMods.isNotEmpty ? fetchedMods : hydratedMods;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(hydratedItem.name),
-        centerTitle: false,
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: Center(
-                child: SizedBox(
-                  width: MediaQuery.of(context).size.width * 0.5,
-                  child: AspectRatio(
-                    aspectRatio: 1,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
-                        color: Theme.of(context)
-                            .colorScheme
-                            .surfaceContainerHighest
-                            .withValues(alpha: 0.3),
-                      ),
-                      clipBehavior: Clip.antiAlias,
-                      child: _SaleImage(
-                        imageUrl: hydratedItem.imageUrl,
+        // If the first attempt returned empty, trigger one retry automatically.
+        if (modifiers.isEmpty &&
+            !_hasRetried &&
+            snapshot.connectionState == ConnectionState.done) {
+          _hasRetried = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            setState(() {
+              _loadFuture = ref
+                  .read(menuViewModelProvider.notifier)
+                  .loadItemWithModifiers(widget.item.id);
+            });
+          });
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (_selectedOptionIds.isEmpty && modifiers.isNotEmpty) {
+          _selectedOptionIds = _initialSelections(modifiers);
+        }
+
+        final hasError = snapshot.hasError ||
+            menuState.hydrationErrors.containsKey(widget.item.id);
+        final isHydrating =
+            !hasError && modifiers.isEmpty && snapshot.connectionState != ConnectionState.done;
+        final showError = hasError && _hasRetried && modifiers.isEmpty;
+
+        return Scaffold(
+          appBar: AppBar(
+            title: Text(itemToUse.name),
+            centerTitle: false,
+          ),
+          body: SafeArea(
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  child: Center(
+                    child: SizedBox(
+                      width: MediaQuery.of(context).size.width * 0.5,
+                      child: AspectRatio(
+                        aspectRatio: 1,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            color: Theme.of(context)
+                                .colorScheme
+                                .surfaceContainerHighest
+                                .withValues(alpha: 0.3),
+                          ),
+                          clipBehavior: Clip.antiAlias,
+                          child: _SaleImage(
+                            imageUrl: itemToUse.imageUrl,
+                          ),
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      hydratedItem.name,
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          itemToUse.name,
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                      ),
+                      Text(
+                        '\$${itemToUse.price.toStringAsFixed(2)}',
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleLarge
+                            ?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                    ],
                   ),
-                  Text(
-                    '\$${hydratedItem.price.toStringAsFixed(2)}',
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleLarge
-                        ?.copyWith(fontWeight: FontWeight.bold),
-                  ),
-                ],
-              ),
-            ),
+                ),
             Expanded(
-              child: modifiers.isEmpty
-                  ? const Center(
-                      child: Text('No modifiers for this item.'),
-                    )
-                  : ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                      itemCount: modifiers.length,
-                      separatorBuilder: (_, __) => const Divider(height: 1),
-                      itemBuilder: (context, index) {
-                        final group = modifiers[index];
-                        final selected = _selectedOptionIds[group.id] ?? {};
-                        return _ModifierGroupSection(
-                          group: group,
-                          selectedOptionIds: selected,
-                          onSelectionChanged: (newSelection) {
-                            setState(() {
-                              _selectedOptionIds[group.id] = newSelection;
-                            });
-                          },
-                        );
-                      },
-              ),
+              child: isHydrating
+                  ? const Center(child: CircularProgressIndicator())
+                  : showError
+                      ? const Center(child: Text('Unable to load modifiers.'))
+                      : modifiers.isEmpty
+                          ? const Center(child: Text('No modifiers for this item.'))
+                          : ListView.separated(
+                              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                              itemCount: modifiers.length,
+                              separatorBuilder: (_, __) => const Divider(height: 1),
+                              itemBuilder: (context, index) {
+                                final group = modifiers[index];
+                                final selected = _selectedOptionIds[group.id] ?? {};
+                                return _ModifierGroupSection(
+                                  group: group,
+                                  selectedOptionIds: selected,
+                                  onSelectionChanged: (newSelection) {
+                                    setState(() {
+                                      _selectedOptionIds[group.id] = newSelection;
+                                    });
+                                  },
+                                );
+                              },
+                            ),
             ),
           ],
         ),
       ),
-      bottomNavigationBar: SafeArea(
-        top: false,
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.08),
-                blurRadius: 8,
-                offset: const Offset(0, -2),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                children: [
-                  Text(
-                    'Total',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const Spacer(),
-                  Text(
-                    '\$${_computeTotal(hydratedItem, modifiers, _selectedOptionIds, _quantity).toStringAsFixed(2)}',
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleLarge
-                        ?.copyWith(fontWeight: FontWeight.bold),
+          bottomNavigationBar: SafeArea(
+            top: false,
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.08),
+                    blurRadius: 8,
+                    offset: const Offset(0, -2),
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
-              Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  _QuantityStepper(
-                    quantity: _quantity,
-                    onChanged: (value) => setState(() => _quantity = value),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Align(
-                      alignment: Alignment.centerRight,
-                      child: FilledButton(
-                        onPressed: () {
-                          final result = SaleItemSelectionResult(
-                            item: hydratedItem,
-                            quantity: _quantity,
-                            selectedOptionIds: {
-                              for (final entry in _selectedOptionIds.entries)
-                                entry.key: entry.value.toList(),
-                            },
-                          );
-                          Navigator.pop(context, result);
-                        },
-                        child: const Text('Add Item'),
+                  Row(
+                    children: [
+                      Text(
+                        'Total',
+                        style: Theme.of(context).textTheme.titleMedium,
                       ),
-                    ),
+                      const Spacer(),
+                      Text(
+                        '\$${_computeTotal(itemToUse, modifiers, _selectedOptionIds, _quantity).toStringAsFixed(2)}',
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleLarge
+                            ?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      _QuantityStepper(
+                        quantity: _quantity,
+                        onChanged: (value) => setState(() => _quantity = value),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Align(
+                          alignment: Alignment.centerRight,
+                          child: FilledButton(
+                            onPressed: () {
+                              final pricing = _computeSelectionPricing(
+                                itemToUse,
+                                modifiers,
+                                _selectedOptionIds,
+                                _quantity,
+                              );
+                              final result = SaleItemSelectionResult(
+                                item: itemToUse,
+                                quantity: _quantity,
+                                selectedOptionIds: {
+                                  for (final entry in _selectedOptionIds.entries)
+                                    entry.key: entry.value.toList(),
+                                },
+                                selectedOptions: pricing.selectedOptions,
+                                addonTotalUsd: pricing.addonTotalUsd,
+                                unitPriceUsd: pricing.unitPriceUsd,
+                                lineTotalUsd: pricing.lineTotalUsd,
+                              );
+                              Navigator.pop(context, result);
+                            },
+                            child: const Text('Add Item'),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -266,11 +265,19 @@ class SaleItemSelectionResult {
     required this.item,
     required this.quantity,
     required this.selectedOptionIds,
+    required this.selectedOptions,
+    required this.addonTotalUsd,
+    required this.unitPriceUsd,
+    required this.lineTotalUsd,
   });
 
   final MenuItem item;
   final int quantity;
   final Map<String, List<String>> selectedOptionIds;
+  final Map<String, List<ModifierOption>> selectedOptions;
+  final double addonTotalUsd;
+  final double unitPriceUsd;
+  final double lineTotalUsd;
 }
 
 class _SaleImage extends StatelessWidget {
@@ -310,7 +317,7 @@ double _computeTotal(
       final defaults = group.options.where((o) => o.isDefault).map((o) => o.id).toSet();
       if (defaults.isNotEmpty) {
         chosen = defaults;
-      } else if (group.options.isNotEmpty) {
+      } else if (group.selectionType == 'single' && group.options.isNotEmpty) {
         chosen = {group.options.first.id};
       } else {
         chosen = {};
@@ -323,6 +330,50 @@ double _computeTotal(
     }
   }
   return (item.price + addon) * quantity;
+}
+
+class _SelectionPricing {
+  const _SelectionPricing({
+    required this.selectedOptions,
+    required this.addonTotalUsd,
+    required this.unitPriceUsd,
+    required this.lineTotalUsd,
+  });
+
+  final Map<String, List<ModifierOption>> selectedOptions;
+  final double addonTotalUsd;
+  final double unitPriceUsd;
+  final double lineTotalUsd;
+}
+
+_SelectionPricing _computeSelectionPricing(
+  MenuItem item,
+  List<ModifierGroup> groups,
+  Map<String, Set<String>> selections,
+  int quantity,
+) {
+  final groupLookup = {for (final group in groups) group.id: group};
+  final selectedOptions = <String, List<ModifierOption>>{};
+  double addonTotal = 0;
+
+  selections.forEach((groupId, optionIds) {
+    final group = groupLookup[groupId];
+    if (group == null) return;
+    final chosen = group.options
+        .where((opt) => optionIds.contains(opt.id))
+        .toList(growable: false);
+    if (chosen.isEmpty) return;
+    selectedOptions[groupId] = chosen;
+    addonTotal += chosen.fold<double>(0, (sum, opt) => sum + opt.price);
+  });
+
+  final unitPriceUsd = item.price + addonTotal;
+  return _SelectionPricing(
+    selectedOptions: selectedOptions,
+    addonTotalUsd: addonTotal,
+    unitPriceUsd: unitPriceUsd,
+    lineTotalUsd: unitPriceUsd * quantity,
+  );
 }
 
 class _QuantityStepper extends StatelessWidget {

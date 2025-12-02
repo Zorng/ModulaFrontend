@@ -109,54 +109,65 @@ class MenuViewModel extends Notifier<MenuState> {
     }
   }
 
-  Future<(MenuItem, List<ModifierGroup>)?> loadItemWithModifiers(
-    String menuItemId,
-  ) async {
-    try {
-      final result = await _menuRepository.fetchItemWithModifiers(menuItemId);
-      final item = result.$1;
-      final groups = result.$2;
-      if (item.id.isEmpty) return null;
-      final updatedItems = [
-        for (final existing in state.allItems)
-          if (existing.id == item.id) item else existing,
-        if (state.allItems.every((it) => it.id != item.id)) item,
-      ];
-      // Merge/replace modifier groups by id.
-      final groupMap = {
-        for (final g in state.modifierGroups) g.id: g,
-        for (final g in state.hydratedModifierGroups.values) g.id: g,
-      };
-      for (final g in groups) {
-        groupMap[g.id] = g;
+  Future<(MenuItem, List<ModifierGroup>)> loadItemWithModifiers(
+    String menuItemId, {
+    int retries = 2,
+    Duration retryDelay = const Duration(milliseconds: 200),
+  }) async {
+    int attempt = 0;
+    while (true) {
+      attempt++;
+      try {
+        final result = await _menuRepository.fetchItemWithModifiers(menuItemId);
+        final item = result.$1;
+        final groups = result.$2;
+        if (item.id.isEmpty) {
+          throw Exception('Empty menu item returned for $menuItemId');
+        }
+        final updatedItems = [
+          for (final existing in state.allItems)
+            if (existing.id == item.id) item else existing,
+          if (state.allItems.every((it) => it.id != item.id)) item,
+        ];
+        // Merge/replace modifier groups by id.
+        final groupMap = {
+          for (final g in state.modifierGroups) g.id: g,
+          for (final g in state.hydratedModifierGroups.values) g.id: g,
+        };
+        for (final g in groups) {
+          groupMap[g.id] = g;
+        }
+        final mergedGroups = groupMap.values.toList();
+        final hydratedItems = Map<String, MenuItem>.from(state.hydratedItems)
+          ..[item.id] = item;
+        final hydratedModifierGroups =
+            Map<String, ModifierGroup>.from(state.hydratedModifierGroups);
+        for (final g in groups) {
+          hydratedModifierGroups[g.id] = g;
+        }
+        state = state.copyWith(
+          allItems: updatedItems,
+          filteredItems: _applyFilters(items: updatedItems),
+          modifierGroups: mergedGroups,
+          hydratedItems: hydratedItems,
+          hydratedModifierGroups: hydratedModifierGroups,
+          hydrationErrors: {
+            ...state.hydrationErrors..remove(menuItemId),
+          },
+        );
+        return (item, groups);
+      } catch (e) {
+        if (attempt > retries) {
+          state = state.copyWith(
+            hydrationErrors: {
+              ...state.hydrationErrors,
+              menuItemId: e.toString(),
+            },
+          );
+          rethrow;
+        }
+        await Future.delayed(retryDelay);
       }
-      final mergedGroups = groupMap.values.toList();
-      final hydratedItems = Map<String, MenuItem>.from(state.hydratedItems)
-        ..[item.id] = item;
-      final hydratedModifierGroups =
-          Map<String, ModifierGroup>.from(state.hydratedModifierGroups);
-      for (final g in groups) {
-        hydratedModifierGroups[g.id] = g;
-      }
-      state = state.copyWith(
-        allItems: updatedItems,
-        filteredItems: _applyFilters(items: updatedItems),
-        modifierGroups: mergedGroups,
-        hydratedItems: hydratedItems,
-        hydratedModifierGroups: hydratedModifierGroups,
-        hydrationErrors: {
-          ...state.hydrationErrors..remove(menuItemId),
-        },
-      );
-      return (item, groups);
-    } catch (e) {
-      state = state.copyWith(
-        hydrationErrors: {
-          ...state.hydrationErrors,
-          menuItemId: e.toString(),
-        },
-      );
-      return null;
     }
   }
 

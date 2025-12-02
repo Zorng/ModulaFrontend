@@ -7,6 +7,7 @@ import 'package:modular_pos/core/widgets/portal_shell.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/menu/ui/view/menu_page.dart';
+import 'package:modular_pos/features/sale/ui/view/order_page.dart';
 
 class AdminPortal extends ConsumerWidget {
   const AdminPortal({super.key});
@@ -56,6 +57,12 @@ class AdminPortal extends ConsumerWidget {
         icon: Icons.point_of_sale,
         onSelected: (_) => openSale(),
         builder: (context) => _SaleShortcutCard(onOpenSale: openSale),
+      ),
+      PortalAction(
+        id: 'orders',
+        label: 'Orders',
+        icon: Icons.receipt_long_outlined,
+        builder: (context) => const OrderPage(),
       ),
       PortalAction(
         id: 'cash_sessions',
@@ -223,6 +230,7 @@ class _AdminHomeContent extends StatelessWidget {
       _FeatureEntry(
         title: 'Orders',
         icon: Icons.receipt_long_outlined,
+        onTap: () => context.push(AppRoute.orders.path),
       ),
       _FeatureEntry(
         title: 'Policy',

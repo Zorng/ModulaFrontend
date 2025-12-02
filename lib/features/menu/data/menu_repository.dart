@@ -94,65 +94,79 @@ class MenuRepository {
   }
 
   Future<(MenuItem, List<ModifierGroup>)> fetchItemWithModifiers(
-    String menuItemId,
-  ) async {
+    String menuItemId, {
+    bool retrying = false,
+  }) async {
     final raw = await _api.fetchMenuItemWithModifiers(menuItemId);
-    if (raw.isEmpty) {
+    // Backend may wrap the payload under "data" or return the item at the top level.
+    final payload = raw['data'] is Map
+        ? Map<String, dynamic>.from(raw['data'])
+        : Map<String, dynamic>.from(raw);
+
+    if (payload.isEmpty) {
       return (
         const MenuItem(id: '', name: '', categoryId: '', price: 0),
         <ModifierGroup>[]
       );
     }
 
+    final rawModifiers = payload['modifiers'] as List<dynamic>? ?? const [];
     final modifiers = <ModifierGroup>[];
-    final rawModifiers = raw['modifiers'] as List<dynamic>? ?? const [];
-    for (final entry in rawModifiers) {
-      if (entry is! Map) continue;
-      final entryMap = Map<String, dynamic>.from(entry as Map);
-      final groupJson =
-          Map<String, dynamic>.from(entryMap['group'] as Map? ?? const {});
-      final optionsJson = entryMap['options'] as List<dynamic>? ?? const [];
-      final options = optionsJson.map((opt) {
-        if (opt is! Map) return const ModifierOption(id: '', name: '', price: 0);
-        final optMap = Map<String, dynamic>.from(opt as Map);
-        final priceRaw = optMap['priceAdjustmentUsd'];
-        final parsedPrice = priceRaw is num
-            ? priceRaw.toDouble()
-            : double.tryParse(priceRaw?.toString() ?? '') ?? 0;
-        return ModifierOption(
-          id: optMap['id']?.toString() ?? '',
-          name: optMap['label']?.toString() ?? 'Option',
-          price: parsedPrice,
-          isDefault: optMap['isDefault'] as bool? ?? false,
+    if (rawModifiers.isNotEmpty) {
+      for (final entry in rawModifiers) {
+        if (entry is! Map) continue;
+        final entryMap = Map<String, dynamic>.from(entry);
+        final groupJson =
+            Map<String, dynamic>.from(entryMap['group'] as Map? ?? const {});
+        final optionsJson = entryMap['options'] as List<dynamic>? ?? const [];
+        final options = optionsJson.map((opt) {
+          if (opt is! Map) return const ModifierOption(id: '', name: '', price: 0);
+          final optMap = Map<String, dynamic>.from(opt);
+          final priceRaw = optMap['priceAdjustmentUsd'];
+          final parsedPrice = priceRaw is num
+              ? priceRaw.toDouble()
+              : double.tryParse(priceRaw?.toString() ?? '') ?? 0;
+          return ModifierOption(
+            id: optMap['id']?.toString() ?? '',
+            name: optMap['label']?.toString() ?? 'Option',
+            price: parsedPrice,
+            isDefault: optMap['isDefault'] as bool? ?? false,
+          );
+        }).where((opt) => opt.id.isNotEmpty).toList();
+        final defaultOpt = options.firstWhere(
+          (o) => o.isDefault,
+          orElse: () =>
+              options.isNotEmpty ? options.first : const ModifierOption(id: '', name: '', price: 0),
         );
-      }).where((opt) => opt.id.isNotEmpty).toList();
-      final defaultOpt = options.firstWhere(
-        (o) => o.isDefault,
-        orElse: () => options.isNotEmpty ? options.first : const ModifierOption(id: '', name: '', price: 0),
-      );
-      final groupId = groupJson['id']?.toString() ?? '';
-      if (groupId.isEmpty) continue;
-      modifiers.add(
-        ModifierGroup(
-          id: groupId,
-          name: groupJson['name']?.toString() ?? 'Modifier Group',
-          selectionType:
-              (groupJson['selectionType']?.toString().toLowerCase() ?? 'single'),
-          pricingBehavior: 'addon',
-          options: options,
-          defaultOptionId: defaultOpt.id.isNotEmpty ? defaultOpt.id : null,
-          isRequired: entryMap['isRequired'] as bool?,
-        ),
-      );
+        final groupId = groupJson['id']?.toString() ?? '';
+        if (groupId.isEmpty) continue;
+        modifiers.add(
+          ModifierGroup(
+            id: groupId,
+            name: groupJson['name']?.toString() ?? 'Modifier Group',
+            selectionType:
+                (groupJson['selectionType']?.toString().toLowerCase() ?? 'single'),
+            pricingBehavior: 'addon',
+            options: options,
+            defaultOptionId: defaultOpt.id.isNotEmpty ? defaultOpt.id : null,
+            isRequired: entryMap['isRequired'] as bool?,
+          ),
+        );
+      }
+    } else if (!retrying) {
+      // Retry once when backend occasionally responds without modifiers.
+      return fetchItemWithModifiers(menuItemId, retrying: true);
+    } else if (rawModifiers.isNotEmpty && modifiers.isEmpty) {
+      throw Exception('Failed to parse modifiers for item $menuItemId');
     }
 
     final item = MenuItem(
-      id: raw['id']?.toString() ?? '',
-      categoryId: raw['categoryId']?.toString() ?? '',
-      name: raw['name']?.toString() ?? 'Menu Item',
-      description: raw['description']?.toString() ?? '',
-      price: (raw['priceUsd'] as num?)?.toDouble() ?? 0,
-      imageUrl: raw['imageUrl']?.toString(),
+      id: payload['id']?.toString() ?? '',
+      categoryId: payload['categoryId']?.toString() ?? '',
+      name: payload['name']?.toString() ?? 'Menu Item',
+      description: payload['description']?.toString() ?? '',
+      price: (payload['priceUsd'] as num?)?.toDouble() ?? 0,
+      imageUrl: payload['imageUrl']?.toString(),
       modifierGroupIds: modifiers.map((m) => m.id).where((id) => id.isNotEmpty).toList(),
       branchIds: const [],
     );

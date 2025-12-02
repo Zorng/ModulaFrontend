@@ -5,6 +5,7 @@ import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/widgets/portal_action.dart';
 import 'package:modular_pos/core/widgets/portal_shell.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
+import 'package:modular_pos/features/sale/ui/view/order_page.dart';
 
 class CashierPortal extends ConsumerWidget {
   const CashierPortal({super.key});
@@ -40,10 +41,7 @@ class CashierPortal extends ConsumerWidget {
         id: 'orders',
         label: 'Orders',
         icon: Icons.receipt_long_outlined,
-        builder: (context) => const _PlaceholderCard(
-          title: 'Orders',
-          content: 'Order history and status.',
-        ),
+        builder: (context) => const OrderPage(),
       ),
       PortalAction(
         id: 'x_report',
@@ -88,9 +86,10 @@ class _CashierHomeContent extends StatelessWidget {
         title: 'Cash Sessions',
         icon: Icons.attach_money_outlined,
       ),
-      const _FeatureEntry(
+      _FeatureEntry(
         title: 'Orders',
         icon: Icons.receipt_long_outlined,
+        onTap: () => context.push(AppRoute.orders.path),
       ),
       const _FeatureEntry(
         title: 'X Report',

@@ -5,7 +5,9 @@ import 'package:modular_pos/core/widgets/network_image_helper_stub.dart'
     if (dart.library.html) 'package:modular_pos/core/widgets/network_image_helper_web.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
+import 'package:modular_pos/features/sale/ui/viewmodels/order_viewmodel.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_viewmodel.dart';
+import 'package:modular_pos/features/sale/ui/view/view_carts_page.dart';
 
 class SaleCartPage extends ConsumerStatefulWidget {
   const SaleCartPage({super.key});
@@ -15,9 +17,9 @@ class SaleCartPage extends ConsumerStatefulWidget {
 }
 
 class _SaleCartPageState extends ConsumerState<SaleCartPage> {
-  String _orderType = 'walk_in';
+  String _orderType = 'take_away';
   String _paymentMethod = 'cash';
-  String _tenderCurrency = 'usd';
+  String _tenderCurrency = 'USD';
   final TextEditingController _usdController = TextEditingController();
   final TextEditingController _khrController = TextEditingController();
 
@@ -54,10 +56,11 @@ class _SaleCartPageState extends ConsumerState<SaleCartPage> {
     );
   }
 
-  double _grandTotalUsd(double subtotal) => subtotal * 1.10;
+  double _grandTotalUsd(double subtotal) => subtotal;
 
   double _grandTotalKhr(double grandTotalUsd) {
-    final baseKhr = grandTotalUsd * 4000;
+    const fxRate = 4100.0;
+    final baseKhr = grandTotalUsd * fxRate;
     // Round up to the nearest 100 riel bill.
     return (baseKhr / 100).ceil() * 100.0;
   }
@@ -68,7 +71,7 @@ class _SaleCartPageState extends ConsumerState<SaleCartPage> {
       return double.tryParse(_usdController.text.trim()) ?? 0;
     } else {
       final khr = double.tryParse(_khrController.text.trim()) ?? 0;
-      return khr / 4000;
+      return khr / 4100;
     }
   }
 
@@ -81,12 +84,14 @@ class _SaleCartPageState extends ConsumerState<SaleCartPage> {
 
   @override
   Widget build(BuildContext context) {
-    final items = ref.watch(saleCartProvider);
+    final cartState = ref.watch(saleCartProvider);
+    final items = cartState.lines;
     final menuState = ref.watch(menuViewModelProvider);
     final cartNotifier = ref.read(saleCartProvider.notifier);
     final groupLookup = {
-      for (final g in menuState.hydratedModifierGroups.entries) g.key: g.value,
+      // Base modifier metadata first, then override with hydrated groups that include options/pricing.
       for (final g in menuState.modifierGroups) g.id: g,
+      for (final g in menuState.hydratedModifierGroups.entries) g.key: g.value,
     };
     final subtotal = _subtotal(items, groupLookup);
     final grandTotalUsd = _grandTotalUsd(subtotal);
@@ -99,6 +104,24 @@ class _SaleCartPageState extends ConsumerState<SaleCartPage> {
       appBar: AppBar(
         title: const Text('Cart'),
         centerTitle: false,
+        actions: [
+          PopupMenuButton<String>(
+            onSelected: (value) {
+              if (value == 'view_carts') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ViewCartsPage()),
+                );
+              }
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem<String>(
+                value: 'view_carts',
+                child: Text('View carts'),
+              ),
+            ],
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
@@ -110,50 +133,35 @@ class _SaleCartPageState extends ConsumerState<SaleCartPage> {
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 8),
-            Row(
+            Wrap(
+              spacing: 12,
               children: [
-                Expanded(
-                  child: FilledButton(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: _orderType == 'walk_in'
-                          ? Theme.of(context).colorScheme.primary
-                          : Theme.of(context)
-                              .colorScheme
-                              .surfaceContainerHighest
-                              .withValues(alpha: 0.6),
-                    ),
-                    onPressed: () => setState(() => _orderType = 'walk_in'),
-                    child: Text(
-                      'Walk-in',
-                      style: TextStyle(
-                        color: _orderType == 'walk_in'
-                            ? Theme.of(context).colorScheme.onPrimary
-                            : Theme.of(context).colorScheme.onSurface,
-                      ),
-                    ),
-                  ),
+                _OrderTypeChip(
+                  label: 'Dine in',
+                  value: 'dine_in',
+                  selected: _orderType == 'dine_in',
+                  onSelected: () {
+                    setState(() => _orderType = 'dine_in');
+                    ref.read(saleCartProvider.notifier).setSaleType('dine_in');
+                  },
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: FilledButton(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: _orderType == 'delivery'
-                          ? Theme.of(context).colorScheme.primary
-                          : Theme.of(context)
-                              .colorScheme
-                              .surfaceContainerHighest
-                              .withValues(alpha: 0.6),
-                    ),
-                    onPressed: () => setState(() => _orderType = 'delivery'),
-                    child: Text(
-                      'Delivery',
-                      style: TextStyle(
-                        color: _orderType == 'delivery'
-                            ? Theme.of(context).colorScheme.onPrimary
-                            : Theme.of(context).colorScheme.onSurface,
-                      ),
-                    ),
-                  ),
+                _OrderTypeChip(
+                  label: 'Take away',
+                  value: 'take_away',
+                  selected: _orderType == 'take_away',
+                  onSelected: () {
+                    setState(() => _orderType = 'take_away');
+                    ref.read(saleCartProvider.notifier).setSaleType('take_away');
+                  },
+                ),
+                _OrderTypeChip(
+                  label: 'Delivery',
+                  value: 'delivery',
+                  selected: _orderType == 'delivery',
+                  onSelected: () {
+                    setState(() => _orderType = 'delivery');
+                    ref.read(saleCartProvider.notifier).setSaleType('delivery');
+                  },
                 ),
               ],
             ),
@@ -170,23 +178,93 @@ class _SaleCartPageState extends ConsumerState<SaleCartPage> {
                     cartNotifier.updateQuantity(index, line.quantity - 1),
                 paymentMethod: _paymentMethod,
                 tenderCurrency: _tenderCurrency,
-            onPaymentMethodChanged: (value) =>
-                setState(() => _paymentMethod = value),
-            onTenderCurrencyChanged: (value) =>
-                setState(() => _tenderCurrency = value),
-            usdController: _usdController,
-            khrController: _khrController,
-            subtotal: subtotal,
-            grandTotalUsd: grandTotalUsd,
-            grandTotalKhr: grandTotalKhr,
+                onPaymentMethodChanged: (value) =>
+                    setState(() {
+                      _paymentMethod = value;
+                      ref.read(saleCartProvider.notifier).setPaymentMethod(value);
+                    }),
+                onTenderCurrencyChanged: (value) =>
+                    setState(() {
+                      _tenderCurrency = value;
+                      ref.read(saleCartProvider.notifier).setTenderCurrency(value);
+                    }),
+                usdController: _usdController,
+                khrController: _khrController,
+                subtotal: subtotal,
+                grandTotalUsd: grandTotalUsd,
+                grandTotalKhr: grandTotalKhr,
             onAmountsChanged: () => setState(() {}),
           ),
         ),
       ],
     ),
-  ),
-      bottomNavigationBar:
-          _buildBottomBar(context, grandTotalUsd, grandTotalKhr, canCheckout),
+      ),
+      bottomNavigationBar: _buildBottomBar(
+        context,
+        grandTotalUsd,
+        grandTotalKhr,
+        canCheckout,
+        onCheckout: () async {
+          final ordersNotifier = ref.read(ordersProvider.notifier);
+          final menuSnapshot = ref.read(menuViewModelProvider);
+          final cartSnapshot = ref.read(saleCartProvider);
+          final groupLookup = {
+            for (final g in menuSnapshot.modifierGroups) g.id: g,
+            for (final g in menuSnapshot.hydratedModifierGroups.entries) g.key: g.value,
+          };
+          final orderLines = cartSnapshot.lines
+              .map(
+                (line) => OrderLine(
+                  name: line.item.name,
+                  modifiers: _modifierNames(line, groupLookup),
+                  quantity: line.quantity,
+                ),
+              )
+              .toList();
+          final cartNotifier = ref.read(saleCartProvider.notifier);
+          cartNotifier.setTenderCurrency(_tenderCurrency);
+          cartNotifier.setPaymentMethod(_paymentMethod);
+          cartNotifier.setCashReceived(
+            usd: double.tryParse(_usdController.text.trim()) ?? 0,
+            khr: double.tryParse(_khrController.text.trim()) ?? 0,
+          );
+          try {
+            final result = await cartNotifier.checkout();
+            final saleData = _extractSaleData(result);
+            final tenderCurrency =
+                (saleData['tenderCurrency']?.toString() ?? _tenderCurrency).toLowerCase();
+            final totalUsd =
+                (saleData['totalUsdExact'] ?? saleData['totalUsd'] ?? 0).toDouble();
+            final totalKhr =
+                (saleData['totalKhrExact'] ?? saleData['totalKhr'] ?? 0).toDouble();
+            final cashUsd = (saleData['cashReceivedUsd'] ?? cartSnapshot.cashUsd) as num? ?? 0;
+            final cashKhr = (saleData['cashReceivedKhr'] ?? cartSnapshot.cashKhr) as num? ?? 0;
+            final changeUsd = (saleData['changeGivenUsd'] ?? 0) as num? ?? 0;
+            final changeKhr = (saleData['changeGivenKhr'] ?? 0) as num? ?? 0;
+            ordersNotifier.createOrder(
+              orderType: _orderType,
+              paymentMethod: _paymentMethod,
+              totalUsd: totalUsd,
+              totalKhr: totalKhr,
+              tenderCurrency: tenderCurrency,
+              tenderAmount: tenderCurrency == 'usd' ? cashUsd.toDouble() : cashKhr.toDouble(),
+              changeAmount: tenderCurrency == 'usd' ? changeUsd.toDouble() : changeKhr.toDouble(),
+              lines: orderLines,
+            );
+            // Refresh orders from backend to persist.
+            await ordersNotifier.load(date: DateTime.now());
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Order created')),
+            );
+          } catch (e) {
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Checkout failed: $e')),
+            );
+          }
+        },
+      ),
     );
   }
 
@@ -194,7 +272,9 @@ class _SaleCartPageState extends ConsumerState<SaleCartPage> {
     BuildContext context,
     double grandTotalUsd,
     double grandTotalKhr,
-    bool canCheckout,
+    bool canCheckout, {
+    required VoidCallback onCheckout,
+  }
   ) {
     return SafeArea(
       top: false,
@@ -243,7 +323,7 @@ class _SaleCartPageState extends ConsumerState<SaleCartPage> {
             ),
             const SizedBox(height: 12),
             FilledButton(
-              onPressed: canCheckout ? () {} : null,
+              onPressed: canCheckout ? onCheckout : null,
               child: const Text('Checkout'),
             ),
           ],
@@ -251,6 +331,43 @@ class _SaleCartPageState extends ConsumerState<SaleCartPage> {
       ),
     );
   }
+}
+
+List<String> _modifierNames(
+  CartLine item,
+  Map<String, ModifierGroup> groupLookup,
+) {
+  final names = <String>[];
+  item.selectedOptionIds.forEach((groupId, optionIds) {
+    final group = groupLookup[groupId];
+    if (group == null) return;
+    for (final id in optionIds) {
+      final opt = group.options.firstWhere(
+        (o) => o.id == id,
+        orElse: () => const ModifierOption(id: '', name: '', price: 0),
+      );
+      if (opt.name.isNotEmpty) names.add(opt.name);
+    }
+  });
+  return names;
+}
+
+Map<String, dynamic> _extractSaleData(Map<String, dynamic> payload) {
+  final finalize = payload['finalize'];
+  final pre = payload['preCheckout'];
+  Map<String, dynamic> pick(dynamic value) {
+    if (value is Map<String, dynamic>) {
+      if (value['data'] is Map<String, dynamic>) {
+        return Map<String, dynamic>.from(value['data'] as Map);
+      }
+      return value;
+    }
+    return {};
+  }
+
+  final fromFinalize = pick(finalize);
+  if (fromFinalize.isNotEmpty) return fromFinalize;
+  return pick(pre);
 }
 
 class _CartContent extends StatelessWidget {
@@ -292,11 +409,21 @@ class _CartContent extends StatelessWidget {
       return const Center(child: Text('Cart is empty'));
     }
 
+    void selectTender(String currency) {
+      onTenderCurrencyChanged(currency);
+      if (currency == 'usd') {
+        khrController.clear();
+      } else {
+        usdController.clear();
+      }
+      onAmountsChanged();
+    }
+
     final tenderUsd = tenderCurrency == 'usd'
         ? double.tryParse(usdController.text.trim()) ?? 0
-        : (double.tryParse(khrController.text.trim()) ?? 0) / 4000;
+        : (double.tryParse(khrController.text.trim()) ?? 0) / 4100;
     final tenderKhr = tenderCurrency == 'usd'
-        ? tenderUsd * 4000
+        ? tenderUsd * 4100
         : double.tryParse(khrController.text.trim()) ?? 0;
     final changeKhr = (tenderKhr - grandTotalKhr);
     final changeKhrDisplay = changeKhr > 0 ? changeKhr : 0;
@@ -318,13 +445,13 @@ class _CartContent extends StatelessWidget {
         }),
         const Divider(height: 16),
         _SummaryRow(
-          label: 'Sub total',
+          label: 'Subtotal',
           value: subtotal,
         ),
         const SizedBox(height: 4),
         _SummaryRow(
-          label: 'VAT (10%)',
-          value: subtotal * 0.10,
+          label: 'VAT',
+          value: 0,
         ),
         const SizedBox(height: 12),
         const SizedBox(height: 8),
@@ -354,7 +481,7 @@ class _CartContent extends StatelessWidget {
                           value: 'usd',
                           groupValue: tenderCurrency,
                           onChanged: paymentMethod == 'cash'
-                              ? (value) => onTenderCurrencyChanged(value ?? 'usd')
+                              ? (value) => selectTender(value ?? 'usd')
                               : null,
                         ),
                       ],
@@ -364,7 +491,10 @@ class _CartContent extends StatelessWidget {
                       controller: usdController,
                       keyboardType:
                           const TextInputType.numberWithOptions(decimal: true),
-                      enabled: paymentMethod == 'cash' && tenderCurrency == 'usd',
+                      enabled: paymentMethod == 'cash',
+                      onTap: paymentMethod == 'cash'
+                          ? () => selectTender('usd')
+                          : null,
                       onChanged: (_) => onAmountsChanged(),
                       inputFormatters: [
                         FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
@@ -395,7 +525,7 @@ class _CartContent extends StatelessWidget {
                           value: 'khr',
                           groupValue: tenderCurrency,
                           onChanged: paymentMethod == 'cash'
-                              ? (value) => onTenderCurrencyChanged(value ?? 'khr')
+                              ? (value) => selectTender(value ?? 'khr')
                               : null,
                         ),
                       ],
@@ -404,7 +534,10 @@ class _CartContent extends StatelessWidget {
                     TextField(
                       controller: khrController,
                       keyboardType: TextInputType.number,
-                      enabled: paymentMethod == 'cash' && tenderCurrency == 'khr',
+                      enabled: paymentMethod == 'cash',
+                      onTap: paymentMethod == 'cash'
+                          ? () => selectTender('khr')
+                          : null,
                       onChanged: (_) => onAmountsChanged(),
                       inputFormatters: [
                         FilteringTextInputFormatter.digitsOnly,
@@ -620,18 +753,15 @@ class _PaymentMethodCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: selected
-              ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.08)
-              : Theme.of(context)
-                  .colorScheme
-                  .surfaceContainerHighest
-                  .withValues(alpha: 0.5),
+          color: Colors.white,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: selected
-                ? Theme.of(context).colorScheme.primary
-                : Theme.of(context).colorScheme.outlineVariant,
-          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -658,6 +788,29 @@ class _PaymentMethodCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _OrderTypeChip extends StatelessWidget {
+  const _OrderTypeChip({
+    required this.label,
+    required this.value,
+    required this.selected,
+    required this.onSelected,
+  });
+
+  final String label;
+  final String value;
+  final bool selected;
+  final VoidCallback onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (_) => onSelected(),
     );
   }
 }

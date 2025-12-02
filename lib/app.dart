@@ -24,6 +24,7 @@ import 'package:modular_pos/features/inventory/ui/view/restock_stock_item_page.d
 import 'package:modular_pos/features/inventory/domain/models/inventory_journal_summary.dart';
 import 'package:modular_pos/features/inventory/ui/view/inventory_journal_page.dart';
 import 'package:modular_pos/features/inventory/ui/view/inventory_journal_detail_page.dart';
+import 'package:modular_pos/features/sale/ui/view/order_page.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -217,6 +218,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoute.sale.path,
         name: AppRoute.sale.name,
         builder: (context, state) => const SalePage(),
+      ),
+      GoRoute(
+        path: AppRoute.orders.path,
+        name: AppRoute.orders.name,
+        builder: (context, state) => const OrderPage(),
       ),
     ],
   );
