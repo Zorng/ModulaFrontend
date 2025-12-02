@@ -4,12 +4,6 @@ import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/widgets/app_kebab_menu.dart';
 import 'package:modular_pos/core/widgets/app_search_add_bar.dart';
-import 'package:modular_pos/features/inventory/data/stock_item_api.dart'
-    show
-        InventoryMockScenario,
-        defaultMockScenario,
-        singleBranchId,
-        singleBranchName;
 import 'package:modular_pos/features/inventory/domain/models/category_defaults.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/category_controller.dart';
@@ -28,18 +22,6 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
   String _selectedCategory = 'All';
   Set<InventoryStockState>? _stateFilters;
   final _searchController = TextEditingController();
-
-  late final bool _isSingleBranchTenant;
-
-  @override
-  void initState() {
-    super.initState();
-    _isSingleBranchTenant =
-        defaultMockScenario == InventoryMockScenario.singleBranchFreshTenant;
-    if (_isSingleBranchTenant) {
-      _selectedBranchId = singleBranchId;
-    }
-  }
 
   @override
   void dispose() {
@@ -338,13 +320,9 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
 
   List<Map<String, String>> _branchEntries(List<StockItem> items) {
     if (items.isEmpty) {
-      return _isSingleBranchTenant
-          ? [
-              {'id': singleBranchId, 'name': singleBranchName},
-            ]
-          : [
-              {'id': 'all', 'name': 'All branches'},
-            ];
+      return [
+        {'id': 'all', 'name': 'All branches'},
+      ];
     }
     final map = <String, String>{};
     for (final item in items) {
@@ -370,7 +348,6 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
         return branch['name']!;
       }
     }
-    if (_isSingleBranchTenant) return singleBranchName;
     if (branches.isNotEmpty) return branches.first['name']!;
     return 'All branches';
   }

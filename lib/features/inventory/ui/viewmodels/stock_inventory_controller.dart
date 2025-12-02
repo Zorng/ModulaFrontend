@@ -4,6 +4,7 @@ import 'package:modular_pos/features/inventory/data/stock_item_repository.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_batch.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_state.dart';
+import 'package:modular_pos/features/inventory/ui/viewmodels/category_controller.dart';
 
 final stockInventoryControllerProvider =
     NotifierProvider<StockInventoryController, StockInventoryState>(() {
@@ -30,16 +31,34 @@ class StockInventoryController extends Notifier<StockInventoryState> {
     try {
       state = state.copyWith(isLoading: true, error: null);
       final items = await _repository.fetchStockItems();
+      final categories = ref.read(categoryControllerProvider).categories;
+      final categoryLookup = {
+        for (final c in categories) c.id: c.name,
+      };
+      final mapped = items
+          .map((item) => item.copyWith(
+                category: _resolveCategory(item, categoryLookup),
+              ))
+          .toList();
       final batches = await _batchRepository.fetchBatches();
-      state = state.copyWith(isLoading: false, items: items, batches: batches);
+      state =
+          state.copyWith(isLoading: false, items: mapped, batches: batches);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
     }
   }
 
-  Future<void> addStockItem(StockItem draft) async {
+  Future<void> addStockItem(
+    StockItem draft, {
+    String? imagePath,
+    List<int>? imageBytes,
+  }) async {
     try {
-      final created = await _repository.createStockItem(draft);
+      final created = await _repository.createStockItem(
+        draft,
+        imagePath: imagePath,
+        imageBytes: imageBytes,
+      );
       state = state.copyWith(
         items: [...state.items, created],
         error: null,
@@ -49,9 +68,17 @@ class StockInventoryController extends Notifier<StockInventoryState> {
     }
   }
 
-  Future<void> updateStockItem(StockItem item) async {
+  Future<void> updateStockItem(
+    StockItem item, {
+    String? imagePath,
+    List<int>? imageBytes,
+  }) async {
     try {
-      final updated = await _repository.updateStockItem(item);
+      final updated = await _repository.updateStockItem(
+        item,
+        imagePath: imagePath,
+        imageBytes: imageBytes,
+      );
       final items = [
         for (final existing in state.items)
           if (existing.id == updated.id) updated else existing,
@@ -157,4 +184,17 @@ class StockInventoryController extends Notifier<StockInventoryState> {
   }
 
   String _todayString() => DateTime.now().toIso8601String().split('T').first;
+
+  String _resolveCategory(
+    StockItem item,
+    Map<String, String> categoryLookup,
+  ) {
+    if (item.categoryId != null &&
+        item.categoryId!.isNotEmpty &&
+        categoryLookup[item.categoryId!] != null) {
+      return categoryLookup[item.categoryId!]!;
+    }
+    if (item.category.isNotEmpty) return item.category;
+    return 'Uncategorized';
+  }
 }

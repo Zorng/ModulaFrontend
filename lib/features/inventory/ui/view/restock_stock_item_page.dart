@@ -1,12 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
-import 'package:modular_pos/features/inventory/data/stock_item_api.dart'
-    show
-        InventoryMockScenario,
-        defaultMockScenario,
-        singleBranchId,
-        singleBranchName;
 import 'package:modular_pos/features/inventory/domain/models/inventory_journal_entry.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
 import 'package:modular_pos/features/inventory/domain/utils/stock_quantity_formatter.dart';
@@ -27,6 +21,7 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
   String? _selectedBranchId;
   String? _selectedItemId;
   bool _isSaving = false;
+  final bool _isSingleBranchTenant = false;
   TextEditingController? _itemCtrl;
   final _pcsCtrl = TextEditingController(text: '0');
   final _extraCtrl = TextEditingController(text: '0');
@@ -34,17 +29,10 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
   final _noteCtrl = TextEditingController();
   final _dateCtrl = TextEditingController();
   final _expiryCtrl = TextEditingController();
-  late final bool _isSingleBranchTenant;
-
   @override
   void initState() {
     super.initState();
     _itemCtrl = TextEditingController();
-    _isSingleBranchTenant =
-        defaultMockScenario == InventoryMockScenario.singleBranchFreshTenant;
-    if (_isSingleBranchTenant) {
-      _selectedBranchId = singleBranchId;
-    }
   }
 
   @override
@@ -230,9 +218,6 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
   }
 
   List<MapEntry<String, String>> _buildBranchEntries(List<StockItem> items) {
-    if (_isSingleBranchTenant) {
-      return [MapEntry(singleBranchId, singleBranchName)];
-    }
     final map = <String, String>{};
     for (final item in items) {
       map[item.branchId] = item.branchName;
@@ -244,7 +229,6 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
 
   List<StockItem> _itemsForSelectedBranch(List<StockItem> items) {
     final sorted = [...items]..sort((a, b) => a.name.compareTo(b.name));
-    if (_isSingleBranchTenant) return sorted;
     if (_selectedBranchId == null) return const [];
     return sorted.where((item) => item.branchId == _selectedBranchId).toList();
   }

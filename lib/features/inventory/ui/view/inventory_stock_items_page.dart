@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/widgets/app_search_add_bar.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
+import 'package:modular_pos/features/inventory/ui/viewmodels/category_controller.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_controller.dart';
 import 'package:modular_pos/features/inventory/ui/widgets/inventory_dropdown.dart';
 
@@ -22,6 +23,14 @@ class _InventoryStockItemsPageState
   _ActiveFilter _activeFilter = _ActiveFilter.all;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(stockInventoryControllerProvider.notifier).loadStockItems();
+    });
+  }
+
+  @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
@@ -30,15 +39,20 @@ class _InventoryStockItemsPageState
   @override
   Widget build(BuildContext context) {
     final inventoryState = ref.watch(stockInventoryControllerProvider);
+    final categoryState = ref.watch(categoryControllerProvider);
+    final categoryLookup = {
+      for (final c in categoryState.categories) c.id: c.name,
+    };
     final items = inventoryState.items;
     final categories = [
       'All',
-      ...{for (final item in items) item.category},
+      ...{for (final entry in categoryLookup.entries) entry.value},
     ];
 
     final filtered = items.where((item) {
+      final displayCategory = _categoryLabel(item, categoryLookup);
       final matchesCategory =
-          _categoryFilter == 'All' || item.category == _categoryFilter;
+          _categoryFilter == 'All' || displayCategory == _categoryFilter;
       final matchesSearch =
           _searchController.text.isEmpty ||
           item.name.toLowerCase().contains(
@@ -143,7 +157,10 @@ class _InventoryStockItemsPageState
                     : ListView.separated(
                         itemBuilder: (context, index) {
                           final item = displayed[index];
-                          return _StockItemCard(item: item);
+                          return _StockItemCard(
+                            item: item,
+                            categoryLabel: _categoryLabel(item, categoryLookup),
+                          );
                         },
                         separatorBuilder: (_, __) => const SizedBox(height: 12),
                         itemCount: displayed.length,
@@ -158,9 +175,10 @@ class _InventoryStockItemsPageState
 }
 
 class _StockItemCard extends StatelessWidget {
-  const _StockItemCard({required this.item});
+  const _StockItemCard({required this.item, required this.categoryLabel});
 
   final StockItem item;
+  final String categoryLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -208,7 +226,7 @@ class _StockItemCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(999),
                       ),
                       child: Text(
-                        item.category,
+                        categoryLabel,
                         style: Theme.of(context).textTheme.labelSmall?.copyWith(
                           color: scheme.onSurfaceVariant,
                         ),
@@ -259,13 +277,14 @@ class _StockItemImage extends StatelessWidget {
     final initials = trimmed.isNotEmpty
         ? trimmed.substring(0, 1).toUpperCase()
         : '?';
+    final hasImage = imageUrl != null && imageUrl!.isNotEmpty;
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(12),
       child: SizedBox(
         width: 56,
         height: 56,
-        child: imageUrl != null
+        child: hasImage
             ? Image.network(
                 imageUrl!,
                 fit: BoxFit.cover,
@@ -303,6 +322,15 @@ class _StockPlaceholder extends StatelessWidget {
 String _pieceLabel(StockItem item) {
   if (item.pieceSize <= 1) return item.baseUnit;
   return '${item.pieceSize} ${item.baseUnit} per piece';
+}
+
+String _categoryLabel(StockItem item, Map<String, String> categoryLookup) {
+  if (item.categoryId != null && item.categoryId!.isNotEmpty) {
+    final label = categoryLookup[item.categoryId!];
+    if (label != null && label.isNotEmpty) return label;
+  }
+  if (item.category.isNotEmpty) return item.category;
+  return 'Uncategorized';
 }
 
 enum _ActiveFilter { all, active, inactive }

@@ -27,10 +27,13 @@ class _CategoryManagementPageState
   Widget build(BuildContext context) {
     final state = ref.watch(categoryControllerProvider);
     final query = _searchController.text.trim().toLowerCase();
-    final categories = state.categories.where((category) {
-      if (query.isEmpty) return true;
-      return category.name.toLowerCase().contains(query);
-    }).toList()..sort((a, b) => a.name.compareTo(b.name));
+    final categories = state.categories
+        .where((category) {
+          if (query.isEmpty) return true;
+          return category.name.toLowerCase().contains(query);
+        })
+        .toList()
+      ..sort((a, b) => a.name.compareTo(b.name));
 
     return Scaffold(
       appBar: AppBar(title: const Text('Category management')),

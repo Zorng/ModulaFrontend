@@ -1,15 +1,10 @@
 import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:modular_pos/features/inventory/data/stock_item_api.dart'
-    show
-        InventoryMockScenario,
-        defaultMockScenario,
-        singleBranchId,
-        singleBranchName;
-import 'package:modular_pos/features/inventory/domain/models/category_defaults.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
+import 'package:modular_pos/features/inventory/domain/models/inventory_category.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/category_controller.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_controller.dart';
 import 'package:modular_pos/features/inventory/ui/widgets/inventory_section_card.dart';
@@ -30,57 +25,38 @@ class _AddStockItemPageState extends ConsumerState<AddStockItemPage> {
   final _formKey = GlobalKey<FormState>();
   final _nameCtrl = TextEditingController();
   final _barcodeCtrl = TextEditingController();
-  final _quantityCtrl = TextEditingController(text: '0');
-  final _minThresholdCtrl = TextEditingController(text: '0');
   final _pieceSizeCtrl = TextEditingController(text: '1');
-  final _lastRestockCtrl = TextEditingController();
-  final _expiryCtrl = TextEditingController();
   final _baseUnits = const ['ml', 'g', 'pcs'];
   final _baseUnitFieldKey = GlobalKey<FormFieldState<String>>();
   final _categoryFieldKey = GlobalKey<FormFieldState<String>>();
-  final _branchFieldKey = GlobalKey<FormFieldState<String>>();
   final _typeOptions = const ['Ingredient', 'Sellable'];
   String? _category;
+  String? _categoryId;
   String? _baseUnit;
-  String? _branchId;
-  String? _branchName;
   final _selectedTypes = <String>{};
-
-  late final bool _isSingleBranchTenant;
+  final ImagePicker _picker = ImagePicker();
+  String? _selectedImagePath;
+  Uint8List? _selectedImageBytes;
 
   @override
   void initState() {
     super.initState();
-    _isSingleBranchTenant =
-        defaultMockScenario == InventoryMockScenario.singleBranchFreshTenant;
-    if (_isSingleBranchTenant) {
-      _branchId = singleBranchId;
-      _branchName = singleBranchName;
-    }
+    // Ensure categories are loaded before opening the selector.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(categoryControllerProvider.notifier).loadCategories();
+    });
   }
 
   @override
   void dispose() {
     _nameCtrl.dispose();
     _barcodeCtrl.dispose();
-    _quantityCtrl.dispose();
-    _minThresholdCtrl.dispose();
     _pieceSizeCtrl.dispose();
-    _lastRestockCtrl.dispose();
-    _expiryCtrl.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final inventoryState = ref.watch(stockInventoryControllerProvider);
-    final branchOptions = _branchOptions(inventoryState.items);
-    final branchSelectable = !_isSingleBranchTenant && branchOptions.length > 1;
-    final branchLabel = _branchName ??
-        (branchOptions.isNotEmpty
-            ? branchOptions.first['name']!
-            : 'No branches available');
-
     return Scaffold(
       appBar: AppBar(title: const Text('Add stock item'), centerTitle: false),
       body: Form(
@@ -90,7 +66,8 @@ class _AddStockItemPageState extends ConsumerState<AddStockItemPage> {
           children: [
             Center(
               child: _UploadImageTile(
-                onPressed: () => _showComingSoonDialog(context),
+                imageBytes: _selectedImageBytes,
+                onPressed: _pickImage,
               ),
             ),
             const SizedBox(height: 24),
@@ -195,39 +172,6 @@ class _AddStockItemPageState extends ConsumerState<AddStockItemPage> {
                     );
                   },
                 ),
-                const SizedBox(height: 12),
-                FormField<String>(
-                  key: _branchFieldKey,
-                  validator: (_) => null,
-                  builder: (state) {
-                    final textTheme = Theme.of(context).textTheme;
-                    final hintColor = Theme.of(context).hintColor;
-                    return InkWell(
-                      borderRadius: BorderRadius.circular(12),
-                      onTap: branchSelectable
-                          ? () => _showBranchSelector(branchOptions)
-                          : null,
-                      child: InputDecorator(
-                        decoration: const InputDecoration(labelText: 'Branch'),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              branchLabel,
-                              style: branchOptions.isEmpty
-                                  ? textTheme.bodyMedium?.copyWith(
-                                      color: hintColor,
-                                    )
-                                  : textTheme.bodyMedium,
-                            ),
-                            if (branchSelectable)
-                              const Icon(Icons.expand_more),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
               ],
             ),
             const SizedBox(height: 16),
@@ -254,49 +198,6 @@ class _AddStockItemPageState extends ConsumerState<AddStockItemPage> {
               ],
             ),
             const SizedBox(height: 16),
-            InventorySectionCard(
-              title: 'Stock status',
-              children: [
-                TextFormField(
-                  controller: _quantityCtrl,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Starting quantity',
-                  ),
-                ),
-                TextFormField(
-                  controller: _minThresholdCtrl,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Min threshold'),
-                ),
-                TextFormField(
-                  controller: _lastRestockCtrl,
-                  readOnly: true,
-                  decoration: InputDecoration(
-                    labelText: 'Last restock date (optional)',
-                    hintText: 'Select date',
-                    suffixIcon: IconButton(
-                      icon: const Icon(Icons.calendar_today_outlined),
-                      onPressed: () => _pickDate(_lastRestockCtrl),
-                    ),
-                  ),
-                  onTap: () => _pickDate(_lastRestockCtrl),
-                ),
-                TextFormField(
-                  controller: _expiryCtrl,
-                  readOnly: true,
-                  decoration: InputDecoration(
-                    labelText: 'Expiry date (optional)',
-                    hintText: 'Select date',
-                    suffixIcon: IconButton(
-                      icon: const Icon(Icons.calendar_today_outlined),
-                      onPressed: () => _pickDate(_expiryCtrl),
-                    ),
-                  ),
-                  onTap: () => _pickDate(_expiryCtrl),
-                ),
-              ],
-            ),
             const SizedBox(height: 24),
             FilledButton(onPressed: _submit, child: const Text('Save item')),
           ],
@@ -308,48 +209,36 @@ class _AddStockItemPageState extends ConsumerState<AddStockItemPage> {
   void _submit() {
     final isValid = _formKey.currentState?.validate() ?? false;
     if (!isValid) return;
-    final inventoryState = ref.read(stockInventoryControllerProvider);
-    final branches = _branchOptions(inventoryState.items);
-    if (branches.isEmpty && !_isSingleBranchTenant) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No branches available. Create a branch before adding items.'),
-        ),
-      );
-      return;
-    }
     final controller = ref.read(stockInventoryControllerProvider.notifier);
-    final quantity = int.tryParse(_quantityCtrl.text.trim()) ?? 0;
-    final minThreshold = int.tryParse(_minThresholdCtrl.text.trim()) ?? 0;
     final pieceSize = int.tryParse(_pieceSizeCtrl.text.trim()) ?? 1;
     final usageTags = _selectedTypes.isEmpty
         ? <String>['Ingredient']
         : _selectedTypes.toList();
-    final branch = _resolveBranch(branches);
     final item = StockItem(
       id: '',
       name: _nameCtrl.text.trim(),
       category: _category ?? 'Uncategorized',
+      categoryId: _categoryId,
       baseUnit: _baseUnit ?? 'pcs',
       pieceSize: pieceSize <= 0 ? 1 : pieceSize,
-      branchId: branch['id']!,
-      branchName: branch['name']!,
-      onHand: quantity,
-      minThreshold: minThreshold,
+      branchId: '',
+      branchName: '',
+      onHand: 0,
+      minThreshold: 0,
       isActive: true,
       barcode: _barcodeCtrl.text.trim().isEmpty
           ? null
           : _barcodeCtrl.text.trim(),
-      lastRestockDate: _lastRestockCtrl.text.trim().isEmpty
-          ? '-'
-          : _lastRestockCtrl.text.trim(),
-      expiryDate: _expiryCtrl.text.trim().isEmpty
-          ? '-'
-          : _expiryCtrl.text.trim(),
+      lastRestockDate: '-',
+      expiryDate: '-',
       usageTags: usageTags,
     );
 
-    controller.addStockItem(item).then((_) {
+    controller.addStockItem(
+      item,
+      imagePath: kIsWeb ? null : _selectedImagePath,
+      imageBytes: _selectedImageBytes,
+    ).then((_) {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
@@ -358,55 +247,25 @@ class _AddStockItemPageState extends ConsumerState<AddStockItemPage> {
     });
   }
 
-  List<Map<String, String>> _branchOptions(List<StockItem> items) {
-    if (items.isEmpty) {
-      return _isSingleBranchTenant
-          ? [
-              {'id': singleBranchId, 'name': singleBranchName},
-            ]
-          : const <Map<String, String>>[];
-    }
-    final map = <String, String>{};
-    for (final item in items) {
-      map[item.branchId] = item.branchName;
-    }
-    final entries = map.entries
-        .map((entry) => {'id': entry.key, 'name': entry.value})
-        .toList()
-      ..sort((a, b) => a['name']!.compareTo(b['name']!));
-    return entries;
-  }
-
-  Map<String, String> _resolveBranch(List<Map<String, String>> branches) {
-    if (branches.isEmpty) {
-      return {
-        'id': singleBranchId,
-        'name': singleBranchName,
-      };
-    }
-    if (_branchId == null) return branches.first;
-    return branches.firstWhere(
-      (branch) => branch['id'] == _branchId,
-      orElse: () => branches.first,
-    );
-  }
-
-  void _showComingSoonDialog(BuildContext context) {
-    showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Coming soon'),
-        content: const Text(
-          'Media upload will be available once the inventory module is connected to the backend.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('OK'),
+  Future<void> _pickImage() async {
+    try {
+      final picked = await _picker.pickImage(source: ImageSource.gallery);
+      if (picked == null) return;
+      final bytes = await picked.readAsBytes();
+      setState(() {
+        _selectedImageBytes = bytes;
+        _selectedImagePath = picked.path;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Image picker not available. Please fully restart the app after running flutter pub get.',
           ),
-        ],
-      ),
-    );
+        ),
+      );
+    }
   }
 
   Future<void> _showBaseUnitSelector() async {
@@ -441,10 +300,16 @@ class _AddStockItemPageState extends ConsumerState<AddStockItemPage> {
 
   Future<void> _showCategorySelector() async {
     final categoryState = ref.read(categoryControllerProvider);
-    final categories = categoryState.categories.isEmpty
-        ? defaultInventoryCategories
-        : (categoryState.categories.map((c) => c.name).toList()..sort());
-    final selection = await showModalBottomSheet<String>(
+    final categories =
+        categoryState.categories;
+    if (categories.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No categories available. Please create one first.')),
+      );
+      return;
+    }
+    final selection = await showModalBottomSheet<InventoryCategory>(
       context: context,
       showDragHandle: true,
       builder: (context) => SafeArea(
@@ -453,9 +318,9 @@ class _AddStockItemPageState extends ConsumerState<AddStockItemPage> {
           itemCount: categories.length,
           itemBuilder: (context, index) {
             final category = categories[index];
-            final selected = category == _category;
+            final selected = category.id == _categoryId;
             return ListTile(
-              title: Text(category),
+              title: Text(category.name),
               trailing: selected ? const Icon(Icons.check) : null,
               onTap: () => Navigator.of(context).pop(category),
             );
@@ -467,89 +332,20 @@ class _AddStockItemPageState extends ConsumerState<AddStockItemPage> {
 
     if (selection != null) {
       setState(() {
-        _category = selection;
-        _categoryFieldKey.currentState?.didChange(selection);
+        _category = selection.name;
+        _categoryId = selection.id;
+        _categoryFieldKey.currentState?.didChange(selection.id);
       });
     }
   }
 
-  Future<void> _showBranchSelector(List<Map<String, String>> branches) async {
-    if (_isSingleBranchTenant) return;
-    if (branches.isEmpty) return;
-    final selection = await showModalBottomSheet<Map<String, String>>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) => SafeArea(
-        child: ListView.separated(
-          shrinkWrap: true,
-          itemCount: branches.length,
-          itemBuilder: (context, index) {
-            final branch = branches[index];
-            final selected = branch['id'] == _branchId;
-            return ListTile(
-              title: Text(branch['name']!),
-              trailing: selected ? const Icon(Icons.check) : null,
-              onTap: () => Navigator.of(context).pop(branch),
-            );
-          },
-          separatorBuilder: (_, __) => const Divider(height: 1),
-        ),
-      ),
-    );
-
-    if (selection != null) {
-      setState(() {
-        _branchId = selection['id'];
-        _branchName = selection['name'];
-        _branchFieldKey.currentState?.didChange(_branchName);
-      });
-    }
-  }
-
-  Future<void> _pickDate(TextEditingController controller) async {
-    final now = DateTime.now();
-    final initialDate = _parseDate(controller.text) ?? now;
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: initialDate,
-      firstDate: DateTime(now.year - 5),
-      lastDate: DateTime(now.year + 5),
-    );
-
-    if (picked != null) {
-      setState(() {
-        controller.text = _formatDate(picked);
-      });
-    }
-  }
-
-  DateTime? _parseDate(String value) {
-    if (value.isEmpty || value == '-') return null;
-    final parts = value.split(' ');
-    if (parts.length != 3) return null;
-    final month =
-        _monthNames.indexWhere(
-          (name) => name.toLowerCase() == parts[0].toLowerCase(),
-        ) +
-        1;
-    if (month <= 0) return null;
-    final day = int.tryParse(parts[1].replaceAll(',', ''));
-    final year = int.tryParse(parts[2]);
-    if (day == null || year == null) return null;
-    return DateTime(year, month, day);
-  }
-
-  String _formatDate(DateTime date) {
-    final month = _monthNames[date.month - 1];
-    final day = date.day.toString().padLeft(2, '0');
-    return '$month $day, ${date.year}';
-  }
 }
 
 class _UploadImageTile extends StatelessWidget {
-  const _UploadImageTile({required this.onPressed});
+  const _UploadImageTile({required this.onPressed, this.imageBytes});
 
   final VoidCallback onPressed;
+  final Uint8List? imageBytes;
 
   @override
   Widget build(BuildContext context) {
@@ -563,51 +359,44 @@ class _UploadImageTile extends StatelessWidget {
         child: SizedBox(
           width: 220,
           height: 220,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.image_outlined, size: 40, color: scheme.primary),
-                const SizedBox(height: 12),
-                Text(
-                  'Add item image',
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
+          child: imageBytes != null
+              ? ClipRRect(
+                  borderRadius: BorderRadius.circular(18),
+                  child: Image.memory(
+                    imageBytes!,
+                    fit: BoxFit.cover,
+                  ),
+                )
+              : Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.image_outlined, size: 40, color: scheme.primary),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Add item image',
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'PNG or JPG, up to 2MB',
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  'PNG or JPG, up to 2MB',
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: scheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-          ),
         ),
       ),
     );
   }
 }
-
-const List<String> _monthNames = [
-  'Jan',
-  'Feb',
-  'Mar',
-  'Apr',
-  'May',
-  'Jun',
-  'Jul',
-  'Aug',
-  'Sep',
-  'Oct',
-  'Nov',
-  'Dec',
-];
 
 class _DashedBorderPainter extends CustomPainter {
   const _DashedBorderPainter({required this.color});

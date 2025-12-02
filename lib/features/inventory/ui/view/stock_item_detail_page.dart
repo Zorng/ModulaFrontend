@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:modular_pos/features/inventory/domain/models/category_defaults.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
+import 'package:modular_pos/features/inventory/domain/models/inventory_category.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/category_controller.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_controller.dart';
 import 'package:modular_pos/features/inventory/ui/widgets/inventory_dropdown.dart';
@@ -25,6 +25,7 @@ class _StockItemDetailPageState extends ConsumerState<StockItemDetailPage> {
   late StockItem _editableData;
   late TextEditingController _nameCtrl;
   late TextEditingController _categoryCtrl;
+  late String? _categoryId;
   late TextEditingController _pieceSizeCtrl;
   late TextEditingController _barcodeCtrl;
   late TextEditingController _lastRestockCtrl;
@@ -39,6 +40,7 @@ class _StockItemDetailPageState extends ConsumerState<StockItemDetailPage> {
     _editableData = widget.item;
     _nameCtrl = TextEditingController(text: _editableData.name);
     _categoryCtrl = TextEditingController(text: _editableData.category);
+    _categoryId = _editableData.categoryId;
     _pieceSizeCtrl = TextEditingController(
       text: _editableData.pieceSize.toString(),
     );
@@ -72,6 +74,7 @@ class _StockItemDetailPageState extends ConsumerState<StockItemDetailPage> {
       _isEditing = false;
       _nameCtrl.text = _editableData.name;
       _categoryCtrl.text = _editableData.category;
+      _categoryId = _editableData.categoryId;
       _baseUnit = _editableData.baseUnit;
       _pieceSizeCtrl.text = _editableData.pieceSize.toString();
       _barcodeCtrl.text = _editableData.barcode ?? '';
@@ -96,6 +99,7 @@ class _StockItemDetailPageState extends ConsumerState<StockItemDetailPage> {
     final updated = _editableData.copyWith(
       name: _nameCtrl.text.trim(),
       category: _categoryCtrl.text.trim(),
+      categoryId: _categoryId,
       baseUnit: _baseUnit,
       pieceSize: pieceSize,
       barcode: _barcodeCtrl.text.trim().isEmpty
@@ -122,9 +126,8 @@ class _StockItemDetailPageState extends ConsumerState<StockItemDetailPage> {
   Widget build(BuildContext context) {
     final chipColor = Theme.of(context).colorScheme.surfaceContainerHighest;
     final categoryState = ref.watch(categoryControllerProvider);
-    final categoryOptions = categoryState.categories.isEmpty
-        ? List.of(defaultInventoryCategories)
-        : (categoryState.categories.map((c) => c.name).toList()..sort());
+    final categoryOptions =
+        categoryState.categories;
     return Scaffold(
       appBar: AppBar(
         title: Text(_editableData.name),
@@ -173,14 +176,21 @@ class _StockItemDetailPageState extends ConsumerState<StockItemDetailPage> {
                           entries: categoryOptions
                               .map(
                                 (category) => DropdownMenuEntry(
-                                  value: category,
-                                  label: category,
+                                  value: category.id,
+                                  label: category.name,
                                 ),
                               )
                               .toList(),
                           onSelected: (value) {
                             if (value == null) return;
-                            setState(() => _categoryCtrl.text = value);
+                            final selected = categoryOptions.firstWhere(
+                              (c) => c.id == value,
+                              orElse: () => InventoryCategory(id: value, name: value, isActive: true),
+                            );
+                            setState(() {
+                              _categoryId = selected.id;
+                              _categoryCtrl.text = selected.name;
+                            });
                           },
                         ),
                       )
@@ -306,7 +316,7 @@ class _ImagePreview extends StatelessWidget {
       child: SizedBox(
         width: 220,
         height: 220,
-        child: imageUrl != null
+        child: imageUrl != null && imageUrl!.isNotEmpty
             ? Image.network(
                 imageUrl!,
                 fit: BoxFit.cover,
@@ -328,14 +338,13 @@ class _Placeholder extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: scheme.secondaryContainer,
+      color: scheme.surface,
       alignment: Alignment.center,
       child: Text(
         initials,
         style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-          color: scheme.onSecondaryContainer,
-          fontWeight: FontWeight.bold,
-        ),
+              fontWeight: FontWeight.w700,
+            ),
       ),
     );
   }
