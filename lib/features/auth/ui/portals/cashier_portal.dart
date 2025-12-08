@@ -80,9 +80,11 @@ class _CashierHomeContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final isWide = MediaQuery.of(context).size.width >= 800;
     const features = [
-      _FeatureEntry(title: 'POS / Sales', icon: Icons.point_of_sale),
+      _FeatureEntry(
+          title: 'POS / Sales', icon: Icons.point_of_sale), // TODO: Add route
       _FeatureEntry(
         title: 'Cash Sessions',
+        route: AppRoute.cashierCashSession,
         icon: Icons.attach_money_outlined,
       ),
       _FeatureEntry(
@@ -128,8 +130,10 @@ class _FeatureCard extends StatelessWidget {
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        onTap: () {
-          // TODO: Wire navigation to the specific feature.
+        onTap: () { 
+          if (entry.route != null) {
+            context.push(entry.route!.path);
+          }
         },
         child: Padding(
           padding: const EdgeInsets.all(10),
@@ -166,10 +170,12 @@ class _FeatureEntry {
   const _FeatureEntry({
     required this.title,
     required this.icon,
+    this.route,
   });
 
   final String title;
   final IconData icon;
+  final AppRoute? route;
 }
 
 class _PlaceholderCard extends StatelessWidget {
