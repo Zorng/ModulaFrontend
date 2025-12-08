@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
+import 'package:modular_pos/features/auth/domain/models/user.dart';
+import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_journal_entry.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_journal_summary.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/inventory_journal_controller.dart';
@@ -22,6 +24,15 @@ class _InventoryJournalPageState extends ConsumerState<InventoryJournalPage> {
   final TextEditingController _endCtrl = TextEditingController();
 
   @override
+  void initState() {
+    super.initState();
+    // Initial load from backend.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(inventoryJournalControllerProvider.notifier).load();
+    });
+  }
+
+  @override
   void dispose() {
     _startCtrl.dispose();
     _endCtrl.dispose();
@@ -30,8 +41,19 @@ class _InventoryJournalPageState extends ConsumerState<InventoryJournalPage> {
 
   @override
   Widget build(BuildContext context) {
+    final userBranches =
+        ref.watch(loginControllerProvider).user?.branches ?? const <UserBranch>[];
     final entries = ref.watch(inventoryJournalControllerProvider);
-    final branchOptions = _branchOptions(entries);
+    final branchOptions = _branchOptions(entries, userBranches);
+    if (_selectedBranchId == 'all' && branchOptions.length == 2) {
+      _selectedBranchId = branchOptions.first.key == 'all'
+          ? branchOptions[1].key
+          : branchOptions.first.key;
+    } else if (_selectedBranchId == 'all' && userBranches.length == 1) {
+      final first = userBranches.first;
+      _selectedBranchId =
+          first.branchId.isNotEmpty ? first.branchId : first.id;
+    }
     final filteredEntries = _filteredEntries(entries);
     final branchGroups = _groupByBranch(filteredEntries);
 
@@ -59,52 +81,55 @@ class _InventoryJournalPageState extends ConsumerState<InventoryJournalPage> {
                           ),
                         )
                         .toList(),
-                    onSelected: (value) => setState(() {
-                      _selectedBranchId = value ?? 'all';
-                    }),
+                    onSelected: (value) {
+                      final branch = value ?? 'all';
+                      setState(() {
+                        _selectedBranchId = branch;
+                      });
+                      ref
+                          .read(inventoryJournalControllerProvider.notifier)
+                          .load(branchId: branch == 'all' ? null : branch);
+                    },
                   ),
                 ),
                 const SizedBox(width: 12),
                 IconButton(
                   icon: const Icon(Icons.restart_alt),
                   tooltip: 'Reset filters',
-                  onPressed: () => setState(() {
-                    _selectedBranchId = 'all';
-                    _startDate = null;
-                    _endDate = null;
-                    _startCtrl.clear();
-                    _endCtrl.clear();
-                  }),
+                  onPressed: () {
+                    setState(() {
+                      _selectedBranchId = 'all';
+                      _startDate = null;
+                      _endDate = null;
+                      _startCtrl.clear();
+                      _endCtrl.clear();
+                    });
+                    ref
+                        .read(inventoryJournalControllerProvider.notifier)
+                        .load();
+                  },
                 ),
               ],
             ),
             const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _DateField(
-                    controller: _startCtrl,
-                    label: 'Start date',
-                    onTap: () => _pickDate(isStart: true),
-                    onClear: () => setState(() {
-                      _startDate = null;
-                      _startCtrl.clear();
-                    }),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _DateField(
-                    controller: _endCtrl,
-                    label: 'End date',
-                    onTap: () => _pickDate(isStart: false),
-                    onClear: () => setState(() {
-                      _endDate = null;
-                      _endCtrl.clear();
-                    }),
-                  ),
-                ),
-              ],
+            _DateField(
+              controller: _startCtrl,
+              label: 'Start date',
+              onTap: () => _pickDate(isStart: true),
+              onClear: () => setState(() {
+                _startDate = null;
+                _startCtrl.clear();
+              }),
+            ),
+            const SizedBox(height: 12),
+            _DateField(
+              controller: _endCtrl,
+              label: 'End date',
+              onTap: () => _pickDate(isStart: false),
+              onClear: () => setState(() {
+                _endDate = null;
+                _endCtrl.clear();
+              }),
             ),
             const SizedBox(height: 16),
             Expanded(
@@ -133,12 +158,19 @@ class _InventoryJournalPageState extends ConsumerState<InventoryJournalPage> {
 
   List<MapEntry<String, String>> _branchOptions(
     List<InventoryJournalEntry> entries,
+    List<UserBranch> userBranches,
   ) {
     final map = <String, String>{'all': 'All branches'};
-    for (final entry in entries) {
-      map[entry.branchId] = entry.branchName;
+    for (final branch in userBranches) {
+      final id = branch.branchId.isNotEmpty ? branch.branchId : branch.id;
+      map[id] = branch.name;
     }
-    return map.entries.toList();
+    for (final entry in entries) {
+      if (entry.branchId.isNotEmpty) {
+        map[entry.branchId] = entry.branchName;
+      }
+    }
+    return map.entries.toList()..sort((a, b) => a.value.compareTo(b.value));
   }
 
   List<InventoryJournalEntry> _filteredEntries(
@@ -148,10 +180,10 @@ class _InventoryJournalPageState extends ConsumerState<InventoryJournalPage> {
       final matchesBranch =
           _selectedBranchId == 'all' || entry.branchId == _selectedBranchId;
       final matchesStart =
-          _startDate == null || !entry.timestamp.isBefore(_startDate!);
+          _startDate == null || !entry.occurredAt.isBefore(_startDate!);
       final matchesEnd =
           _endDate == null ||
-          !entry.timestamp.isAfter(
+          !entry.occurredAt.isAfter(
             _endDate!
                 .add(const Duration(days: 1))
                 .subtract(const Duration(seconds: 1)),
@@ -190,16 +222,16 @@ class _InventoryJournalPageState extends ConsumerState<InventoryJournalPage> {
     final Map<DateTime, List<InventoryJournalEntry>> grouped = {};
     for (final entry in entries) {
       final dayKey = DateTime(
-        entry.timestamp.year,
-        entry.timestamp.month,
-        entry.timestamp.day,
+        entry.occurredAt.year,
+        entry.occurredAt.month,
+        entry.occurredAt.day,
       );
       grouped.putIfAbsent(dayKey, () => []).add(entry);
     }
     final summaries = grouped.entries.map((e) {
       final uniqueItems = e.value.map((entry) => entry.itemName).toSet().length;
       final sortedEntries = [...e.value]
-        ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+        ..sort((a, b) => b.occurredAt.compareTo(a.occurredAt));
       return InventoryJournalDaySummary(
         date: e.key,
         itemCount: uniqueItems,

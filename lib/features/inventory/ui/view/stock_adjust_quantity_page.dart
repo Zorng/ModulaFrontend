@@ -227,7 +227,8 @@ class _AdjustStockQuantityPageState
                         : 'Manual reduction'
                   : _noteCtrl.text.trim(),
               actor: actor,
-              timestamp: DateTime.now(),
+              createdAt: DateTime.now(),
+              occurredAt: DateTime.now(),
             ),
           );
       if (!mounted) return;

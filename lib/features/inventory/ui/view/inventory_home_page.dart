@@ -22,7 +22,6 @@ class InventoryHomePage extends ConsumerStatefulWidget {
 class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
   String _selectedBranchId = 'all';
   String _selectedCategory = 'All';
-  Set<InventoryStockState>? _stateFilters;
   final _searchController = TextEditingController();
 
   @override
@@ -60,10 +59,6 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
     }
     final branchLabel = _branchLabel(branchEntries);
     final canSelectBranch = branchEntries.length > 1;
-    final activeFilters = _stateFilters ?? const <InventoryStockState>{};
-    final filterLabel = activeFilters.isEmpty
-        ? 'Filters'
-        : 'Filters (${activeFilters.length})';
     final filtered = items.where((item) {
       final matchesCategory =
           _selectedCategory == 'All' || item.category == _selectedCategory;
@@ -74,10 +69,7 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
           item.name.toLowerCase().contains(
             _searchController.text.toLowerCase(),
           );
-      final stockState = _mapState(item);
-      final matchesState =
-          activeFilters.isEmpty || activeFilters.contains(stockState);
-      return matchesCategory && matchesBranch && matchesSearch && matchesState;
+      return matchesCategory && matchesBranch && matchesSearch;
     }).toList();
 
     final displayed = _selectedBranchId == 'all'
@@ -162,16 +154,6 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                   ),
                 ),
-                const SizedBox(width: 8),
-                FilledButton.icon(
-                  onPressed: _openFilterSheet,
-                  icon: const Icon(Icons.filter_list),
-                      label: Text(filterLabel),
-                  style: FilledButton.styleFrom(
-                    minimumSize: const Size(64, 40),
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                  ),
-                ),
               ],
             ),
             const SizedBox(height: 16),
@@ -226,87 +208,6 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
         ),
       ),
     );
-  }
-
-  Future<void> _openFilterSheet() async {
-    final activeFilters = _stateFilters ?? const <InventoryStockState>{};
-    final tempStates = {...activeFilters};
-    final result = await showModalBottomSheet<Set<InventoryStockState>>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            return Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Filters',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Stock state',
-                    style: Theme.of(context).textTheme.bodyLarge,
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: InventoryStockState.values.map((state) {
-                      final selected = tempStates.contains(state);
-                      return FilterChip(
-                        label: Text(_stateLabel(state)),
-                        selected: selected,
-                        avatar: Icon(
-                          _stateIcon(state),
-                          size: 16,
-                          color: selected ? Colors.white : Colors.black54,
-                        ),
-                        onSelected: (value) {
-                          setModalState(() {
-                            if (value) {
-                              tempStates.add(state);
-                            } else {
-                              tempStates.remove(state);
-                            }
-                          });
-                        },
-                      );
-                    }).toList(),
-                  ),
-                  const SizedBox(height: 24),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      TextButton(
-                        onPressed: () {
-                          setModalState(() => tempStates.clear());
-                        },
-                        child: const Text('Reset'),
-                      ),
-                      const SizedBox(width: 8),
-                      FilledButton(
-                        onPressed: () =>
-                            Navigator.of(context).pop({...tempStates}),
-                        child: const Text('Apply'),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
-
-    if (result != null) {
-      setState(() => _stateFilters = result);
-    }
   }
 
   Future<void> _showBranchSelector(List<Map<String, String>> branches) async {
@@ -383,12 +284,6 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
     return 'All branches';
   }
 
-  InventoryStockState _mapState(StockItem item) {
-    if (item.onHand == 0) return InventoryStockState.outOfStock;
-    if (item.isLowStock) return InventoryStockState.lowStock;
-    return InventoryStockState.healthy;
-  }
-
   List<StockItem> _aggregateItems(List<StockItem> items) {
     final grouped = <String, List<StockItem>>{};
     for (final item in items) {
@@ -424,15 +319,3 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
     }).toList();
   }
 }
-
-String _stateLabel(InventoryStockState state) => switch (state) {
-  InventoryStockState.healthy => 'Healthy',
-  InventoryStockState.lowStock => 'Low stock',
-  InventoryStockState.outOfStock => 'Out of stock',
-};
-
-IconData _stateIcon(InventoryStockState state) => switch (state) {
-  InventoryStockState.healthy => Icons.check_circle,
-  InventoryStockState.lowStock => Icons.warning_amber,
-  InventoryStockState.outOfStock => Icons.error_outline,
-};

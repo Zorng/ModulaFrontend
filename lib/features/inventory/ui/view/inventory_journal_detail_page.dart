@@ -1,28 +1,38 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:modular_pos/features/inventory/data/stock_item_repository.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_journal_entry.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_journal_summary.dart';
 
-class InventoryJournalDetailPage extends StatefulWidget {
+class InventoryJournalDetailPage extends ConsumerStatefulWidget {
   const InventoryJournalDetailPage({super.key, required this.summary});
 
   final InventoryJournalDaySummary summary;
 
   @override
-  State<InventoryJournalDetailPage> createState() =>
+  ConsumerState<InventoryJournalDetailPage> createState() =>
       _InventoryJournalDetailPageState();
 }
 
 class _InventoryJournalDetailPageState
-    extends State<InventoryJournalDetailPage> {
+    extends ConsumerState<InventoryJournalDetailPage> {
+  late List<InventoryJournalEntry> _entries;
   String? _searchQuery;
   final Set<InventoryJournalReason> _selectedReasons = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _entries = widget.summary.entries;
+    _hydrateNames();
+  }
 
   @override
   Widget build(BuildContext context) {
     final entries = _filteredEntries();
     return Scaffold(
       appBar: AppBar(
-        title: Text(_summaryDate(widget.summary.date)),
+        title: Text('Journal on ${_summaryDate(widget.summary.date)}'),
         centerTitle: false,
       ),
       body: Padding(
@@ -30,6 +40,15 @@ class _InventoryJournalDetailPageState
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Text(
+              widget.summary.entries.isNotEmpty
+                  ? 'Branch: ${widget.summary.entries.first.branchName}'
+                  : 'Branch',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).hintColor,
+                  ),
+            ),
+            const SizedBox(height: 8),
             _SearchAutocomplete(
               initialValue: _searchQuery ?? '',
               options: _itemOptions,
@@ -77,7 +96,7 @@ class _InventoryJournalDetailPageState
 
   List<InventoryJournalEntry> _filteredEntries() {
     final query = (_searchQuery ?? '').trim().toLowerCase();
-    return widget.summary.entries.where((entry) {
+    return _entries.where((entry) {
       final matchesQuery =
           query.isEmpty ||
           entry.itemName.toLowerCase().contains(query) ||
@@ -92,8 +111,30 @@ class _InventoryJournalDetailPageState
       '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
 
   List<String> get _itemOptions =>
-      widget.summary.entries.map((entry) => entry.itemName).toSet().toList()
-        ..sort();
+      _entries.map((entry) => entry.itemName).toSet().toList()..sort();
+
+  Future<void> _hydrateNames() async {
+    // Only hydrate if any entry has a placeholder name.
+    final needsHydrate = _entries.any((e) {
+      final name = e.itemName.trim();
+      return name.isEmpty || name.toLowerCase() == 'item';
+    });
+    if (!needsHydrate) return;
+
+    final repo = ref.read(stockItemRepositoryProvider);
+    final items = await repo.fetchMasterStockItems();
+    final lookup = {for (final item in items) item.id: item.name};
+    setState(() {
+      _entries = _entries
+          .map(
+            (e) => (e.itemName.trim().isEmpty ||
+                    e.itemName.trim().toLowerCase() == 'item')
+                ? e.copyWith(itemName: lookup[e.itemId] ?? e.itemName)
+                : e,
+          )
+          .toList();
+    });
+  }
 }
 
 class _SearchAutocomplete extends StatefulWidget {
@@ -207,15 +248,19 @@ class JournalTile extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  entry.itemName,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                Text(
-                  _formatTimestamp(entry.timestamp),
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: scheme.onSurfaceVariant,
+                Expanded(
+                  child: Text(
+                    entry.itemName,
+                    style: Theme.of(context).textTheme.titleMedium,
+                    overflow: TextOverflow.ellipsis,
                   ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  _formatTimestamp(entry.occurredAt),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                      ),
                 ),
               ],
             ),
@@ -244,6 +289,14 @@ class JournalTile extends StatelessWidget {
               style: Theme.of(
                 context,
               ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              'Created at ${_formatTimestamp(entry.createdAt)}',
+              style: Theme.of(context)
+                  .textTheme
+                  .bodySmall
+                  ?.copyWith(color: scheme.onSurfaceVariant),
             ),
           ],
         ),

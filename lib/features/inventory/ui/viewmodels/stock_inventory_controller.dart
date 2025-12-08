@@ -9,8 +9,8 @@ import 'package:modular_pos/features/inventory/ui/viewmodels/category_controller
 
 final stockInventoryControllerProvider =
     NotifierProvider<StockInventoryController, StockInventoryState>(() {
-  return StockInventoryController();
-});
+      return StockInventoryController();
+    });
 
 class StockInventoryController extends Notifier<StockInventoryState> {
   late final StockItemRepository _repository;
@@ -46,8 +46,11 @@ class StockInventoryController extends Notifier<StockInventoryState> {
             .toList(),
         onHandData,
       );
-      state =
-          state.copyWith(isLoading: false, items: mapped, batches: const []);
+      state = state.copyWith(
+        isLoading: false,
+        items: mapped,
+        batches: const [],
+      );
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
     }
@@ -68,10 +71,7 @@ class StockInventoryController extends Notifier<StockInventoryState> {
         _withCategoryName(created, await _categoryLookup()),
         _branchLookup(),
       );
-      state = state.copyWith(
-        items: [...state.items, mapped],
-        error: null,
-      );
+      state = state.copyWith(items: [...state.items, mapped], error: null);
       return mapped;
     } catch (e) {
       state = state.copyWith(error: e.toString());
@@ -115,25 +115,21 @@ class StockInventoryController extends Notifier<StockInventoryState> {
     final item = state.items.firstWhere((element) => element.id == itemId);
     final targetBranch =
         branchId ?? (item.branchId.isNotEmpty ? item.branchId : null);
-    final updated = item.copyWith(
-      onHand: item.onHand + baseQty,
-      lastRestockDate: restockDate ?? item.lastRestockDate,
-      expiryDate: _deriveExpiry(item, expiryDate),
-    );
+    final occurredAt = _toUtcIso(restockDate);
     await _journalRepository.receive(
       branchId: targetBranch ?? '',
       stockItemId: item.id,
       qty: baseQty,
       note: note,
+      occurredAt: occurredAt,
     );
-    await updateStockItem(updated);
     // Refresh inventory for the relevant branch to pick up backend on-hand changes.
     final reloadBranch =
         (branchId != null && branchId.isNotEmpty && branchId != 'all')
-            ? branchId
-            : (item.branchId.isNotEmpty && item.branchId != 'all'
-                ? item.branchId
-                : null);
+        ? branchId
+        : (item.branchId.isNotEmpty && item.branchId != 'all'
+              ? item.branchId
+              : null);
     await loadStockItems(branchId: reloadBranch);
   }
 
@@ -142,7 +138,9 @@ class StockInventoryController extends Notifier<StockInventoryState> {
       await _repository.deleteStockItem(id);
       state = state.copyWith(
         items: state.items.where((item) => item.id != id).toList(),
-        batches: state.batches.where((batch) => batch.stockItemId != id).toList(),
+        batches: state.batches
+            .where((batch) => batch.stockItemId != id)
+            .toList(),
         error: null,
       );
     } catch (e) {
@@ -159,15 +157,14 @@ class StockInventoryController extends Notifier<StockInventoryState> {
   }
 
   List<StockBatch> batchesForItem(String itemId) {
-    final batches = state.batches
-        .where((batch) => batch.stockItemId == itemId)
-        .toList()
-      ..sort((a, b) {
-        if (a.expiryDate == null && b.expiryDate == null) return 0;
-        if (a.expiryDate == null) return 1;
-        if (b.expiryDate == null) return -1;
-        return a.expiryDate!.compareTo(b.expiryDate!);
-      });
+    final batches =
+        state.batches.where((batch) => batch.stockItemId == itemId).toList()
+          ..sort((a, b) {
+            if (a.expiryDate == null && b.expiryDate == null) return 0;
+            if (a.expiryDate == null) return 1;
+            if (b.expiryDate == null) return -1;
+            return a.expiryDate!.compareTo(b.expiryDate!);
+          });
     return batches;
   }
 
@@ -175,8 +172,18 @@ class StockInventoryController extends Notifier<StockInventoryState> {
     required String batchId,
     required int delta,
   }) async {
-    final batch =
-        state.batches.firstWhere((element) => element.id == batchId, orElse: () => state.batches.isNotEmpty ? state.batches.first : StockBatch(id: batchId, stockItemId: batchId, branchId: 'all', onHand: 0, receivedDate: _todayString()));
+    final batch = state.batches.firstWhere(
+      (element) => element.id == batchId,
+      orElse: () => state.batches.isNotEmpty
+          ? state.batches.first
+          : StockBatch(
+              id: batchId,
+              stockItemId: batchId,
+              branchId: 'all',
+              onHand: 0,
+              receivedDate: _todayString(),
+            ),
+    );
     final item = state.items.firstWhere(
       (element) => element.id == batch.stockItemId || element.id == batchId,
       orElse: () => state.items.first,
@@ -215,19 +222,9 @@ class StockInventoryController extends Notifier<StockInventoryState> {
     state = state.copyWith(items: updatedItems);
   }
 
-  String _deriveExpiry(StockItem item, String? latest) {
-    if (latest == null || latest.isEmpty) return item.expiryDate;
-    final existing = item.expiryDate;
-    if (existing == '-' || existing.isEmpty) return latest;
-    return existing.compareTo(latest) <= 0 ? existing : latest;
-  }
-
   String _todayString() => DateTime.now().toIso8601String().split('T').first;
 
-  String _resolveCategory(
-    StockItem item,
-    Map<String, String> categoryLookup,
-  ) {
+  String _resolveCategory(StockItem item, Map<String, String> categoryLookup) {
     if (item.categoryId != null &&
         item.categoryId!.isNotEmpty &&
         categoryLookup[item.categoryId!] != null) {
@@ -260,15 +257,10 @@ class StockInventoryController extends Notifier<StockInventoryState> {
     StockItem item,
     Map<String, String> categoryLookup,
   ) {
-    return item.copyWith(
-      category: _resolveCategory(item, categoryLookup),
-    );
+    return item.copyWith(category: _resolveCategory(item, categoryLookup));
   }
 
-  StockItem _withBranchName(
-    StockItem item,
-    Map<String, String> branchLookup,
-  ) {
+  StockItem _withBranchName(StockItem item, Map<String, String> branchLookup) {
     final branchName = branchLookup[item.branchId];
     if (branchName != null && branchName.isNotEmpty) {
       return item.copyWith(branchName: branchName);
@@ -284,11 +276,9 @@ class StockInventoryController extends Notifier<StockInventoryState> {
     final lookup = <String, Map<String, dynamic>>{};
     for (final raw in onHandData) {
       if (raw is! Map<String, dynamic>) continue;
-      final stockItemId = (raw['stockItemId'] ??
-              raw['stock_item_id'] ??
-              raw['id'] ??
-              '')
-          .toString();
+      final stockItemId =
+          (raw['stockItemId'] ?? raw['stock_item_id'] ?? raw['id'] ?? '')
+              .toString();
       if (stockItemId.isEmpty) continue;
       final branchId = (raw['branchId'] ?? raw['branch_id'] ?? '').toString();
       final key = '$stockItemId|$branchId';
@@ -298,7 +288,8 @@ class StockInventoryController extends Notifier<StockInventoryState> {
       final key = '${item.id}|${item.branchId}';
       final data = lookup[key] ?? lookup['${item.id}|'];
       if (data == null) return item;
-      final onHand = _asInt(data['onHand']) ??
+      final onHand =
+          _asInt(data['onHand']) ??
           _asInt(data['onHandQty']) ??
           _asInt(data['onHandExact']) ??
           _asInt(data['quantity']) ??
@@ -315,10 +306,25 @@ class StockInventoryController extends Notifier<StockInventoryState> {
   Future<List<dynamic>> _fetchOnHand({String? branchId}) async {
     // If a specific branch is selected, fetch on-hand once.
     if (branchId != null && branchId.isNotEmpty && branchId != 'all') {
-      return _repository.fetchOnHand(branchId: branchId);
+      final data = await _repository.fetchOnHand(branchId: branchId);
+      // Guard against backend sending the wrong branchId by filtering and stamping the requested id.
+      return data
+          .whereType<Map<String, dynamic>>()
+          .where((raw) {
+            final payloadBranch =
+                (raw['branchId'] ?? raw['branch_id'] ?? '').toString();
+            return payloadBranch.isEmpty || payloadBranch == branchId;
+          })
+          .map((raw) => {
+                ...raw,
+                'branchId': branchId,
+                'branch_id': branchId,
+              })
+          .toList();
     }
     // Aggregate on-hand across all user branches.
-    final branches = ref.read(loginControllerProvider).user?.branches ?? const [];
+    final branches =
+        ref.read(loginControllerProvider).user?.branches ?? const [];
     if (branches.isEmpty) return const [];
     final aggregated = <String, Map<String, dynamic>>{};
     for (final branch in branches) {
@@ -326,10 +332,19 @@ class StockInventoryController extends Notifier<StockInventoryState> {
       final data = await _repository.fetchOnHand(branchId: id);
       for (final raw in data.whereType<Map<String, dynamic>>()) {
         final stockItemId =
-            (raw['stockItemId'] ?? raw['stock_item_id'] ?? raw['id'] ?? '').toString();
+            (raw['stockItemId'] ?? raw['stock_item_id'] ?? raw['id'] ?? '')
+                .toString();
         if (stockItemId.isEmpty) continue;
+        final payloadBranch =
+            (raw['branchId'] ?? raw['branch_id'] ?? '').toString();
+        // Ignore records that explicitly refer to a different branch to avoid bleeding counts across branches.
+        if (payloadBranch.isNotEmpty && payloadBranch != id) continue;
         final key = '$stockItemId|$id';
-        aggregated[key] = raw;
+        aggregated[key] = {
+          ...raw,
+          'branchId': id,
+          'branch_id': id,
+        };
       }
     }
     return aggregated.values.toList();
@@ -341,7 +356,8 @@ class StockInventoryController extends Notifier<StockInventoryState> {
       return _repository.fetchStockItems(branchId: branchId);
     }
 
-    final branches = ref.read(loginControllerProvider).user?.branches ?? const [];
+    final branches =
+        ref.read(loginControllerProvider).user?.branches ?? const [];
     if (branches.isEmpty) {
       return _repository.fetchStockItems();
     }
@@ -370,4 +386,11 @@ int? _asInt(dynamic value) {
   if (value == null) return null;
   if (value is num) return value.toInt();
   return int.tryParse(value.toString());
+}
+
+String? _toUtcIso(String? dateString) {
+  if (dateString == null || dateString.isEmpty) return null;
+  final parsed = DateTime.tryParse(dateString);
+  if (parsed == null) return null;
+  return parsed.toUtc().toIso8601String();
 }

@@ -46,6 +46,15 @@ class StockItemRepository {
         .toList();
   }
 
+  /// Fetch only the master stock items (no branch assignment overlay).
+  Future<List<StockItem>> fetchMasterStockItems({int pageSize = 200}) async {
+    final masterRaw = await _api.fetchStockItems(pageSize: pageSize);
+    return masterRaw
+        .whereType<Map<String, dynamic>>()
+        .map(StockItem.fromJson)
+        .toList();
+  }
+
   Future<StockItem> createStockItem(
     StockItem item, {
     String? imagePath,

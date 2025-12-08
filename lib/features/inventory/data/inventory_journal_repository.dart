@@ -17,12 +17,14 @@ class InventoryJournalRepository {
     required String stockItemId,
     required num qty,
     String? note,
+    String? occurredAt,
   }) async {
     final json = await _api.receiveStock(
       branchId: branchId,
       stockItemId: stockItemId,
       qty: qty,
       note: note,
+      occurredAt: occurredAt,
     );
     return _maybeEntry(json, fallbackReason: InventoryJournalReason.restock);
   }
@@ -32,12 +34,14 @@ class InventoryJournalRepository {
     required String stockItemId,
     required num qty,
     required String note,
+    String? occurredAt,
   }) async {
     final json = await _api.wasteStock(
       branchId: branchId,
       stockItemId: stockItemId,
       qty: qty,
       note: note,
+      occurredAt: occurredAt,
     );
     return _maybeEntry(json, fallbackReason: InventoryJournalReason.remove);
   }
@@ -47,17 +51,20 @@ class InventoryJournalRepository {
     required String stockItemId,
     required num delta,
     required String note,
+    String? occurredAt,
   }) async {
     final json = await _api.correctStock(
       branchId: branchId,
       stockItemId: stockItemId,
       delta: delta,
       note: note,
+      occurredAt: occurredAt,
     );
     return _maybeEntry(json, fallbackReason: InventoryJournalReason.add);
   }
 
   Future<List<InventoryJournalEntry>> fetch({
+    String? branchId,
     String? stockItemId,
     InventoryJournalReason? reason,
     String? fromDate,
@@ -66,6 +73,7 @@ class InventoryJournalRepository {
     int pageSize = 50,
   }) async {
     final items = await _api.fetchJournal(
+      branchId: branchId,
       stockItemId: stockItemId,
       reason: reason != null ? _reasonToApi(reason) : null,
       fromDate: fromDate,
@@ -79,8 +87,8 @@ class InventoryJournalRepository {
         .toList();
   }
 
-  Future<List<InventoryJournalEntry>> lowStockAlerts() async {
-    final items = await _api.fetchLowStockAlerts();
+  Future<List<InventoryJournalEntry>> lowStockAlerts({String? branchId}) async {
+    final items = await _api.fetchLowStockAlerts(branchId: branchId);
     return items
         .whereType<Map<String, dynamic>>()
         .map(InventoryJournalEntry.fromJson)

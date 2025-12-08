@@ -357,6 +357,9 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
             branchId: _selectedBranchId,
           );
       final actor = ref.read(loginControllerProvider).user?.name ?? 'System';
+      final restockDate =
+          _dateCtrl.text.isEmpty ? null : DateTime.tryParse(_dateCtrl.text);
+      final occurredAt = restockDate ?? DateTime.now();
       ref
           .read(inventoryJournalControllerProvider.notifier)
           .recordEntry(
@@ -364,7 +367,7 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
               id: 'jr-${DateTime.now().microsecondsSinceEpoch}',
               itemId: item.id,
               itemName: item.name,
-              branchId: item.branchId,
+              branchId: _selectedBranchId ?? item.branchId,
               branchName: item.branchName,
               reason: InventoryJournalReason.restock,
               delta: baseQty,
@@ -372,7 +375,8 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
                   ? 'Restock recorded'
                   : _noteCtrl.text.trim(),
               actor: actor,
-              timestamp: DateTime.now(),
+              createdAt: DateTime.now(),
+              occurredAt: occurredAt,
             ),
           );
       if (!mounted) return;

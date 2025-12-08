@@ -33,7 +33,8 @@ class InventoryJournalEntry extends Equatable {
     required this.delta,
     required this.note,
     required this.actor,
-    required this.timestamp,
+    required this.createdAt,
+    required this.occurredAt,
   });
 
   final String id;
@@ -45,7 +46,8 @@ class InventoryJournalEntry extends Equatable {
   final int delta;
   final String note;
   final String actor;
-  final DateTime timestamp;
+  final DateTime createdAt;
+  final DateTime occurredAt;
 
   factory InventoryJournalEntry.fromJson(
     Map<String, dynamic> json, {
@@ -53,15 +55,19 @@ class InventoryJournalEntry extends Equatable {
   }) {
     final reasonString = (json['reason'] ?? json['type'] ?? '').toString();
     final reason = _reasonFromApi(reasonString, fallback: fallbackReason);
-    final delta = (json['delta'] ??
-            json['qty'] ??
-            json['quantity'] ??
-            json['qtyDeducted']) ??
+    final deltaRaw = json['delta'] ??
+        json['qty'] ??
+        json['quantity'] ??
+        json['qtyDeducted'] ??
         0;
+    final deltaNum = _asNum(deltaRaw) ?? 0;
     final ts = json['timestamp'] ??
         json['createdAt'] ??
         json['date'] ??
+        json['created_at'] ??
         DateTime.now().toIso8601String();
+    final occurredRaw = json['occurredAt'] ?? json['occurred_at'];
+    final occurredAt = occurredRaw != null ? _asDateTime(occurredRaw) : _asDateTime(ts);
     return InventoryJournalEntry(
       id: json['id']?.toString() ?? '',
       itemId: json['stockItemId']?.toString() ??
@@ -73,13 +79,14 @@ class InventoryJournalEntry extends Equatable {
       branchId: json['branchId']?.toString() ?? '',
       branchName: json['branchName']?.toString() ?? '',
       reason: reason,
-      delta: (delta as num).toInt(),
+      delta: deltaNum.toInt(),
       note: json['note']?.toString() ?? '',
       actor: json['actor']?.toString() ??
           json['createdBy']?.toString() ??
           json['userName']?.toString() ??
           '',
-      timestamp: DateTime.tryParse(ts.toString()) ?? DateTime.now(),
+      createdAt: _asDateTime(ts),
+      occurredAt: occurredAt,
     );
   }
 
@@ -93,7 +100,8 @@ class InventoryJournalEntry extends Equatable {
     int? delta,
     String? note,
     String? actor,
-    DateTime? timestamp,
+    DateTime? createdAt,
+    DateTime? occurredAt,
   }) {
     return InventoryJournalEntry(
       id: id ?? this.id,
@@ -105,7 +113,8 @@ class InventoryJournalEntry extends Equatable {
       delta: delta ?? this.delta,
       note: note ?? this.note,
       actor: actor ?? this.actor,
-      timestamp: timestamp ?? this.timestamp,
+      createdAt: createdAt ?? this.createdAt,
+      occurredAt: occurredAt ?? this.occurredAt,
     );
   }
 
@@ -120,7 +129,8 @@ class InventoryJournalEntry extends Equatable {
     delta,
     note,
     actor,
-    timestamp,
+    createdAt,
+    occurredAt,
   ];
 }
 
@@ -137,4 +147,25 @@ InventoryJournalReason _reasonFromApi(
   if (v == 'void' || v == 'voided') return InventoryJournalReason.voided;
   if (v == 'reopen') return InventoryJournalReason.reopen;
   return fallback ?? InventoryJournalReason.unknown;
+}
+
+num? _asNum(dynamic value) {
+  if (value == null) return null;
+  if (value is num) return value;
+  return num.tryParse(value.toString());
+}
+
+DateTime _asDateTime(dynamic value) {
+  if (value is DateTime) return value;
+  if (value is int) {
+    // Assume millis since epoch if large number, seconds if smaller.
+    if (value > 1000000000000) {
+      return DateTime.fromMillisecondsSinceEpoch(value, isUtc: true).toLocal();
+    }
+    return DateTime.fromMillisecondsSinceEpoch(value * 1000, isUtc: true)
+        .toLocal();
+  }
+  final parsed = DateTime.tryParse(value.toString());
+  if (parsed != null) return parsed.toLocal();
+  return DateTime.now();
 }

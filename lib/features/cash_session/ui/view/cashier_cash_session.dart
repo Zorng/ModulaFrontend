@@ -1,12 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/features/cash_session/ui/viewmodels/cash_session_viewmodel.dart';
-import 'package:modular_pos/features/cash_session/ui/widgets/register_status_card.dart';
 import 'package:modular_pos/features/cash_session/ui/widgets/cash_session_bottom_action_area.dart';
 import 'package:modular_pos/features/cash_session/ui/widgets/start_session_modal.dart';
 import 'package:modular_pos/features/cash_session/ui/widgets/cash_session_details_card.dart';
-import 'package:modular_pos/features/cash_session/ui/widgets/cash_movement_card.dart';
-import 'package:modular_pos/features/cash_session/ui/widgets/add_cash_movement_modal.dart';
 import 'package:modular_pos/features/cash_session/ui/widgets/close_session_modal.dart';
 
 class CashSessionScreen extends ConsumerWidget {
@@ -137,7 +134,6 @@ class CashSessionScreen extends ConsumerWidget {
 
   List<Widget> _buildOpenSessionView(BuildContext context, WidgetRef ref) {
     final sessionState = ref.watch(cashSessionViewModelProvider);
-    final notifier = ref.read(cashSessionViewModelProvider.notifier);
     final isSessionClosed = sessionState.sessionStatus == SessionStatus.closed;
     return [
       _buildRegisterSelector(ref),

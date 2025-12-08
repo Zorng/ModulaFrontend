@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/foundation.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
@@ -9,6 +11,7 @@ import 'package:modular_pos/features/inventory/ui/viewmodels/category_controller
 import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_controller.dart';
 import 'package:modular_pos/features/inventory/ui/widgets/inventory_dropdown.dart';
 import 'package:modular_pos/features/inventory/ui/widgets/inventory_section_card.dart';
+import 'package:modular_pos/features/menu/ui/view/dashed_border_painter.dart';
 
 class StockItemDetailPage extends ConsumerStatefulWidget {
   const StockItemDetailPage({super.key, required this.item});
@@ -23,6 +26,9 @@ class StockItemDetailPage extends ConsumerStatefulWidget {
 class _StockItemDetailPageState extends ConsumerState<StockItemDetailPage> {
   final _formKey = GlobalKey<FormState>();
   final _typeOptions = const ['Ingredient', 'Sellable'];
+  final ImagePicker _picker = ImagePicker();
+  String? _selectedImagePath;
+  Uint8List? _selectedImageBytes;
 
   bool _isEditing = false;
   late StockItem _editableData;
@@ -120,7 +126,11 @@ class _StockItemDetailPageState extends ConsumerState<StockItemDetailPage> {
     );
     ref
         .read(stockInventoryControllerProvider.notifier)
-        .updateStockItem(updated);
+        .updateStockItem(
+          updated,
+          imagePath: kIsWeb ? null : _selectedImagePath,
+          imageBytes: _selectedImageBytes,
+        );
     final repo = ref.read(stockItemRepositoryProvider);
     for (final assignment in _branchAssignments) {
       final branchId = assignment.branchId;
@@ -139,8 +149,12 @@ class _StockItemDetailPageState extends ConsumerState<StockItemDetailPage> {
           );
     }
     setState(() {
-      _editableData = updated;
+      _editableData =
+          ref.read(stockInventoryControllerProvider.notifier).findById(updated.id) ??
+              updated;
       _isEditing = false;
+      _selectedImageBytes = null;
+      _selectedImagePath = null;
     });
     if (!mounted) return;
     ScaffoldMessenger.of(
@@ -169,16 +183,22 @@ class _StockItemDetailPageState extends ConsumerState<StockItemDetailPage> {
       body: Form(
         key: _formKey,
         child: ListView(
+          padding: const EdgeInsets.all(16),
           children: [
             Center(
-              child: _ImagePreview(
-                imageUrl: _editableData.imageUrl,
+              child: _UploadImageTile(
+                imageBytes: _selectedImageBytes,
+                imageUrl:
+                    _selectedImageBytes == null ? _editableData.imageUrl : null,
                 initials: _initialsFor(_editableData.name),
+                enabled: _isEditing,
+                onPressed: _isEditing ? _pickImage : null,
               ),
             ),
             const SizedBox(height: 24),
             InventorySectionCard(
               title: 'Item information',
+              backgroundColor: Colors.white,
               children: [
                 _isEditing
                     ? TextFormField(
@@ -301,6 +321,7 @@ class _StockItemDetailPageState extends ConsumerState<StockItemDetailPage> {
             const SizedBox(height: 16),
             InventorySectionCard(
               title: 'Branch assignment',
+              backgroundColor: Colors.white,
               children: [
                 if (userBranches.isEmpty)
                   const Text('No branches available.')
@@ -450,51 +471,135 @@ class _StockItemDetailPageState extends ConsumerState<StockItemDetailPage> {
     );
     return match.name;
   }
-}
 
-class _ImagePreview extends StatelessWidget {
-  const _ImagePreview({this.imageUrl, required this.initials});
-
-  final String? imageUrl;
-  final String initials;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: SizedBox(
-        width: 220,
-        height: 220,
-        child: imageUrl != null && imageUrl!.isNotEmpty
-            ? Image.network(
-                imageUrl!,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) =>
-                    _Placeholder(initials: initials, scheme: scheme),
-              )
-            : _Placeholder(initials: initials, scheme: scheme),
-      ),
-    );
+  Future<void> _pickImage() async {
+    final picked = await _picker.pickImage(source: ImageSource.gallery);
+    if (picked == null) return;
+    final bytes = await picked.readAsBytes();
+    setState(() {
+      _selectedImageBytes = bytes;
+      _selectedImagePath = kIsWeb ? null : picked.path;
+    });
   }
 }
 
-class _Placeholder extends StatelessWidget {
-  const _Placeholder({required this.initials, required this.scheme});
+class _UploadImageTile extends StatelessWidget {
+  const _UploadImageTile({
+    required this.onPressed,
+    this.imageBytes,
+    this.imageUrl,
+    required this.initials,
+    this.enabled = true,
+  });
 
+  final VoidCallback? onPressed;
+  final Uint8List? imageBytes;
+  final String? imageUrl;
   final String initials;
-  final ColorScheme scheme;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: scheme.surface,
-      alignment: Alignment.center,
-      child: Text(
-        initials,
-        style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-              fontWeight: FontWeight.w700,
+    final theme = Theme.of(context);
+    final color = theme.primaryColor;
+    const radius = 14.0;
+    final hasLocal = imageBytes != null;
+    final hasRemote = imageUrl != null && imageUrl!.isNotEmpty;
+
+    Widget content;
+    if (hasLocal) {
+      content = Image.memory(
+        imageBytes!,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+      );
+    } else if (hasRemote) {
+      content = Image.network(
+        imageUrl!,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) =>
+            _buildUploadPlaceholder(color, radius),
+      );
+    } else {
+      content = _buildUploadPlaceholder(color, radius);
+    }
+
+    return InkWell(
+      onTap: enabled ? onPressed : null,
+      borderRadius: BorderRadius.circular(radius),
+      child: SizedBox(
+        width: double.infinity,
+        child: AspectRatio(
+          aspectRatio: 160 / 142,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(radius),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                ColorFiltered(
+                  colorFilter: ColorFilter.mode(
+                    Colors.black.withValues(alpha: 0.25),
+                    BlendMode.darken,
+                  ),
+                  child: content,
+                ),
+                if (enabled && (hasLocal || hasRemote))
+                  Align(
+                    alignment: Alignment.center,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.35),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Text(
+                        'Tap to upload',
+                        style: TextStyle(color: Colors.white, fontSize: 13),
+                      ),
+                    ),
+                  ),
+              ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUploadPlaceholder(Color color, double radius) {
+    return CustomPaint(
+      foregroundPainter: DashedBorderPainter(
+        color: color,
+        strokeWidth: 1.4,
+        dashWidth: 6,
+        dashSpace: 4,
+        borderRadius: radius,
+      ),
+      child: Container(
+        height: 170,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(radius),
+        ),
+        alignment: Alignment.center,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.cloud_upload_outlined, color: color, size: 32),
+            const SizedBox(height: 6),
+            Text(
+              enabled ? 'Upload image' : 'Enable edit to upload',
+              style: TextStyle(
+                color: color,
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
