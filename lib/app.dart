@@ -26,6 +26,7 @@ import 'package:modular_pos/features/inventory/domain/models/inventory_journal_s
 import 'package:modular_pos/features/inventory/ui/view/inventory_journal_page.dart';
 import 'package:modular_pos/features/inventory/ui/view/inventory_journal_detail_page.dart';
 import 'package:modular_pos/features/cash_session/ui/view/cashier_cash_session.dart';
+import 'package:modular_pos/features/cash_session/ui/viewmodels/cash_session_viewmodel.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -96,14 +97,25 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           role != 'admin') {
         return '/404';
       }
+      // Require an open cash session before entering sale screen (frontend-only demo guard).
+      if (path == AppRoute.sale.path) {
+        final cashSession = ref.read(cashSessionViewModelProvider);
+        if (cashSession.sessionStatus != SessionStatus.open) {
+          return AppRoute.cashierCashSession.path;
+        }
+      }
 
       // Authenticated but not allowed to access cashier portal → 404
-      if (path == AppRoute.cashierPortal.path && role != 'cashier') {
+      if (path == AppRoute.cashierPortal.path &&
+          role != 'cashier' &&
+          role != 'admin') {
         return '/404';
       }
 
       // Authenticated but not allowed to access cashier dashboard → 404
-      if (path == AppRoute.cashierCashSession.path && role != 'cashier') {
+      if (path == AppRoute.cashierCashSession.path &&
+          role != 'cashier' &&
+          role != 'admin') {
         return '/404';
       }
 
@@ -233,7 +245,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoute.cashierCashSession.path,
         name: AppRoute.cashierCashSession.name,
-        builder: (context, state) => const CashierCashSessionScreen(),
+        builder: (context, state) => const CashSessionScreen(),
       ),
     ],
   );

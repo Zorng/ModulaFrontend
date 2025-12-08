@@ -7,6 +7,7 @@ class CashSessionBottomActionArea extends StatelessWidget {
     super.key,
     required this.isSessionOpen,
     required this.onPressed,
+    this.message,
   });
 
   /// Determines the text of the button ('Start Session' or 'Close Session').
@@ -14,6 +15,7 @@ class CashSessionBottomActionArea extends StatelessWidget {
 
   /// The callback that is executed when the button is pressed.
   final VoidCallback? onPressed;
+  final String? message;
 
   @override
   Widget build(BuildContext context) {
@@ -35,15 +37,17 @@ class CashSessionBottomActionArea extends StatelessWidget {
             width: double.infinity,
             child: ElevatedButton(
               onPressed: onPressed,
-              child: Text(onPressed == null
-                  ? 'Session Closed'
-                  : (isSessionOpen ? 'Close Session' : 'Start Session')),
+              child: Text(
+                onPressed == null
+                    ? 'Session Closed'
+                    : (isSessionOpen ? 'Close Session' : 'Start Session'),
+              ),
             ),
           ),
           const SizedBox(height: 16),
-          const Text(
-            'On-time = Present, Late = Late, No check-in = Absent. Out-of-shift requires manager approval.',
-            style: TextStyle(fontSize: 12, color: Color(0xB2393838)),
+          Text(
+            message ?? 'Manage your cash session for the selected register.',
+            style: const TextStyle(fontSize: 12, color: Color(0xB2393838)),
           ),
         ],
       ),

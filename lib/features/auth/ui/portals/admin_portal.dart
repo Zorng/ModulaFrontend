@@ -6,6 +6,8 @@ import 'package:modular_pos/core/widgets/portal_action.dart';
 import 'package:modular_pos/core/widgets/portal_shell.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
+import 'package:modular_pos/features/cash_session/ui/view/cashier_cash_session.dart';
+import 'package:modular_pos/features/cash_session/ui/viewmodels/cash_session_viewmodel.dart';
 import 'package:modular_pos/features/menu/ui/view/menu_page.dart';
 import 'package:modular_pos/features/sale/ui/view/order_page.dart';
 
@@ -22,10 +24,8 @@ class AdminPortal extends ConsumerWidget {
         id: 'dashboard',
         label: 'Dashboard',
         icon: Icons.dashboard_outlined,
-        builder: (context) => _AdminHomeContent(
-          user: user,
-          onOpenSale: openSale,
-        ),
+        builder: (context) =>
+            _AdminHomeContent(user: user, onOpenSale: openSale),
       ),
       PortalAction(
         id: 'menu',
@@ -68,10 +68,7 @@ class AdminPortal extends ConsumerWidget {
         id: 'cash_sessions',
         label: 'Cash Sessions',
         icon: Icons.attach_money_outlined,
-        builder: (context) => _PlaceholderCard(
-          title: 'Cash Sessions',
-          content: 'Open/close sessions, paid-in/out, reconciliation, Z/X.',
-        ),
+        builder: (context) => const CashSessionScreen(),
       ),
       PortalAction(
         id: 'reports',
@@ -110,10 +107,7 @@ class AdminPortal extends ConsumerWidget {
 }
 
 class _PlaceholderCard extends StatelessWidget {
-  const _PlaceholderCard({
-    required this.title,
-    required this.content,
-  });
+  const _PlaceholderCard({required this.title, required this.content});
 
   final String title;
   final String content;
@@ -121,18 +115,13 @@ class _PlaceholderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              title,
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
+            Text(title, style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
             Text(content),
           ],
@@ -142,33 +131,49 @@ class _PlaceholderCard extends StatelessWidget {
   }
 }
 
-class _SaleShortcutCard extends StatelessWidget {
+class _SaleShortcutCard extends ConsumerWidget {
   const _SaleShortcutCard({required this.onOpenSale});
 
   final VoidCallback onOpenSale;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final cashSession = ref.watch(cashSessionViewModelProvider);
     return Card(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'POS / Sale',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
+            Text('POS / Sale', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
             const Text(
               'Launch the sale screen used by cashiers with admin permissions.',
             ),
             const SizedBox(height: 16),
             FilledButton.icon(
-              onPressed: onOpenSale,
+              onPressed: () {
+                if (cashSession.sessionStatus != SessionStatus.open) {
+                  showDialog(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      title: const Text('Cash session required'),
+                      content: const Text(
+                        'Please start a cash session before opening the sale screen.',
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.of(ctx).pop(),
+                          child: const Text('OK'),
+                        ),
+                      ],
+                    ),
+                  );
+                  return;
+                }
+                onOpenSale();
+              },
               icon: const Icon(Icons.point_of_sale),
               label: const Text('Open Sale'),
             ),
@@ -197,10 +202,7 @@ class _AdminHomeContent extends StatelessWidget {
         title: 'Branches',
         icon: Icons.store_mall_directory_outlined,
       ),
-      _FeatureEntry(
-        title: 'Staff',
-        icon: Icons.group_outlined,
-      ),
+      _FeatureEntry(title: 'Staff', icon: Icons.group_outlined),
       _FeatureEntry(
         title: 'Menu',
         icon: Icons.fastfood_outlined,
@@ -211,10 +213,7 @@ class _AdminHomeContent extends StatelessWidget {
         icon: Icons.inventory_2_outlined,
         onTap: () => context.push(AppRoute.inventory.path),
       ),
-      _FeatureEntry(
-        title: 'Discounts',
-        icon: Icons.percent_outlined,
-      ),
+      _FeatureEntry(title: 'Discounts', icon: Icons.percent_outlined),
     ];
 
     final branchFeatures = [
@@ -226,6 +225,7 @@ class _AdminHomeContent extends StatelessWidget {
       _FeatureEntry(
         title: 'Cash Sessions',
         icon: Icons.attach_money_outlined,
+        onTap: () => context.push(AppRoute.cashierCashSession.path),
       ),
       _FeatureEntry(
         title: 'Orders',
@@ -239,8 +239,9 @@ class _AdminHomeContent extends StatelessWidget {
       ),
     ];
 
-    final mergedGlobalFeatures =
-        hasMultipleBranches ? globalFeatures : [...globalFeatures, ...branchFeatures];
+    final mergedGlobalFeatures = hasMultipleBranches
+        ? globalFeatures
+        : [...globalFeatures, ...branchFeatures];
     String? selectedBranchId = branches.isNotEmpty ? branches.first.id : null;
 
     return Column(
@@ -290,29 +291,29 @@ class _BranchSectionState extends State<_BranchSection> {
   void initState() {
     super.initState();
     _selectedBranchId =
-        widget.initialBranchId ?? (widget.branches.isNotEmpty ? widget.branches.first.id : null);
+        widget.initialBranchId ??
+        (widget.branches.isNotEmpty ? widget.branches.first.id : null);
   }
 
   @override
   Widget build(BuildContext context) {
-    final selectedBranch = widget.branches
-        .firstWhere(
-          (b) => b.id == _selectedBranchId,
-          orElse: () => widget.branches.isNotEmpty
-              ? widget.branches.first
-              : const UserBranch(id: '', name: 'No branch', role: '', active: false),
-        );
+    final selectedBranch = widget.branches.firstWhere(
+      (b) => b.id == _selectedBranchId,
+      orElse: () => widget.branches.isNotEmpty
+          ? widget.branches.first
+          : const UserBranch(
+              id: '',
+              name: 'No branch',
+              role: '',
+              active: false,
+            ),
+    );
 
     final branchSelector = widget.isWide
         ? DropdownButton<String>(
             value: _selectedBranchId,
             items: widget.branches
-                .map(
-                  (b) => DropdownMenuItem(
-                    value: b.id,
-                    child: Text(b.name),
-                  ),
-                )
+                .map((b) => DropdownMenuItem(value: b.id, child: Text(b.name)))
                 .toList(),
             onChanged: (value) {
               setState(() {
@@ -325,8 +326,7 @@ class _BranchSectionState extends State<_BranchSection> {
             borderRadius: BorderRadius.circular(12),
             onTap: () => _pickBranch(context),
             child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
@@ -352,10 +352,7 @@ class _BranchSectionState extends State<_BranchSection> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Branch',
-          style: Theme.of(context).textTheme.titleLarge,
-        ),
+        Text('Branch', style: Theme.of(context).textTheme.titleLarge),
         Text(
           'Scoped to current branch',
           style: Theme.of(context).textTheme.labelMedium,
@@ -391,8 +388,10 @@ class _BranchSectionState extends State<_BranchSection> {
                 final branch = widget.branches[index];
                 final isSelected = branch.id == _selectedBranchId;
                 return ListTile(
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
                   leading: Icon(
                     Icons.store_mall_directory_outlined,
                     color: isSelected
@@ -442,14 +441,8 @@ class _Section extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (!compactHeader) ...[
-          Text(
-            title,
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          Text(
-            subtitle,
-            style: Theme.of(context).textTheme.labelMedium,
-          ),
+          Text(title, style: Theme.of(context).textTheme.titleLarge),
+          Text(subtitle, style: Theme.of(context).textTheme.labelMedium),
           const SizedBox(height: 8),
         ],
         GridView.builder(
@@ -477,9 +470,7 @@ class _FeatureCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: entry.onTap,
@@ -491,8 +482,9 @@ class _FeatureCard extends StatelessWidget {
             children: [
               CircleAvatar(
                 radius: 18,
-                backgroundColor:
-                    Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                backgroundColor: Theme.of(
+                  context,
+                ).colorScheme.primary.withValues(alpha: 0.1),
                 child: Icon(
                   entry.icon,
                   color: Theme.of(context).colorScheme.primary,
@@ -515,11 +507,7 @@ class _FeatureCard extends StatelessWidget {
 }
 
 class _FeatureEntry {
-  const _FeatureEntry({
-    required this.title,
-    required this.icon,
-    this.onTap,
-  });
+  const _FeatureEntry({required this.title, required this.icon, this.onTap});
 
   final String title;
   final IconData icon;

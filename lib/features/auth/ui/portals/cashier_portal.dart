@@ -7,6 +7,7 @@ import 'package:modular_pos/core/widgets/portal_shell.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/sale/ui/view/order_page.dart';
 import 'package:modular_pos/features/cash_session/ui/view/cashier_cash_session.dart';
+import 'package:modular_pos/features/cash_session/ui/viewmodels/cash_session_viewmodel.dart';
 
 class CashierPortal extends ConsumerWidget {
   const CashierPortal({super.key});
@@ -33,7 +34,7 @@ class CashierPortal extends ConsumerWidget {
         id: 'cash_sessions',
         label: 'Cash Sessions',
         icon: Icons.attach_money_outlined,
-        builder: (context) => const CashierCashSessionScreen(),
+        builder: (context) => const CashSessionScreen(),
       ),
       PortalAction(
         id: 'orders',
@@ -68,17 +69,38 @@ class CashierPortal extends ConsumerWidget {
   }
 }
 
-class _CashierHomeContent extends StatelessWidget {
+class _CashierHomeContent extends ConsumerWidget {
   const _CashierHomeContent();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final cashSession = ref.watch(cashSessionViewModelProvider);
     final isWide = MediaQuery.of(context).size.width >= 800;
     final features = [
       _FeatureEntry(
         title: 'POS / Sales',
         icon: Icons.point_of_sale,
-        onTap: () => context.push(AppRoute.sale.path),
+        onTap: () {
+          if (cashSession.sessionStatus != SessionStatus.open) {
+            showDialog(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                title: const Text('Cash session required'),
+                content: const Text(
+                  'Please start a cash session before opening the sale screen.',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    child: const Text('OK'),
+                  ),
+                ],
+              ),
+            );
+            return;
+          }
+          context.push(AppRoute.sale.path);
+        },
       ),
       _FeatureEntry(
         title: 'Cash Sessions',
@@ -91,10 +113,7 @@ class _CashierHomeContent extends StatelessWidget {
         icon: Icons.receipt_long_outlined,
         onTap: () => context.push(AppRoute.orders.path),
       ),
-      const _FeatureEntry(
-        title: 'X Report',
-        icon: Icons.description_outlined,
-      ),
+      const _FeatureEntry(title: 'X Report', icon: Icons.description_outlined),
     ];
 
     const crossAxisCount = 3;
@@ -124,12 +143,11 @@ class _FeatureCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final onTap = entry.onTap ??
+    final onTap =
+        entry.onTap ??
         (entry.route != null ? () => context.push(entry.route!.path) : null);
     return Card(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: onTap,
@@ -141,8 +159,9 @@ class _FeatureCard extends StatelessWidget {
             children: [
               CircleAvatar(
                 radius: 18,
-                backgroundColor:
-                    Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                backgroundColor: Theme.of(
+                  context,
+                ).colorScheme.primary.withValues(alpha: 0.1),
                 child: Icon(
                   entry.icon,
                   color: Theme.of(context).colorScheme.primary,
@@ -186,18 +205,13 @@ class _SaleShortcutCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'POS / Sale',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
+            Text('POS / Sale', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
             const Text(
               'Start a draft by adding menu items, then pre-checkout and finalize.',
@@ -216,10 +230,7 @@ class _SaleShortcutCard extends StatelessWidget {
 }
 
 class _PlaceholderCard extends StatelessWidget {
-  const _PlaceholderCard({
-    required this.title,
-    required this.content,
-  });
+  const _PlaceholderCard({required this.title, required this.content});
 
   final String title;
   final String content;
@@ -227,18 +238,13 @@ class _PlaceholderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              title,
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
+            Text(title, style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
             Text(content),
           ],

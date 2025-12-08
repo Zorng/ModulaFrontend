@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:modular_pos/features/cash_session/ui/viewmodels/cash_session_viewmodel.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 import 'package:modular_pos/features/policy/ui/viewmodels/policy_viewmodel.dart';
@@ -18,7 +19,7 @@ class CartLine {
   final int quantity;
   final Map<String, List<String>> selectedOptionIds;
   final String? saleItemId;
-   final Map<String, List<ModifierOption>> selectedOptions;
+  final Map<String, List<ModifierOption>> selectedOptions;
 
   CartLine copyWith({
     MenuItem? item,
@@ -77,8 +78,9 @@ class SaleCartState {
   }
 }
 
-final saleCartProvider =
-    NotifierProvider<SaleCartNotifier, SaleCartState>(SaleCartNotifier.new);
+final saleCartProvider = NotifierProvider<SaleCartNotifier, SaleCartState>(
+  SaleCartNotifier.new,
+);
 
 class SaleCartNotifier extends Notifier<SaleCartState> {
   SaleCartNotifier();
@@ -93,14 +95,29 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
     return policies.salesPolicy.saleFxRateKhrPerUsd;
   }
 
+  static const bool _enforceCashSession = true;
+
+  void _assertCashSessionOpen() {
+    final session = ref.read(cashSessionViewModelProvider);
+    if (_enforceCashSession && session.sessionStatus != SessionStatus.open) {
+      throw Exception(
+        'No active cash session. Please start one to begin selling.',
+      );
+    }
+  }
+
   Future<void> _ensureSaleId() async {
     if (state.saleId != null && state.saleId!.isNotEmpty) return;
-    final id =
-        await _repo.ensureDraft(saleType: state.saleType, fxRateUsed: _fxRate());
+    _assertCashSessionOpen();
+    final id = await _repo.ensureDraft(
+      saleType: state.saleType,
+      fxRateUsed: _fxRate(),
+    );
     state = state.copyWith(saleId: id);
   }
 
   Future<void> addSelection(SaleItemSelectionResult selection) async {
+    _assertCashSessionOpen();
     await _ensureSaleId();
     final saleId = state.saleId;
     if (saleId == null) return;
@@ -116,7 +133,11 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
       addonTotalUsd: addPayload.addonTotalUsd,
       pricingSnapshot: addPayload.pricingSnapshot,
     );
-    final saleItemId = _extractSaleItemId(added, selection.item.id, selection.selectedOptionIds);
+    final saleItemId = _extractSaleItemId(
+      added,
+      selection.item.id,
+      selection.selectedOptionIds,
+    );
     // Only update local state after successful sync.
     final lines = [...state.lines];
     for (var i = 0; i < lines.length; i++) {
@@ -126,8 +147,9 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
         lines[i] = line.copyWith(
           quantity: line.quantity + selection.quantity,
           saleItemId: line.saleItemId ?? saleItemId,
-          selectedOptions:
-              line.selectedOptions.isNotEmpty ? line.selectedOptions : selection.selectedOptions,
+          selectedOptions: line.selectedOptions.isNotEmpty
+              ? line.selectedOptions
+              : selection.selectedOptions,
         );
         state = state.copyWith(lines: lines);
         return;
@@ -165,8 +187,10 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
     // If changing sale type mid-cart, recreate the draft with the new type and re-sync items.
     if (state.saleType == saleType) return;
     final currentLines = state.lines;
-    final newSaleId =
-        await _repo.ensureDraft(saleType: saleType, fxRateUsed: _fxRate());
+    final newSaleId = await _repo.ensureDraft(
+      saleType: saleType,
+      fxRateUsed: _fxRate(),
+    );
     final rebuiltLines = <CartLine>[];
 
     for (final line in currentLines) {
@@ -221,7 +245,10 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
     final saleId = state.saleId;
     if (saleId == null) return;
     try {
-      await _repo.removeItem(saleId: saleId, itemId: line.saleItemId ?? line.item.id);
+      await _repo.removeItem(
+        saleId: saleId,
+        itemId: line.saleItemId ?? line.item.id,
+      );
     } catch (_) {}
   }
 
@@ -235,7 +262,8 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
     final cashReceived = <String, num>{};
     if (state.tenderCurrency.toUpperCase() == 'USD' && state.cashUsd > 0) {
       cashReceived['usd'] = state.cashUsd;
-    } else if (state.tenderCurrency.toUpperCase() == 'KHR' && state.cashKhr > 0) {
+    } else if (state.tenderCurrency.toUpperCase() == 'KHR' &&
+        state.cashKhr > 0) {
       cashReceived['khr'] = state.cashKhr;
     }
     final pre = await _repo.preCheckout(
@@ -286,7 +314,8 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
 
   List<dynamic> _extractItems(Map<String, dynamic> payload) {
     final data = payload['data'];
-    if (payload['items'] is List) return List<dynamic>.from(payload['items'] as List);
+    if (payload['items'] is List)
+      return List<dynamic>.from(payload['items'] as List);
     if (data is Map<String, dynamic> && data['items'] is List) {
       return List<dynamic>.from(data['items'] as List);
     }
@@ -324,7 +353,9 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
     return true;
   }
 
-  _AddItemPayload _buildAddPayloadFromSelection(SaleItemSelectionResult selection) {
+  _AddItemPayload _buildAddPayloadFromSelection(
+    SaleItemSelectionResult selection,
+  ) {
     final unitPriceUsd = selection.unitPriceUsd;
     final lineTotalUsdExact = selection.lineTotalUsd;
     final addonTotalUsd = selection.addonTotalUsd;
@@ -338,14 +369,17 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
     final entries = selection.selectedOptionIds.entries.toList();
     for (var i = 0; i < entries.length; i++) {
       final entry = entries[i];
-      final options = selection.selectedOptions[entry.key] ?? const <ModifierOption>[];
+      final options =
+          selection.selectedOptions[entry.key] ?? const <ModifierOption>[];
       final optionSummaries = options
-          .map((opt) => {
-                'id': opt.id,
-                'label': opt.name,
-                'priceAdjustmentUsd': opt.price,
-                'isDefault': opt.isDefault,
-              })
+          .map(
+            (opt) => {
+              'id': opt.id,
+              'label': opt.name,
+              'priceAdjustmentUsd': opt.price,
+              'isDefault': opt.isDefault,
+            },
+          )
           .toList();
       final addonTotal = options.fold<double>(0, (sum, opt) => sum + opt.price);
       final modifierPayload = <String, dynamic>{
@@ -386,7 +420,11 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
       addonTotalUsd: payload.addonTotalUsd,
       pricingSnapshot: payload.pricingSnapshot,
     );
-    final saleItemId = _extractSaleItemId(added, line.item.id, line.selectedOptionIds);
+    final saleItemId = _extractSaleItemId(
+      added,
+      line.item.id,
+      line.selectedOptionIds,
+    );
     return line.copyWith(saleItemId: saleItemId);
   }
 
@@ -396,14 +434,17 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
     final modifiers = <Map<String, dynamic>>[];
     for (var i = 0; i < entries.length; i++) {
       final entry = entries[i];
-      final options = line.selectedOptions[entry.key] ?? const <ModifierOption>[];
+      final options =
+          line.selectedOptions[entry.key] ?? const <ModifierOption>[];
       final optionSummaries = options
-          .map((opt) => {
-                'id': opt.id,
-                'label': opt.name,
-                'priceAdjustmentUsd': opt.price,
-                'isDefault': opt.isDefault,
-              })
+          .map(
+            (opt) => {
+              'id': opt.id,
+              'label': opt.name,
+              'priceAdjustmentUsd': opt.price,
+              'isDefault': opt.isDefault,
+            },
+          )
           .toList();
       final addonTotal = options.fold<double>(0, (sum, opt) => sum + opt.price);
       addonTotalUsd += addonTotal;

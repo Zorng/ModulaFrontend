@@ -12,8 +12,8 @@ class CashSessionDetailsCard extends StatelessWidget {
     required this.status,
   });
 
-  final String openFloatUsd;
-  final String openFloatKhr;
+  final double openFloatUsd;
+  final double openFloatKhr;
   final DateTime startTime;
   final DateTime? endTime;
   final String status;
@@ -36,27 +36,37 @@ class CashSessionDetailsCard extends StatelessWidget {
               value: DateFormat('EEEE, dd MMM yyyy').format(DateTime.now()),
             ),
             const SizedBox(height: 8),
-            _buildInfoRow(label: 'Open Float (USD)', value: openFloatUsd),
-            const SizedBox(height: 8),
-            _buildInfoRow(label: 'Open Float (KHR)', value: openFloatKhr),
-            const SizedBox(height: 8),
             _buildInfoRow(
-              label: 'Start Cash Session',
-              value: DateFormat('hh:mm a').format(startTime),
+              label: 'Open Float (USD)',
+              value: _usdFormatter.format(openFloatUsd),
             ),
             const SizedBox(height: 8),
             _buildInfoRow(
-              label: 'End Cash Session',
-              value: endTime != null ? DateFormat('hh:mm a').format(endTime!) : '--:--',
+              label: 'Open Float (KHR)',
+              value: _khrFormatter.format(openFloatKhr),
             ),
+        const SizedBox(height: 8),
+        _buildInfoRow(
+          label: 'Start Cash Session',
+          value: DateFormat('hh:mm a').format(startTime.toLocal()),
+        ),
+        const SizedBox(height: 8),
+        _buildInfoRow(
+          label: 'End Cash Session',
+          value: endTime != null
+              ? DateFormat('hh:mm a').format(endTime!.toLocal())
+              : '--:--',
+        ),
             const SizedBox(height: 8),
             _buildStatusDisplay(
               label: 'Current Status',
               statusText: status,
-              statusTextColor:
-                  isClosed ? const Color(0xFFED533C) : const Color(0xFF529E86),
-              statusBackgroundColor:
-                  isClosed ? const Color(0xFFFFF5F2) : const Color(0xFFE3F8ED),
+              statusTextColor: isClosed
+                  ? const Color(0xFFED533C)
+                  : const Color(0xFF529E86),
+              statusBackgroundColor: isClosed
+                  ? const Color(0xFFFFF5F2)
+                  : const Color(0xFFE3F8ED),
             ),
           ],
         ),
@@ -93,12 +103,20 @@ class CashSessionDetailsCard extends StatelessWidget {
           child: Text(
             statusText,
             style: TextStyle(
-                color: statusTextColor,
-                fontSize: 13,
-                fontWeight: FontWeight.bold),
+              color: statusTextColor,
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ),
       ],
     );
   }
 }
+
+final _usdFormatter = NumberFormat.currency(symbol: r'$', decimalDigits: 2);
+final _khrFormatter = NumberFormat.currency(
+  symbol: '៛',
+  decimalDigits: 0,
+  customPattern: '#,##0 ¤',
+);

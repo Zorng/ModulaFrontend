@@ -9,7 +9,8 @@ class StartSessionModal extends StatefulWidget {
     required this.onSessionStarted,
   });
 
-  final void Function(String usdAmount, String khrAmount) onSessionStarted;
+  final void Function(double usdAmount, double khrAmount, String note)
+      onSessionStarted;
 
   @override
   State<StartSessionModal> createState() => _StartSessionModalState();
@@ -103,10 +104,12 @@ class _StartSessionModalState extends State<StartSessionModal> {
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: () {
-                  final usdAmount = _usdController.text.isEmpty ? '0.00' : _usdController.text;
-                  final khrAmount = _khrController.text.isEmpty ? '0.00' : _khrController.text;
-                  // TODO: Implement API call to start session with the entered values
-                  widget.onSessionStarted(usdAmount, khrAmount); // Notify the parent screen
+                  final usdAmount =
+                      double.tryParse(_usdController.text.trim()) ?? 0.0;
+                  final khrAmount =
+                      double.tryParse(_khrController.text.trim()) ?? 0.0;
+                  final note = _noteController.text.trim();
+                  widget.onSessionStarted(usdAmount, khrAmount, note);
                 },
                 child: const Text('Start Session'),
               ),

@@ -9,8 +9,12 @@ class AddCashMovementModal extends StatefulWidget {
   });
 
   /// Callback that passes the type ('Paid In'/'Paid Out') and the amounts.
-  final void Function(String type, double usdAmount, double khrAmount)
-      onMovementAdded;
+  final void Function(
+    String type,
+    double usdAmount,
+    double khrAmount,
+    String reason,
+  ) onMovementAdded;
 
   @override
   State<AddCashMovementModal> createState() => _AddCashMovementModalState();
@@ -110,9 +114,14 @@ class _AddCashMovementModalState extends State<AddCashMovementModal> {
                       double.tryParse(_usdAmountController.text) ?? 0.0;
                   final khrAmount =
                       double.tryParse(_khrAmountController.text) ?? 0.0;
+                  final reason = _reasonController.text.trim();
 
-                  // TODO: Implement API call to add cash movement
-                  widget.onMovementAdded(_selectedType, usdAmount, khrAmount);
+                  widget.onMovementAdded(
+                    _selectedType,
+                    usdAmount,
+                    khrAmount,
+                    reason,
+                  );
                 },
                 child: const Text('Add Cash Movement'),
               ),

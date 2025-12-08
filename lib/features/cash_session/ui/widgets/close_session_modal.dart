@@ -3,13 +3,31 @@ import 'package:flutter/material.dart';
 /// A modal bottom sheet for closing a cash session.
 ///
 /// It includes fields for closing float in USD and KHR, and an optional note.
-class CloseSessionModal extends StatelessWidget {
+class CloseSessionModal extends StatefulWidget {
   const CloseSessionModal({
     super.key,
     required this.onSessionClosed,
   });
 
-  final VoidCallback onSessionClosed;
+  final void Function(double usdAmount, double khrAmount, String note)
+      onSessionClosed;
+
+  @override
+  State<CloseSessionModal> createState() => _CloseSessionModalState();
+}
+
+class _CloseSessionModalState extends State<CloseSessionModal> {
+  final _usdController = TextEditingController();
+  final _khrController = TextEditingController();
+  final _noteController = TextEditingController();
+
+  @override
+  void dispose() {
+    _usdController.dispose();
+    _khrController.dispose();
+    _noteController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -68,17 +86,20 @@ class CloseSessionModal extends StatelessWidget {
             _buildCurrencyField(
               label: 'Closing Float USD',
               decoration: textFieldDecoration,
+              controller: _usdController,
             ),
             const SizedBox(height: 16),
             _buildCurrencyField(
               label: 'Closing Float KHR',
               decoration: textFieldDecoration,
+              controller: _khrController,
             ),
             const SizedBox(height: 16),
             _buildTextFieldWithLabel(
               label: 'Note (Optional)',
               maxLines: 3,
               decoration: textFieldDecoration,
+              controller: _noteController,
             ),
             const SizedBox(height: 24),
             // Action button
@@ -86,8 +107,12 @@ class CloseSessionModal extends StatelessWidget {
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: () {
-                  // TODO: Implement API call to close session with the entered values
-                  onSessionClosed();
+                  final usdAmount =
+                      double.tryParse(_usdController.text.trim()) ?? 0.0;
+                  final khrAmount =
+                      double.tryParse(_khrController.text.trim()) ?? 0.0;
+                  final note = _noteController.text.trim();
+                  widget.onSessionClosed(usdAmount, khrAmount, note);
                 },
                 child: const Text('Close Session'),
               ),
@@ -104,6 +129,7 @@ class CloseSessionModal extends StatelessWidget {
     required String label,
     int maxLines = 1,
     required InputDecoration decoration,
+    required TextEditingController controller,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -116,6 +142,7 @@ class CloseSessionModal extends StatelessWidget {
         TextField(
           maxLines: maxLines,
           decoration: decoration,
+          controller: controller,
         ),
       ],
     );
@@ -125,6 +152,7 @@ class CloseSessionModal extends StatelessWidget {
   Widget _buildCurrencyField({
     required String label,
     required InputDecoration decoration,
+    required TextEditingController controller,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -139,9 +167,11 @@ class CloseSessionModal extends StatelessWidget {
         const SizedBox(height: 8),
         TextField(
           decoration: decoration,
+          controller: controller,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
         ),
       ],
     );
   }
+
 }
