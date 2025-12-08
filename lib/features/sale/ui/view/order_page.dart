@@ -161,6 +161,7 @@ class _OrderPageState extends ConsumerState<OrderPage> {
                       child: FilledButton(
                         onPressed: () async {
                           await notifier.updateStatus(order.number, selected);
+                          // ignore: use_build_context_synchronously
                           Navigator.pop(context);
                         },
                         child: const Text('Update Status'),
@@ -283,7 +284,7 @@ class _OrderPageState extends ConsumerState<OrderPage> {
                                 Row(
                                   children: [
                                     Text(
-                                      _formatTime(order.placedAt),
+                                      _formatTime(order.placedAt.toLocal()),
                                       style: Theme.of(context).textTheme.bodySmall,
                                     ),
                                     const Spacer(),

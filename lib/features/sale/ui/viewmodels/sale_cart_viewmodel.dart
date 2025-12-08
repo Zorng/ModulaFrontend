@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
+import 'package:modular_pos/features/policy/ui/viewmodels/policy_viewmodel.dart';
 import 'package:modular_pos/features/sale/data/sale_repository.dart';
 import 'package:modular_pos/features/sale/ui/view/sale_item_detail_page.dart';
 
@@ -87,10 +88,15 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
   @override
   SaleCartState build() => const SaleCartState();
 
+  double _fxRate() {
+    final policies = ref.read(policyNotifierProvider);
+    return policies.salesPolicy.saleFxRateKhrPerUsd;
+  }
+
   Future<void> _ensureSaleId() async {
     if (state.saleId != null && state.saleId!.isNotEmpty) return;
-    // TODO: inject real FX rate from settings/policy.
-    final id = await _repo.ensureDraft(saleType: state.saleType, fxRateUsed: 4100);
+    final id =
+        await _repo.ensureDraft(saleType: state.saleType, fxRateUsed: _fxRate());
     state = state.copyWith(saleId: id);
   }
 
@@ -99,7 +105,6 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
     final saleId = state.saleId;
     if (saleId == null) return;
 
-    final entries = selection.selectedOptionIds.entries.toList();
     final addPayload = _buildAddPayloadFromSelection(selection);
     final added = await _repo.addItem(
       saleId: saleId,
@@ -160,7 +165,8 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
     // If changing sale type mid-cart, recreate the draft with the new type and re-sync items.
     if (state.saleType == saleType) return;
     final currentLines = state.lines;
-    final newSaleId = await _repo.ensureDraft(saleType: saleType, fxRateUsed: 4100);
+    final newSaleId =
+        await _repo.ensureDraft(saleType: saleType, fxRateUsed: _fxRate());
     final rebuiltLines = <CartLine>[];
 
     for (final line in currentLines) {

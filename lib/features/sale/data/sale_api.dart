@@ -92,7 +92,7 @@ class SaleApi {
       if (endDate != null) 'endDate': _toUtcIso(endDate),
     };
     final response =
-        await _dio.get<Map<String, dynamic>>('$_prefix', queryParameters: query);
+        await _dio.get<Map<String, dynamic>>(_prefix, queryParameters: query);
     final data = response.data;
     if (data == null) return const [];
     if (data['data'] is List) return List<dynamic>.from(data['data'] as List);

@@ -88,7 +88,7 @@ class OrderDetailPage extends ConsumerWidget {
                   children: [
                     _SummaryRow(label: 'Type', value: _orderTypeLabel(order.orderType)),
                     const Divider(),
-                    _SummaryRow(label: 'Placed', value: _formatTime(order.placedAt)),
+                _SummaryRow(label: 'Placed', value: _formatTime(order.placedAt.toLocal())),
                     const Divider(),
                     _SummaryRow(
                       label: 'Payment Method',

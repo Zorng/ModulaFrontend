@@ -139,8 +139,9 @@ class Order {
 
   factory Order.fromJson(Map<String, dynamic> json) {
     final id = json['id']?.toString() ?? '';
-    final placed =
-        DateTime.tryParse(json['createdAt']?.toString() ?? '') ?? DateTime.now();
+    final placed = DateTime.tryParse(json['createdAt']?.toString() ?? '')
+            ?.toLocal() ??
+        DateTime.now();
     final items = <OrderLine>[];
     if (json['items'] is List) {
       for (final item in json['items'] as List) {

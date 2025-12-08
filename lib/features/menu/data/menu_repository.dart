@@ -634,6 +634,7 @@ class MenuRepository {
     return true;
   }
 
+  // ignore: unused_element
   MenuDataBundle _bundleFromSnapshot(
     Map<String, dynamic> snapshot,
     String branchId,

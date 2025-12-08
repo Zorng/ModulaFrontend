@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/theme/responsive.dart';
@@ -9,26 +10,23 @@ import 'package:modular_pos/features/policy/ui/view/early_check_in_detail_page.d
 import 'package:modular_pos/features/policy/ui/view/inventory_policy_detail_page.dart';
 import 'package:modular_pos/features/policy/ui/view/policy_detail_page.dart';
 import 'package:modular_pos/features/policy/ui/view/vat_policy_detail_page.dart';
+import 'package:modular_pos/features/policy/ui/viewmodels/policy_viewmodel.dart';
 import 'package:modular_pos/features/policy/ui/widgets/policy_section.dart';
 
-/// Mobile-first Policy screen that mimics iOS Settings.
-/// Uses static data placeholders for now; hook up viewmodels later.
-class PolicyPage extends StatefulWidget {
+/// Mobile-first Policy screen backed by policy API.
+class PolicyPage extends ConsumerStatefulWidget {
   const PolicyPage({super.key});
 
   @override
-  State<PolicyPage> createState() => _PolicyPageState();
+  ConsumerState<PolicyPage> createState() => _PolicyPageState();
 }
 
-class _PolicyPageState extends State<PolicyPage> {
+class _PolicyPageState extends ConsumerState<PolicyPage> {
   String _search = '';
 
-  // Demo state holders; replace with real policy data when wiring backend.
-  final Map<String, bool> _toggleValues = {
-    'apply_vat': true,
-    'subtract_stock': true,
+  // Local-only settings not yet backed by the API.
+  final Map<String, bool> _localToggleValues = {
     'use_recipes': false,
-    'expiry_tracking': false,
     'cash_session_attendance': false,
     'out_of_shift_approval': false,
     'early_check_in_buffer': false,
@@ -38,10 +36,7 @@ class _PolicyPageState extends State<PolicyPage> {
     'manual_cash_adjustment': false,
   };
 
-  final Map<String, String> _selectorValues = {
-    'vat_rate': '10%',
-    'usd_to_khr': '4100',
-    'rounding_mode': 'Nearest',
+  final Map<String, String> _localSelectorValues = {
     'early_check_in_duration': '15 min',
   };
 
@@ -166,17 +161,24 @@ class _PolicyPageState extends State<PolicyPage> {
     PolicyItem item,
     dynamic currentValue,
   ) {
+    final policyNotifier = ref.read(policyNotifierProvider.notifier);
+    final policyState = ref.read(policyNotifierProvider);
+
     if (item.id == 'apply_vat') {
       Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (_) => VatPolicyDetailPage(
-            enabled: _toggleValues[item.id] ?? false,
-            currentRate: _selectorValues['vat_rate'] ?? '10%',
-            onSaved: (enabled, rate) {
-              setState(() {
-                _toggleValues[item.id] = enabled;
-                _selectorValues['vat_rate'] = rate;
-              });
+            enabled: policyState.salesPolicy.saleVatEnabled,
+            currentRate:
+                _formatPercent(policyState.salesPolicy.saleVatRatePercent),
+            onSaved: (enabled, rate) async {
+              final numericRate =
+                  double.tryParse(rate.replaceAll('%', '').trim()) ?? 0;
+              await policyNotifier.updateVat(
+                enabled: enabled,
+                ratePercent: numericRate,
+              );
+              setState(() {});
             },
           ),
         ),
@@ -185,16 +187,20 @@ class _PolicyPageState extends State<PolicyPage> {
     }
 
     if (item.id == 'subtract_stock') {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => InventoryPolicyDetailPage(
-          subtractStock: _toggleValues['subtract_stock'] ?? false,
-          useRecipes: _toggleValues['use_recipes'] ?? false,
-          onSaved: (subtractStock, useRecipes) {
-              setState(() {
-                _toggleValues['subtract_stock'] = subtractStock;
-                _toggleValues['use_recipes'] = useRecipes;
-              });
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => InventoryPolicyDetailPage(
+            subtractStock:
+                policyState.inventoryPolicy.inventoryAutoSubtractOnSale,
+            useRecipes: _localToggleValues['use_recipes'] ?? false,
+            onSaved: (subtractStock, useRecipes) async {
+              _localToggleValues['use_recipes'] = useRecipes;
+              await policyNotifier.updateInventory(
+                autoSubtractOnSale: subtractStock,
+                expiryTrackingEnabled:
+                    policyState.inventoryPolicy.inventoryExpiryTrackingEnabled,
+              );
+              setState(() {});
             },
           ),
         ),
@@ -206,12 +212,13 @@ class _PolicyPageState extends State<PolicyPage> {
       Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (_) => EarlyCheckInDetailPage(
-            enabled: _toggleValues['early_check_in_buffer'] ?? false,
-            duration: _selectorValues['early_check_in_duration'] ?? '15 min',
+            enabled: _localToggleValues['early_check_in_buffer'] ?? false,
+            duration: _localSelectorValues['early_check_in_duration'] ??
+                '15 min',
             onSaved: (enabled, duration) {
               setState(() {
-                _toggleValues['early_check_in_buffer'] = enabled;
-                _selectorValues['early_check_in_duration'] = duration;
+                _localToggleValues['early_check_in_buffer'] = enabled;
+                _localSelectorValues['early_check_in_duration'] = duration;
               });
             },
           ),
@@ -225,14 +232,30 @@ class _PolicyPageState extends State<PolicyPage> {
         builder: (_) => PolicyDetailPage(
           item: item,
           value: currentValue,
-          onSaved: (newValue) {
-            setState(() {
+          onSaved: (newValue) async {
+            if (item.id == 'usd_to_khr') {
+              final rate = double.tryParse(newValue.toString()) ?? 0;
+              await policyNotifier.updateCurrency(rate);
+            } else if (item.id == 'rounding_mode') {
+              final backendValue = _roundingToBackend(newValue.toString());
+              await policyNotifier.updateRounding(
+                roundingMode: backendValue,
+              );
+            } else if (item.id == 'expiry_tracking') {
+              await policyNotifier.updateInventory(
+                expiryTrackingEnabled: newValue as bool,
+                autoSubtractOnSale:
+                    policyState.inventoryPolicy.inventoryAutoSubtractOnSale,
+              );
+            } else {
+              // Local-only items keep their state here.
               if (item.type == PolicyItemType.toggle) {
-                _toggleValues[item.id] = newValue as bool;
+                _localToggleValues[item.id] = newValue as bool;
               } else {
-                _selectorValues[item.id] = newValue as String;
+                _localSelectorValues[item.id] = newValue as String;
               }
-            });
+            }
+            setState(() {});
           },
         ),
       ),
@@ -241,6 +264,11 @@ class _PolicyPageState extends State<PolicyPage> {
 
   @override
   Widget build(BuildContext context) {
+    final policyState = ref.watch(policyNotifierProvider);
+    final isLoading = policyState.isLoading;
+    final toggleValues = _composeToggleValues(policyState);
+    final selectorValues = _composeSelectorValues(policyState);
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final isSmall = AppBreakpoints.isSmall(constraints.maxWidth);
@@ -298,7 +326,9 @@ class _PolicyPageState extends State<PolicyPage> {
                       onChanged: (value) =>
                           setState(() => _search = value.toLowerCase()),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 12),
+                    if (isLoading) const LinearProgressIndicator(minHeight: 2),
+                    const SizedBox(height: 4),
                     ...filteredSections.map(
                       (section) => Padding(
                         padding: const EdgeInsets.only(bottom: 16),
@@ -306,8 +336,8 @@ class _PolicyPageState extends State<PolicyPage> {
                           title: section.title,
                           items: section.items,
                           isCompact: isSmall,
-                          toggleValues: _toggleValues,
-                          selectorValues: _selectorValues,
+                          toggleValues: toggleValues,
+                          selectorValues: selectorValues,
                           onItemTap: (item, value) =>
                               _openPolicyDetail(context, item, value),
                         ),
@@ -330,5 +360,48 @@ class _PolicyPageState extends State<PolicyPage> {
         );
       },
     );
+  }
+
+  Map<String, bool> _composeToggleValues(PolicyState state) {
+    return {
+      ..._localToggleValues,
+      'apply_vat': state.salesPolicy.saleVatEnabled,
+      'subtract_stock': state.inventoryPolicy.inventoryAutoSubtractOnSale,
+      'expiry_tracking': state.inventoryPolicy.inventoryExpiryTrackingEnabled,
+    };
+  }
+
+  Map<String, String> _composeSelectorValues(PolicyState state) {
+    return {
+      ..._localSelectorValues,
+      'vat_rate': _formatPercent(state.salesPolicy.saleVatRatePercent),
+      'usd_to_khr': state.salesPolicy.saleFxRateKhrPerUsd.toStringAsFixed(0),
+      'rounding_mode':
+          _roundingLabel(state.salesPolicy.saleKhrRoundingMode),
+    };
+  }
+
+  String _formatPercent(double value) => '${value.toStringAsFixed(0)}%';
+
+  String _roundingLabel(String backendValue) {
+    switch (backendValue.toUpperCase()) {
+      case 'UP':
+        return 'Up';
+      case 'DOWN':
+        return 'Down';
+      default:
+        return 'Nearest';
+    }
+  }
+
+  String _roundingToBackend(String label) {
+    switch (label.toLowerCase()) {
+      case 'up':
+        return 'UP';
+      case 'down':
+        return 'DOWN';
+      default:
+        return 'NEAREST';
+    }
   }
 }

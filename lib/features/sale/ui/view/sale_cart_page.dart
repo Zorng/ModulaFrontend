@@ -5,6 +5,7 @@ import 'package:modular_pos/core/widgets/network_image_helper_stub.dart'
     if (dart.library.html) 'package:modular_pos/core/widgets/network_image_helper_web.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
+import 'package:modular_pos/features/policy/ui/viewmodels/policy_viewmodel.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/order_viewmodel.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_viewmodel.dart';
 import 'package:modular_pos/features/sale/ui/view/view_carts_page.dart';
@@ -58,20 +59,49 @@ class _SaleCartPageState extends ConsumerState<SaleCartPage> {
 
   double _grandTotalUsd(double subtotal) => subtotal;
 
-  double _grandTotalKhr(double grandTotalUsd) {
-    const fxRate = 4100.0;
+  double _grandTotalKhr(
+    double grandTotalUsd, {
+    required double fxRate,
+    required bool roundingEnabled,
+    required String roundingMode,
+    required double roundingGranularity,
+  }) {
     final baseKhr = grandTotalUsd * fxRate;
-    // Round up to the nearest 100 riel bill.
-    return (baseKhr / 100).ceil() * 100.0;
+    return _roundKhr(
+      baseKhr,
+      enabled: roundingEnabled,
+      mode: roundingMode,
+      granularity: roundingGranularity,
+    );
   }
 
-  double _tenderedUsd(double grandTotalUsd) {
+  double _tenderedUsd(double grandTotalUsd, double fxRate) {
     if (_paymentMethod != 'cash') return grandTotalUsd;
-    if (_tenderCurrency == 'usd') {
+    final tender = _tenderCurrency.toLowerCase();
+    if (tender == 'usd') {
       return double.tryParse(_usdController.text.trim()) ?? 0;
     } else {
       final khr = double.tryParse(_khrController.text.trim()) ?? 0;
-      return khr / 4100;
+      return fxRate == 0 ? 0 : khr / fxRate;
+    }
+  }
+
+  double _roundKhr(
+    double amount, {
+    required bool enabled,
+    required String mode,
+    required double granularity,
+  }) {
+    if (!enabled) return amount;
+    final step = granularity <= 0 ? 100.0 : granularity;
+    final ratio = amount / step;
+    switch (mode.toUpperCase()) {
+      case 'UP':
+        return (ratio).ceil() * step;
+      case 'DOWN':
+        return (ratio).floor() * step;
+      default:
+        return ratio.round() * step;
     }
   }
 
@@ -88,6 +118,13 @@ class _SaleCartPageState extends ConsumerState<SaleCartPage> {
     final items = cartState.lines;
     final menuState = ref.watch(menuViewModelProvider);
     final cartNotifier = ref.read(saleCartProvider.notifier);
+    final policyState = ref.watch(policyNotifierProvider);
+    final salesPolicy = policyState.salesPolicy;
+    final fxRate = salesPolicy.saleFxRateKhrPerUsd;
+    final roundingEnabled = salesPolicy.saleKhrRoundingEnabled;
+    final roundingMode = salesPolicy.saleKhrRoundingMode;
+    final roundingGranularity =
+        double.tryParse(salesPolicy.saleKhrRoundingGranularity) ?? 100;
     final groupLookup = {
       // Base modifier metadata first, then override with hydrated groups that include options/pricing.
       for (final g in menuState.modifierGroups) g.id: g,
@@ -95,8 +132,14 @@ class _SaleCartPageState extends ConsumerState<SaleCartPage> {
     };
     final subtotal = _subtotal(items, groupLookup);
     final grandTotalUsd = _grandTotalUsd(subtotal);
-    final grandTotalKhr = _grandTotalKhr(grandTotalUsd);
-    final tenderUsd = _tenderedUsd(grandTotalUsd);
+    final grandTotalKhr = _grandTotalKhr(
+      grandTotalUsd,
+      fxRate: fxRate,
+      roundingEnabled: roundingEnabled,
+      roundingMode: roundingMode,
+      roundingGranularity: roundingGranularity,
+    );
+    final tenderUsd = _tenderedUsd(grandTotalUsd, fxRate);
     final canCheckout =
         items.isNotEmpty && (_paymentMethod != 'cash' || tenderUsd >= grandTotalUsd);
 
@@ -193,6 +236,7 @@ class _SaleCartPageState extends ConsumerState<SaleCartPage> {
                 subtotal: subtotal,
                 grandTotalUsd: grandTotalUsd,
                 grandTotalKhr: grandTotalKhr,
+                fxRate: fxRate,
             onAmountsChanged: () => setState(() {}),
           ),
         ),
@@ -254,11 +298,13 @@ class _SaleCartPageState extends ConsumerState<SaleCartPage> {
             // Refresh orders from backend to persist.
             await ordersNotifier.load(date: DateTime.now());
             if (!mounted) return;
+            // ignore: use_build_context_synchronously
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('Order created')),
             );
           } catch (e) {
             if (!mounted) return;
+            // ignore: use_build_context_synchronously
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text('Checkout failed: $e')),
             );
@@ -385,6 +431,7 @@ class _CartContent extends StatelessWidget {
     required this.subtotal,
     required this.grandTotalUsd,
     required this.grandTotalKhr,
+    required this.fxRate,
     required this.onAmountsChanged,
   });
 
@@ -401,6 +448,7 @@ class _CartContent extends StatelessWidget {
   final double subtotal;
   final double grandTotalUsd;
   final double grandTotalKhr;
+  final double fxRate;
   final VoidCallback onAmountsChanged;
 
   @override
@@ -419,11 +467,13 @@ class _CartContent extends StatelessWidget {
       onAmountsChanged();
     }
 
-    final tenderUsd = tenderCurrency == 'usd'
+    final tender = tenderCurrency.toLowerCase();
+    final tenderUsd = tender == 'usd'
         ? double.tryParse(usdController.text.trim()) ?? 0
-        : (double.tryParse(khrController.text.trim()) ?? 0) / 4100;
-    final tenderKhr = tenderCurrency == 'usd'
-        ? tenderUsd * 4100
+        : (double.tryParse(khrController.text.trim()) ?? 0) /
+            (fxRate == 0 ? 1 : fxRate);
+    final tenderKhr = tender == 'usd'
+        ? tenderUsd * fxRate
         : double.tryParse(khrController.text.trim()) ?? 0;
     final changeKhr = (tenderKhr - grandTotalKhr);
     final changeKhrDisplay = changeKhr > 0 ? changeKhr : 0;
