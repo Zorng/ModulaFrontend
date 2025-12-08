@@ -88,6 +88,13 @@ class SaleRepository {
 
   Future<Map<String, dynamic>> finalize(String saleId) => _api.finalize(saleId);
 
+  Future<Map<String, dynamic>> updateFulfillmentStatus({
+    required String saleId,
+    required String status,
+  }) {
+    return _api.updateFulfillmentStatus(saleId, status: status);
+  }
+
   Future<List<Map<String, dynamic>>> listSales({
     String? status,
     DateTime? startDate,

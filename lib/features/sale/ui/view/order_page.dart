@@ -159,8 +159,8 @@ class _OrderPageState extends ConsumerState<OrderPage> {
                     SizedBox(
                       width: double.infinity,
                       child: FilledButton(
-                        onPressed: () {
-                          notifier.updateStatus(order.number, selected);
+                        onPressed: () async {
+                          await notifier.updateStatus(order.number, selected);
                           Navigator.pop(context);
                         },
                         child: const Text('Update Status'),

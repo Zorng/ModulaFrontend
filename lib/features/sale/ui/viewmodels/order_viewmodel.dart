@@ -60,7 +60,31 @@ class OrdersNotifier extends Notifier<List<Order>> {
     }
   }
 
-  void updateStatus(String number, String status) {
+  Future<void> updateStatus(String number, String status) async {
+    try {
+      final saleId = state.firstWhere(
+        (order) => order.number == number || order.id == number,
+        orElse: () => Order(
+          id: '',
+          number: '',
+          status: '',
+          placedAt: DateTime.fromMillisecondsSinceEpoch(0),
+          orderType: '',
+          paymentMethod: '',
+          totalUsd: 0,
+          totalKhr: 0,
+          tenderCurrency: '',
+          tenderAmount: 0,
+          changeAmount: 0,
+          lines: [],
+        ),
+      ).id;
+      if (saleId.isNotEmpty) {
+        await _repo.updateFulfillmentStatus(saleId: saleId, status: status);
+      }
+    } catch (_) {
+      // swallow errors and optimistically update below
+    }
     state = [
       for (final order in state)
         if (order.number == number || order.id == number)

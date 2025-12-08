@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:modular_pos/features/auth/domain/models/user.dart';
+import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_category.dart';
+import 'package:modular_pos/features/inventory/data/stock_item_repository.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/category_controller.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_controller.dart';
 import 'package:modular_pos/features/inventory/ui/widgets/inventory_dropdown.dart';
@@ -33,6 +36,7 @@ class _StockItemDetailPageState extends ConsumerState<StockItemDetailPage> {
   late Set<String> _selectedTypes;
   late String _baseUnit;
   late bool _isActive;
+  final _branchAssignments = <_BranchAssignmentDetail>[];
 
   @override
   void initState() {
@@ -52,6 +56,7 @@ class _StockItemDetailPageState extends ConsumerState<StockItemDetailPage> {
     _selectedTypes = {..._editableData.usageTags};
     _baseUnit = _editableData.baseUnit;
     _isActive = _editableData.isActive;
+    _initBranchAssignments();
   }
 
   @override
@@ -62,6 +67,9 @@ class _StockItemDetailPageState extends ConsumerState<StockItemDetailPage> {
     _barcodeCtrl.dispose();
     _lastRestockCtrl.dispose();
     _expiryCtrl.dispose();
+    for (final a in _branchAssignments) {
+      a.thresholdCtrl.dispose();
+    }
     super.dispose();
   }
 
@@ -85,7 +93,7 @@ class _StockItemDetailPageState extends ConsumerState<StockItemDetailPage> {
     });
   }
 
-  void _saveChanges() {
+  Future<void> _saveChanges() async {
     if (!(_formKey.currentState?.validate() ?? false)) {
       return;
     }
@@ -113,10 +121,28 @@ class _StockItemDetailPageState extends ConsumerState<StockItemDetailPage> {
     ref
         .read(stockInventoryControllerProvider.notifier)
         .updateStockItem(updated);
+    final repo = ref.read(stockItemRepositoryProvider);
+    for (final assignment in _branchAssignments) {
+      final branchId = assignment.branchId;
+      if (branchId == null || branchId.isEmpty) continue;
+      final minThreshold =
+          int.tryParse(assignment.thresholdCtrl.text.trim()) ?? 0;
+      await repo.assignToBranch(
+        stockItemId: updated.id,
+        branchId: branchId,
+        minThreshold: minThreshold < 0 ? 0 : minThreshold,
+      );
+      ref.read(stockInventoryControllerProvider.notifier).updateBranchAssignment(
+            stockItemId: updated.id,
+            branchId: branchId,
+            minThreshold: minThreshold < 0 ? 0 : minThreshold,
+          );
+    }
     setState(() {
       _editableData = updated;
       _isEditing = false;
     });
+    if (!mounted) return;
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text('Stock item saved (mock)')));
@@ -126,6 +152,7 @@ class _StockItemDetailPageState extends ConsumerState<StockItemDetailPage> {
   Widget build(BuildContext context) {
     final chipColor = Theme.of(context).colorScheme.surfaceContainerHighest;
     final categoryState = ref.watch(categoryControllerProvider);
+    final userBranches = ref.watch(loginControllerProvider).user?.branches ?? const <UserBranch>[];
     final categoryOptions =
         categoryState.categories;
     return Scaffold(
@@ -272,6 +299,73 @@ class _StockItemDetailPageState extends ConsumerState<StockItemDetailPage> {
               ],
             ),
             const SizedBox(height: 16),
+            InventorySectionCard(
+              title: 'Branch assignment',
+              children: [
+                if (userBranches.isEmpty)
+                  const Text('No branches available.')
+                else if (_isEditing) ...[
+                  ..._branchAssignments.map(
+                    (assignment) => _BranchAssignmentCard(
+                      assignment: assignment,
+                      branches: userBranches,
+                      usedBranchIds: _usedBranchIds(assignment),
+                      onChanged: () => setState(() {}),
+                      onRemove: () {
+                        setState(() {
+                          assignment.thresholdCtrl.dispose();
+                          _branchAssignments.remove(assignment);
+                        });
+                      },
+                    ),
+                  ),
+                  if (_branchAssignments.length < userBranches.length)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: () => setState(_addBranchAssignment),
+                        icon: const Icon(Icons.add),
+                        label: const Text('Assign to branch'),
+                      ),
+                    ),
+                ] else ...[
+                  if (_branchAssignments.isEmpty)
+                    const Text('Not assigned to any branch.')
+                  else
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: _branchAssignments
+                          .map(
+                            (assignment) => Padding(
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      _branchName(
+                                        assignment.branchId,
+                                        userBranches,
+                                      ),
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyLarge,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Min ${assignment.thresholdCtrl.text}',
+                                    style:
+                                        Theme.of(context).textTheme.bodyMedium,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                          .toList(),
+                    ),
+                ],
+              ],
+            ),
+            const SizedBox(height: 16),
             if (_isEditing)
               Padding(
                 padding: const EdgeInsets.only(top: 16),
@@ -300,6 +394,62 @@ class _StockItemDetailPageState extends ConsumerState<StockItemDetailPage> {
     return trimmed.substring(0, 1).toUpperCase();
   }
 
+  void _initBranchAssignments() {
+    final branches =
+        ref.read(loginControllerProvider).user?.branches ?? const <UserBranch>[];
+    if (_editableData.branchId.isNotEmpty &&
+        _editableData.branchId != 'all') {
+      _branchAssignments.add(
+        _BranchAssignmentDetail(
+          branchId: _editableData.branchId,
+          minThreshold: _editableData.minThreshold,
+        ),
+      );
+    } else if (branches.length == 1) {
+      final b = branches.first;
+      _branchAssignments.add(
+        _BranchAssignmentDetail(
+          branchId: b.branchId.isNotEmpty ? b.branchId : b.id,
+        ),
+      );
+    }
+  }
+
+  void _addBranchAssignment() {
+    final branches =
+        ref.read(loginControllerProvider).user?.branches ?? const <UserBranch>[];
+    if (branches.isEmpty) return;
+    final used = _branchAssignments
+        .map((e) => e.branchId)
+        .whereType<String>()
+        .toSet();
+    String? next;
+    for (final b in branches) {
+      final id = b.branchId.isNotEmpty ? b.branchId : b.id;
+      if (!used.contains(id)) {
+        next = id;
+        break;
+      }
+    }
+    _branchAssignments.add(_BranchAssignmentDetail(branchId: next));
+  }
+
+  Set<String> _usedBranchIds(_BranchAssignmentDetail current) {
+    return _branchAssignments
+        .where((a) => a != current)
+        .map((a) => a.branchId)
+        .whereType<String>()
+        .toSet();
+  }
+
+  String _branchName(String? id, List<UserBranch> branches) {
+    if (id == null) return 'Unknown';
+    final match = branches.firstWhere(
+      (b) => (b.branchId.isNotEmpty ? b.branchId : b.id) == id,
+      orElse: () => UserBranch(id: id, name: 'Branch $id', role: '', active: true),
+    );
+    return match.name;
+  }
 }
 
 class _ImagePreview extends StatelessWidget {
@@ -345,6 +495,88 @@ class _Placeholder extends StatelessWidget {
         style: Theme.of(context).textTheme.headlineMedium?.copyWith(
               fontWeight: FontWeight.w700,
             ),
+      ),
+    );
+  }
+}
+
+class _BranchAssignmentDetail {
+  _BranchAssignmentDetail({this.branchId, int minThreshold = 0})
+      : thresholdCtrl = TextEditingController(text: minThreshold.toString());
+
+  String? branchId;
+  final TextEditingController thresholdCtrl;
+}
+
+class _BranchAssignmentCard extends StatelessWidget {
+  const _BranchAssignmentCard({
+    required this.assignment,
+    required this.branches,
+    required this.usedBranchIds,
+    required this.onChanged,
+    required this.onRemove,
+  });
+
+  final _BranchAssignmentDetail assignment;
+  final List<UserBranch> branches;
+  final Set<String> usedBranchIds;
+  final VoidCallback onChanged;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final available = branches.where((b) {
+      final id = b.branchId.isNotEmpty ? b.branchId : b.id;
+      return !usedBranchIds.contains(id) || assignment.branchId == id;
+    }).toList();
+    return Card(
+      elevation: 0,
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: InventoryDropdown<String>(
+                    initialValue: assignment.branchId,
+                    label: const Text('Branch'),
+                    entries: available
+                        .map(
+                          (b) => DropdownMenuEntry(
+                            value: b.branchId.isNotEmpty ? b.branchId : b.id,
+                            label: b.name,
+                          ),
+                        )
+                        .toList(),
+                    onSelected: (value) {
+                      assignment.branchId = value;
+                      onChanged();
+                    },
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  tooltip: 'Remove',
+                  onPressed: onRemove,
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            TextFormField(
+              controller: assignment.thresholdCtrl,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Minimum threshold',
+                helperText: 'Alert when stock falls below this amount',
+              ),
+              onChanged: (_) => onChanged(),
+            ),
+          ],
+        ),
       ),
     );
   }

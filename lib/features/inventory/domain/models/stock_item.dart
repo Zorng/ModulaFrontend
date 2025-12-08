@@ -97,7 +97,10 @@ class StockItem extends Equatable {
       };
 
   factory StockItem.fromJson(Map<String, dynamic> json) {
-    final id = json['id']?.toString() ?? '';
+    final id = json['stockItemId']?.toString() ??
+        json['stock_item_id']?.toString() ??
+        json['id']?.toString() ??
+        '';
     final name = json['name']?.toString() ?? 'Item';
     final category = json['category']?.toString() ??
         json['categoryName']?.toString() ??
@@ -107,13 +110,29 @@ class StockItem extends Equatable {
         json['unitText']?.toString() ??
         'pcs';
     final pieceSize = (json['pieceSize'] as num?)?.toInt() ?? 1;
-    final branchId = json['branchId']?.toString() ?? 'main';
-    final branchName = json['branchName']?.toString() ?? 'Main Branch';
-    final onHand = (json['onHand'] as num?)?.toInt() ?? 0;
-    final minThreshold = (json['minThreshold'] as num?)?.toInt() ?? 0;
+    final branchId = json['branchId']?.toString() ??
+        json['branch_id']?.toString() ??
+        'main';
+    final branchName = json['branchName']?.toString() ??
+        json['branch_name']?.toString() ??
+        'Main Branch';
+    final onHand = _asInt(json['onHand']) ??
+        _asInt(json['onHandQty']) ??
+        _asInt(json['onHandExact']) ??
+        _asInt(json['quantity']) ??
+        _asInt(json['qty']) ??
+        0;
+    final minThreshold = _asInt(json['minThreshold']) ??
+        _asInt(json['threshold']) ??
+        0;
     final isActive = json['isActive'] as bool? ?? true;
     final barcode = json['barcode']?.toString();
-    final imageUrl = json['imageUrl']?.toString();
+    final imageUrl = json['imageUrl']?.toString() ??
+        json['image_url']?.toString() ??
+        json['image']?.toString() ??
+        (json['image'] is Map<String, dynamic>
+            ? (json['image'] as Map<String, dynamic>)['url']?.toString()
+            : null);
     final lastRestockDate = json['lastRestockDate']?.toString() ?? '-';
     final expiryDate = json['expiryDate']?.toString() ?? '-';
     final usageTags = (json['usageTags'] as List<dynamic>? ?? const [])
@@ -158,4 +177,10 @@ class StockItem extends Equatable {
         expiryDate,
         usageTags,
       ];
+}
+
+int? _asInt(dynamic value) {
+  if (value == null) return null;
+  if (value is num) return value.toInt();
+  return int.tryParse(value.toString());
 }

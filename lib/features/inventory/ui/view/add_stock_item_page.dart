@@ -3,10 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
+import 'package:modular_pos/features/auth/domain/models/user.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_category.dart';
+import 'package:modular_pos/features/inventory/data/stock_item_repository.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/category_controller.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_controller.dart';
+import 'package:modular_pos/features/inventory/ui/widgets/inventory_dropdown.dart';
 import 'package:modular_pos/features/inventory/ui/widgets/inventory_section_card.dart';
 
 /// Simple placeholder form for adding a stock item.
@@ -30,6 +34,7 @@ class _AddStockItemPageState extends ConsumerState<AddStockItemPage> {
   final _baseUnitFieldKey = GlobalKey<FormFieldState<String>>();
   final _categoryFieldKey = GlobalKey<FormFieldState<String>>();
   final _typeOptions = const ['Ingredient', 'Sellable'];
+  final _branchAssignments = <_BranchAssignment>[];
   String? _category;
   String? _categoryId;
   String? _baseUnit;
@@ -44,6 +49,7 @@ class _AddStockItemPageState extends ConsumerState<AddStockItemPage> {
     // Ensure categories are loaded before opening the selector.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(categoryControllerProvider.notifier).loadCategories();
+      _bootstrapBranchAssignments();
     });
   }
 
@@ -52,11 +58,15 @@ class _AddStockItemPageState extends ConsumerState<AddStockItemPage> {
     _nameCtrl.dispose();
     _barcodeCtrl.dispose();
     _pieceSizeCtrl.dispose();
+    for (final assignment in _branchAssignments) {
+      assignment.thresholdCtrl.dispose();
+    }
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final userBranches = ref.watch(loginControllerProvider).user?.branches ?? const <UserBranch>[];
     return Scaffold(
       appBar: AppBar(title: const Text('Add stock item'), centerTitle: false),
       body: Form(
@@ -198,6 +208,41 @@ class _AddStockItemPageState extends ConsumerState<AddStockItemPage> {
               ],
             ),
             const SizedBox(height: 16),
+            InventorySectionCard(
+              title: 'Branch assignment',
+              children: [
+                if (userBranches.isEmpty)
+                  const Text(
+                    'No branches available. Add branches to assign this item.',
+                  )
+                else ...[
+                  ..._branchAssignments.map(
+                    (assignment) => _BranchAssignmentCard(
+                      assignment: assignment,
+                      branches: userBranches,
+                      usedBranchIds: _usedBranchIds(assignment),
+                      onChanged: () => setState(() {}),
+                      onRemove: () {
+                        setState(() {
+                          assignment.thresholdCtrl.dispose();
+                          _branchAssignments.remove(assignment);
+                        });
+                      },
+                    ),
+                  ),
+                  if (_branchAssignments.length < userBranches.length)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: () => setState(_addBranchAssignment),
+                        icon: const Icon(Icons.add),
+                        label: const Text('Assign to branch'),
+                      ),
+                    ),
+                ],
+              ],
+            ),
+            const SizedBox(height: 16),
             const SizedBox(height: 24),
             FilledButton(onPressed: _submit, child: const Text('Save item')),
           ],
@@ -206,9 +251,24 @@ class _AddStockItemPageState extends ConsumerState<AddStockItemPage> {
     );
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     final isValid = _formKey.currentState?.validate() ?? false;
     if (!isValid) return;
+    final branches = ref.read(loginControllerProvider).user?.branches ?? const <UserBranch>[];
+    if (branches.isNotEmpty && _branchAssignments.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Assign this item to at least one branch.')),
+      );
+      return;
+    }
+    for (final assignment in _branchAssignments) {
+      if (assignment.branchId == null || assignment.branchId!.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Select a branch for each assignment.')),
+        );
+        return;
+      }
+    }
     final controller = ref.read(stockInventoryControllerProvider.notifier);
     final pieceSize = int.tryParse(_pieceSizeCtrl.text.trim()) ?? 1;
     final usageTags = _selectedTypes.isEmpty
@@ -234,17 +294,34 @@ class _AddStockItemPageState extends ConsumerState<AddStockItemPage> {
       usageTags: usageTags,
     );
 
-    controller.addStockItem(
+    final created = await controller.addStockItem(
       item,
       imagePath: kIsWeb ? null : _selectedImagePath,
       imageBytes: _selectedImageBytes,
-    ).then((_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Stock item added')));
-      Navigator.of(context).pop();
-    });
+    );
+    // Assign to branches
+    final repo = ref.read(stockItemRepositoryProvider);
+    for (final assignment in _branchAssignments) {
+      final branchId = assignment.branchId;
+      if (branchId == null || branchId.isEmpty) continue;
+      final minThreshold =
+          int.tryParse(assignment.thresholdCtrl.text.trim()) ?? 0;
+      await repo.assignToBranch(
+        stockItemId: created.id,
+        branchId: branchId,
+        minThreshold: minThreshold < 0 ? 0 : minThreshold,
+      );
+      ref.read(stockInventoryControllerProvider.notifier).updateBranchAssignment(
+            stockItemId: created.id,
+            branchId: branchId,
+            minThreshold: minThreshold < 0 ? 0 : minThreshold,
+          );
+    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Stock item added')));
+    Navigator.of(context).pop();
   }
 
   Future<void> _pickImage() async {
@@ -339,6 +416,42 @@ class _AddStockItemPageState extends ConsumerState<AddStockItemPage> {
     }
   }
 
+  void _bootstrapBranchAssignments() {
+    final branches = ref.read(loginControllerProvider).user?.branches ?? const <UserBranch>[];
+    if (branches.length == 1) {
+      _branchAssignments.add(
+        _BranchAssignment(
+          branchId: branches.first.branchId.isNotEmpty
+              ? branches.first.branchId
+              : branches.first.id,
+        ),
+      );
+    }
+  }
+
+  void _addBranchAssignment() {
+    final branches = ref.read(loginControllerProvider).user?.branches ?? const <UserBranch>[];
+    if (branches.isEmpty) return;
+    // Preselect the first unused branch if available.
+    final used = _branchAssignments.map((e) => e.branchId).whereType<String>().toSet();
+    String? nextBranchId;
+    for (final b in branches) {
+      final id = b.branchId.isNotEmpty ? b.branchId : b.id;
+      if (!used.contains(id)) {
+        nextBranchId = id;
+        break;
+      }
+    }
+    _branchAssignments.add(_BranchAssignment(branchId: nextBranchId));
+  }
+
+  Set<String> _usedBranchIds(_BranchAssignment current) {
+    return _branchAssignments
+        .where((a) => a != current)
+        .map((a) => a.branchId)
+        .whereType<String>()
+        .toSet();
+  }
 }
 
 class _UploadImageTile extends StatelessWidget {
@@ -396,6 +509,96 @@ class _UploadImageTile extends StatelessWidget {
       ),
     );
   }
+
+  @override
+  void debugFillProperties(DiagnosticPropertiesBuilder properties) {
+    super.debugFillProperties(properties);
+    properties.add(ObjectFlagProperty<Uint8List>.has('imageBytes', imageBytes));
+  }
+}
+
+class _BranchAssignment {
+  _BranchAssignment({this.branchId, int minThreshold = 0})
+      : thresholdCtrl = TextEditingController(text: minThreshold.toString());
+
+  String? branchId;
+  final TextEditingController thresholdCtrl;
+}
+
+class _BranchAssignmentCard extends StatelessWidget {
+  const _BranchAssignmentCard({
+    required this.assignment,
+    required this.branches,
+    required this.usedBranchIds,
+    required this.onChanged,
+    required this.onRemove,
+  });
+
+  final _BranchAssignment assignment;
+  final List<UserBranch> branches;
+  final Set<String> usedBranchIds;
+  final VoidCallback onChanged;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final availableBranches = branches.where((b) {
+      final id = b.branchId.isNotEmpty ? b.branchId : b.id;
+      return !usedBranchIds.contains(id) || assignment.branchId == id;
+    }).toList();
+
+    return Card(
+      elevation: 0,
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: InventoryDropdown<String>(
+                    initialValue: assignment.branchId,
+                    label: const Text('Branch'),
+                    entries: availableBranches
+                        .map(
+                          (b) => DropdownMenuEntry(
+                            value: b.branchId.isNotEmpty ? b.branchId : b.id,
+                            label: b.name,
+                          ),
+                        )
+                        .toList(),
+                    onSelected: (value) {
+                      assignment.branchId = value;
+                      onChanged();
+                    },
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  tooltip: 'Remove',
+                  onPressed: onRemove,
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            TextFormField(
+              controller: assignment.thresholdCtrl,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Minimum threshold',
+                helperText: 'Alert when stock falls below this amount',
+              ),
+              onChanged: (_) => onChanged(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
 }
 
 class _DashedBorderPainter extends CustomPainter {

@@ -47,6 +47,42 @@ class InventoryJournalEntry extends Equatable {
   final String actor;
   final DateTime timestamp;
 
+  factory InventoryJournalEntry.fromJson(
+    Map<String, dynamic> json, {
+    InventoryJournalReason? fallbackReason,
+  }) {
+    final reasonString = (json['reason'] ?? json['type'] ?? '').toString();
+    final reason = _reasonFromApi(reasonString, fallback: fallbackReason);
+    final delta = (json['delta'] ??
+            json['qty'] ??
+            json['quantity'] ??
+            json['qtyDeducted']) ??
+        0;
+    final ts = json['timestamp'] ??
+        json['createdAt'] ??
+        json['date'] ??
+        DateTime.now().toIso8601String();
+    return InventoryJournalEntry(
+      id: json['id']?.toString() ?? '',
+      itemId: json['stockItemId']?.toString() ??
+          json['itemId']?.toString() ??
+          '',
+      itemName: json['stockItemName']?.toString() ??
+          json['itemName']?.toString() ??
+          'Item',
+      branchId: json['branchId']?.toString() ?? '',
+      branchName: json['branchName']?.toString() ?? '',
+      reason: reason,
+      delta: (delta as num).toInt(),
+      note: json['note']?.toString() ?? '',
+      actor: json['actor']?.toString() ??
+          json['createdBy']?.toString() ??
+          json['userName']?.toString() ??
+          '',
+      timestamp: DateTime.tryParse(ts.toString()) ?? DateTime.now(),
+    );
+  }
+
   InventoryJournalEntry copyWith({
     String? id,
     String? itemId,
@@ -86,4 +122,19 @@ class InventoryJournalEntry extends Equatable {
     actor,
     timestamp,
   ];
+}
+
+InventoryJournalReason _reasonFromApi(
+  String value, {
+  InventoryJournalReason? fallback,
+}) {
+  final v = value.toLowerCase();
+  if (v == 'receive' || v == 'restock' || v == 'add') {
+    return InventoryJournalReason.restock;
+  }
+  if (v == 'waste' || v == 'remove') return InventoryJournalReason.remove;
+  if (v == 'sale') return InventoryJournalReason.sale;
+  if (v == 'void' || v == 'voided') return InventoryJournalReason.voided;
+  if (v == 'reopen') return InventoryJournalReason.reopen;
+  return fallback ?? InventoryJournalReason.unknown;
 }

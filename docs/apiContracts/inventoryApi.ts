@@ -4,7 +4,6 @@ import {
   BranchStockController,
   InventoryJournalController,
   MenuStockMapController,
-  StorePolicyController,
   CategoryController,
 } from "./controller/index.js";
 import { AuthMiddleware } from "../../auth/api/middleware/auth.middleware.js";
@@ -15,7 +14,6 @@ export function createInventoryRoutes(
   branchStockController: BranchStockController,
   inventoryJournalController: InventoryJournalController,
   menuStockMapController: MenuStockMapController,
-  storePolicyController: StorePolicyController,
   categoryController: CategoryController,
   authMiddleware: AuthMiddleware
 ): Router {
@@ -25,7 +23,8 @@ export function createInventoryRoutes(
   router.use(authMiddleware.authenticate);
 
   // ==================== STOCK ITEMS ====================
-/**
+
+  /**
    * @openapi
    * /v1/inventory/stock-items:
    *   post:
@@ -51,8 +50,17 @@ export function createInventoryRoutes(
    *                 description: Unit of measure (e.g., pcs, kg, liter)
    *               barcode:
    *                 type: string
-   *               defaultCostUsd:
+   *               pieceSize:
    *                 type: number
+   *                 description: Size per piece/unit (e.g., weight, volume)
+   *               isIngredient:
+   *                 type: boolean
+   *                 default: true
+   *                 description: Can be used as ingredient in recipes
+   *               isSellable:
+   *                 type: boolean
+   *                 default: false
+   *                 description: Can be sold directly
    *               categoryId:
    *                 type: string
    *                 description: Optional category ID
@@ -89,9 +97,16 @@ export function createInventoryRoutes(
    *                     barcode:
    *                       type: string
    *                       nullable: true
-   *                     defaultCostUsd:
+   *                     pieceSize:
    *                       type: number
    *                       nullable: true
+   *                       description: Size per piece/unit
+   *                     isIngredient:
+   *                       type: boolean
+   *                       description: Can be used as ingredient
+   *                     isSellable:
+   *                       type: boolean
+   *                       description: Can be sold directly
    *                     categoryId:
    *                       type: string
    *                       nullable: true
@@ -116,12 +131,20 @@ export function createInventoryRoutes(
     uploadOptionalSingleImage,
     (req, res, next) => {
       // Coerce numeric fields if present
-      if (req.body.defaultCostUsd !== undefined) {
-        req.body.defaultCostUsd = Number(req.body.defaultCostUsd);
+      if (req.body.pieceSize !== undefined) {
+        req.body.pieceSize = Number(req.body.pieceSize);
       }
       if (req.body.isActive !== undefined) {
         req.body.isActive =
           req.body.isActive === "true" || req.body.isActive === true;
+      }
+      if (req.body.isIngredient !== undefined) {
+        req.body.isIngredient =
+          req.body.isIngredient === "true" || req.body.isIngredient === true;
+      }
+      if (req.body.isSellable !== undefined) {
+        req.body.isSellable =
+          req.body.isSellable === "true" || req.body.isSellable === true;
       }
       next();
     },
@@ -157,8 +180,15 @@ export function createInventoryRoutes(
    *                 type: string
    *               barcode:
    *                 type: string
-   *               defaultCostUsd:
+   *               pieceSize:
    *                 type: number
+   *                 description: Size per piece/unit
+   *               isIngredient:
+   *                 type: boolean
+   *                 description: Can be used as ingredient in recipes
+   *               isSellable:
+   *                 type: boolean
+   *                 description: Can be sold directly
    *               categoryId:
    *                 type: string
    *                 description: Optional category ID
@@ -171,18 +201,77 @@ export function createInventoryRoutes(
    *     responses:
    *       200:
    *         description: Stock item updated
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 success:
+   *                   type: boolean
+   *                 data:
+   *                   type: object
+   *                   properties:
+   *                     id:
+   *                       type: string
+   *                       format: uuid
+   *                     tenantId:
+   *                       type: string
+   *                       format: uuid
+   *                     name:
+   *                       type: string
+   *                     unitText:
+   *                       type: string
+   *                     barcode:
+   *                       type: string
+   *                       nullable: true
+   *                     pieceSize:
+   *                       type: number
+   *                       nullable: true
+   *                       description: Size per piece/unit
+   *                     isIngredient:
+   *                       type: boolean
+   *                       description: Can be used as ingredient
+   *                     isSellable:
+   *                       type: boolean
+   *                       description: Can be sold directly
+   *                     categoryId:
+   *                       type: string
+   *                       nullable: true
+   *                     imageUrl:
+   *                       type: string
+   *                       nullable: true
+   *                       description: URL of the uploaded image
+   *                     isActive:
+   *                       type: boolean
+   *                     createdBy:
+   *                       type: string
+   *                       format: uuid
+   *                     createdAt:
+   *                       type: string
+   *                       format: date-time
+   *                     updatedAt:
+   *                       type: string
+   *                       format: date-time
    */
-  router.put(
+  router.patch(
     "/stock-items/:id",
     uploadOptionalSingleImage,
     (req, res, next) => {
       // Coerce numeric fields if present
-      if (req.body.defaultCostUsd !== undefined) {
-        req.body.defaultCostUsd = Number(req.body.defaultCostUsd);
+      if (req.body.pieceSize !== undefined) {
+        req.body.pieceSize = Number(req.body.pieceSize);
       }
       if (req.body.isActive !== undefined) {
         req.body.isActive =
           req.body.isActive === "true" || req.body.isActive === true;
+      }
+      if (req.body.isIngredient !== undefined) {
+        req.body.isIngredient =
+          req.body.isIngredient === "true" || req.body.isIngredient === true;
+      }
+      if (req.body.isSellable !== undefined) {
+        req.body.isSellable =
+          req.body.isSellable === "true" || req.body.isSellable === true;
       }
       next();
     },
@@ -213,6 +302,16 @@ export function createInventoryRoutes(
    *         schema:
    *           type: string
    *         description: Filter by category ID
+   *       - in: query
+   *         name: isIngredient
+   *         schema:
+   *           type: boolean
+   *         description: Filter by ingredient flag
+   *       - in: query
+   *         name: isSellable
+   *         schema:
+   *           type: boolean
+   *         description: Filter by sellable flag
    *       - in: query
    *         name: page
    *         schema:
@@ -252,9 +351,16 @@ export function createInventoryRoutes(
    *                           barcode:
    *                             type: string
    *                             nullable: true
-   *                           defaultCostUsd:
+   *                           pieceSize:
    *                             type: number
    *                             nullable: true
+   *                             description: Size per piece/unit
+   *                           isIngredient:
+   *                             type: boolean
+   *                             description: Can be used as ingredient
+   *                           isSellable:
+   *                             type: boolean
+   *                             description: Can be sold directly
    *                           categoryId:
    *                             type: string
    *                             nullable: true
@@ -283,7 +389,6 @@ export function createInventoryRoutes(
    *                       type: integer
    *                       description: Items per page
    */
-  
   router.get("/stock-items", async (req, res) =>
     stockItemController.getStockItems(req as any, res)
   );
@@ -296,7 +401,7 @@ export function createInventoryRoutes(
    *   post:
    *     tags:
    *       - Inventory
-   *     summary: Assign stock item to current branch
+   *     summary: Assign stock item to a branch
    *     security:
    *       - BearerAuth: []
    *     requestBody:
@@ -315,6 +420,10 @@ export function createInventoryRoutes(
    *               minThreshold:
    *                 type: number
    *                 minimum: 0
+   *               branchId:
+   *                 type: string
+   *                 format: uuid
+   *                 description: Target branch ID (defaults to current user's branch if not provided)
    *     responses:
    *       201:
    *         description: Stock item assigned to branch
@@ -329,9 +438,16 @@ export function createInventoryRoutes(
    *   get:
    *     tags:
    *       - Inventory
-   *     summary: Get all stock items for current branch
+   *     summary: Get all stock items for a branch
    *     security:
    *       - BearerAuth: []
+   *     parameters:
+   *       - in: query
+   *         name: branchId
+   *         schema:
+   *           type: string
+   *           format: uuid
+   *         description: Branch ID (defaults to current user's branch if not provided)
    *     responses:
    *       200:
    *         description: List of branch stock items with details
@@ -358,9 +474,14 @@ export function createInventoryRoutes(
    *           schema:
    *             type: object
    *             required:
+   *               - branchId
    *               - stockItemId
    *               - qty
    *             properties:
+   *               branchId:
+   *                 type: string
+   *                 format: uuid
+   *                 description: Branch where operation is performed
    *               stockItemId:
    *                 type: string
    *                 format: uuid
@@ -393,10 +514,15 @@ export function createInventoryRoutes(
    *           schema:
    *             type: object
    *             required:
+   *               - branchId
    *               - stockItemId
    *               - qty
    *               - note
    *             properties:
+   *               branchId:
+   *                 type: string
+   *                 format: uuid
+   *                 description: Branch where operation is performed
    *               stockItemId:
    *                 type: string
    *                 format: uuid
@@ -430,10 +556,15 @@ export function createInventoryRoutes(
    *           schema:
    *             type: object
    *             required:
+   *               - branchId
    *               - stockItemId
    *               - delta
    *               - note
    *             properties:
+   *               branchId:
+   *                 type: string
+   *                 format: uuid
+   *                 description: Branch where operation is performed
    *               stockItemId:
    *                 type: string
    *                 format: uuid
@@ -582,7 +713,7 @@ export function createInventoryRoutes(
    *       200:
    *         description: On-hand quantities with low stock flags
    */
-  router.get("/journal/on-hand", async (req, res) =>
+  router.get("/branch/on-hand", async (req, res) =>
     inventoryJournalController.getOnHand(req as any, res)
   );
 
@@ -628,7 +759,7 @@ export function createInventoryRoutes(
    *       200:
    *         description: Journal entries with pagination
    */
-  router.get("/journal", async (req, res) =>
+  router.get("/branch/journal", async (req, res) =>
     inventoryJournalController.getInventoryJournal(req as any, res)
   );
 
@@ -645,7 +776,7 @@ export function createInventoryRoutes(
    *       200:
    *         description: Items below minimum threshold
    */
-  router.get("/journal/alerts/low-stock", async (req, res) =>
+  router.get("/branch/alerts/low-stock", async (req, res) =>
     inventoryJournalController.getLowStockAlerts(req as any, res)
   );
 
@@ -770,58 +901,6 @@ export function createInventoryRoutes(
    */
   router.delete("/menu-stock-map/:id", async (req, res) =>
     menuStockMapController.deleteMenuStockMap(req as any, res)
-  );
-
-  // ==================== STORE POLICY ====================
-
-  /**
-   * @openapi
-   * /v1/inventory/policy:
-   *   get:
-   *     tags:
-   *       - Inventory
-   *     summary: Get store policy for inventory
-   *     security:
-   *       - BearerAuth: []
-   *     responses:
-   *       200:
-   *         description: Store policy (creates default if not exists)
-   */
-  router.get("/policy", async (req, res) =>
-    storePolicyController.getStorePolicy(req as any, res)
-  );
-
-  /**
-   * @openapi
-   * /v1/inventory/policy:
-   *   patch:
-   *     tags:
-   *       - Inventory
-   *     summary: Update store policy
-   *     security:
-   *       - BearerAuth: []
-   *     requestBody:
-   *       required: true
-   *       content:
-   *         application/json:
-   *           schema:
-   *             type: object
-   *             properties:
-   *               inventorySubtractOnFinalize:
-   *                 type: boolean
-   *               branchOverrides:
-   *                 type: object
-   *               excludeMenuItemIds:
-   *                 type: array
-   *                 items:
-   *                   type: string
-   *                   format: uuid
-   *     responses:
-   *       200:
-   *         description: Policy updated
-   */
-  router.put("/policy", async (req, res) =>
-    storePolicyController.updateStorePolicy(req as any, res)
   );
 
   // ==================== CATEGORIES ====================

@@ -145,15 +145,15 @@ class MenuViewModel extends Notifier<MenuState> {
         for (final g in groups) {
           hydratedModifierGroups[g.id] = g;
         }
+        final hydrationErrors = Map<String, String>.from(state.hydrationErrors)
+          ..remove(menuItemId);
         state = state.copyWith(
           allItems: updatedItems,
           filteredItems: _applyFilters(items: updatedItems),
           modifierGroups: mergedGroups,
           hydratedItems: hydratedItems,
           hydratedModifierGroups: hydratedModifierGroups,
-          hydrationErrors: {
-            ...state.hydrationErrors..remove(menuItemId),
-          },
+          hydrationErrors: hydrationErrors,
         );
         return (item, groups);
       } catch (e) {

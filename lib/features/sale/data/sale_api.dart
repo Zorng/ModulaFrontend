@@ -66,6 +66,17 @@ class SaleApi {
     return response.data ?? const {};
   }
 
+  Future<Map<String, dynamic>> updateFulfillmentStatus(
+    String saleId, {
+    required String status,
+  }) async {
+    final response = await _dio.patch<Map<String, dynamic>>(
+      '$_prefix/$saleId/fulfillment',
+      data: {'status': status},
+    );
+    return response.data ?? const {};
+  }
+
   Future<List<dynamic>> listSales({
     String? status,
     DateTime? startDate,

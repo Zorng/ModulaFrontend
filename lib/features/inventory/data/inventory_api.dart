@@ -122,11 +122,160 @@ class InventoryApi {
           })
         : FormData.fromMap(body);
     final response =
-        await _dio.put<Map<String, dynamic>>('$_prefix/stock-items/$id', data: payload);
+        await _dio.patch<Map<String, dynamic>>('$_prefix/stock-items/$id', data: payload);
     return response.data ?? const {};
   }
 
   Future<void> deactivateStockItem(String id) async {
     await _dio.put<Map<String, dynamic>>('$_prefix/stock-items/$id', data: {'isActive': false});
+  }
+
+  Future<List<dynamic>> fetchBranchStockItems({String? branchId}) async {
+    final response =
+        await _dio.get<Map<String, dynamic>>(
+      '$_prefix/branch/stock-items',
+      queryParameters: branchId == null || branchId.isEmpty
+          ? null
+          : <String, dynamic>{'branchId': branchId},
+    );
+    final data = response.data;
+    if (data == null) return const [];
+    if (data['data'] is List) return List<dynamic>.from(data['data'] as List);
+    if (data['items'] is List) return List<dynamic>.from(data['items'] as List);
+    if (data['data'] is Map<String, dynamic>) {
+      final inner = data['data'] as Map<String, dynamic>;
+      if (inner['items'] is List) return List<dynamic>.from(inner['items'] as List);
+    }
+    return const [];
+  }
+
+  Future<Map<String, dynamic>> assignStockItemToBranch({
+    required String stockItemId,
+    required String branchId,
+    required int minThreshold,
+  }) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '$_prefix/branch/stock-items',
+      data: {
+        'stockItemId': stockItemId,
+        'branchId': branchId,
+        'minThreshold': minThreshold,
+      },
+    );
+    return response.data ?? const {};
+  }
+
+  Future<List<dynamic>> fetchOnHand({String? branchId}) async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '$_prefix/branch/on-hand',
+      queryParameters: branchId == null || branchId.isEmpty
+          ? null
+          : <String, dynamic>{'branchId': branchId},
+    );
+    final data = response.data;
+    if (data == null) return const [];
+    if (data['data'] is List) return List<dynamic>.from(data['data'] as List);
+    if (data['items'] is List) return List<dynamic>.from(data['items'] as List);
+    if (data['data'] is Map<String, dynamic>) {
+      final inner = data['data'] as Map<String, dynamic>;
+      if (inner['items'] is List) return List<dynamic>.from(inner['items'] as List);
+    }
+    return const [];
+  }
+
+  // Inventory journal / stock movements
+  Future<Map<String, dynamic>> receiveStock({
+    required String branchId,
+    required String stockItemId,
+    required num qty,
+    String? note,
+  }) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '$_prefix/journal/receive',
+      data: {
+        'branchId': branchId,
+        'stockItemId': stockItemId,
+        'qty': qty,
+        if (note != null && note.isNotEmpty) 'note': note,
+      },
+    );
+    return response.data ?? const {};
+  }
+
+  Future<Map<String, dynamic>> wasteStock({
+    required String branchId,
+    required String stockItemId,
+    required num qty,
+    required String note,
+  }) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '$_prefix/journal/waste',
+      data: {
+        'branchId': branchId,
+        'stockItemId': stockItemId,
+        'qty': qty,
+        'note': note,
+      },
+    );
+    return response.data ?? const {};
+  }
+
+  Future<Map<String, dynamic>> correctStock({
+    required String branchId,
+    required String stockItemId,
+    required num delta,
+    required String note,
+  }) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '$_prefix/journal/correct',
+      data: {
+        'branchId': branchId,
+        'stockItemId': stockItemId,
+        'delta': delta,
+        'note': note,
+      },
+    );
+    return response.data ?? const {};
+  }
+
+  Future<List<dynamic>> fetchJournal({
+    String? stockItemId,
+    String? reason,
+    String? fromDate,
+    String? toDate,
+    int page = 1,
+    int pageSize = 50,
+  }) async {
+    final query = <String, dynamic>{
+      'page': page,
+      'pageSize': pageSize,
+      if (stockItemId != null && stockItemId.isNotEmpty) 'stockItemId': stockItemId,
+      if (reason != null && reason.isNotEmpty) 'reason': reason,
+      if (fromDate != null && fromDate.isNotEmpty) 'fromDate': fromDate,
+      if (toDate != null && toDate.isNotEmpty) 'toDate': toDate,
+    };
+    final response = await _dio.get<Map<String, dynamic>>(
+      '$_prefix/journal',
+      queryParameters: query,
+    );
+    final data = response.data;
+    if (data == null) return const [];
+    if (data['data'] is List) return List<dynamic>.from(data['data'] as List);
+    if (data['items'] is List) return List<dynamic>.from(data['items'] as List);
+    if (data['data'] is Map<String, dynamic>) {
+      final inner = data['data'] as Map<String, dynamic>;
+      if (inner['items'] is List) return List<dynamic>.from(inner['items'] as List);
+    }
+    return const [];
+  }
+
+  Future<List<dynamic>> fetchLowStockAlerts() async {
+    final response =
+        await _dio.get<Map<String, dynamic>>('$_prefix/journal/alerts/low-stock');
+    final data = response.data;
+    if (data == null) return const [];
+    if (data['data'] is List) return List<dynamic>.from(data['data'] as List);
+    if (data['items'] is List) return List<dynamic>.from(data['items'] as List);
+    return const [];
   }
 }
