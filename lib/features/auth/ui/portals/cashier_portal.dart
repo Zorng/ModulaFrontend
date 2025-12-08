@@ -6,6 +6,7 @@ import 'package:modular_pos/core/widgets/portal_action.dart';
 import 'package:modular_pos/core/widgets/portal_shell.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/sale/ui/view/order_page.dart';
+import 'package:modular_pos/features/cash_session/ui/view/cashier_cash_session.dart';
 
 class CashierPortal extends ConsumerWidget {
   const CashierPortal({super.key});
@@ -32,10 +33,7 @@ class CashierPortal extends ConsumerWidget {
         id: 'cash_sessions',
         label: 'Cash Sessions',
         icon: Icons.attach_money_outlined,
-        builder: (context) => const _PlaceholderCard(
-          title: 'Cash Sessions',
-          content: 'Open/close sessions, paid-in/out, reconciliation.',
-        ),
+        builder: (context) => const CashierCashSessionScreen(),
       ),
       PortalAction(
         id: 'orders',
@@ -82,9 +80,11 @@ class _CashierHomeContent extends StatelessWidget {
         icon: Icons.point_of_sale,
         onTap: () => context.push(AppRoute.sale.path),
       ),
-      const _FeatureEntry(
+      _FeatureEntry(
         title: 'Cash Sessions',
+        route: AppRoute.cashierCashSession,
         icon: Icons.attach_money_outlined,
+        onTap: () => context.push(AppRoute.cashierCashSession.path),
       ),
       _FeatureEntry(
         title: 'Orders',
@@ -124,13 +124,15 @@ class _FeatureCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final onTap = entry.onTap ??
+        (entry.route != null ? () => context.push(entry.route!.path) : null);
     return Card(
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        onTap: entry.onTap,
+        onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.all(10),
           child: Column(
@@ -167,11 +169,13 @@ class _FeatureEntry {
     required this.title,
     required this.icon,
     this.onTap,
+    this.route,
   });
 
   final String title;
   final IconData icon;
   final VoidCallback? onTap;
+  final AppRoute? route;
 }
 
 class _SaleShortcutCard extends StatelessWidget {
