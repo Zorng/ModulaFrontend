@@ -6,7 +6,10 @@ import 'package:modular_pos/core/widgets/portal_action.dart';
 import 'package:modular_pos/core/widgets/portal_shell.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
+import 'package:modular_pos/features/cash_session/ui/view/cashier_cash_session.dart';
+import 'package:modular_pos/features/cash_session/ui/viewmodels/cash_session_viewmodel.dart';
 import 'package:modular_pos/features/menu/ui/view/menu_page.dart';
+import 'package:modular_pos/features/sale/ui/view/order_page.dart';
 
 class AdminPortal extends ConsumerWidget {
   const AdminPortal({super.key});
@@ -15,12 +18,14 @@ class AdminPortal extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final session = ref.watch(loginControllerProvider).session;
     final user = session?.user;
+    void openSale() => context.push(AppRoute.sale.path);
     final actions = <PortalAction>[
       PortalAction(
         id: 'dashboard',
         label: 'Dashboard',
         icon: Icons.dashboard_outlined,
-        builder: (context) => _AdminHomeContent(user: user),
+        builder: (context) =>
+            _AdminHomeContent(user: user, onOpenSale: openSale),
       ),
       PortalAction(
         id: 'menu',
@@ -50,19 +55,20 @@ class AdminPortal extends ConsumerWidget {
         id: 'sales',
         label: 'POS',
         icon: Icons.point_of_sale,
-        builder: (context) => _PlaceholderCard(
-          title: 'POS',
-          content: 'Sales entry for admin; mirrors cashier POS with extras.',
-        ),
+        onSelected: (_) => openSale(),
+        builder: (context) => _SaleShortcutCard(onOpenSale: openSale),
+      ),
+      PortalAction(
+        id: 'orders',
+        label: 'Orders',
+        icon: Icons.receipt_long_outlined,
+        builder: (context) => const OrderPage(),
       ),
       PortalAction(
         id: 'cash_sessions',
         label: 'Cash Sessions',
         icon: Icons.attach_money_outlined,
-        builder: (context) => _PlaceholderCard(
-          title: 'Cash Sessions',
-          content: 'Open/close sessions, paid-in/out, reconciliation, Z/X.',
-        ),
+        builder: (context) => const CashSessionScreen(),
       ),
       PortalAction(
         id: 'reports',
@@ -101,10 +107,7 @@ class AdminPortal extends ConsumerWidget {
 }
 
 class _PlaceholderCard extends StatelessWidget {
-  const _PlaceholderCard({
-    required this.title,
-    required this.content,
-  });
+  const _PlaceholderCard({required this.title, required this.content});
 
   final String title;
   final String content;
@@ -112,18 +115,13 @@ class _PlaceholderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              title,
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
+            Text(title, style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
             Text(content),
           ],
@@ -133,10 +131,85 @@ class _PlaceholderCard extends StatelessWidget {
   }
 }
 
+class _SaleShortcutCard extends ConsumerWidget {
+  const _SaleShortcutCard({required this.onOpenSale});
+
+  final VoidCallback onOpenSale;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final cashSession = ref.watch(cashSessionViewModelProvider);
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('POS / Sale', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            const Text(
+              'Launch the sale screen used by cashiers with admin permissions.',
+            ),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: () {
+                if (cashSession.sessionStatus != SessionStatus.open) {
+                  _showCashSessionDialog(context);
+                  return;
+                }
+                onOpenSale();
+              },
+              icon: const Icon(Icons.point_of_sale),
+              label: const Text('Open Sale'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+void _showCashSessionDialog(BuildContext context) {
+  showDialog(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      titlePadding: const EdgeInsets.fromLTRB(24, 16, 8, 0),
+      contentPadding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+      actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      title: Row(
+        children: [
+          const Expanded(child: Text('Cash session required')),
+          IconButton(
+            icon: const Icon(Icons.close),
+            tooltip: 'Close',
+            onPressed: () {
+              Navigator.of(ctx).pop();
+            },
+          ),
+        ],
+      ),
+      content: const Text(
+        'You are not in an active cash session. Start one before opening the sale screen.',
+      ),
+      actions: [
+        FilledButton(
+          onPressed: () {
+            Navigator.of(ctx).pop();
+            context.push(AppRoute.cashierCashSession.path);
+          },
+          child: const Text('Go to cash session'),
+        ),
+      ],
+    ),
+  );
+}
+
 class _AdminHomeContent extends StatelessWidget {
-  const _AdminHomeContent({this.user});
+  const _AdminHomeContent({this.user, this.onOpenSale});
 
   final User? user;
+  final VoidCallback? onOpenSale;
 
   @override
   Widget build(BuildContext context) {
@@ -150,10 +223,7 @@ class _AdminHomeContent extends StatelessWidget {
         title: 'Branches',
         icon: Icons.store_mall_directory_outlined,
       ),
-      _FeatureEntry(
-        title: 'Staff',
-        icon: Icons.group_outlined,
-      ),
+      _FeatureEntry(title: 'Staff', icon: Icons.group_outlined),
       _FeatureEntry(
         title: 'Menu',
         icon: Icons.fastfood_outlined,
@@ -164,24 +234,24 @@ class _AdminHomeContent extends StatelessWidget {
         icon: Icons.inventory_2_outlined,
         onTap: () => context.push(AppRoute.inventory.path),
       ),
-      _FeatureEntry(
-        title: 'Discounts',
-        icon: Icons.percent_outlined,
-      ),
+      _FeatureEntry(title: 'Discounts', icon: Icons.percent_outlined),
     ];
 
     final branchFeatures = [
       _FeatureEntry(
         title: 'POS / Sales',
         icon: Icons.point_of_sale,
+        onTap: onOpenSale,
       ),
       _FeatureEntry(
         title: 'Cash Sessions',
         icon: Icons.attach_money_outlined,
+        onTap: () => context.push(AppRoute.cashierCashSession.path),
       ),
       _FeatureEntry(
         title: 'Orders',
         icon: Icons.receipt_long_outlined,
+        onTap: () => context.push(AppRoute.orders.path),
       ),
       _FeatureEntry(
         title: 'Policy',
@@ -190,8 +260,9 @@ class _AdminHomeContent extends StatelessWidget {
       ),
     ];
 
-    final mergedGlobalFeatures =
-        hasMultipleBranches ? globalFeatures : [...globalFeatures, ...branchFeatures];
+    final mergedGlobalFeatures = hasMultipleBranches
+        ? globalFeatures
+        : [...globalFeatures, ...branchFeatures];
     String? selectedBranchId = branches.isNotEmpty ? branches.first.id : null;
 
     return Column(
@@ -241,29 +312,29 @@ class _BranchSectionState extends State<_BranchSection> {
   void initState() {
     super.initState();
     _selectedBranchId =
-        widget.initialBranchId ?? (widget.branches.isNotEmpty ? widget.branches.first.id : null);
+        widget.initialBranchId ??
+        (widget.branches.isNotEmpty ? widget.branches.first.id : null);
   }
 
   @override
   Widget build(BuildContext context) {
-    final selectedBranch = widget.branches
-        .firstWhere(
-          (b) => b.id == _selectedBranchId,
-          orElse: () => widget.branches.isNotEmpty
-              ? widget.branches.first
-              : const UserBranch(id: '', name: 'No branch', role: '', active: false),
-        );
+    final selectedBranch = widget.branches.firstWhere(
+      (b) => b.id == _selectedBranchId,
+      orElse: () => widget.branches.isNotEmpty
+          ? widget.branches.first
+          : const UserBranch(
+              id: '',
+              name: 'No branch',
+              role: '',
+              active: false,
+            ),
+    );
 
     final branchSelector = widget.isWide
         ? DropdownButton<String>(
             value: _selectedBranchId,
             items: widget.branches
-                .map(
-                  (b) => DropdownMenuItem(
-                    value: b.id,
-                    child: Text(b.name),
-                  ),
-                )
+                .map((b) => DropdownMenuItem(value: b.id, child: Text(b.name)))
                 .toList(),
             onChanged: (value) {
               setState(() {
@@ -276,8 +347,7 @@ class _BranchSectionState extends State<_BranchSection> {
             borderRadius: BorderRadius.circular(12),
             onTap: () => _pickBranch(context),
             child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
@@ -303,10 +373,7 @@ class _BranchSectionState extends State<_BranchSection> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Branch',
-          style: Theme.of(context).textTheme.titleLarge,
-        ),
+        Text('Branch', style: Theme.of(context).textTheme.titleLarge),
         Text(
           'Scoped to current branch',
           style: Theme.of(context).textTheme.labelMedium,
@@ -342,8 +409,10 @@ class _BranchSectionState extends State<_BranchSection> {
                 final branch = widget.branches[index];
                 final isSelected = branch.id == _selectedBranchId;
                 return ListTile(
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
                   leading: Icon(
                     Icons.store_mall_directory_outlined,
                     color: isSelected
@@ -393,14 +462,8 @@ class _Section extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (!compactHeader) ...[
-          Text(
-            title,
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          Text(
-            subtitle,
-            style: Theme.of(context).textTheme.labelMedium,
-          ),
+          Text(title, style: Theme.of(context).textTheme.titleLarge),
+          Text(subtitle, style: Theme.of(context).textTheme.labelMedium),
           const SizedBox(height: 8),
         ],
         GridView.builder(
@@ -428,9 +491,7 @@ class _FeatureCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: entry.onTap,
@@ -442,8 +503,9 @@ class _FeatureCard extends StatelessWidget {
             children: [
               CircleAvatar(
                 radius: 18,
-                backgroundColor:
-                    Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                backgroundColor: Theme.of(
+                  context,
+                ).colorScheme.primary.withValues(alpha: 0.1),
                 child: Icon(
                   entry.icon,
                   color: Theme.of(context).colorScheme.primary,
@@ -466,11 +528,7 @@ class _FeatureCard extends StatelessWidget {
 }
 
 class _FeatureEntry {
-  const _FeatureEntry({
-    required this.title,
-    required this.icon,
-    this.onTap,
-  });
+  const _FeatureEntry({required this.title, required this.icon, this.onTap});
 
   final String title;
   final IconData icon;

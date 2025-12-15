@@ -34,6 +34,7 @@ class _AddCategoryPageState extends ConsumerState<AddCategoryPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        centerTitle: false,
         title: const Text('Add New Category'),
       ),
       body: SingleChildScrollView(

@@ -4,12 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/widgets/app_kebab_menu.dart';
 import 'package:modular_pos/core/widgets/app_search_add_bar.dart';
-import 'package:modular_pos/features/inventory/data/stock_item_api.dart'
-    show
-        InventoryMockScenario,
-        defaultMockScenario,
-        singleBranchId,
-        singleBranchName;
+import 'package:modular_pos/features/auth/domain/models/user.dart';
+import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/inventory/domain/models/category_defaults.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/category_controller.dart';
@@ -26,19 +22,18 @@ class InventoryHomePage extends ConsumerStatefulWidget {
 class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
   String _selectedBranchId = 'all';
   String _selectedCategory = 'All';
-  Set<InventoryStockState>? _stateFilters;
   final _searchController = TextEditingController();
-
-  late final bool _isSingleBranchTenant;
 
   @override
   void initState() {
     super.initState();
-    _isSingleBranchTenant =
-        defaultMockScenario == InventoryMockScenario.singleBranchFreshTenant;
-    if (_isSingleBranchTenant) {
-      _selectedBranchId = singleBranchId;
-    }
+    // Ensure fresh data when opening inventory.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(categoryControllerProvider.notifier).loadCategories();
+      ref
+          .read(stockInventoryControllerProvider.notifier)
+          .loadStockItems();
+    });
   }
 
   @override
@@ -51,14 +46,19 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
   Widget build(BuildContext context) {
     final inventoryState = ref.watch(stockInventoryControllerProvider);
     final categoryState = ref.watch(categoryControllerProvider);
+    final userBranches = ref.watch(loginControllerProvider).user?.branches ?? const [];
     final items = inventoryState.items;
-    final branchEntries = _branchEntries(items);
+    final branchEntries = _branchEntries(items, userBranches);
+    if (_selectedBranchId == 'all' && branchEntries.length == 2) {
+      _selectedBranchId = branchEntries.first['id'] == 'all'
+          ? branchEntries[1]['id']!
+          : branchEntries.first['id']!;
+    } else if (_selectedBranchId == 'all' && userBranches.length == 1) {
+      _selectedBranchId =
+          userBranches.first.branchId.isNotEmpty ? userBranches.first.branchId : userBranches.first.id;
+    }
     final branchLabel = _branchLabel(branchEntries);
     final canSelectBranch = branchEntries.length > 1;
-    final activeFilters = _stateFilters ?? const <InventoryStockState>{};
-    final filterLabel = activeFilters.isEmpty
-        ? 'Filters'
-        : 'Filters (${activeFilters.length})';
     final filtered = items.where((item) {
       final matchesCategory =
           _selectedCategory == 'All' || item.category == _selectedCategory;
@@ -69,10 +69,7 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
           item.name.toLowerCase().contains(
             _searchController.text.toLowerCase(),
           );
-      final stockState = _mapState(item);
-      final matchesState =
-          activeFilters.isEmpty || activeFilters.contains(stockState);
-      return matchesCategory && matchesBranch && matchesSearch && matchesState;
+      return matchesCategory && matchesBranch && matchesSearch;
     }).toList();
 
     final displayed = _selectedBranchId == 'all'
@@ -157,16 +154,6 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                   ),
                 ),
-                const SizedBox(width: 8),
-                FilledButton.icon(
-                  onPressed: _openFilterSheet,
-                  icon: const Icon(Icons.filter_list),
-                  label: Text(filterLabel),
-                  style: FilledButton.styleFrom(
-                    minimumSize: const Size(64, 40),
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                  ),
-                ),
               ],
             ),
             const SizedBox(height: 16),
@@ -223,87 +210,6 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
     );
   }
 
-  Future<void> _openFilterSheet() async {
-    final activeFilters = _stateFilters ?? const <InventoryStockState>{};
-    final tempStates = {...activeFilters};
-    final result = await showModalBottomSheet<Set<InventoryStockState>>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            return Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Filters',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Stock state',
-                    style: Theme.of(context).textTheme.bodyLarge,
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: InventoryStockState.values.map((state) {
-                      final selected = tempStates.contains(state);
-                      return FilterChip(
-                        label: Text(_stateLabel(state)),
-                        selected: selected,
-                        avatar: Icon(
-                          _stateIcon(state),
-                          size: 16,
-                          color: selected ? Colors.white : Colors.black54,
-                        ),
-                        onSelected: (value) {
-                          setModalState(() {
-                            if (value) {
-                              tempStates.add(state);
-                            } else {
-                              tempStates.remove(state);
-                            }
-                          });
-                        },
-                      );
-                    }).toList(),
-                  ),
-                  const SizedBox(height: 24),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      TextButton(
-                        onPressed: () {
-                          setModalState(() => tempStates.clear());
-                        },
-                        child: const Text('Reset'),
-                      ),
-                      const SizedBox(width: 8),
-                      FilledButton(
-                        onPressed: () =>
-                            Navigator.of(context).pop({...tempStates}),
-                        child: const Text('Apply'),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
-
-    if (result != null) {
-      setState(() => _stateFilters = result);
-    }
-  }
-
   Future<void> _showBranchSelector(List<Map<String, String>> branches) async {
     if (branches.length <= 1) return;
     final selection = await showModalBottomSheet<Map<String, String>>(
@@ -330,25 +236,29 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
     );
 
     if (selection != null) {
-      setState(() {
-        _selectedBranchId = selection['id']!;
-      });
+      final id = selection['id']!;
+      setState(() => _selectedBranchId = id);
+      // Reload inventory for the selected branch (or all branches).
+      ref
+          .read(stockInventoryControllerProvider.notifier)
+          .loadStockItems(branchId: id == 'all' ? null : id);
     }
   }
 
-  List<Map<String, String>> _branchEntries(List<StockItem> items) {
-    if (items.isEmpty) {
-      return _isSingleBranchTenant
-          ? [
-              {'id': singleBranchId, 'name': singleBranchName},
-            ]
-          : [
-              {'id': 'all', 'name': 'All branches'},
-            ];
-    }
+  List<Map<String, String>> _branchEntries(
+    List<StockItem> items,
+    List<UserBranch> userBranches,
+  ) {
     final map = <String, String>{};
-    for (final item in items) {
-      map[item.branchId] = item.branchName;
+    if (userBranches.isNotEmpty) {
+      for (final b in userBranches) {
+        final id = b.branchId.isNotEmpty ? b.branchId : b.id;
+        map[id] = b.name;
+      }
+    } else {
+      for (final item in items) {
+        map[item.branchId] = item.branchName;
+      }
     }
     final entries = map.entries
         .map((entry) => {'id': entry.key, 'name': entry.value})
@@ -370,15 +280,8 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
         return branch['name']!;
       }
     }
-    if (_isSingleBranchTenant) return singleBranchName;
     if (branches.isNotEmpty) return branches.first['name']!;
     return 'All branches';
-  }
-
-  InventoryStockState _mapState(StockItem item) {
-    if (item.onHand == 0) return InventoryStockState.outOfStock;
-    if (item.isLowStock) return InventoryStockState.lowStock;
-    return InventoryStockState.healthy;
   }
 
   List<StockItem> _aggregateItems(List<StockItem> items) {
@@ -416,15 +319,3 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
     }).toList();
   }
 }
-
-String _stateLabel(InventoryStockState state) => switch (state) {
-  InventoryStockState.healthy => 'Healthy',
-  InventoryStockState.lowStock => 'Low stock',
-  InventoryStockState.outOfStock => 'Out of stock',
-};
-
-IconData _stateIcon(InventoryStockState state) => switch (state) {
-  InventoryStockState.healthy => Icons.check_circle,
-  InventoryStockState.lowStock => Icons.warning_amber,
-  InventoryStockState.outOfStock => Icons.error_outline,
-};

@@ -8,15 +8,39 @@ import 'package:modular_pos/features/menu/ui/view/view_modifier_group_page.dart'
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
 
 /// A page for managing modifier groups.
-class ModifiersManagementPage extends ConsumerWidget {
+class ModifiersManagementPage extends ConsumerStatefulWidget {
   const ModifiersManagementPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final modifierGroups = ref.watch(menuViewModelProvider).modifierGroups;
+  ConsumerState<ModifiersManagementPage> createState() =>
+      _ModifiersManagementPageState();
+}
+
+class _ModifiersManagementPageState
+    extends ConsumerState<ModifiersManagementPage> {
+  String _searchQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(menuViewModelProvider.notifier).refreshModifierGroups();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final menuState = ref.watch(menuViewModelProvider);
+    final modifierGroups = menuState.modifierGroups
+        .where(
+          (group) => group.name.toLowerCase().contains(_searchQuery.toLowerCase()),
+        )
+        .toList();
 
     return Scaffold(
       appBar: AppBar(
+        centerTitle: false,
         title: const Text('Modifiers Management'),
       ),
       body: Padding(
@@ -25,7 +49,9 @@ class ModifiersManagementPage extends ConsumerWidget {
           children: [
             AppSearchAddBar(
               searchHint: 'Search modifiers...',
-              onSearchChanged: (_) {},
+              onSearchChanged: (value) {
+                setState(() => _searchQuery = value);
+              },
               onAddPressed: () {
                 Navigator.push(
                   context,
@@ -37,15 +63,17 @@ class ModifiersManagementPage extends ConsumerWidget {
             ),
             const SizedBox(height: 16),
             Expanded(
-              child: modifierGroups.isEmpty
-                  ? const Center(child: Text('No modifier groups yet'))
-                  : ListView.builder(
-                      itemCount: modifierGroups.length,
-                      itemBuilder: (context, index) {
-                        final group = modifierGroups[index];
-                        return _ModifierGroupTile(group: group);
-                      },
-                    ),
+              child: menuState.isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : modifierGroups.isEmpty
+                      ? const Center(child: Text('No modifier groups yet'))
+                      : ListView.builder(
+                          itemCount: modifierGroups.length,
+                          itemBuilder: (context, index) {
+                            final group = modifierGroups[index];
+                            return _ModifierGroupTile(group: group);
+                          },
+                        ),
             ),
           ],
         ),
@@ -71,6 +99,7 @@ class _ModifierGroupTile extends StatelessWidget {
         );
       },
       child: Card(
+        color: Colors.white,
         margin: const EdgeInsets.only(bottom: 12),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),

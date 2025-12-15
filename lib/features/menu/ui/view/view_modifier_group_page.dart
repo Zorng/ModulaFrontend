@@ -18,7 +18,8 @@ class ViewModifierGroupPage extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('View: ${resolvedGroup.name}'),
+        centerTitle: false,
+        title: Text(resolvedGroup.name),
         actions: [
           TextButton(
             onPressed: () {
@@ -26,6 +27,7 @@ class ViewModifierGroupPage extends ConsumerWidget {
                 context,
                 MaterialPageRoute(
                   builder: (_) => EditModifierGroupPage(group: resolvedGroup),
+                  fullscreenDialog: true,
                 ),
               );
             },
@@ -51,19 +53,21 @@ class ViewModifierGroupPage extends ConsumerWidget {
             Text('Options', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
             ...resolvedGroup.options.map(
-              (option) => ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(option.name),
-                trailing: option.price > 0
-                    ? Text('+ \$${option.price.toStringAsFixed(2)}')
-                    : const SizedBox.shrink(),
-                leading: Icon(
-                  resolvedGroup.defaultOptionId == option.id
-                      ? Icons.check_circle
-                      : Icons.circle_outlined,
-                  color: resolvedGroup.defaultOptionId == option.id
-                      ? Theme.of(context).primaryColor
-                      : null,
+              (option) => Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(option.name),
+                    if (option.price > 0)
+                      Text(
+                        '+ \$${option.price.toStringAsFixed(2)}',
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodyMedium
+                            ?.copyWith(color: Colors.grey[700]),
+                      ),
+                  ],
                 ),
               ),
             ),

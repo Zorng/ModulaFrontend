@@ -16,6 +16,9 @@ enum AppRoute {
   inventoryCategories,
   inventoryJournal,
   inventoryJournalDetail,
+  orders,
+  sale,
+  cashierCashSession,
 }
 
 extension AppRoutePath on AppRoute {
@@ -37,6 +40,9 @@ extension AppRoutePath on AppRoute {
     AppRoute.inventoryCategories => '/portal/admin/inventory/categories',
     AppRoute.inventoryJournal => '/portal/admin/inventory/journal',
     AppRoute.inventoryJournalDetail => '/portal/admin/inventory/journal/detail',
+    AppRoute.orders => '/orders',
+    AppRoute.sale => '/sale',
+    AppRoute.cashierCashSession => '/portal/cashier/session',
   };
 
   String get name => switch (this) {
@@ -57,5 +63,8 @@ extension AppRoutePath on AppRoute {
     AppRoute.inventoryCategories => 'inventoryCategories',
     AppRoute.inventoryJournal => 'inventoryJournal',
     AppRoute.inventoryJournalDetail => 'inventoryJournalDetail',
+    AppRoute.orders => 'orders',
+    AppRoute.sale => 'sale',
+    AppRoute.cashierCashSession => 'cashierCashSession',
   };
 }

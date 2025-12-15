@@ -19,7 +19,7 @@ class _EditModifierGroupPageState
     extends ConsumerState<EditModifierGroupPage> {
   late final TextEditingController _groupNameController;
   late final List<_OptionRow> _options;
-  final _pricingBehaviors = ['Add-on (Extra)', 'Fixed (Size Based)', 'No Price Change'];
+  final _pricingBehaviors = ['Price Change', 'No Price Change'];
   final _selectionTypes = ['Single Selection', 'Multiple Selection'];
 
   late String? _selectedPricingBehavior;
@@ -68,30 +68,30 @@ class _EditModifierGroupPageState
   String _mapPricingBehavior(String behavior) {
     switch (behavior) {
       case 'fixed':
-        return 'Fixed (Size Based)';
+      case 'addon':
+        return 'Price Change';
       case 'none':
         return 'No Price Change';
-      case 'addon':
       default:
-        return 'Add-on (Extra)';
+        return 'Price Change';
     }
   }
 
   String _mapPricingBehaviorToValue(String? behavior) {
     switch (behavior) {
-      case 'Fixed (Size Based)':
-        return 'fixed';
-      case 'No Price Change':
-        return 'none';
-      case 'Add-on (Extra)':
-      default:
+      case 'Price Change':
         return 'addon';
+      case 'No Price Change':
+      default:
+        return 'none';
     }
   }
 
   Future<void> _saveGroup() async {
     final name = _groupNameController.text.trim();
-    if (name.isEmpty) return;
+    if (name.isEmpty) {
+      return;
+    }
 
     final updated = widget.group.copyWith(
       name: name,
@@ -109,6 +109,7 @@ class _EditModifierGroupPageState
               price: _requiresPriceInput
                   ? double.tryParse(row.priceController.text) ?? 0
                   : 0,
+              isDefault: _isSingleSelection && _selectedDefault == row.id,
             ),
           )
           .toList(),
@@ -118,14 +119,62 @@ class _EditModifierGroupPageState
     if (mounted) Navigator.pop(context);
   }
 
+  Future<void> _tryDeleteGroup() async {
+    final itemsUsingGroup = ref
+        .read(menuViewModelProvider)
+        .allItems
+        .where((item) => item.modifierGroupIds.contains(widget.group.id))
+        .toList();
+    if (itemsUsingGroup.isNotEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Please remove this modifier from menu items before deleting.',
+            ),
+          ),
+        );
+      }
+      return;
+    }
+    try {
+      await ref
+          .read(menuViewModelProvider.notifier)
+          .deleteModifierGroup(widget.group.id);
+      if (mounted) Navigator.of(context)
+        ..pop() // close edit page
+        ..pop(); // close detail page
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Please remove this modifier from menu items before deleting.',
+          ),
+        ),
+      );
+    }
+  }
+
   void _addOption() {
     setState(() => _options.add(_OptionRow()));
+  }
+
+  void _removeOption(_OptionRow option) {
+    setState(() {
+      _options.remove(option);
+      option.dispose();
+      if (_selectedDefault == option.id) {
+        _selectedDefault = _noneDefaultValue;
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        centerTitle: false,
         title: const Text('Edit Modifier Group'),
       ),
       body: SingleChildScrollView(
@@ -216,6 +265,28 @@ class _EditModifierGroupPageState
                 ),
               ),
             ),
+            const SizedBox(height: 16),
+            Align(
+              alignment: Alignment.centerRight,
+              child: FilledButton(
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
+                  backgroundColor:
+                      Theme.of(context).colorScheme.secondaryContainer,
+                ),
+                onPressed: _tryDeleteGroup,
+                child: Text(
+                  'Delete',
+                  style: TextStyle(
+                    color: Colors.red.shade700,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -237,22 +308,54 @@ class _EditModifierGroupPageState
       padding: const EdgeInsets.only(top: 8),
       child: Row(
         children: [
+          IconButton(
+            onPressed: () => _removeOption(option),
+            icon: const Icon(Icons.delete_outline),
+            tooltip: 'Remove option',
+          ),
+          const SizedBox(width: 8),
           Expanded(
             flex: 4,
             child: TextField(
               controller: option.nameController,
-              decoration: const InputDecoration(hintText: 'Option Label'),
+              decoration: InputDecoration(
+                hintText: 'Option Label',
+                hintStyle: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(color: Colors.grey[600]),
+              ),
             ),
           ),
           if (_requiresPriceInput) ...[
             const SizedBox(width: 16),
             Expanded(
               flex: 2,
-              child: TextField(
-                controller: option.priceController,
-                decoration: const InputDecoration(hintText: '+ \$0.00'),
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
+              child: Row(
+                children: [
+                  Text(
+                    '+ \$ ',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                  Expanded(
+                    child: TextField(
+                      controller: option.priceController,
+                      decoration: InputDecoration(
+                        hintText: '0.00',
+                        hintStyle: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(color: Colors.grey[600]),
+                        contentPadding: const EdgeInsets.symmetric(
+                          vertical: 12,
+                          horizontal: 4,
+                        ),
+                      ),
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],

@@ -25,8 +25,8 @@ class InventoryCategory extends Equatable {
 
   factory InventoryCategory.fromJson(Map<String, dynamic> json) {
     return InventoryCategory(
-      id: json['id'] as String,
-      name: json['name'] as String,
+      id: json['id']?.toString() ?? '',
+      name: json['name']?.toString() ?? 'Category',
       isActive: json['isActive'] as bool? ?? true,
     );
   }

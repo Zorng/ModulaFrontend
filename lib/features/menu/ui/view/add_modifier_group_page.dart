@@ -33,8 +33,7 @@ class _AddModifierGroupPageState
     extends ConsumerState<AddModifierGroupPage> {
   final _groupNameController = TextEditingController();
   final _pricingBehaviors = [
-    'Add-on (Extra)',
-    'Fixed (Size Based)',
+    'Price Change',
     'No Price Change'
   ];
   final _selectionTypes = ['Single Selection', 'Multiple Selection'];
@@ -70,7 +69,11 @@ class _AddModifierGroupPageState
   }
 
   void _validateForm() {
-    final isValid = _groupNameController.text.trim().isNotEmpty;
+    final hasGroupName = _groupNameController.text.trim().isNotEmpty;
+    final allOptionLabelsFilled = _options.every(
+      (opt) => opt.nameController.text.trim().isNotEmpty,
+    );
+    final isValid = hasGroupName && allOptionLabelsFilled;
     if (_isFormValid != isValid) {
       setState(() => _isFormValid = isValid);
     }
@@ -78,19 +81,28 @@ class _AddModifierGroupPageState
 
   Future<void> _saveGroup() async {
     final name = _groupNameController.text.trim();
-    if (name.isEmpty) return;
+    final allOptionLabelsFilled = _options.every(
+      (opt) => opt.nameController.text.trim().isNotEmpty,
+    );
+    if (name.isEmpty || !allOptionLabelsFilled) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please input required fields.')),
+        );
+      }
+      _validateForm();
+      return;
+    }
 
     final group = ModifierGroup(
       id: '',
       name: name,
       selectionType: _selectedSelectionType == 'Multiple Selection'
-          ? 'multiple'
-          : 'single',
-      pricingBehavior: _selectedPricingBehavior == 'Fixed (Size Based)'
-          ? 'fixed'
-          : _selectedPricingBehavior == 'No Price Change'
-              ? 'none'
-              : 'addon',
+          ? 'MULTI'
+          : 'SINGLE',
+      pricingBehavior: _selectedPricingBehavior == 'Price Change'
+          ? 'addon'
+          : 'none',
       defaultOptionId: _isSingleSelection && _selectedDefault != _noneDefaultValue
           ? _selectedDefault
           : null,
@@ -102,6 +114,7 @@ class _AddModifierGroupPageState
               price: _requiresPriceInput
                   ? double.tryParse(row.priceController.text) ?? 0
                   : 0,
+              isDefault: _isSingleSelection && _selectedDefault == row.id,
             ),
           )
           .toList(),
@@ -119,6 +132,7 @@ class _AddModifierGroupPageState
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        centerTitle: false,
         title: const Text('Add Modifier Group'),
       ),
       body: SingleChildScrollView(
@@ -231,22 +245,64 @@ class _AddModifierGroupPageState
       padding: const EdgeInsets.only(top: 8),
       child: Row(
         children: [
+          IconButton(
+            icon: const Icon(Icons.delete_outline, color: Colors.grey),
+            onPressed: () {
+              setState(() {
+                option.dispose();
+                _options.removeWhere((o) => o.id == option.id);
+                if (_selectedDefault == option.id) {
+                  _selectedDefault = _noneDefaultValue;
+                }
+              });
+            },
+            tooltip: 'Remove option',
+          ),
           Expanded(
             flex: 4,
             child: TextField(
               controller: option.nameController,
-              decoration: const InputDecoration(hintText: 'Option Label'),
+              decoration: InputDecoration(
+                hintText: 'Option Label',
+                hintStyle: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(color: Colors.grey[600]),
+                labelText: 'Option Label *',
+              ),
+              onChanged: (_) => _validateForm(),
             ),
           ),
           if (_requiresPriceInput) ...[
             const SizedBox(width: 16),
             Expanded(
               flex: 2,
-              child: TextField(
-                controller: option.priceController,
-                decoration: const InputDecoration(hintText: '+ \$0.00'),
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
+              child: Row(
+                children: [
+                  Text(
+                    '+ \$ ',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                  Expanded(
+                    child: TextField(
+                      controller: option.priceController,
+                      decoration: InputDecoration(
+                        hintText: '0.00',
+                        hintStyle: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(color: Colors.grey[600]),
+                        contentPadding: const EdgeInsets.symmetric(
+                          vertical: 12,
+                          horizontal: 4,
+                        ),
+                      ),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],

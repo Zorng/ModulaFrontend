@@ -10,6 +10,8 @@ import 'package:modular_pos/features/menu/ui/view/menu_page.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/core/widgets/widget_gallery_page.dart';
 import 'package:modular_pos/features/policy/ui/view/policy_page.dart';
+import 'package:modular_pos/features/sale/ui/view/order_page.dart';
+import 'package:modular_pos/features/sale/ui/view/sale_page.dart';
 import 'package:modular_pos/features/common/ui/settings_page.dart';
 import 'package:modular_pos/features/auth/ui/view/account_page.dart';
 import 'package:modular_pos/features/inventory/ui/view/category_management_page.dart';
@@ -23,6 +25,8 @@ import 'package:modular_pos/features/inventory/ui/view/restock_stock_item_page.d
 import 'package:modular_pos/features/inventory/domain/models/inventory_journal_summary.dart';
 import 'package:modular_pos/features/inventory/ui/view/inventory_journal_page.dart';
 import 'package:modular_pos/features/inventory/ui/view/inventory_journal_detail_page.dart';
+import 'package:modular_pos/features/cash_session/ui/view/cashier_cash_session.dart';
+import 'package:modular_pos/features/cash_session/ui/viewmodels/cash_session_viewmodel.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -93,9 +97,17 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           role != 'admin') {
         return '/404';
       }
-
       // Authenticated but not allowed to access cashier portal → 404
-      if (path == AppRoute.cashierPortal.path && role != 'cashier') {
+      if (path == AppRoute.cashierPortal.path &&
+          role != 'cashier' &&
+          role != 'admin') {
+        return '/404';
+      }
+
+      // Authenticated but not allowed to access cashier dashboard → 404
+      if (path == AppRoute.cashierCashSession.path &&
+          role != 'cashier' &&
+          role != 'admin') {
         return '/404';
       }
 
@@ -211,6 +223,21 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           final summary = state.extra as InventoryJournalDaySummary;
           return InventoryJournalDetailPage(summary: summary);
         },
+      ),
+      GoRoute(
+        path: AppRoute.sale.path,
+        name: AppRoute.sale.name,
+        builder: (context, state) => const SalePage(),
+      ),
+      GoRoute(
+        path: AppRoute.orders.path,
+        name: AppRoute.orders.name,
+        builder: (context, state) => const OrderPage(),
+      ),
+      GoRoute(
+        path: AppRoute.cashierCashSession.path,
+        name: AppRoute.cashierCashSession.name,
+        builder: (context, state) => const CashSessionScreen(),
       ),
     ],
   );

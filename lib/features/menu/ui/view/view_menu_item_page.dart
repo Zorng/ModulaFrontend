@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:modular_pos/core/widgets/network_image_helper_stub.dart'
+    if (dart.library.html) 'package:modular_pos/core/widgets/network_image_helper_web.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_category.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
+import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
+import 'package:modular_pos/features/menu/ui/view/dashed_border_painter.dart';
 import 'package:modular_pos/features/menu/ui/view/menu_item_form_page.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
 
-/// A page to view the details of a menu item.
+/// A page to view the details of a menu item using only the hydrated item/modifier data.
 class ViewMenuItemPage extends ConsumerWidget {
   const ViewMenuItemPage({super.key, required this.menuItem});
 
@@ -14,14 +18,36 @@ class ViewMenuItemPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final menuState = ref.watch(menuViewModelProvider);
-    final latestItem = menuState.allItems
-        .firstWhere((item) => item.id == menuItem.id, orElse: () => menuItem);
+    final menuVm = ref.read(menuViewModelProvider.notifier);
+    final hydratedItem = menuState.hydratedItems[menuItem.id];
+    final hydrationError = menuState.hydrationErrors[menuItem.id];
+
+    if (hydratedItem == null) {
+      // Trigger hydration if missing and show loading.
+      menuVm.loadItemWithModifiers(menuItem.id);
+      return Scaffold(
+        appBar: AppBar(
+          centerTitle: false,
+          title: Text(
+            menuItem.name.isNotEmpty ? menuItem.name : 'Menu Item',
+          ),
+        ),
+        body: Center(
+          child: hydrationError != null
+              ? Text('Failed to load item details.\n$hydrationError')
+              : const CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    final latestItem = hydratedItem;
     final categoryName = _resolveCategoryName(
       menuState.categories,
       latestItem.categoryId,
     );
-    final modifiers = menuState.modifierGroups
-        .where((group) => latestItem.modifierGroupIds.contains(group.id))
+    final modifiers = latestItem.modifierGroupIds
+        .map((id) => menuState.hydratedModifierGroups[id])
+        .whereType<ModifierGroup>()
         .toList();
     final branches = menuState.branches
         .where((branch) => latestItem.branchIds.contains(branch.id))
@@ -29,16 +55,20 @@ class ViewMenuItemPage extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
+        centerTitle: false,
         title: Text(latestItem.name),
         actions: [
           TextButton(
-            onPressed: () {
-              Navigator.push(
+            onPressed: () async {
+              final updated = await Navigator.push<MenuItem>(
                 context,
                 MaterialPageRoute(
                   builder: (_) => MenuItemFormPage(initialItem: latestItem),
                 ),
               );
+              if (updated != null && context.mounted) {
+                await menuVm.loadItemWithModifiers(updated.id);
+              }
             },
             child: const Text('Edit'),
           ),
@@ -48,6 +78,14 @@ class ViewMenuItemPage extends ConsumerWidget {
         padding: const EdgeInsets.all(24),
         child: ListView(
           children: [
+            AspectRatio(
+              aspectRatio: 160 / 142,
+              child: _buildImage(
+                context: context,
+                imageUrl: latestItem.imageUrl ?? '',
+              ),
+            ),
+            const SizedBox(height: 16),
             Text(
               latestItem.name,
               style: Theme.of(context).textTheme.headlineSmall,
@@ -76,6 +114,7 @@ class ViewMenuItemPage extends ConsumerWidget {
             else
               ...modifiers.map(
                 (group) => Card(
+                  color: Colors.grey.shade100,
                   margin: const EdgeInsets.only(bottom: 12),
                   child: Padding(
                     padding: const EdgeInsets.all(12),
@@ -144,4 +183,58 @@ String _resolveCategoryName(
     if (category.id == categoryId) return category.name;
   }
   return 'Unassigned category';
+}
+
+Widget _buildImage({
+  required BuildContext context,
+  required String imageUrl,
+}) {
+  final theme = Theme.of(context);
+  final radius = 12.0;
+  final placeholder = _ImagePlaceholder(radius: radius, color: theme.primaryColor);
+  if (imageUrl.isEmpty) return placeholder;
+  return ClipRRect(
+    borderRadius: BorderRadius.circular(radius),
+    child: buildAdaptiveNetworkImage(
+      imageUrl,
+      placeholder,
+    ),
+  );
+}
+
+class _ImagePlaceholder extends StatelessWidget {
+  const _ImagePlaceholder({required this.radius, required this.color});
+  final double radius;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final textStyle = Theme.of(context)
+        .textTheme
+        .bodySmall
+        ?.copyWith(color: color, fontWeight: FontWeight.w600);
+    return CustomPaint(
+      foregroundPainter: DashedBorderPainter(
+        color: color,
+        strokeWidth: 1.4,
+        dashWidth: 6,
+        dashSpace: 4,
+        borderRadius: radius,
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(radius),
+        ),
+        alignment: Alignment.center,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.image_outlined, color: color, size: 32),
+            const SizedBox(height: 6),
+            Text('No image', style: textStyle),
+          ],
+        ),
+      ),
+    );
+  }
 }

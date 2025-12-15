@@ -42,15 +42,40 @@ class MenuItem {
   }
 
   factory MenuItem.fromJson(Map<String, dynamic> json) {
+    final priceValue = json['price'] ?? json['priceUsd'] ?? 0;
+    final double parsedPrice = priceValue is num
+        ? priceValue.toDouble()
+        : double.tryParse(priceValue.toString()) ?? 0;
+    final rawImage = json['imageUrl'] ??
+        json['image'] ??
+        json['image_url'] ??
+        json['url'];
+    final image = rawImage?.toString().trim();
+    final rawModifierIds = json['modifierGroupIds'] ??
+        json['modifiers'] ??
+        json['modifierGroups'];
+    final modifierIds = <String>[];
+    if (rawModifierIds is List) {
+      for (final entry in rawModifierIds) {
+        if (entry is Map) {
+          final id = entry['id'] ?? entry['modifierGroupId'] ?? entry['groupId'];
+          if (id != null) modifierIds.add(id.toString());
+        } else if (entry != null) {
+          modifierIds.add(entry.toString());
+        }
+      }
+    }
     return MenuItem(
-      id: json['id'] as String,
-      name: json['name'] as String,
-      categoryId: json['categoryId'] as String,
-      price: (json['price'] as num).toDouble(),
-      imageUrl: json['imageUrl'] as String?,
-      modifierGroupIds: (json['modifierGroupIds'] as List<dynamic>? ?? const [])
-          .map((e) => e.toString())
-          .toList(),
+      id: json['id']?.toString() ?? '',
+      name: json['name']?.toString() ?? 'Menu Item',
+      categoryId: json['categoryId']?.toString() ?? '',
+      price: parsedPrice,
+      imageUrl: image,
+      modifierGroupIds: modifierIds.isNotEmpty
+          ? modifierIds
+          : (json['modifierGroupIds'] as List<dynamic>? ?? const [])
+              .map((e) => e.toString())
+              .toList(),
       description: json['description'] as String? ?? '',
       branchIds: (json['branchIds'] as List<dynamic>? ?? const [])
           .map((e) => e.toString())

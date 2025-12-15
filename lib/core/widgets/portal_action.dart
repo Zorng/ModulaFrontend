@@ -6,11 +6,12 @@ class PortalAction {
     required this.label,
     required this.icon,
     required this.builder,
+    this.onSelected,
   });
 
   final String id;
   final String label;
   final IconData icon;
   final WidgetBuilder builder;
+  final ValueChanged<BuildContext>? onSelected;
 }
-

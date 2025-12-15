@@ -13,11 +13,24 @@ import 'package:modular_pos/features/menu/ui/view/modifiers_management_page.dart
 import 'package:modular_pos/features/menu/ui/view/view_menu_item_page.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
 
-class MenuPage extends ConsumerWidget {
+class MenuPage extends ConsumerStatefulWidget {
   const MenuPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<MenuPage> createState() => _MenuPageState();
+}
+
+class _MenuPageState extends ConsumerState<MenuPage> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(menuViewModelProvider.notifier).loadMenu();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final menuState = ref.watch(menuViewModelProvider);
     final List<_CategoryChip> categories = [
       _CategoryChip(id: 'all', label: 'All'),
@@ -39,6 +52,7 @@ class MenuPage extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         leading: const BackButton(),
+        centerTitle: false,
         title: const Text('Menu'),
         actions: [
           AppKebabMenu(
@@ -79,13 +93,16 @@ class MenuPage extends ConsumerWidget {
               onSearchChanged: ref
                   .read(menuViewModelProvider.notifier)
                   .searchItems,
-              onAddPressed: () {
-                Navigator.push(
+              onAddPressed: () async {
+                final result = await Navigator.push<MenuItem>(
                   context,
                   MaterialPageRoute(
                     builder: (context) => const MenuItemFormPage(),
                   ),
                 );
+                if (result != null && mounted) {
+                  await ref.read(menuViewModelProvider.notifier).loadMenu();
+                }
               },
             ),
             const SizedBox(height: 24),
@@ -171,13 +188,16 @@ class MenuPage extends ConsumerWidget {
     );
   }
 
-  void _openItemDetail(BuildContext context, MenuItem item) {
-    Navigator.push(
+  Future<void> _openItemDetail(BuildContext context, MenuItem item) async {
+    await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => ViewMenuItemPage(menuItem: item),
       ),
     );
+    if (mounted) {
+      await ref.read(menuViewModelProvider.notifier).loadMenu();
+    }
   }
 }
 

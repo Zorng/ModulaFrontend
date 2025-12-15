@@ -1,5 +1,11 @@
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:modular_pos/core/widgets/network_image_helper_stub.dart'
+    if (dart.library.html) 'package:modular_pos/core/widgets/network_image_helper_web.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_branch.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
@@ -27,12 +33,19 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
   final Set<String> _selectedModifierGroupIds = {};
   final Set<String> _selectedBranchIds = {};
   bool _hasInitializedBranchSelection = false;
+  String? _selectedImagePath;
+  Uint8List? _selectedImageBytes;
+  String? _existingImageUrl;
+  final ImagePicker _picker = ImagePicker();
 
   bool get isEditing => widget.initialItem != null;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(menuViewModelProvider.notifier).loadMenu();
+    });
     _nameController = TextEditingController(text: widget.initialItem?.name);
     _priceController = TextEditingController(
       text: widget.initialItem?.price.toStringAsFixed(2),
@@ -42,6 +55,7 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
         .addAll(widget.initialItem?.modifierGroupIds ?? const []);
     _selectedBranchIds.addAll(widget.initialItem?.branchIds ?? const []);
     _hasInitializedBranchSelection = _selectedBranchIds.isNotEmpty;
+    _existingImageUrl = widget.initialItem?.imageUrl;
     _nameController.addListener(_validateForm);
     _priceController.addListener(_validateForm);
     _validateForm();
@@ -78,12 +92,22 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
           ? _selectedBranchIds.toList()
           : allBranches.map((branch) => branch.id).toList(),
     );
+    MenuItem saved;
     if (isEditing) {
-      await notifier.updateMenuItem(item);
+      saved = await notifier.updateMenuItem(
+        item,
+        imagePath: kIsWeb ? null : _selectedImagePath,
+        imageBytes: _selectedImageBytes,
+      );
     } else {
-      await notifier.addMenuItem(item);
+      saved = await notifier.addMenuItem(
+        item,
+        imagePath: kIsWeb ? null : _selectedImagePath,
+        imageBytes: _selectedImageBytes,
+      );
     }
-    if (mounted) Navigator.pop(context);
+    await notifier.loadItemWithModifiers(saved.id);
+    if (mounted) Navigator.pop(context, saved);
   }
 
   @override
@@ -95,9 +119,10 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
 
     if (categories.isEmpty) {
       return Scaffold(
-        appBar: AppBar(
-          title: Text(isEditing ? 'Edit Item' : 'Add Item'),
-        ),
+      appBar: AppBar(
+        centerTitle: false,
+        title: Text(isEditing ? 'Edit Item' : 'Add Item'),
+      ),
         body: const Center(
           child: Text('Add a category before creating menu items.'),
         ),
@@ -131,6 +156,7 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
 
     return Scaffold(
       appBar: AppBar(
+        centerTitle: false,
         title: Text(isEditing ? 'Edit Item' : 'Add Item'),
       ),
       body: SingleChildScrollView(
@@ -138,6 +164,8 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Center(child: _buildImagePicker(context)),
+            const SizedBox(height: 16),
             _buildLabel('Item Name', isRequired: true),
             TextField(
               controller: _nameController,
@@ -217,15 +245,185 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
       ),
       bottomNavigationBar: Padding(
         padding: const EdgeInsets.all(16),
-        child: ElevatedButton(
-          onPressed: _isFormValid ? _save : null,
-          style: ElevatedButton.styleFrom(
-            minimumSize: const Size(double.infinity, 50),
+        child: isEditing
+            ? Row(
+                children: [
+                  Expanded(
+                    flex: 1,
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 12),
+                        backgroundColor:
+                            Theme.of(context).colorScheme.secondaryContainer,
+                      ),
+                      onPressed: _deleteItem,
+                      child: Text(
+                        'Delete',
+                        style: TextStyle(
+                          color: Colors.red.shade700,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 1,
+                    child: ElevatedButton(
+                      onPressed: _isFormValid ? _save : null,
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(48),
+                      ),
+                      child: const Text('Save Changes'),
+                    ),
+                  ),
+                ],
+              )
+            : ElevatedButton(
+                onPressed: _isFormValid ? _save : null,
+                style: ElevatedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 50),
+                ),
+                child: const Text('Create Item'),
+              ),
+      ),
+    );
+  }
+
+  Widget _buildImagePicker(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = theme.primaryColor;
+    final radius = 14.0;
+    final hasLocal = _selectedImagePath != null || _selectedImageBytes != null;
+    final hasRemote = _existingImageUrl != null && _existingImageUrl!.isNotEmpty;
+
+    Widget content;
+    if (hasLocal) {
+      content = _selectedImageBytes != null
+          ? Image.memory(
+              _selectedImageBytes!,
+              fit: BoxFit.cover,
+              width: double.infinity,
+              height: double.infinity,
+            )
+          : Image.file(
+              File(_selectedImagePath!),
+              fit: BoxFit.cover,
+              width: double.infinity,
+              height: double.infinity,
+            );
+    } else if (hasRemote) {
+      content = buildAdaptiveNetworkImage(
+        _existingImageUrl!,
+        _buildUploadPlaceholder(color, radius),
+      );
+    } else {
+      content = _buildUploadPlaceholder(color, radius);
+    }
+
+    return InkWell(
+      onTap: _pickImage,
+      borderRadius: BorderRadius.circular(radius),
+      child: SizedBox(
+        width: double.infinity,
+        child: AspectRatio(
+          aspectRatio: 160 / 142,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(radius),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                ColorFiltered(
+                  colorFilter: ColorFilter.mode(
+                    Colors.black.withValues(alpha: 0.25),
+                    BlendMode.darken,
+                  ),
+                  child: content,
+                ),
+                if (hasLocal || hasRemote)
+                  Align(
+                    alignment: Alignment.center,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.35),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Text(
+                        'Tap to upload',
+                        style: TextStyle(color: Colors.white, fontSize: 13),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
-          child: Text(isEditing ? 'Save Changes' : 'Create Item'),
         ),
       ),
     );
+  }
+
+  Widget _buildUploadPlaceholder(Color color, double radius) {
+    return CustomPaint(
+      foregroundPainter: DashedBorderPainter(
+        color: color,
+        strokeWidth: 1.4,
+        dashWidth: 6,
+        dashSpace: 4,
+        borderRadius: radius,
+      ),
+      child: Container(
+        height: 170,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(radius),
+        ),
+        alignment: Alignment.center,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.cloud_upload_outlined, color: color, size: 32),
+            const SizedBox(height: 6),
+            Text('Upload image',
+                style: TextStyle(
+                    color: color, fontWeight: FontWeight.w600, fontSize: 14)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickImage() async {
+    try {
+      final picked = await _picker.pickImage(source: ImageSource.gallery);
+      if (picked == null) return;
+      final bytes = await picked.readAsBytes();
+      setState(() {
+        _selectedImageBytes = bytes;
+        _selectedImagePath = picked.path;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Image picker not available. Please fully restart the app after running flutter pub get.',
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _deleteItem() async {
+    final id = widget.initialItem?.id ?? '';
+    if (id.isEmpty) return;
+    await ref.read(menuViewModelProvider.notifier).deleteMenuItem(id);
+    if (!mounted) return;
+    Navigator.of(context).pop();
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    }
   }
 
   Future<void> _showModifierSelection(

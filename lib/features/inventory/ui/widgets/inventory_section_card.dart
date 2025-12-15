@@ -5,14 +5,17 @@ class InventorySectionCard extends StatelessWidget {
     super.key,
     required this.title,
     required this.children,
+    this.backgroundColor,
   });
 
   final String title;
   final List<Widget> children;
+  final Color? backgroundColor;
 
   @override
   Widget build(BuildContext context) {
     return Card(
+      color: backgroundColor,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(16),

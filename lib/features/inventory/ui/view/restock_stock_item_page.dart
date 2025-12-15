@@ -1,12 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:modular_pos/features/auth/domain/models/user.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
-import 'package:modular_pos/features/inventory/data/stock_item_api.dart'
-    show
-        InventoryMockScenario,
-        defaultMockScenario,
-        singleBranchId,
-        singleBranchName;
 import 'package:modular_pos/features/inventory/domain/models/inventory_journal_entry.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
 import 'package:modular_pos/features/inventory/domain/utils/stock_quantity_formatter.dart';
@@ -34,17 +29,24 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
   final _noteCtrl = TextEditingController();
   final _dateCtrl = TextEditingController();
   final _expiryCtrl = TextEditingController();
-  late final bool _isSingleBranchTenant;
-
   @override
   void initState() {
     super.initState();
     _itemCtrl = TextEditingController();
-    _isSingleBranchTenant =
-        defaultMockScenario == InventoryMockScenario.singleBranchFreshTenant;
-    if (_isSingleBranchTenant) {
-      _selectedBranchId = singleBranchId;
-    }
+    _dateCtrl.text = _formatDate(DateTime.now());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final branches =
+          ref.read(loginControllerProvider).user?.branches ?? const <UserBranch>[];
+      final initialBranchId = branches.length == 1
+          ? (branches.first.branchId.isNotEmpty
+              ? branches.first.branchId
+              : branches.first.id)
+          : null;
+      setState(() => _selectedBranchId = initialBranchId);
+      ref
+          .read(stockInventoryControllerProvider.notifier)
+          .loadStockItems(branchId: initialBranchId);
+    });
   }
 
   @override
@@ -62,8 +64,12 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
   @override
   Widget build(BuildContext context) {
     final inventoryState = ref.watch(stockInventoryControllerProvider);
+    final userBranches = ref.watch(loginControllerProvider).user?.branches ?? const <UserBranch>[];
     final items = inventoryState.items;
-    final branchEntries = _buildBranchEntries(items);
+    final branchEntries = _buildBranchEntries(items, userBranches);
+    if (_selectedBranchId == null && branchEntries.isNotEmpty) {
+      _selectedBranchId = branchEntries.first.key;
+    }
     final branchItems = _itemsForSelectedBranch(items);
     final hasItemSelection =
         branchItems.any((item) => item.id == _selectedItemId) &&
@@ -102,8 +108,13 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
                         _pcsCtrl.text = '0';
                         _extraCtrl.text = '0';
                       });
+                      ref
+                          .read(stockInventoryControllerProvider.notifier)
+                          .loadStockItems(
+                            branchId: value == 'all' ? null : value,
+                          );
                     },
-                    enabled: !_isSingleBranchTenant,
+                    enabled: branchEntries.length > 1,
                   ),
                   const SizedBox(height: 12),
                   _StockItemAutocomplete(
@@ -122,6 +133,17 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
                       setState(() {
                         _selectedItemId = null;
                       });
+                    },
+                    onTapEmpty: () {
+                      final branchId = _selectedBranchId ??
+                          (userBranches.isNotEmpty
+                              ? (userBranches.first.branchId.isNotEmpty
+                                  ? userBranches.first.branchId
+                                  : userBranches.first.id)
+                              : null);
+                      ref
+                          .read(stockInventoryControllerProvider.notifier)
+                          .loadStockItems(branchId: branchId);
                     },
                   ),
                   const SizedBox(height: 16),
@@ -229,13 +251,20 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
     );
   }
 
-  List<MapEntry<String, String>> _buildBranchEntries(List<StockItem> items) {
-    if (_isSingleBranchTenant) {
-      return [MapEntry(singleBranchId, singleBranchName)];
-    }
+  List<MapEntry<String, String>> _buildBranchEntries(
+    List<StockItem> items,
+    List<UserBranch> userBranches,
+  ) {
     final map = <String, String>{};
-    for (final item in items) {
-      map[item.branchId] = item.branchName;
+    if (userBranches.isNotEmpty) {
+      for (final b in userBranches) {
+        final id = b.branchId.isNotEmpty ? b.branchId : b.id;
+        map[id] = b.name;
+      }
+    } else {
+      for (final item in items) {
+        map[item.branchId] = item.branchName;
+      }
     }
     final entries = map.entries.toList()
       ..sort((a, b) => a.value.compareTo(b.value));
@@ -244,8 +273,7 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
 
   List<StockItem> _itemsForSelectedBranch(List<StockItem> items) {
     final sorted = [...items]..sort((a, b) => a.name.compareTo(b.name));
-    if (_isSingleBranchTenant) return sorted;
-    if (_selectedBranchId == null) return const [];
+    if (_selectedBranchId == null || _selectedBranchId!.isEmpty) return const [];
     return sorted.where((item) => item.branchId == _selectedBranchId).toList();
   }
 
@@ -325,8 +353,13 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
                 ? _formatDate(DateTime.now())
                 : _dateCtrl.text,
             expiryDate: _expiryCtrl.text.isEmpty ? null : _expiryCtrl.text,
+            note: _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim(),
+            branchId: _selectedBranchId,
           );
       final actor = ref.read(loginControllerProvider).user?.name ?? 'System';
+      final restockDate =
+          _dateCtrl.text.isEmpty ? null : DateTime.tryParse(_dateCtrl.text);
+      final occurredAt = restockDate ?? DateTime.now();
       ref
           .read(inventoryJournalControllerProvider.notifier)
           .recordEntry(
@@ -334,7 +367,7 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
               id: 'jr-${DateTime.now().microsecondsSinceEpoch}',
               itemId: item.id,
               itemName: item.name,
-              branchId: item.branchId,
+              branchId: _selectedBranchId ?? item.branchId,
               branchName: item.branchName,
               reason: InventoryJournalReason.restock,
               delta: baseQty,
@@ -342,7 +375,8 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
                   ? 'Restock recorded'
                   : _noteCtrl.text.trim(),
               actor: actor,
-              timestamp: DateTime.now(),
+              createdAt: DateTime.now(),
+              occurredAt: occurredAt,
             ),
           );
       if (!mounted) return;
@@ -491,6 +525,7 @@ class _StockItemAutocomplete extends StatefulWidget {
     required this.selectedItemId,
     required this.onSelected,
     required this.onCleared,
+    required this.onTapEmpty,
   });
 
   final List<StockItem> items;
@@ -498,6 +533,7 @@ class _StockItemAutocomplete extends StatefulWidget {
   final String? selectedItemId;
   final ValueChanged<StockItem> onSelected;
   final VoidCallback onCleared;
+  final VoidCallback onTapEmpty;
 
   @override
   State<_StockItemAutocomplete> createState() => _StockItemAutocompleteState();
@@ -563,6 +599,16 @@ class _StockItemAutocompleteState extends State<_StockItemAutocomplete> {
                             },
                           ),
                   ),
+                  onTap: () {
+                    if (widget.items.isEmpty) {
+                      widget.onTapEmpty();
+                    }
+                    // Nudge RawAutocomplete to show options on focus even with empty query.
+                    textController.value = TextEditingValue(
+                      text: textController.text,
+                      selection: TextSelection.collapsed(offset: textController.text.length),
+                    );
+                  },
                   onChanged: (_) {
                     if (widget.selectedItemId != null) {
                       widget.onCleared();
