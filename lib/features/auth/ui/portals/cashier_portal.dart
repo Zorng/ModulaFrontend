@@ -8,6 +8,7 @@ import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/sale/ui/view/order_page.dart';
 import 'package:modular_pos/features/cash_session/ui/view/cashier_cash_session.dart';
 import 'package:modular_pos/features/cash_session/ui/viewmodels/cash_session_viewmodel.dart';
+import 'package:modular_pos/features/staff/ui/view/staff_list_view.dart';
 
 class CashierPortal extends ConsumerWidget {
   const CashierPortal({super.key});
@@ -41,6 +42,12 @@ class CashierPortal extends ConsumerWidget {
         label: 'Orders',
         icon: Icons.receipt_long_outlined,
         builder: (context) => const OrderPage(),
+      ),
+      PortalAction(
+        id: 'staff',
+        label: 'Staff',
+        icon: Icons.group_outlined,
+        builder: (context) => const StaffListView(readOnly: true),
       ),
       PortalAction(
         id: 'x_report',

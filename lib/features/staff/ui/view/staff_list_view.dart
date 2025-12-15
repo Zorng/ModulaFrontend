@@ -9,7 +9,9 @@ import 'package:modular_pos/features/staff/ui/view/staff_form_view.dart';
 import 'package:modular_pos/features/staff/ui/view/staff_detail_view.dart';
 
 class StaffListView extends StatefulWidget {
-  const StaffListView({super.key});
+  const StaffListView({super.key, this.readOnly = false});
+
+  final bool readOnly;
 
   @override
   State<StaffListView> createState() => _StaffListViewState();
@@ -51,71 +53,73 @@ class _StaffListViewState extends State<StaffListView> {
               onSearchChanged: (value) {
                 // TODO: Implement search logic
               },
-              onAddPressed: () async {
-                if (_staffList.length >= 3) {
-                  // Show warning dialog if staff limit is reached
-                  showDialog(
-                    context: context,
-                    builder: (BuildContext context) {
-                      return AlertDialog(
-                        backgroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                        content: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.warning_amber_rounded,
-                              color: Theme.of(context).colorScheme.primary,
-                              size: 48,
-                            ),
-                            const SizedBox(height: 16),
-                            const Text(
-                              'Staff Limit Reached',
-                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              "You've reached the maximum staff allowed in your plan. Upgrade to add more staff.",
-                              textAlign: TextAlign.center,
-                              style: TextStyle(color: Colors.grey.shade600),
-                            ),
-                            const SizedBox(height: 24),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: CupertinoButton(
-                                    color: Colors.grey.shade200,
-                                    onPressed: () => Navigator.of(context).pop(),
-                                    child: const Text('Cancel', style: TextStyle(color: Colors.black87, fontSize: 14)),
+              onAddPressed: widget.readOnly
+                  ? null
+                  : () async {
+                      if (_staffList.length >= 3) {
+                        // Show warning dialog if staff limit is reached
+                        showDialog(
+                          context: context,
+                          builder: (BuildContext context) {
+                            return AlertDialog(
+                              backgroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                              content: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.warning_amber_rounded,
+                                    color: Theme.of(context).colorScheme.primary,
+                                    size: 48,
                                   ),
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: CupertinoButton.filled(
-                                    onPressed: () {
-                                      // TODO: Implement upgrade plan logic
-                                      Navigator.of(context).pop();
-                                    },
-                                    child: const Text('Upgrade Plan', style: TextStyle(fontSize: 14)),
+                                  const SizedBox(height: 16),
+                                  const Text(
+                                    'Staff Limit Reached',
+                                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black),
                                   ),
-                                ),
-                              ],
-                            )
-                          ],
-                        ),
-                      );
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    "You've reached the maximum staff allowed in your plan. Upgrade to add more staff.",
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(color: Colors.grey.shade600),
+                                  ),
+                                  const SizedBox(height: 24),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: CupertinoButton(
+                                          color: Colors.grey.shade200,
+                                          onPressed: () => Navigator.of(context).pop(),
+                                          child: const Text('Cancel', style: TextStyle(color: Colors.black87, fontSize: 14)),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 16),
+                                      Expanded(
+                                        child: CupertinoButton.filled(
+                                          onPressed: () {
+                                            // TODO: Implement upgrade plan logic
+                                            Navigator.of(context).pop();
+                                          },
+                                          child: const Text('Upgrade Plan', style: TextStyle(fontSize: 14)),
+                                        ),
+                                      ),
+                                    ],
+                                  )
+                                ],
+                              ),
+                            );
+                          },
+                        );
+                      } else {
+                        // Navigate to the StaffFormView if limit is not reached
+                        final newStaff = await Navigator.of(context).push<Staff>(
+                          CupertinoPageRoute(builder: (context) => const StaffFormView()),
+                        );
+                        if (newStaff != null) {
+                          setState(() => _staffList.add(newStaff));
+                        }
+                      }
                     },
-                  );
-                } else {
-                  // Navigate to the StaffFormView if limit is not reached
-                  final newStaff = await Navigator.of(context).push<Staff>(
-                    CupertinoPageRoute(builder: (context) => const StaffFormView()),
-                  );
-                  if (newStaff != null) {
-                    setState(() => _staffList.add(newStaff));
-                  }
-                }
-              },
             ),
             const SizedBox(height: 16),
             // Per request: Place dropdowns next to each other
