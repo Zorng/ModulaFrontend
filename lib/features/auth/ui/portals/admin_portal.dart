@@ -10,6 +10,7 @@ import 'package:modular_pos/features/cash_session/ui/view/cashier_cash_session.d
 import 'package:modular_pos/features/cash_session/ui/viewmodels/cash_session_viewmodel.dart';
 import 'package:modular_pos/features/menu/ui/view/menu_page.dart';
 import 'package:modular_pos/features/sale/ui/view/order_page.dart';
+import 'package:modular_pos/features/staff/ui/view/staff_list_view.dart';
 
 class AdminPortal extends ConsumerWidget {
   const AdminPortal({super.key});
@@ -46,10 +47,7 @@ class AdminPortal extends ConsumerWidget {
         id: 'staff',
         label: 'Staff',
         icon: Icons.group_outlined,
-        builder: (context) => _PlaceholderCard(
-          title: 'Cashiers & Managers',
-          content: 'Manage staff accounts, roles, branches.',
-        ),
+        builder: (context) => const StaffListView(),
       ),
       PortalAction(
         id: 'sales',
@@ -223,7 +221,15 @@ class _AdminHomeContent extends StatelessWidget {
         title: 'Branches',
         icon: Icons.store_mall_directory_outlined,
       ),
-      _FeatureEntry(title: 'Staff', icon: Icons.group_outlined),
+      _FeatureEntry(
+        title: 'Staff',
+        icon: Icons.group_outlined,
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => const StaffListView(),
+          ),
+        ),
+      ),
       _FeatureEntry(
         title: 'Menu',
         icon: Icons.fastfood_outlined,

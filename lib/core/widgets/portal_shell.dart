@@ -52,6 +52,7 @@ class _PortalShellState extends State<PortalShell> {
     final width = MediaQuery.of(context).size.width;
     final isWide = AppBreakpoints.isLarge(width);
     final action = widget.actions[_selectedIndex];
+    final content = action.builder(context);
 
     return Scaffold(
       appBar: AppBar(
@@ -129,13 +130,15 @@ class _PortalShellState extends State<PortalShell> {
               ),
             ),
           Expanded(
-            child: ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                const SizedBox(height: 12),
-                Builder(builder: action.builder),
-              ],
-            ),
+            child: content is Scaffold
+                ? content
+                : ListView(
+                    padding: const EdgeInsets.all(16),
+                    children: [
+                      const SizedBox(height: 12),
+                      content,
+                    ],
+                  ),
           ),
         ],
       ),
