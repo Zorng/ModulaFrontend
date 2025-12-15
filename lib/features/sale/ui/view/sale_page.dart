@@ -1,11 +1,14 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/core/widgets/menu_item_card.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_category.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
+import 'package:modular_pos/core/routing/app_router.dart';
+import 'package:modular_pos/features/cash_session/ui/viewmodels/cash_session_viewmodel.dart';
 import 'package:modular_pos/features/sale/ui/view/sale_cart_page.dart';
 import 'package:modular_pos/features/sale/ui/view/sale_item_detail_page.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_viewmodel.dart';
@@ -18,11 +21,59 @@ class SalePage extends ConsumerStatefulWidget {
 }
 
 class _SalePageState extends ConsumerState<SalePage> {
+  bool _hasPromptedForSession = false;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(menuViewModelProvider.notifier).loadMenu();
+      _maybePromptForCashSession();
+    });
+  }
+
+  void _maybePromptForCashSession() {
+    if (_hasPromptedForSession) return;
+    final session = ref.read(cashSessionViewModelProvider);
+    if (session.sessionStatus == SessionStatus.open) return;
+    _hasPromptedForSession = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          titlePadding: const EdgeInsets.fromLTRB(24, 16, 8, 0),
+          contentPadding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          title: Row(
+            children: [
+              const Expanded(child: Text('Cash session required')),
+              IconButton(
+                icon: const Icon(Icons.close),
+                tooltip: 'Close',
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                  if (mounted) Navigator.of(context).maybePop();
+                },
+              ),
+            ],
+          ),
+          content: const Text(
+            'You are not in an active cash session. Start one before creating a sale.',
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                if (!mounted) return;
+                context.push(AppRoute.cashierCashSession.path);
+              },
+              child: const Text('Go to cash session'),
+            ),
+          ],
+        ),
+      );
     });
   }
 

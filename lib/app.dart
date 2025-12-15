@@ -97,14 +97,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           role != 'admin') {
         return '/404';
       }
-      // Require an open cash session before entering sale screen (frontend-only demo guard).
-      if (path == AppRoute.sale.path) {
-        final cashSession = ref.read(cashSessionViewModelProvider);
-        if (cashSession.sessionStatus != SessionStatus.open) {
-          return AppRoute.cashierCashSession.path;
-        }
-      }
-
       // Authenticated but not allowed to access cashier portal → 404
       if (path == AppRoute.cashierPortal.path &&
           role != 'cashier' &&

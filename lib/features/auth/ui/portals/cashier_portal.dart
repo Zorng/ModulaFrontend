@@ -82,21 +82,7 @@ class _CashierHomeContent extends ConsumerWidget {
         icon: Icons.point_of_sale,
         onTap: () {
           if (cashSession.sessionStatus != SessionStatus.open) {
-            showDialog(
-              context: context,
-              builder: (ctx) => AlertDialog(
-                title: const Text('Cash session required'),
-                content: const Text(
-                  'Please start a cash session before opening the sale screen.',
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.of(ctx).pop(),
-                    child: const Text('OK'),
-                  ),
-                ],
-              ),
-            );
+            _showCashSessionDialog(context);
             return;
           }
           context.push(AppRoute.sale.path);
@@ -134,6 +120,41 @@ class _CashierHomeContent extends ConsumerWidget {
       ),
     );
   }
+}
+
+void _showCashSessionDialog(BuildContext context) {
+  showDialog(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      titlePadding: const EdgeInsets.fromLTRB(24, 16, 8, 0),
+      contentPadding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+      actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      title: Row(
+        children: [
+          const Expanded(child: Text('Cash session required')),
+          IconButton(
+            icon: const Icon(Icons.close),
+            tooltip: 'Close',
+            onPressed: () {
+              Navigator.of(ctx).pop();
+            },
+          ),
+        ],
+      ),
+      content: const Text(
+        'You are not in an active cash session. Start one before opening the sale screen.',
+      ),
+      actions: [
+        FilledButton(
+          onPressed: () {
+            Navigator.of(ctx).pop();
+            context.push(AppRoute.cashierCashSession.path);
+          },
+          child: const Text('Go to cash session'),
+        ),
+      ],
+    ),
+  );
 }
 
 class _FeatureCard extends StatelessWidget {

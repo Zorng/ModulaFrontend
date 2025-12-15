@@ -5,6 +5,7 @@ import 'package:modular_pos/core/widgets/network_image_helper_stub.dart'
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
+import 'package:modular_pos/features/cash_session/ui/viewmodels/cash_session_viewmodel.dart';
 
 class SaleItemDetailPage extends ConsumerStatefulWidget {
   const SaleItemDetailPage({
@@ -69,6 +70,9 @@ class _SaleItemDetailPageState extends ConsumerState<SaleItemDetailPage> {
             .whereType<ModifierGroup>()
             .toList();
         var modifiers = fetchedMods.isNotEmpty ? fetchedMods : hydratedMods;
+        final sessionOpen =
+            ref.watch(cashSessionViewModelProvider).sessionStatus ==
+                SessionStatus.open;
 
         // If the first attempt returned empty, trigger one retry automatically.
         if (modifiers.isEmpty &&
@@ -223,33 +227,56 @@ class _SaleItemDetailPageState extends ConsumerState<SaleItemDetailPage> {
                         child: Align(
                           alignment: Alignment.centerRight,
                           child: FilledButton(
-                            onPressed: () {
-                              final pricing = _computeSelectionPricing(
-                                itemToUse,
-                                modifiers,
-                                _selectedOptionIds,
-                                _quantity,
-                              );
-                              final result = SaleItemSelectionResult(
-                                item: itemToUse,
-                                quantity: _quantity,
-                                selectedOptionIds: {
-                                  for (final entry in _selectedOptionIds.entries)
-                                    entry.key: entry.value.toList(),
-                                },
-                                selectedOptions: pricing.selectedOptions,
-                                addonTotalUsd: pricing.addonTotalUsd,
-                                unitPriceUsd: pricing.unitPriceUsd,
-                                lineTotalUsd: pricing.lineTotalUsd,
-                              );
-                              Navigator.pop(context, result);
-                            },
+                            onPressed: sessionOpen
+                                ? () {
+                                    final pricing = _computeSelectionPricing(
+                                      itemToUse,
+                                      modifiers,
+                                      _selectedOptionIds,
+                                      _quantity,
+                                    );
+                                    final result = SaleItemSelectionResult(
+                                      item: itemToUse,
+                                      quantity: _quantity,
+                                      selectedOptionIds: {
+                                        for (final entry
+                                            in _selectedOptionIds.entries)
+                                          entry.key: entry.value.toList(),
+                                      },
+                                      selectedOptions: pricing.selectedOptions,
+                                      addonTotalUsd: pricing.addonTotalUsd,
+                                      unitPriceUsd: pricing.unitPriceUsd,
+                                      lineTotalUsd: pricing.lineTotalUsd,
+                                    );
+                                    Navigator.pop(context, result);
+                                  }
+                                : null,
                             child: const Text('Add Item'),
                           ),
                         ),
                       ),
                     ],
                   ),
+                  if (!sessionOpen) ...[
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        Icon(Icons.info_outline,
+                            size: 16,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Start a cash session to add items.',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),

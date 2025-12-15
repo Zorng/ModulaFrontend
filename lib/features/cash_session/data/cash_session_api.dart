@@ -68,7 +68,7 @@ class CashSessionApi {
       return response.data ?? const {};
     } on DioException catch (e) {
       // Treat 404 (no active session) as empty payload instead of an error.
-      if (e.response?.statusCode == 404) {
+      if (e.response?.statusCode == 404 || e.response?.statusCode == 401) {
         return const {};
       }
       rethrow;
