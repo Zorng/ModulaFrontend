@@ -71,72 +71,15 @@ class _PolicyPageState extends ConsumerState<PolicyPage> {
               id: 'subtract_stock',
               title: 'Subtract stock on sale',
               icon: Icons.inventory_2_outlined,
-              type: PolicyItemType.toggle,
+              subtitle: 'Coming soon',
+              type: PolicyItemType.info,
             ),
             PolicyItem(
               id: 'expiry_tracking',
               title: 'Expiry tracking',
               icon: Icons.event_available_outlined,
-              type: PolicyItemType.toggle,
-            ),
-          ],
-        ),
-        PolicySectionData(
-          title: 'Attendance & Shifts',
-          items: [
-            PolicyItem(
-              id: 'cash_session_attendance',
-              title: 'Cash Session Attendance',
-              icon: Icons.access_time,
-              subtitle: 'Start/close session will check-in/out staff',
-              type: PolicyItemType.toggle,
-            ),
-            PolicyItem(
-              id: 'out_of_shift_approval',
-              title: 'Out of shift approval',
-              icon: Icons.verified_outlined,
-              subtitle: 'Require approval when outside scheduled shift',
-              type: PolicyItemType.toggle,
-            ),
-            PolicyItem(
-              id: 'early_check_in_buffer',
-              title: 'Early check-in buffer',
-              icon: Icons.timer_outlined,
-              subtitle: 'Allow early punch-in within configured buffer',
-              type: PolicyItemType.toggle,
-            ),
-            PolicyItem(
-              id: 'manager_edit_permission',
-              title: 'Manager edit permission',
-              icon: Icons.build_outlined,
               subtitle: 'Coming soon',
               type: PolicyItemType.info,
-            ),
-          ],
-        ),
-        PolicySectionData(
-          title: 'Cash Sessions Control',
-          items: [
-            PolicyItem(
-              id: 'allow_paid_out',
-              title: 'Allow paid-out',
-              icon: Icons.payments_outlined,
-              subtitle: 'Enable paid-out during session',
-              type: PolicyItemType.toggle,
-            ),
-            PolicyItem(
-              id: 'cash_refund_approval',
-              title: 'Cash refund approval',
-              icon: Icons.assignment_turned_in_outlined,
-              subtitle: 'Require approval before cash refunds',
-              type: PolicyItemType.toggle,
-            ),
-            PolicyItem(
-              id: 'manual_cash_adjustment',
-              title: 'Manual cash adjustment',
-              icon: Icons.tune_outlined,
-              subtitle: 'Allow manual drawer adjustments',
-              type: PolicyItemType.toggle,
             ),
           ],
         ),
@@ -147,6 +90,12 @@ class _PolicyPageState extends ConsumerState<PolicyPage> {
     PolicyItem item,
     dynamic currentValue,
   ) {
+    if (item.type == PolicyItemType.info) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(item.subtitle ?? 'Coming soon')),
+      );
+      return;
+    }
     if (_isReadOnly(ref.read(loginControllerProvider))) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Read-only: policy editing is disabled.')),

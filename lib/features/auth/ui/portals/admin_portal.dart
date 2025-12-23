@@ -14,6 +14,7 @@ import 'package:modular_pos/features/cash_session/ui/view/z_report_page.dart';
 import 'package:modular_pos/features/menu/ui/view/menu_page.dart';
 import 'package:modular_pos/features/sale/ui/view/order_page.dart';
 import 'package:modular_pos/features/staff/ui/view/staff_list_view.dart';
+import 'package:modular_pos/features/staff_attendance/ui/view/attendance_management_page.dart';
 
 class AdminPortal extends ConsumerWidget {
   const AdminPortal({super.key});
@@ -51,6 +52,12 @@ class AdminPortal extends ConsumerWidget {
         label: 'Staff',
         icon: Icons.group_outlined,
         builder: (context) => const StaffListView(),
+      ),
+      PortalAction(
+        id: 'attendance_management',
+        label: 'Attendance Management',
+        icon: Icons.access_time_outlined,
+        builder: (context) => const AttendanceManagementPage(),
       ),
       PortalAction(
         id: 'sales',
@@ -193,6 +200,7 @@ class _AdminHomeContent extends StatelessWidget {
       _FeatureEntry(
         title: 'Branches',
         icon: Icons.store_mall_directory_outlined,
+        comingSoon: true,
       ),
       _FeatureEntry(
         title: 'Staff',
@@ -213,7 +221,11 @@ class _AdminHomeContent extends StatelessWidget {
         icon: Icons.inventory_2_outlined,
         onTap: () => context.push(AppRoute.inventory.path),
       ),
-      _FeatureEntry(title: 'Discounts', icon: Icons.percent_outlined),
+      _FeatureEntry(
+        title: 'Discounts',
+        icon: Icons.percent_outlined,
+        comingSoon: true,
+      ),
     ];
 
     final branchFeatures = [
@@ -245,6 +257,15 @@ class _AdminHomeContent extends StatelessWidget {
         title: 'Orders',
         icon: Icons.receipt_long_outlined,
         onTap: () => context.push(AppRoute.orders.path),
+      ),
+      _FeatureEntry(
+        title: 'Attendance Management',
+        icon: Icons.access_time_outlined,
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => const AttendanceManagementPage(),
+          ),
+        ),
       ),
       _FeatureEntry(
         title: 'Policy',
@@ -506,7 +527,7 @@ class _FeatureCard extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        onTap: entry.onTap,
+        onTap: entry.comingSoon ? null : entry.onTap,
         child: Padding(
           padding: const EdgeInsets.all(10),
           child: Column(
@@ -531,6 +552,19 @@ class _FeatureCard extends StatelessWidget {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
+              if (entry.comingSoon) ...[
+                const SizedBox(height: 4),
+                Text(
+                  'Coming soon',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: Theme.of(context)
+                            .colorScheme
+                            .onSurface
+                            .withOpacity(0.6),
+                      ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
             ],
           ),
         ),
@@ -540,9 +574,15 @@ class _FeatureCard extends StatelessWidget {
 }
 
 class _FeatureEntry {
-  const _FeatureEntry({required this.title, required this.icon, this.onTap});
+  const _FeatureEntry({
+    required this.title,
+    required this.icon,
+    this.onTap,
+    this.comingSoon = false,
+  });
 
   final String title;
   final IconData icon;
   final VoidCallback? onTap;
+  final bool comingSoon;
 }

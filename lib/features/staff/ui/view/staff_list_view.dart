@@ -1,37 +1,109 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:modular_pos/features/staff/ui/widgets/app_filter_dropdown.dart';
 import 'package:modular_pos/core/widgets/app_search_add_bar.dart';
 import 'package:modular_pos/features/staff/domain/models/staff_model.dart';
 import 'package:modular_pos/features/staff/ui/widgets/staff_list_card.dart';
-import 'package:modular_pos/features/staff/ui/view/staff_form_view.dart';
 import 'package:modular_pos/features/staff/ui/view/staff_detail_view.dart';
+import 'package:modular_pos/features/staff/data/staff_management_repository.dart';
+import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
+import 'package:modular_pos/features/auth/domain/models/user.dart';
 
-class StaffListView extends StatefulWidget {
+class StaffListView extends ConsumerStatefulWidget {
   const StaffListView({super.key, this.readOnly = false});
 
   final bool readOnly;
 
   @override
-  State<StaffListView> createState() => _StaffListViewState();
+  ConsumerState<StaffListView> createState() => _StaffListViewState();
 }
 
-class _StaffListViewState extends State<StaffListView> {
+class _StaffListViewState extends ConsumerState<StaffListView> {
   String? _selectedBranch;
   String? _selectedRole;
   String? _selectedStatus;
+  String _searchQuery = '';
+  bool _loading = false;
+  String? _errorMessage;
 
-  // Placeholder list of staff members
-  final List<Staff> _staffList = [
-    Staff(userName: 'John Doe', role: 'Manager',gender: "Male", branch: 'Main Branch', isActive: true, email: 'john@test.com', phoneNumber: '012345678'),
-    Staff(userName: 'Jane Smith', role: 'Cashier', gender: "Female", branch: 'Second Branch', isActive: true, email: 'jane@test.com', phoneNumber: '012345456'),
-    // Staff(userName: 'Peter Jones', role: 'Cashier', branch: 'Main Branch', isActive: false, email: 'peter@test.com', phoneNumber: '012345789'),
-  ];
+  List<Staff> _staffList = [];
 
-  final _branchOptions = const ['Main Branch', 'Second Branch'];
-  final _roleOptions = const ['Manager', 'Cashier'];
-  final _statusOptions = const ['Active', 'Inactive'];
+  List<String> _branchOptions = const [];
+  final _roleOptions = const ['Manager', 'Cashier', 'Admin'];
+  final _statusOptions = const ['Active', 'Invited', 'Disabled', 'Archived'];
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _bootstrap();
+    });
+  }
+
+  Future<void> _bootstrap() async {
+    final user = ref.read(loginControllerProvider).user;
+    final branches = user?.branches ?? const [];
+    final options = branches.map((b) => b.name).where((name) => name.isNotEmpty).toList();
+    setState(() {
+      _branchOptions = options;
+      if (user?.role.toLowerCase() != 'admin' && options.isNotEmpty) {
+        _selectedBranch = options.first;
+      }
+    });
+    await _loadStaff();
+  }
+
+  String? _branchIdForName(String? name) {
+    if (name == null) return null;
+    final branches = ref.read(loginControllerProvider).user?.branches ?? const [];
+    final match = branches.firstWhere(
+      (b) => b.name == name,
+      orElse: () => const UserBranch(id: '', name: '', role: '', active: false),
+    );
+    if (match.id.isEmpty && match.branchId.isEmpty) return null;
+    return match.branchId.isNotEmpty ? match.branchId : match.id;
+  }
+
+  Future<void> _loadStaff() async {
+    setState(() {
+      _loading = true;
+      _errorMessage = null;
+    });
+    try {
+      final user = ref.read(loginControllerProvider).user;
+      final isAdmin = user?.role.toLowerCase() == 'admin';
+      final branchId = isAdmin ? _branchIdForName(_selectedBranch) : _branchIdForName(_selectedBranch);
+      final repo = ref.read(staffManagementRepositoryProvider);
+      final staff = await repo.fetchStaff(branchId: branchId);
+      if (!mounted) return;
+      setState(() {
+        _staffList = staff;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = 'Failed to load staff';
+      });
+    } finally {
+      if (!mounted) return;
+      setState(() => _loading = false);
+    }
+  }
+
+  List<Staff> _filteredStaff() {
+    return _staffList.where((staff) {
+      final search = _searchQuery.trim().toLowerCase();
+      final matchesSearch = search.isEmpty ||
+          staff.userName.toLowerCase().contains(search) ||
+          staff.phoneNumber.toLowerCase().contains(search);
+      final matchesRole = _selectedRole == null || staff.role == _selectedRole;
+      final matchesStatus =
+          _selectedStatus == null || staff.status == _selectedStatus;
+      return matchesSearch && matchesRole && matchesStatus;
+    }).toList();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -51,74 +123,16 @@ class _StaffListViewState extends State<StaffListView> {
               // Use phone number as per modula_capstone_1_scope.md
               searchHint: 'Search',
               onSearchChanged: (value) {
-                // TODO: Implement search logic
+                setState(() => _searchQuery = value);
               },
               onAddPressed: widget.readOnly
                   ? null
-                  : () async {
-                      if (_staffList.length >= 3) {
-                        // Show warning dialog if staff limit is reached
-                        showDialog(
-                          context: context,
-                          builder: (BuildContext context) {
-                            return AlertDialog(
-                              backgroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                              content: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    Icons.warning_amber_rounded,
-                                    color: Theme.of(context).colorScheme.primary,
-                                    size: 48,
-                                  ),
-                                  const SizedBox(height: 16),
-                                  const Text(
-                                    'Staff Limit Reached',
-                                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    "You've reached the maximum staff allowed in your plan. Upgrade to add more staff.",
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(color: Colors.grey.shade600),
-                                  ),
-                                  const SizedBox(height: 24),
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: CupertinoButton(
-                                          color: Colors.grey.shade200,
-                                          onPressed: () => Navigator.of(context).pop(),
-                                          child: const Text('Cancel', style: TextStyle(color: Colors.black87, fontSize: 14)),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 16),
-                                      Expanded(
-                                        child: CupertinoButton.filled(
-                                          onPressed: () {
-                                            // TODO: Implement upgrade plan logic
-                                            Navigator.of(context).pop();
-                                          },
-                                          child: const Text('Upgrade Plan', style: TextStyle(fontSize: 14)),
-                                        ),
-                                      ),
-                                    ],
-                                  )
-                                ],
-                              ),
-                            );
-                          },
-                        );
-                      } else {
-                        // Navigate to the StaffFormView if limit is not reached
-                        final newStaff = await Navigator.of(context).push<Staff>(
-                          CupertinoPageRoute(builder: (context) => const StaffFormView()),
-                        );
-                        if (newStaff != null) {
-                          setState(() => _staffList.add(newStaff));
-                        }
-                      }
+                  : () {
+                      Navigator.of(context).push(
+                        CupertinoPageRoute(
+                          builder: (_) => const _ComingSoonPage(),
+                        ),
+                      );
                     },
             ),
             const SizedBox(height: 16),
@@ -135,7 +149,7 @@ class _StaffListViewState extends State<StaffListView> {
                   value: _selectedBranch,
                   onChanged: (value) {
                     setState(() => _selectedBranch = value);
-                    // TODO: Implement branch filter logic
+                    _loadStaff();
                   },
                 ),
                 AppFilterDropdown<String>(
@@ -145,7 +159,6 @@ class _StaffListViewState extends State<StaffListView> {
                   value: _selectedRole,
                   onChanged: (value) {
                     setState(() => _selectedRole = value);
-                    // TODO: Implement role filter logic
                   },
                 ),
                 AppFilterDropdown<String>(
@@ -155,7 +168,6 @@ class _StaffListViewState extends State<StaffListView> {
                   value: _selectedStatus,
                   onChanged: (value) {
                     setState(() => _selectedStatus = value);
-                    // TODO: Implement status filter logic
                   },
                 ),
               ],
@@ -163,40 +175,65 @@ class _StaffListViewState extends State<StaffListView> {
             const SizedBox(height: 24),
             // Per Figma: Add staff count text
             Text(
-              '${_staffList.length} Staff Members (limit 3)',
+              '${_filteredStaff().length} Staff Members (limit 3)',
               style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: 8),
             Expanded(
-              // TODO: Replace with a BlocBuilder and a real list
-              child: ListView.separated(
-                // Per Figma: Show 3 items
-                itemCount: _staffList.length,
-                separatorBuilder: (context, index) => const SizedBox(height: 10),
-                itemBuilder: (context, index) {
-                  return StaffListCard(
-                    staffMember: _staffList[index],
-                    onTap: () async {
-                      final result = await Navigator.of(context).push<Staff>(
-                        CupertinoPageRoute(
-                          builder: (context) => StaffDetailView(staff: _staffList[index]),
-                        ),
-                      );
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _errorMessage != null
+                      ? Center(child: Text(_errorMessage!))
+                      : ListView.separated(
+                          itemCount: _filteredStaff().length,
+                          separatorBuilder: (context, index) =>
+                              const SizedBox(height: 10),
+                          itemBuilder: (context, index) {
+                            final staff = _filteredStaff()[index];
+                            return StaffListCard(
+                              staffMember: staff,
+                              onTap: () async {
+                                final result =
+                                    await Navigator.of(context).push<Staff>(
+                                  CupertinoPageRoute(
+                                    builder: (context) =>
+                                        StaffDetailView(staff: staff),
+                                  ),
+                                );
 
-                      // If the detail/edit screen returned an updated staff member,
-                      // update the list.
-                      if (result != null) {
-                        setState(() {
-                          _staffList[index] = result;
-                        });
-                      }
-                    },
-                  );
-                },
-              ),
+                                if (result != null) {
+                                  final existingIndex = _staffList.indexWhere(
+                                    (item) => item.id == result.id,
+                                  );
+                                  if (existingIndex == -1) return;
+                                  setState(() {
+                                    _staffList[existingIndex] = result;
+                                  });
+                                }
+                              },
+                            );
+                          },
+                        ),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ComingSoonPage extends StatelessWidget {
+  const _ComingSoonPage();
+
+  @override
+  Widget build(BuildContext context) {
+    return  Scaffold(
+      appBar: AppBar(
+        title: Text('Coming soon'),
+        centerTitle: false,
+      ),
+      body: Center(
+        child: Text('Coming soon'),
       ),
     );
   }

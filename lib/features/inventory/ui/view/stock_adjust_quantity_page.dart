@@ -104,7 +104,7 @@ class _AdjustStockQuantityPageState
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
-                'No batches available yet. Please restock this item first.',
+                'Batch tracking is not available yet. Adjustments will apply to the total on-hand quantity.',
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
             )
@@ -194,10 +194,12 @@ class _AdjustStockQuantityPageState
       );
       return;
     }
-    if (batchId == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Select a batch to adjust')));
+    final effectiveBatchId =
+        batchId ?? (batches.isEmpty ? widget.item.id : null);
+    if (effectiveBatchId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Select a batch to adjust')),
+      );
       return;
     }
     final magnitude = totalBaseQty.abs();
@@ -206,7 +208,7 @@ class _AdjustStockQuantityPageState
     try {
       await ref
           .read(stockInventoryControllerProvider.notifier)
-          .adjustBatch(batchId: batchId, delta: delta);
+          .adjustBatch(batchId: effectiveBatchId, delta: delta);
       final actor = ref.read(loginControllerProvider).user?.name ?? 'System';
       ref
           .read(inventoryJournalControllerProvider.notifier)

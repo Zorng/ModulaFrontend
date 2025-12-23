@@ -114,7 +114,15 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
               searchController: _searchController,
               onSearchChanged: (_) => setState(() {}),
               addButtonLabel: 'Restock',
-              onAddPressed: () => context.push(AppRoute.inventoryRestock.path),
+              onAddPressed: () async {
+                await context.push(AppRoute.inventoryRestock.path);
+                if (!mounted) return;
+                ref.read(stockInventoryControllerProvider.notifier).loadStockItems(
+                      branchId: _selectedBranchId == 'all'
+                          ? null
+                          : _selectedBranchId,
+                    );
+              },
             ),
             const SizedBox(height: 12),
             SingleChildScrollView(

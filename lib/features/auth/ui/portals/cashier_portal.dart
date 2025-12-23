@@ -10,6 +10,7 @@ import 'package:modular_pos/features/cash_session/ui/view/cashier_cash_session.d
 import 'package:modular_pos/features/cash_session/ui/view/x_report_page.dart';
 import 'package:modular_pos/features/staff/ui/view/staff_list_view.dart';
 import 'package:modular_pos/features/policy/ui/view/policy_page.dart';
+import 'package:modular_pos/features/staff_attendance/ui/view/attendance_page.dart';
 
 class CashierPortal extends ConsumerWidget {
   const CashierPortal({super.key});
@@ -49,6 +50,12 @@ class CashierPortal extends ConsumerWidget {
         label: 'Staff',
         icon: Icons.group_outlined,
         builder: (context) => const StaffListView(readOnly: true),
+      ),
+      PortalAction(
+        id: 'attendance',
+        label: 'Attendance',
+        icon: Icons.access_time_outlined,
+        builder: (context) => const AttendancePage(),
       ),
       PortalAction(
         id: 'x_report',
@@ -104,6 +111,15 @@ class _CashierHomeContent extends ConsumerWidget {
         title: 'Orders',
         icon: Icons.receipt_long_outlined,
         onTap: () => context.push(AppRoute.orders.path),
+      ),
+      _FeatureEntry(
+        title: 'Attendance',
+        icon: Icons.access_time_outlined,
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => const AttendancePage(),
+          ),
+        ),
       ),
       _FeatureEntry(
         title: 'X Report',

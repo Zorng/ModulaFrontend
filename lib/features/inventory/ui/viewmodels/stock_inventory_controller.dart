@@ -127,9 +127,7 @@ class StockInventoryController extends Notifier<StockInventoryState> {
     final reloadBranch =
         (branchId != null && branchId.isNotEmpty && branchId != 'all')
         ? branchId
-        : (item.branchId.isNotEmpty && item.branchId != 'all'
-              ? item.branchId
-              : null);
+        : null;
     await loadStockItems(branchId: reloadBranch);
   }
 
