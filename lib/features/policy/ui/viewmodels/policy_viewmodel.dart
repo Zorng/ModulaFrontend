@@ -1,5 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
+import 'package:modular_pos/features/auth/domain/auth_tenant_provider.dart';
+import 'package:modular_pos/features/auth/domain/auth_token_provider.dart';
 import 'package:modular_pos/features/policy/data/policy_repository.dart';
 import 'package:modular_pos/features/policy/domain/models/policy.dart';
 
@@ -45,15 +48,35 @@ class PolicyState {
 class PolicyNotifier extends Notifier<PolicyState> {
   bool _hasRequestedInitialLoad = false;
   String? _lastBranchId;
+  String? _lastTenantId;
+  String? _lastToken;
 
   PolicyRepository get _repo => ref.read(policyRepositoryProvider);
 
   @override
   PolicyState build() {
+    final token = ref.watch(authAccessTokenProvider);
+    final tenantId = ref.watch(authTenantIdProvider);
     final branchId = ref.watch(authActiveBranchIdProvider);
-    if (!_hasRequestedInitialLoad || branchId != _lastBranchId) {
+    final canLoad = token != null &&
+        token.isNotEmpty &&
+        tenantId != null &&
+        tenantId.isNotEmpty;
+    if (!canLoad) {
+      _hasRequestedInitialLoad = false;
+      _lastBranchId = null;
+      _lastTenantId = null;
+      _lastToken = null;
+      return const PolicyState(isLoading: false);
+    }
+    if (!_hasRequestedInitialLoad ||
+        branchId != _lastBranchId ||
+        tenantId != _lastTenantId ||
+        token != _lastToken) {
       _hasRequestedInitialLoad = true;
       _lastBranchId = branchId;
+      _lastTenantId = tenantId;
+      _lastToken = token;
       // Reset loading state on branch change so UI reflects fresh fetch.
       Future.microtask(() => load(branchId: branchId));
     }
@@ -77,6 +100,14 @@ class PolicyNotifier extends Notifier<PolicyState> {
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
     }
+  }
+
+  void reset() {
+    _hasRequestedInitialLoad = false;
+    _lastBranchId = null;
+    _lastTenantId = null;
+    _lastToken = null;
+    state = const PolicyState(isLoading: false);
   }
 
   Future<void> updateVat({
@@ -171,7 +202,6 @@ class PolicyNotifier extends Notifier<PolicyState> {
   }
 
   Future<void> updateCashSession({
-    bool? requireSessionForSales,
     bool? allowPaidOut,
     bool? requireRefundApproval,
     bool? allowManualAdjustment,
@@ -180,7 +210,6 @@ class PolicyNotifier extends Notifier<PolicyState> {
     try {
       final bundle = await _repo.updateCashSession(
         branchId: _branchId,
-        cashRequireSessionForSales: requireSessionForSales,
         cashAllowPaidOut: allowPaidOut,
         cashRequireRefundApproval: requireRefundApproval,
         cashAllowManualAdjustment: allowManualAdjustment,

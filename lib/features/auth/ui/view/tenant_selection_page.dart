@@ -59,8 +59,25 @@ class TenantSelectionPage extends ConsumerWidget {
                                 : membership.tenantId)
                             .trim();
 
-                        return Card(
+                        return Container(
+                          clipBehavior: Clip.hardEdge,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.12),
+                                blurRadius: 10,
+                                offset: const Offset(0, 6),
+                              ),
+                            ],
+                          ),
                           child: ListTile(
+                            tileColor: Colors.white,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 16,
+                            ),
                             title: Text(
                               tenantLabel.isEmpty ? 'Tenant' : tenantLabel,
                               style: const TextStyle(
@@ -74,26 +91,28 @@ class TenantSelectionPage extends ConsumerWidget {
                             onTap: isLoading
                                 ? null
                                 : () async {
-                              await controller.selectTenant(membership.tenantId);
+                                    await controller.selectTenant(membership.tenantId);
 
-                              final updatedSession =
-                                  ref.read(loginControllerProvider).session;
-                              if (updatedSession == null ||
-                                  updatedSession.requiresTenantSelection) {
-                                return;
-                              }
-                              final role =
-                                  (updatedSession.user.role.isNotEmpty ? updatedSession.user.role : 'cashier')
-                                      .trim()
-                                      .toLowerCase();
-                              final route = switch (role) {
-                                'admin' => AppRoute.adminPortal.path,
-                                'cashier' || 'manager' => AppRoute.cashierPortal.path,
-                                _ => AppRoute.cashierPortal.path,
-                              };
+                                    final updatedSession =
+                                        ref.read(loginControllerProvider).session;
+                                    if (updatedSession == null ||
+                                        updatedSession.requiresTenantSelection) {
+                                      return;
+                                    }
+                                    final role =
+                                        (updatedSession.user.role.isNotEmpty
+                                                ? updatedSession.user.role
+                                                : 'cashier')
+                                            .trim()
+                                            .toLowerCase();
+                                    final route = switch (role) {
+                                      'admin' => AppRoute.adminPortal.path,
+                                      'cashier' || 'manager' => AppRoute.cashierPortal.path,
+                                      _ => AppRoute.cashierPortal.path,
+                                    };
 
-                              if (context.mounted) context.go(route);
-                            },
+                                    if (context.mounted) context.go(route);
+                                  },
                           ),
                         );
                       },

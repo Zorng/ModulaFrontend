@@ -92,26 +92,21 @@ class InventoryPolicy {
 
 class CashSessionPolicy {
   const CashSessionPolicy({
-    this.cashRequireSessionForSales = true,
     this.cashAllowPaidOut = false,
     this.cashRequireRefundApproval = false,
     this.cashAllowManualAdjustment = false,
   });
 
-  final bool cashRequireSessionForSales;
   final bool cashAllowPaidOut;
   final bool cashRequireRefundApproval;
   final bool cashAllowManualAdjustment;
 
   CashSessionPolicy copyWith({
-    bool? cashRequireSessionForSales,
     bool? cashAllowPaidOut,
     bool? cashRequireRefundApproval,
     bool? cashAllowManualAdjustment,
   }) {
     return CashSessionPolicy(
-      cashRequireSessionForSales:
-          cashRequireSessionForSales ?? this.cashRequireSessionForSales,
       cashAllowPaidOut: cashAllowPaidOut ?? this.cashAllowPaidOut,
       cashRequireRefundApproval:
           cashRequireRefundApproval ?? this.cashRequireRefundApproval,
@@ -129,9 +124,6 @@ class CashSessionPolicy {
             : root;
 
     return CashSessionPolicy(
-      cashRequireSessionForSales: (src['cashRequireSessionForSales'] as bool?) ??
-          (src['requireSessionForSales'] as bool?) ??
-          true,
       cashAllowPaidOut: (src['cashAllowPaidOut'] as bool?) ??
           (src['allowPaidOut'] as bool?) ??
           false,

@@ -65,7 +65,7 @@ class LoginController extends StateNotifier<LoginState> {
         _applySessionContext(initialSession);
         final branchId = _resolveBranchId(initialSession);
         _resetPolicies();
-        _refreshPolicies(branchId: branchId);
+        _refreshPolicies(branchId);
         _refreshCashSession(initialSession, branchId: branchId);
       });
     }
@@ -87,7 +87,7 @@ class LoginController extends StateNotifier<LoginState> {
       _applySessionContext(session);
       final branchId = _resolveBranchId(session);
       _resetPolicies();
-      _refreshPolicies(branchId: branchId);
+      _refreshPolicies(branchId);
       _refreshCashSession(session, branchId: branchId);
 
       state = state.copyWith(isLoading: false, session: session);
@@ -118,25 +118,11 @@ class LoginController extends StateNotifier<LoginState> {
 
   void _resetPolicies() {
     try {
-      ref.invalidate(policyNotifierProvider);
+      ref.read(policyNotifierProvider.notifier).reset();
     } catch (err, st) {
       assert(() {
         // ignore: avoid_print
         print('Failed to reset policies: $err');
-        // ignore: avoid_print
-        print(st);
-        return true;
-      }());
-    }
-  }
-
-  void _refreshPolicies({String? branchId}) {
-    try {
-      ref.read(policyNotifierProvider.notifier).load(branchId: branchId);
-    } catch (err, st) {
-      assert(() {
-        // ignore: avoid_print
-        print('Failed to refresh policies: $err');
         // ignore: avoid_print
         print(st);
         return true;
@@ -194,14 +180,14 @@ class LoginController extends StateNotifier<LoginState> {
         );
 
         await _sessionStore.save(nextSession);
-        _applySessionContext(nextSession);
-        final branchId = _resolveBranchId(nextSession);
-        _resetPolicies();
-        _refreshPolicies(branchId: branchId);
-        _refreshCashSession(nextSession, branchId: branchId);
-        state = state.copyWith(isLoading: false, session: nextSession);
-        return;
-      }
+      _applySessionContext(nextSession);
+      final branchId = _resolveBranchId(nextSession);
+      _resetPolicies();
+      _refreshPolicies(branchId);
+      _refreshCashSession(nextSession, branchId: branchId);
+      state = state.copyWith(isLoading: false, session: nextSession);
+      return;
+    }
 
       TenantMembership? membership;
       for (final m in current.memberships) {
@@ -229,7 +215,7 @@ class LoginController extends StateNotifier<LoginState> {
       _applySessionContext(nextSession);
       final branchId = _resolveBranchId(nextSession);
       _resetPolicies();
-      _refreshPolicies(branchId: branchId);
+      _refreshPolicies(branchId);
       _refreshCashSession(nextSession, branchId: branchId);
       state = state.copyWith(isLoading: false, session: nextSession);
     } catch (e, st) {
@@ -254,5 +240,19 @@ class LoginController extends StateNotifier<LoginState> {
       ref.invalidate(cashSessionViewModelProvider);
     } catch (_) {}
     state = const LoginState();
+  }
+
+  void _refreshPolicies(String? branchId) {
+    try {
+      ref.read(policyNotifierProvider.notifier).load(branchId: branchId);
+    } catch (err, st) {
+      assert(() {
+        // ignore: avoid_print
+        print('Failed to refresh policies: $err');
+        // ignore: avoid_print
+        print(st);
+        return true;
+      }());
+    }
   }
 }

@@ -477,62 +477,81 @@ class _ModifierGroupSection extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 4),
-          ...group.options.map((option) {
-            final isSelected = selectedOptionIds.contains(option.id);
-            final priceDelta = option.price;
-            final priceLabel =
-                priceDelta == 0 ? '' : ' (+\$${priceDelta.toStringAsFixed(2)})';
-            final highlightColor =
-                Theme.of(context).colorScheme.primary.withValues(alpha: 0.08);
-            final tile = Container(
-              decoration: BoxDecoration(
-                color: isSelected ? highlightColor : null,
-                borderRadius: BorderRadius.circular(8),
+          if (_isSingle)
+            RadioGroup<String>(
+              groupValue:
+                  selectedOptionIds.isNotEmpty ? selectedOptionIds.first : null,
+              onChanged: (value) {
+                if (value == null) return;
+                onSelectionChanged({value});
+              },
+              child: Column(
+                children: [
+                  ...group.options.map((option) {
+                    final isSelected = selectedOptionIds.contains(option.id);
+                    final priceDelta = option.price;
+                    final priceLabel = priceDelta == 0
+                        ? ''
+                        : ' (+\$${priceDelta.toStringAsFixed(2)})';
+                    final highlightColor = Theme.of(context)
+                        .colorScheme
+                        .primary
+                        .withValues(alpha: 0.08);
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 2),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: isSelected ? highlightColor : null,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: RadioListTile<String>(
+                          value: option.id,
+                          title: Text('${option.name}$priceLabel'),
+                          dense: true,
+                          contentPadding:
+                              const EdgeInsets.only(left: 4, right: 8),
+                        ),
+                      ),
+                    );
+                  }),
+                ],
               ),
-              child: _isSingle
-                  ? RadioListTile<String>(
-                      value: option.id,
-                      groupValue: selectedOptionIds.isNotEmpty
-                          ? selectedOptionIds.first
-                          : null,
-                      title: Text('${option.name}$priceLabel'),
-                      dense: true,
-                      contentPadding: const EdgeInsets.only(left: 4, right: 8),
-                      onChanged: (value) {
-                        if (value == null) return;
-                        onSelectionChanged({value});
-                      },
-                    )
-                  : CheckboxListTile(
-                      value: isSelected,
-                      dense: true,
-                      contentPadding: const EdgeInsets.only(left: 4, right: 8),
-                      controlAffinity: ListTileControlAffinity.leading,
-                      title: Text('${option.name}$priceLabel'),
-                      onChanged: (checked) {
-                        final updated = {...selectedOptionIds};
-                        if (checked == true) {
-                          updated.add(option.id);
-                        } else {
-                          updated.remove(option.id);
-                        }
-                        onSelectionChanged(updated);
-                      },
-                    ),
-            );
-
-            if (_isSingle) {
+            )
+          else
+            ...group.options.map((option) {
+              final isSelected = selectedOptionIds.contains(option.id);
+              final priceDelta = option.price;
+              final priceLabel = priceDelta == 0
+                  ? ''
+                  : ' (+\$${priceDelta.toStringAsFixed(2)})';
+              final highlightColor =
+                  Theme.of(context).colorScheme.primary.withValues(alpha: 0.08);
               return Padding(
                 padding: const EdgeInsets.symmetric(vertical: 2),
-                child: tile,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: isSelected ? highlightColor : null,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: CheckboxListTile(
+                    value: isSelected,
+                    dense: true,
+                    contentPadding: const EdgeInsets.only(left: 4, right: 8),
+                    controlAffinity: ListTileControlAffinity.leading,
+                    title: Text('${option.name}$priceLabel'),
+                    onChanged: (checked) {
+                      final updated = {...selectedOptionIds};
+                      if (checked == true) {
+                        updated.add(option.id);
+                      } else {
+                        updated.remove(option.id);
+                      }
+                      onSelectionChanged(updated);
+                    },
+                  ),
+                ),
               );
-            } else {
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 2),
-                child: tile,
-              );
-            }
-          }),
+            }),
         ],
       ),
     );

@@ -27,6 +27,9 @@ import 'package:modular_pos/features/inventory/domain/models/inventory_journal_s
 import 'package:modular_pos/features/inventory/ui/view/inventory_journal_page.dart';
 import 'package:modular_pos/features/inventory/ui/view/inventory_journal_detail_page.dart';
 import 'package:modular_pos/features/cash_session/ui/view/cashier_cash_session.dart';
+import 'package:modular_pos/features/cash_session/ui/view/x_report_page.dart';
+import 'package:modular_pos/features/cash_session/ui/view/z_report_page.dart';
+import 'package:modular_pos/features/policy/ui/viewmodels/policy_viewmodel.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -89,7 +92,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       }
 
       // Authenticated but not allowed to access policy → 404
-      if (path == AppRoute.policy.path && role != 'admin') {
+      if (path == AppRoute.policy.path &&
+          role != 'admin' &&
+          role != 'cashier') {
         return '/404';
       }
       if ((path == AppRoute.inventory.path ||
@@ -117,6 +122,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         return '/404';
       }
       if (path == AppRoute.adminCashSession.path && role != 'admin') {
+        return '/404';
+      }
+      if (path == AppRoute.xReport.path &&
+          role != 'admin' &&
+          role != 'cashier') {
+        return '/404';
+      }
+      if (path == AppRoute.zReport.path && role != 'admin') {
         return '/404';
       }
 
@@ -258,6 +271,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         name: AppRoute.adminCashSession.name,
         builder: (context, state) => const CashSessionScreen(),
       ),
+      GoRoute(
+        path: AppRoute.xReport.path,
+        name: AppRoute.xReport.name,
+        builder: (context, state) => const XReportPage(),
+      ),
+      GoRoute(
+        path: AppRoute.zReport.path,
+        name: AppRoute.zReport.name,
+        builder: (context, state) => const ZReportPage(),
+      ),
     ],
   );
 });
@@ -267,6 +290,8 @@ class ModulaApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Keep policy hydration alive once auth context is available.
+    ref.watch(policyNotifierProvider);
     final router = ref.watch(appRouterProvider);
 
     return MaterialApp.router(

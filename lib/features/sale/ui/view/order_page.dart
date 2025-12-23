@@ -144,15 +144,21 @@ class _OrderPageState extends ConsumerState<OrderPage> {
                       ],
                     ),
                     const Divider(),
-                    ...['in_prep', 'ready', 'delivered', 'cancelled'].map(
-                      (status) => RadioListTile<String>(
-                        title: Text(_statusLabel(status)),
-                        value: status,
-                        groupValue: selected,
-                        onChanged: (value) {
-                          if (value == null) return;
-                          setSheetState(() => selected = value);
-                        },
+                    RadioGroup<String>(
+                      groupValue: selected,
+                      onChanged: (value) {
+                        if (value == null) return;
+                        setSheetState(() => selected = value);
+                      },
+                      child: Column(
+                        children: [
+                          ...['in_prep', 'ready', 'delivered', 'cancelled'].map(
+                            (status) => RadioListTile<String>(
+                              title: Text(_statusLabel(status)),
+                              value: status,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                     const SizedBox(height: 8),

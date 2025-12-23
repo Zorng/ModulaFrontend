@@ -7,8 +7,9 @@ import 'package:modular_pos/core/widgets/portal_shell.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/sale/ui/view/order_page.dart';
 import 'package:modular_pos/features/cash_session/ui/view/cashier_cash_session.dart';
-import 'package:modular_pos/features/cash_session/ui/viewmodels/cash_session_viewmodel.dart';
+import 'package:modular_pos/features/cash_session/ui/view/x_report_page.dart';
 import 'package:modular_pos/features/staff/ui/view/staff_list_view.dart';
+import 'package:modular_pos/features/policy/ui/view/policy_page.dart';
 
 class CashierPortal extends ConsumerWidget {
   const CashierPortal({super.key});
@@ -53,10 +54,13 @@ class CashierPortal extends ConsumerWidget {
         id: 'x_report',
         label: 'X Report',
         icon: Icons.description_outlined,
-        builder: (context) => const _PlaceholderCard(
-          title: 'X Report',
-          content: 'Current shift summary.',
-        ),
+        builder: (context) => const XReportPage(),
+      ),
+      PortalAction(
+        id: 'policy',
+        label: 'Policy',
+        icon: Icons.policy_outlined,
+        builder: (context) => const PolicyPage(),
       ),
     ];
 
@@ -81,17 +85,12 @@ class _CashierHomeContent extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final cashSession = ref.watch(cashSessionViewModelProvider);
     final isWide = MediaQuery.of(context).size.width >= 800;
     final features = [
       _FeatureEntry(
         title: 'POS / Sales',
         icon: Icons.point_of_sale,
         onTap: () {
-          if (cashSession.sessionStatus != SessionStatus.open) {
-            _showCashSessionDialog(context);
-            return;
-          }
           context.push(AppRoute.sale.path);
         },
       ),
@@ -106,7 +105,16 @@ class _CashierHomeContent extends ConsumerWidget {
         icon: Icons.receipt_long_outlined,
         onTap: () => context.push(AppRoute.orders.path),
       ),
-      const _FeatureEntry(title: 'X Report', icon: Icons.description_outlined),
+      _FeatureEntry(
+        title: 'X Report',
+        icon: Icons.description_outlined,
+        onTap: () => context.push(AppRoute.xReport.path),
+      ),
+      _FeatureEntry(
+        title: 'Policy',
+        icon: Icons.policy_outlined,
+        onTap: () => context.push(AppRoute.policy.path),
+      ),
     ];
 
     const crossAxisCount = 3;
@@ -129,40 +137,6 @@ class _CashierHomeContent extends ConsumerWidget {
   }
 }
 
-void _showCashSessionDialog(BuildContext context) {
-  showDialog(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      titlePadding: const EdgeInsets.fromLTRB(24, 16, 8, 0),
-      contentPadding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
-      actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-      title: Row(
-        children: [
-          const Expanded(child: Text('Cash session required')),
-          IconButton(
-            icon: const Icon(Icons.close),
-            tooltip: 'Close',
-            onPressed: () {
-              Navigator.of(ctx).pop();
-            },
-          ),
-        ],
-      ),
-      content: const Text(
-        'You are not in an active cash session. Start one before opening the sale screen.',
-      ),
-      actions: [
-        FilledButton(
-          onPressed: () {
-            Navigator.of(ctx).pop();
-            context.push(AppRoute.cashierCashSession.path);
-          },
-          child: const Text('Go to cash session'),
-        ),
-      ],
-    ),
-  );
-}
 
 class _FeatureCard extends StatelessWidget {
   const _FeatureCard({required this.entry});

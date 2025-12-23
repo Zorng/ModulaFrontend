@@ -90,14 +90,12 @@ class PolicyRepository {
 
   Future<PolicyBundle> updateCashSession({
     String? branchId,
-    bool? cashRequireSessionForSales,
     bool? cashAllowPaidOut,
     bool? cashRequireRefundApproval,
     bool? cashAllowManualAdjustment,
   }) async {
     await _api.updateCashSession(
       branchId: branchId,
-      cashRequireSessionForSales: cashRequireSessionForSales,
       cashAllowPaidOut: cashAllowPaidOut,
       cashRequireRefundApproval: cashRequireRefundApproval,
       cashAllowManualAdjustment: cashAllowManualAdjustment,

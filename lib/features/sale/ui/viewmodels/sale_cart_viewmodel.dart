@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 import 'package:modular_pos/features/policy/ui/viewmodels/policy_viewmodel.dart';
+import 'package:modular_pos/features/cash_session/ui/viewmodels/x_report_viewmodel.dart';
 import 'package:modular_pos/features/sale/data/sale_repository.dart';
 import 'package:modular_pos/features/sale/ui/view/sale_item_detail_page.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_access_gate.dart';
@@ -97,8 +98,8 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
 
   void _assertCanCreateDraftSale() {
     final gate = ref.read(saleAccessGateProvider);
-    if (gate.policiesLoading || gate.cashSessionLoading) {
-      throw Exception('Loading cash session policies. Please wait.');
+    if (gate.cashSessionLoading) {
+      throw Exception('Loading cash session status. Please wait.');
     }
     if (!gate.canCreateDraftSale) {
       throw Exception(
@@ -279,6 +280,8 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
     );
     final finalized = await _repo.finalize(saleId);
     final result = {'preCheckout': pre, 'finalize': finalized};
+    ref.invalidate(xReportEntriesProvider);
+    ref.invalidate(xReportDetailProvider);
     // Reset state so subsequent carts start with a fresh draft.
     clear();
     return result;

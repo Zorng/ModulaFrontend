@@ -124,7 +124,7 @@ class _SaleCartPageState extends ConsumerState<SaleCartPage> {
     final cartNotifier = ref.read(saleCartProvider.notifier);
     final gate = ref.watch(saleAccessGateProvider);
     final readOnly =
-        !gate.policiesLoading && gate.isBlockedByCashSessionPolicy;
+        !gate.cashSessionLoading && gate.isBlockedByCashSessionPolicy;
     final role = (ref.watch(loginControllerProvider).user?.role ?? 'cashier')
         .trim()
         .toLowerCase();
@@ -575,118 +575,120 @@ class _CartContent extends StatelessWidget {
           onSelected:
               readOnly ? null : () => onPaymentMethodChanged('cash'),
           body: paymentMethod == 'cash'
-              ? Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Divider(),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Text(
-                          'USD Received',
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                        const Spacer(),
-                        Radio<String>(
-                          value: 'usd',
-                          groupValue: tenderCurrency,
-                          onChanged: paymentMethod == 'cash' && !readOnly
-                              ? (value) => selectTender(value ?? 'usd')
-                              : null,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    TextField(
-                      controller: usdController,
-                      keyboardType:
-                          const TextInputType.numberWithOptions(decimal: true),
-                      enabled: paymentMethod == 'cash' && !readOnly,
-                      onTap: paymentMethod == 'cash' && !readOnly
-                          ? () => selectTender('usd')
-                          : null,
-                      onChanged: paymentMethod == 'cash' && !readOnly
-                          ? (_) => onAmountsChanged()
-                          : null,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
-                      ],
-                      decoration: InputDecoration(
-                        prefixIcon: const Padding(
-                          padding: EdgeInsets.only(left: 12, right: 4),
-                          child: Text(
-                            '\$',
-                            style: TextStyle(fontWeight: FontWeight.w600),
+              ? RadioGroup<String>(
+                  groupValue: tenderCurrency,
+                  onChanged: (value) {
+                    if (paymentMethod != 'cash' || readOnly) return;
+                    if (value == null) return;
+                    selectTender(value);
+                  },
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Divider(),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Text(
+                            'USD Received',
+                            style: Theme.of(context).textTheme.bodyMedium,
                           ),
-                        ),
-                        prefixIconConstraints:
-                            const BoxConstraints(minWidth: 0, minHeight: 0),
-                        hintText: '0.00',
-                        filled: true,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Text(
-                          'KHR Received',
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                        const Spacer(),
-                        Radio<String>(
-                          value: 'khr',
-                          groupValue: tenderCurrency,
-                          onChanged: paymentMethod == 'cash' && !readOnly
-                              ? (value) => selectTender(value ?? 'khr')
-                              : null,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    TextField(
-                      controller: khrController,
-                      keyboardType: TextInputType.number,
-                      enabled: paymentMethod == 'cash' && !readOnly,
-                      onTap: paymentMethod == 'cash' && !readOnly
-                          ? () => selectTender('khr')
-                          : null,
-                      onChanged: paymentMethod == 'cash' && !readOnly
-                          ? (_) => onAmountsChanged()
-                          : null,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly,
-                      ],
-                      decoration: InputDecoration(
-                        prefixIcon: const Padding(
-                          padding: EdgeInsets.only(left: 12, right: 4),
-                          child: Text(
-                            '៛',
-                            style: TextStyle(fontWeight: FontWeight.w600),
+                          const Spacer(),
+                          Radio<String>(
+                            value: 'usd',
+                            enabled: paymentMethod == 'cash' && !readOnly,
                           ),
-                        ),
-                        prefixIconConstraints:
-                            const BoxConstraints(minWidth: 0, minHeight: 0),
-                        hintText: '0',
-                        filled: true,
+                        ],
                       ),
-                    ),
-                    const SizedBox(height: 12),
-                    const Divider(),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Text(
-                          'Change (៛)',
-                          style: Theme.of(context).textTheme.bodyMedium,
+                      const SizedBox(height: 4),
+                      TextField(
+                        controller: usdController,
+                        keyboardType:
+                            const TextInputType.numberWithOptions(decimal: true),
+                        enabled: paymentMethod == 'cash' && !readOnly,
+                        onTap: paymentMethod == 'cash' && !readOnly
+                            ? () => selectTender('usd')
+                            : null,
+                        onChanged: paymentMethod == 'cash' && !readOnly
+                            ? (_) => onAmountsChanged()
+                            : null,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                        ],
+                        decoration: InputDecoration(
+                          prefixIcon: const Padding(
+                            padding: EdgeInsets.only(left: 12, right: 4),
+                            child: Text(
+                              '\$',
+                              style: TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                          prefixIconConstraints:
+                              const BoxConstraints(minWidth: 0, minHeight: 0),
+                          hintText: '0.00',
+                          filled: true,
                         ),
-                        const Spacer(),
-                        Text(
-                          'KHR ${changeKhrDisplay.toStringAsFixed(0)}',
-                          style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Text(
+                            'KHR Received',
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                          const Spacer(),
+                          Radio<String>(
+                            value: 'khr',
+                            enabled: paymentMethod == 'cash' && !readOnly,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      TextField(
+                        controller: khrController,
+                        keyboardType: TextInputType.number,
+                        enabled: paymentMethod == 'cash' && !readOnly,
+                        onTap: paymentMethod == 'cash' && !readOnly
+                            ? () => selectTender('khr')
+                            : null,
+                        onChanged: paymentMethod == 'cash' && !readOnly
+                            ? (_) => onAmountsChanged()
+                            : null,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                        ],
+                        decoration: InputDecoration(
+                          prefixIcon: const Padding(
+                            padding: EdgeInsets.only(left: 12, right: 4),
+                            child: Text(
+                              '៛',
+                              style: TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                          prefixIconConstraints:
+                              const BoxConstraints(minWidth: 0, minHeight: 0),
+                          hintText: '0',
+                          filled: true,
                         ),
-                      ],
-                    ),
-                  ],
+                      ),
+                      const SizedBox(height: 12),
+                      const Divider(),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Text(
+                            'Change (៛)',
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                          const Spacer(),
+                          Text(
+                            'KHR ${changeKhrDisplay.toStringAsFixed(0)}',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 )
               : null,
         ),
@@ -883,20 +885,27 @@ class _PaymentMethodCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    title,
-                    style: Theme.of(context).textTheme.titleMedium,
+            RadioGroup<bool>(
+              groupValue: selected ? true : null,
+              onChanged: (_) {
+                if (enabled) {
+                  onSelected!();
+                }
+              },
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
                   ),
-                ),
-                Radio<bool>(
-                  value: true,
-                  groupValue: selected,
-                  onChanged: enabled ? (_) => onSelected!() : null,
-                ),
-              ],
+                  Radio<bool>(
+                    value: true,
+                    enabled: enabled,
+                  ),
+                ],
+              ),
             ),
             if (body != null) ...[
               const SizedBox(height: 8),

@@ -122,7 +122,6 @@ class PolicyApi {
 
   Future<Map<String, dynamic>> updateCashSession({
     String? branchId,
-    bool? cashRequireSessionForSales,
     bool? cashAllowPaidOut,
     bool? cashRequireRefundApproval,
     bool? cashAllowManualAdjustment,
@@ -130,9 +129,6 @@ class PolicyApi {
     final body = <String, dynamic>{};
     if (branchId != null && branchId.isNotEmpty) {
       body['branchId'] = branchId;
-    }
-    if (cashRequireSessionForSales != null) {
-      body['cashRequireSessionForSales'] = cashRequireSessionForSales;
     }
     if (cashAllowPaidOut != null) {
       body['cashAllowPaidOut'] = cashAllowPaidOut;

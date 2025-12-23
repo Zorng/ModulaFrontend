@@ -79,7 +79,7 @@ class _SalePageState extends ConsumerState<SalePage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (!gate.policiesLoading && gate.isBlockedByCashSessionPolicy) ...[
+              if (!gate.cashSessionLoading && gate.isBlockedByCashSessionPolicy) ...[
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(

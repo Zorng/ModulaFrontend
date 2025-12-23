@@ -21,6 +21,8 @@ enum AppRoute {
   sale,
   adminCashSession,
   cashierCashSession,
+  xReport,
+  zReport,
 }
 
 extension AppRoutePath on AppRoute {
@@ -47,6 +49,8 @@ extension AppRoutePath on AppRoute {
     AppRoute.sale => '/sale',
     AppRoute.adminCashSession => '/portal/admin/session',
     AppRoute.cashierCashSession => '/portal/cashier/session',
+    AppRoute.xReport => '/portal/x-report',
+    AppRoute.zReport => '/portal/admin/z-report',
   };
 
   String get name => switch (this) {
@@ -72,5 +76,7 @@ extension AppRoutePath on AppRoute {
     AppRoute.sale => 'sale',
     AppRoute.adminCashSession => 'adminCashSession',
     AppRoute.cashierCashSession => 'cashierCashSession',
+    AppRoute.xReport => 'xReport',
+    AppRoute.zReport => 'zReport',
   };
 }

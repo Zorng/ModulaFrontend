@@ -12,6 +12,7 @@ import 'package:modular_pos/features/policy/ui/view/policy_detail_page.dart';
 import 'package:modular_pos/features/policy/ui/view/vat_policy_detail_page.dart';
 import 'package:modular_pos/features/policy/ui/viewmodels/policy_viewmodel.dart';
 import 'package:modular_pos/features/policy/ui/widgets/policy_section.dart';
+import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 
 /// Mobile-first Policy screen backed by policy API.
 class PolicyPage extends ConsumerStatefulWidget {
@@ -117,13 +118,6 @@ class _PolicyPageState extends ConsumerState<PolicyPage> {
           title: 'Cash Sessions Control',
           items: [
             PolicyItem(
-              id: 'require_session',
-              title: 'Require cash session to sell',
-              icon: Icons.lock_clock,
-              subtitle: 'Cash sale blocked until a session starts',
-              type: PolicyItemType.toggle,
-            ),
-            PolicyItem(
               id: 'allow_paid_out',
               title: 'Allow paid-out',
               icon: Icons.payments_outlined,
@@ -153,6 +147,12 @@ class _PolicyPageState extends ConsumerState<PolicyPage> {
     PolicyItem item,
     dynamic currentValue,
   ) {
+    if (_isReadOnly(ref.read(loginControllerProvider))) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Read-only: policy editing is disabled.')),
+      );
+      return;
+    }
     final policyNotifier = ref.read(policyNotifierProvider.notifier);
     final policyState = ref.read(policyNotifierProvider);
 
@@ -242,10 +242,6 @@ class _PolicyPageState extends ConsumerState<PolicyPage> {
                 autoSubtractOnSale:
                     policyState.inventoryPolicy.inventoryAutoSubtractOnSale,
               );
-            } else if (item.id == 'require_session') {
-              await policyNotifier.updateCashSession(
-                requireSessionForSales: newValue as bool,
-              );
             } else if (item.id == 'allow_paid_out') {
               await policyNotifier.updateCashSession(
                 allowPaidOut: newValue as bool,
@@ -281,12 +277,22 @@ class _PolicyPageState extends ConsumerState<PolicyPage> {
     );
   }
 
+  bool _isReadOnly(LoginState state) {
+    final role = (state.user?.role ?? 'cashier').trim().toLowerCase();
+    return role != 'admin';
+  }
+
   @override
   Widget build(BuildContext context) {
+    final loginState = ref.watch(loginControllerProvider);
     final policyState = ref.watch(policyNotifierProvider);
     final isLoading = policyState.isLoading;
     final toggleValues = _composeToggleValues(policyState);
     final selectorValues = _composeSelectorValues(policyState);
+    final isReadOnly = _isReadOnly(loginState);
+    final portalPath = isReadOnly
+        ? AppRoute.cashierPortal.path
+        : AppRoute.adminPortal.path;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -320,7 +326,7 @@ class _PolicyPageState extends ConsumerState<PolicyPage> {
                 if (context.canPop()) {
                   context.pop();
                 } else {
-                  context.go(AppRoute.adminPortal.path);
+                  context.go(portalPath);
                 }
               },
             ),
@@ -347,6 +353,21 @@ class _PolicyPageState extends ConsumerState<PolicyPage> {
                     ),
                     const SizedBox(height: 12),
                     if (isLoading) const LinearProgressIndicator(minHeight: 2),
+                    if (isReadOnly)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8, bottom: 4),
+                        child: Text(
+                          'Read-only: contact an admin to update policies.',
+                          style: Theme.of(context)
+                              .textTheme
+                              .labelMedium
+                              ?.copyWith(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant,
+                              ),
+                        ),
+                      ),
                     const SizedBox(height: 4),
                     ...filteredSections.map(
                       (section) => Padding(
@@ -357,6 +378,7 @@ class _PolicyPageState extends ConsumerState<PolicyPage> {
                           isCompact: isSmall,
                           toggleValues: toggleValues,
                           selectorValues: selectorValues,
+                          readOnly: isReadOnly,
                           onItemTap: (item, value) =>
                               _openPolicyDetail(context, item, value),
                         ),
@@ -393,7 +415,6 @@ class _PolicyPageState extends ConsumerState<PolicyPage> {
           state.attendancePolicy.attendanceRequireOutOfShiftApproval,
       'early_check_in_buffer':
           state.attendancePolicy.attendanceEarlyCheckinBufferEnabled,
-      'require_session': state.cashSessionPolicy.cashRequireSessionForSales,
       'allow_paid_out': state.cashSessionPolicy.cashAllowPaidOut,
       'cash_refund_approval': state.cashSessionPolicy.cashRequireRefundApproval,
       'manual_cash_adjustment':

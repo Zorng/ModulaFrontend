@@ -7,8 +7,10 @@ import 'package:modular_pos/core/widgets/portal_shell.dart';
 import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
+import 'package:modular_pos/features/policy/ui/viewmodels/policy_viewmodel.dart';
 import 'package:modular_pos/features/cash_session/ui/view/cashier_cash_session.dart';
-import 'package:modular_pos/features/cash_session/ui/viewmodels/cash_session_viewmodel.dart';
+import 'package:modular_pos/features/cash_session/ui/view/x_report_page.dart';
+import 'package:modular_pos/features/cash_session/ui/view/z_report_page.dart';
 import 'package:modular_pos/features/menu/ui/view/menu_page.dart';
 import 'package:modular_pos/features/sale/ui/view/order_page.dart';
 import 'package:modular_pos/features/staff/ui/view/staff_list_view.dart';
@@ -68,6 +70,18 @@ class AdminPortal extends ConsumerWidget {
         label: 'Cash Sessions',
         icon: Icons.attach_money_outlined,
         builder: (context) => const CashSessionScreen(),
+      ),
+      PortalAction(
+        id: 'x_report',
+        label: 'X Report',
+        icon: Icons.description_outlined,
+        builder: (context) => const XReportPage(),
+      ),
+      PortalAction(
+        id: 'z_report',
+        label: 'Z Report',
+        icon: Icons.summarize_outlined,
+        builder: (context) => const ZReportPage(),
       ),
       PortalAction(
         id: 'reports',
@@ -137,7 +151,6 @@ class _SaleShortcutCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final cashSession = ref.watch(cashSessionViewModelProvider);
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
@@ -152,13 +165,7 @@ class _SaleShortcutCard extends ConsumerWidget {
             ),
             const SizedBox(height: 16),
             FilledButton.icon(
-              onPressed: () {
-                if (cashSession.sessionStatus != SessionStatus.open) {
-                  _showCashSessionDialog(context);
-                  return;
-                }
-                onOpenSale();
-              },
+              onPressed: onOpenSale,
               icon: const Icon(Icons.point_of_sale),
               label: const Text('Open Sale'),
             ),
@@ -167,41 +174,6 @@ class _SaleShortcutCard extends ConsumerWidget {
       ),
     );
   }
-}
-
-void _showCashSessionDialog(BuildContext context) {
-  showDialog(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      titlePadding: const EdgeInsets.fromLTRB(24, 16, 8, 0),
-      contentPadding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
-      actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-      title: Row(
-        children: [
-          const Expanded(child: Text('Cash session required')),
-          IconButton(
-            icon: const Icon(Icons.close),
-            tooltip: 'Close',
-            onPressed: () {
-              Navigator.of(ctx).pop();
-            },
-          ),
-        ],
-      ),
-      content: const Text(
-        'You are not in an active cash session. Start one before opening the sale screen.',
-      ),
-      actions: [
-        FilledButton(
-          onPressed: () {
-            Navigator.of(ctx).pop();
-            context.push(AppRoute.adminCashSession.path);
-          },
-          child: const Text('Go to cash session'),
-        ),
-      ],
-    ),
-  );
 }
 
 class _AdminHomeContent extends StatelessWidget {
@@ -256,6 +228,20 @@ class _AdminHomeContent extends StatelessWidget {
         onTap: () => context.push(AppRoute.adminCashSession.path),
       ),
       _FeatureEntry(
+        title: 'X Report',
+        icon: Icons.description_outlined,
+        onTap: () => context.push(AppRoute.xReport.path),
+      ),
+      _FeatureEntry(
+        title: 'Z Report',
+        icon: Icons.summarize_outlined,
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => const ZReportPage(),
+          ),
+        ),
+      ),
+      _FeatureEntry(
         title: 'Orders',
         icon: Icons.receipt_long_outlined,
         onTap: () => context.push(AppRoute.orders.path),
@@ -270,7 +256,11 @@ class _AdminHomeContent extends StatelessWidget {
     final mergedGlobalFeatures = hasMultipleBranches
         ? globalFeatures
         : [...globalFeatures, ...branchFeatures];
-    String? selectedBranchId = branches.isNotEmpty ? branches.first.id : null;
+    String? selectedBranchId = branches.isNotEmpty
+        ? (branches.first.branchId.isNotEmpty
+            ? branches.first.branchId
+            : branches.first.id)
+        : null;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -315,18 +305,21 @@ class _BranchSection extends ConsumerStatefulWidget {
 class _BranchSectionState extends ConsumerState<_BranchSection> {
   late String? _selectedBranchId;
 
+  String _branchKey(UserBranch branch) =>
+      branch.branchId.isNotEmpty ? branch.branchId : branch.id;
+
   @override
   void initState() {
     super.initState();
     _selectedBranchId =
         widget.initialBranchId ??
-        (widget.branches.isNotEmpty ? widget.branches.first.id : null);
+        (widget.branches.isNotEmpty ? _branchKey(widget.branches.first) : null);
   }
 
   @override
   Widget build(BuildContext context) {
     final selectedBranch = widget.branches.firstWhere(
-      (b) => b.id == _selectedBranchId,
+      (b) => _branchKey(b) == _selectedBranchId,
       orElse: () => widget.branches.isNotEmpty
           ? widget.branches.first
           : const UserBranch(
@@ -341,7 +334,10 @@ class _BranchSectionState extends ConsumerState<_BranchSection> {
         ? DropdownButton<String>(
             value: _selectedBranchId,
             items: widget.branches
-                .map((b) => DropdownMenuItem(value: b.id, child: Text(b.name)))
+                .map((b) => DropdownMenuItem(
+                      value: _branchKey(b),
+                      child: Text(b.name),
+                    ))
                 .toList(),
             onChanged: (value) {
               setState(() {
@@ -349,6 +345,9 @@ class _BranchSectionState extends ConsumerState<_BranchSection> {
               });
               ref.read(authActiveBranchOverrideProvider.notifier).state =
                   value;
+              if (value != null && value.isNotEmpty) {
+                ref.read(policyNotifierProvider.notifier).load(branchId: value);
+              }
             },
           )
         : InkWell(
@@ -415,7 +414,7 @@ class _BranchSectionState extends ConsumerState<_BranchSection> {
               separatorBuilder: (_, __) => const Divider(height: 1),
               itemBuilder: (context, index) {
                 final branch = widget.branches[index];
-                final isSelected = branch.id == _selectedBranchId;
+                final isSelected = _branchKey(branch) == _selectedBranchId;
                 return ListTile(
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 16,
@@ -440,9 +439,14 @@ class _BranchSectionState extends ConsumerState<_BranchSection> {
 
     if (selected != null) {
       setState(() {
-        _selectedBranchId = selected.id;
+        _selectedBranchId = _branchKey(selected);
       });
-      ref.read(authActiveBranchOverrideProvider.notifier).state = selected.id;
+      ref.read(authActiveBranchOverrideProvider.notifier).state =
+          _branchKey(selected);
+      final branchId = _branchKey(selected);
+      if (branchId.isNotEmpty) {
+        ref.read(policyNotifierProvider.notifier).load(branchId: branchId);
+      }
     }
   }
 }
