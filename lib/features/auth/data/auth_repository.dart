@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/features/auth/data/auth_api.dart';
 import 'package:modular_pos/features/auth/domain/models/auth_session.dart';
+import 'package:modular_pos/features/auth/domain/models/tenant_membership.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
 
 const _useMockRepository = false;
@@ -18,6 +19,11 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) {
 
 abstract class AuthRepository {
   Future<AuthSession> login(String username, String password);
+  Future<AuthSession> selectTenant({
+    required String selectionToken,
+    required String tenantId,
+    String? branchId,
+  });
 }
 
 class RemoteAuthRepository implements AuthRepository {
@@ -28,6 +34,19 @@ class RemoteAuthRepository implements AuthRepository {
   @override
   Future<AuthSession> login(String username, String password) async {
     return _api.login(username: username, password: password);
+  }
+
+  @override
+  Future<AuthSession> selectTenant({
+    required String selectionToken,
+    required String tenantId,
+    String? branchId,
+  }) {
+    return _api.selectTenant(
+      selectionToken: selectionToken,
+      tenantId: tenantId,
+      branchId: branchId,
+    );
   }
 }
 
@@ -51,6 +70,15 @@ class MockAuthRepository implements AuthRepository {
 
     return AuthSession(
       user: record.user,
+      memberships: [
+        TenantMembership(
+          tenantId: record.user.tenantId,
+          tenantName: record.user.tenantId,
+          role: record.user.role,
+          branches: record.user.branches,
+        ),
+      ],
+      activeTenantId: record.user.tenantId,
       accessToken: record.accessToken,
       refreshToken: record.refreshToken,
       accessTokenExpiresAt: now.add(
@@ -60,6 +88,17 @@ class MockAuthRepository implements AuthRepository {
         Duration(hours: record.refreshTokenTtlHours),
       ),
     );
+  }
+
+  @override
+  Future<AuthSession> selectTenant({
+    required String selectionToken,
+    required String tenantId,
+    String? branchId,
+  }) async {
+    // Mock flow: selection simply updates tenantId context without server.
+    await Future<void>.delayed(const Duration(milliseconds: 250));
+    throw UnimplementedError('Mock selectTenant not implemented');
   }
 
   static List<_MockLoginRecord> _parseMockData() {

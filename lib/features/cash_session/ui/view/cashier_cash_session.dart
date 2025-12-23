@@ -16,7 +16,11 @@ class CashSessionScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final sessionState = ref.watch(cashSessionViewModelProvider);
     final role =
-        (ref.watch(loginControllerProvider).user?.role ?? 'cashier').toLowerCase();
+        (ref.watch(loginControllerProvider).user?.role ?? 'cashier')
+            .trim()
+            .toLowerCase();
+    final path = GoRouterState.of(context).uri.path;
+    final fromAdminPortal = path == AppRoute.adminCashSession.path;
 
     return Scaffold(
       appBar: AppBar(
@@ -26,7 +30,7 @@ class CashSessionScreen extends ConsumerWidget {
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
             // Always return to the appropriate portal to prevent bypassing the cash-session gate.
-            if (role == 'admin') {
+            if (fromAdminPortal || role == 'admin') {
               context.go(AppRoute.adminPortal.path);
             } else {
               context.go(AppRoute.cashierPortal.path);

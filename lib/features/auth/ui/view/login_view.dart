@@ -28,19 +28,23 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     _loginSub = ref.listenManual<LoginState>(
       loginControllerProvider,
       (previous, next) {
+        final session = next.session;
         final user = next.user;
-        if (!mounted || user == null) return;
+        if (!mounted || session == null || user == null) return;
 
         // Update in-memory access token for network layer.
-        final token = next.session?.accessToken;
-        if (token != null && token.isNotEmpty) {
+        final token = session.accessToken;
+        if (token.isNotEmpty) {
           ref.read(authAccessTokenProvider.notifier).state = token;
         }
-        final route = switch (user.role.toLowerCase()) {
-          'admin' => AppRoute.adminPortal.path,
-          'cashier' => AppRoute.cashierPortal.path,
-          _ => AppRoute.adminPortal.path,
-        };
+        final route = session.requiresTenantSelection
+            ? AppRoute.tenantSelection.path
+            : switch (user.role.trim().toLowerCase()) {
+                'admin' => AppRoute.adminPortal.path,
+                'cashier' => AppRoute.cashierPortal.path,
+                'manager' => AppRoute.cashierPortal.path,
+                _ => AppRoute.cashierPortal.path,
+              };
         if (_lastRoute == route) return;
         _lastRoute = route;
         context.go(route);

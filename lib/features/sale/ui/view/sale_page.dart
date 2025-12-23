@@ -3,14 +3,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/theme/responsive.dart';
+import 'package:modular_pos/core/widgets/app_back_button.dart';
 import 'package:modular_pos/core/widgets/menu_item_card.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_category.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
-import 'package:modular_pos/features/cash_session/ui/viewmodels/cash_session_viewmodel.dart';
+import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/sale/ui/view/sale_cart_page.dart';
 import 'package:modular_pos/features/sale/ui/view/sale_item_detail_page.dart';
+import 'package:modular_pos/features/sale/ui/viewmodels/sale_access_gate.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_viewmodel.dart';
 
 class SalePage extends ConsumerStatefulWidget {
@@ -21,59 +23,11 @@ class SalePage extends ConsumerStatefulWidget {
 }
 
 class _SalePageState extends ConsumerState<SalePage> {
-  bool _hasPromptedForSession = false;
-
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(menuViewModelProvider.notifier).loadMenu();
-      _maybePromptForCashSession();
-    });
-  }
-
-  void _maybePromptForCashSession() {
-    if (_hasPromptedForSession) return;
-    final session = ref.read(cashSessionViewModelProvider);
-    if (session.sessionStatus == SessionStatus.open) return;
-    _hasPromptedForSession = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (ctx) => AlertDialog(
-          titlePadding: const EdgeInsets.fromLTRB(24, 16, 8, 0),
-          contentPadding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
-          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-          title: Row(
-            children: [
-              const Expanded(child: Text('Cash session required')),
-              IconButton(
-                icon: const Icon(Icons.close),
-                tooltip: 'Close',
-                onPressed: () {
-                  Navigator.of(ctx).pop();
-                  if (mounted) Navigator.of(context).maybePop();
-                },
-              ),
-            ],
-          ),
-          content: const Text(
-            'You are not in an active cash session. Start one before creating a sale.',
-          ),
-          actions: [
-            FilledButton(
-              onPressed: () {
-                Navigator.of(ctx).pop();
-                if (!mounted) return;
-                context.push(AppRoute.cashierCashSession.path);
-              },
-              child: const Text('Go to cash session'),
-            ),
-          ],
-        ),
-      );
     });
   }
 
@@ -81,6 +35,13 @@ class _SalePageState extends ConsumerState<SalePage> {
   Widget build(BuildContext context) {
     final menuState = ref.watch(menuViewModelProvider);
     final menuVm = ref.read(menuViewModelProvider.notifier);
+    final gate = ref.watch(saleAccessGateProvider);
+    final role = (ref.watch(loginControllerProvider).user?.role ?? 'cashier')
+        .trim()
+        .toLowerCase();
+    final cashSessionPath = role == 'admin'
+        ? AppRoute.adminCashSession.path
+        : AppRoute.cashierCashSession.path;
 
     final width = MediaQuery.of(context).size.width;
     final isSmall = AppBreakpoints.isSmall(width);
@@ -95,10 +56,21 @@ class _SalePageState extends ConsumerState<SalePage> {
       ...menuState.categories,
     ];
     final filteredItems = menuState.filteredItems;
+    final portalPath =
+        role == 'admin' ? AppRoute.adminPortal.path : AppRoute.cashierPortal.path;
 
     return Scaffold(
       appBar: AppBar(
         centerTitle: false,
+        leading: AppBackButton(
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go(portalPath);
+            }
+          },
+        ),
         title: const Text('Sale'),
       ),
       body: SafeArea(
@@ -107,6 +79,41 @@ class _SalePageState extends ConsumerState<SalePage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (!gate.policiesLoading && gate.isBlockedByCashSessionPolicy) ...[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context)
+                        .colorScheme
+                        .surfaceContainerHighest
+                        .withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.info_outline),
+                      const SizedBox(width: 10),
+                      const Expanded(
+                        child: Text(
+                          'Read-only: start a cash session to add items and checkout.',
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      SizedBox(
+                        width: 140,
+                        height: 40,
+                        child: FilledButton(
+                          onPressed: () => context.push(
+                            cashSessionPath,
+                          ),
+                          child: const Text('Cash session'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
               _SearchField(
                 onChanged: menuVm.searchItems,
               ),
@@ -124,6 +131,14 @@ class _SalePageState extends ConsumerState<SalePage> {
                     ),
                   (false, final String? error) when error != null => _ErrorState(
                       message: error,
+                      onRetry: () => menuVm.loadMenu(
+                        branchId: menuState.selectedBranchId == 'all'
+                            ? null
+                            : menuState.selectedBranchId,
+                      ),
+                    ),
+                  _ when filteredItems.isEmpty => _EmptyState(
+                      message: 'No menu items found for this branch.',
                       onRetry: () => menuVm.loadMenu(
                         branchId: menuState.selectedBranchId == 'all'
                             ? null
@@ -280,6 +295,18 @@ class _MenuCatalog extends StatelessWidget {
               ),
             );
             if (selection != null && context.mounted) {
+              final gate = ref.read(saleAccessGateProvider);
+              if (!gate.canMutateCart) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      gate.blockingMessage ??
+                          'Cash session required. Start one to begin selling.',
+                    ),
+                  ),
+                );
+                return;
+              }
               try {
                 await ref.read(saleCartProvider.notifier).addSelection(selection);
               } catch (e, st) {
@@ -302,6 +329,35 @@ class _MenuCatalog extends StatelessWidget {
 
 class _ErrorState extends StatelessWidget {
   const _ErrorState({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: onRetry,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Retry'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EmptyState extends StatelessWidget {
+  const _EmptyState({required this.message, required this.onRetry});
 
   final String message;
   final VoidCallback onRetry;

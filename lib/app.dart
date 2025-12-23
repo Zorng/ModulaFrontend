@@ -6,6 +6,7 @@ import 'package:modular_pos/core/theme/app_theme.dart';
 import 'package:modular_pos/features/auth/ui/portals/admin_portal.dart';
 import 'package:modular_pos/features/auth/ui/portals/cashier_portal.dart';
 import 'package:modular_pos/features/auth/ui/view/login_view.dart';
+import 'package:modular_pos/features/auth/ui/view/tenant_selection_page.dart';
 import 'package:modular_pos/features/menu/ui/view/menu_page.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/core/widgets/widget_gallery_page.dart';
@@ -26,7 +27,6 @@ import 'package:modular_pos/features/inventory/domain/models/inventory_journal_s
 import 'package:modular_pos/features/inventory/ui/view/inventory_journal_page.dart';
 import 'package:modular_pos/features/inventory/ui/view/inventory_journal_detail_page.dart';
 import 'package:modular_pos/features/cash_session/ui/view/cashier_cash_session.dart';
-import 'package:modular_pos/features/cash_session/ui/viewmodels/cash_session_viewmodel.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -46,6 +46,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final session = authState.session;
       final path = state.uri.path; // current path
       final isLoggingIn = path == AppRoute.login.path;
+      final isTenantSelection = path == AppRoute.tenantSelection.path;
 
       // Developer-only gallery should be reachable without auth.
       if (path == AppRoute.components.path) {
@@ -57,7 +58,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         return isLoggingIn ? null : AppRoute.login.path;
       }
 
-      final role = session.user.role.toLowerCase();
+      // Authenticated, but tenant context not selected yet.
+      if (session.requiresTenantSelection) {
+        return isTenantSelection ? null : AppRoute.tenantSelection.path;
+      }
+
+      final role = session.user.role.trim().toLowerCase();
 
       String homeForRole() {
         switch (role) {
@@ -110,6 +116,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           role != 'admin') {
         return '/404';
       }
+      if (path == AppRoute.adminCashSession.path && role != 'admin') {
+        return '/404';
+      }
 
       // For other paths (including unknown ones), don't redirect here.
       // If no route matches, errorBuilder will show "Page not found".
@@ -121,6 +130,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoute.login.path,
         name: AppRoute.login.name,
         builder: (context, state) => const LoginPage(),
+      ),
+      GoRoute(
+        path: AppRoute.tenantSelection.path,
+        name: AppRoute.tenantSelection.name,
+        builder: (context, state) => const TenantSelectionPage(),
       ),
       GoRoute(
         path: AppRoute.components.path,
@@ -237,6 +251,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoute.cashierCashSession.path,
         name: AppRoute.cashierCashSession.name,
+        builder: (context, state) => const CashSessionScreen(),
+      ),
+      GoRoute(
+        path: AppRoute.adminCashSession.path,
+        name: AppRoute.adminCashSession.name,
         builder: (context, state) => const CashSessionScreen(),
       ),
     ],

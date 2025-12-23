@@ -27,19 +27,18 @@ class CashSessionRepository {
     });
   }
 
-  Future<Map<String, dynamic>> takeOverSession({
-    String? registerId,
-    String? branchId,
+  Future<Map<String, dynamic>> forceCloseSession({
+    required String sessionId,
+    required double countedCashUsd,
+    required double countedCashKhr,
     required String reason,
-    required double openingFloatUsd,
-    required double openingFloatKhr,
+    String? note,
   }) {
-    return _api.takeOverSession({
-      if (registerId != null && registerId.isNotEmpty) 'registerId': registerId,
-      if (branchId != null && branchId.isNotEmpty) 'branchId': branchId,
+    return _api.forceCloseSession(sessionId, {
+      'countedCashUsd': countedCashUsd,
+      'countedCashKhr': countedCashKhr,
       'reason': reason,
-      'openingFloatUsd': openingFloatUsd,
-      'openingFloatKhr': openingFloatKhr,
+      if (note != null && note.isNotEmpty) 'note': note,
     });
   }
 
@@ -78,6 +77,18 @@ class CashSessionRepository {
           ? 'Manual movement'
           : (reason ?? 'Manual movement').trim(),
     });
+  }
+
+  Future<Map<String, dynamic>> fetchZReport({
+    required String sessionId,
+  }) {
+    return _api.fetchZReport(sessionId);
+  }
+
+  Future<Map<String, dynamic>> fetchXReport({
+    String? registerId,
+  }) {
+    return _api.fetchXReport(registerId: registerId);
   }
 
   Future<List<Map<String, dynamic>>> fetchRegisters({

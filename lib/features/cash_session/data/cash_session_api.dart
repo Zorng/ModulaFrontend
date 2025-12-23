@@ -23,11 +23,12 @@ class CashSessionApi {
     return response.data ?? const {};
   }
 
-  Future<Map<String, dynamic>> takeOverSession(
+  Future<Map<String, dynamic>> forceCloseSession(
+    String sessionId,
     Map<String, dynamic> body,
   ) async {
     final response = await _dio.post<Map<String, dynamic>>(
-      '$_prefix/sessions/take-over',
+      '$_prefix/sessions/$sessionId/force-close',
       data: body,
     );
     return response.data ?? const {};
@@ -82,6 +83,24 @@ class CashSessionApi {
     final response = await _dio.post<Map<String, dynamic>>(
       '$_prefix/sessions/$sessionId/movements',
       data: body,
+    );
+    return response.data ?? const {};
+  }
+
+  Future<Map<String, dynamic>> fetchZReport(String sessionId) async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '$_prefix/sessions/reports/z/$sessionId',
+    );
+    return response.data ?? const {};
+  }
+
+  Future<Map<String, dynamic>> fetchXReport({String? registerId}) async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '$_prefix/sessions/reports/x',
+      queryParameters:
+          registerId != null && registerId.isNotEmpty
+              ? {'registerId': registerId}
+              : null,
     );
     return response.data ?? const {};
   }

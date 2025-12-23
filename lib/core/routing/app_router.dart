@@ -1,5 +1,6 @@
 enum AppRoute {
   login,
+  tenantSelection,
   adminPortal,
   adminMenu,
   cashierPortal,
@@ -18,12 +19,14 @@ enum AppRoute {
   inventoryJournalDetail,
   orders,
   sale,
+  adminCashSession,
   cashierCashSession,
 }
 
 extension AppRoutePath on AppRoute {
   String get path => switch (this) {
     AppRoute.login => '/login',
+    AppRoute.tenantSelection => '/select-tenant',
     AppRoute.adminPortal => '/portal/admin',
     AppRoute.adminMenu => '/admin/portal/menu',
     AppRoute.cashierPortal => '/portal/cashier',
@@ -42,11 +45,13 @@ extension AppRoutePath on AppRoute {
     AppRoute.inventoryJournalDetail => '/portal/admin/inventory/journal/detail',
     AppRoute.orders => '/orders',
     AppRoute.sale => '/sale',
+    AppRoute.adminCashSession => '/portal/admin/session',
     AppRoute.cashierCashSession => '/portal/cashier/session',
   };
 
   String get name => switch (this) {
     AppRoute.login => 'login',
+    AppRoute.tenantSelection => 'tenantSelection',
     AppRoute.adminPortal => 'adminPortal',
     AppRoute.adminMenu => 'adminMenu',
     AppRoute.cashierPortal => 'cashierPortal',
@@ -65,6 +70,7 @@ extension AppRoutePath on AppRoute {
     AppRoute.inventoryJournalDetail => 'inventoryJournalDetail',
     AppRoute.orders => 'orders',
     AppRoute.sale => 'sale',
+    AppRoute.adminCashSession => 'adminCashSession',
     AppRoute.cashierCashSession => 'cashierCashSession',
   };
 }

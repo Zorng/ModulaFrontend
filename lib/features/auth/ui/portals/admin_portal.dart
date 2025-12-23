@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/widgets/portal_action.dart';
 import 'package:modular_pos/core/widgets/portal_shell.dart';
+import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/cash_session/ui/view/cashier_cash_session.dart';
@@ -194,7 +195,7 @@ void _showCashSessionDialog(BuildContext context) {
         FilledButton(
           onPressed: () {
             Navigator.of(ctx).pop();
-            context.push(AppRoute.cashierCashSession.path);
+            context.push(AppRoute.adminCashSession.path);
           },
           child: const Text('Go to cash session'),
         ),
@@ -252,7 +253,7 @@ class _AdminHomeContent extends StatelessWidget {
       _FeatureEntry(
         title: 'Cash Sessions',
         icon: Icons.attach_money_outlined,
-        onTap: () => context.push(AppRoute.cashierCashSession.path),
+        onTap: () => context.push(AppRoute.adminCashSession.path),
       ),
       _FeatureEntry(
         title: 'Orders',
@@ -294,7 +295,7 @@ class _AdminHomeContent extends StatelessWidget {
   }
 }
 
-class _BranchSection extends StatefulWidget {
+class _BranchSection extends ConsumerStatefulWidget {
   const _BranchSection({
     required this.branches,
     required this.entries,
@@ -308,10 +309,10 @@ class _BranchSection extends StatefulWidget {
   final String? initialBranchId;
 
   @override
-  State<_BranchSection> createState() => _BranchSectionState();
+  ConsumerState<_BranchSection> createState() => _BranchSectionState();
 }
 
-class _BranchSectionState extends State<_BranchSection> {
+class _BranchSectionState extends ConsumerState<_BranchSection> {
   late String? _selectedBranchId;
 
   @override
@@ -346,7 +347,8 @@ class _BranchSectionState extends State<_BranchSection> {
               setState(() {
                 _selectedBranchId = value;
               });
-              // TODO: Trigger branch-scoped data refresh when wired.
+              ref.read(authActiveBranchOverrideProvider.notifier).state =
+                  value;
             },
           )
         : InkWell(
@@ -440,7 +442,7 @@ class _BranchSectionState extends State<_BranchSection> {
       setState(() {
         _selectedBranchId = selected.id;
       });
-      // TODO: Trigger branch-scoped data refresh when wired.
+      ref.read(authActiveBranchOverrideProvider.notifier).state = selected.id;
     }
   }
 }

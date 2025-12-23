@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/widgets/network_image_helper_stub.dart'
     if (dart.library.html) 'package:modular_pos/core/widgets/network_image_helper_web.dart';
+import 'package:modular_pos/core/routing/app_router.dart';
+import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
 import 'package:modular_pos/features/policy/ui/viewmodels/policy_viewmodel.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/order_viewmodel.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_viewmodel.dart';
+import 'package:modular_pos/features/sale/ui/viewmodels/sale_access_gate.dart';
 import 'package:modular_pos/features/sale/ui/view/view_carts_page.dart';
 
 class SaleCartPage extends ConsumerStatefulWidget {
@@ -118,6 +122,15 @@ class _SaleCartPageState extends ConsumerState<SaleCartPage> {
     final items = cartState.lines;
     final menuState = ref.watch(menuViewModelProvider);
     final cartNotifier = ref.read(saleCartProvider.notifier);
+    final gate = ref.watch(saleAccessGateProvider);
+    final readOnly =
+        !gate.policiesLoading && gate.isBlockedByCashSessionPolicy;
+    final role = (ref.watch(loginControllerProvider).user?.role ?? 'cashier')
+        .trim()
+        .toLowerCase();
+    final cashSessionPath = role == 'admin'
+        ? AppRoute.adminCashSession.path
+        : AppRoute.cashierCashSession.path;
     final policyState = ref.watch(policyNotifierProvider);
     final salesPolicy = policyState.salesPolicy;
     final fxRate = salesPolicy.saleFxRateKhrPerUsd;
@@ -141,7 +154,9 @@ class _SaleCartPageState extends ConsumerState<SaleCartPage> {
     );
     final tenderUsd = _tenderedUsd(grandTotalUsd, fxRate);
     final canCheckout =
-        items.isNotEmpty && (_paymentMethod != 'cash' || tenderUsd >= grandTotalUsd);
+        !readOnly &&
+        items.isNotEmpty &&
+        (_paymentMethod != 'cash' || tenderUsd >= grandTotalUsd);
 
     return Scaffold(
       appBar: AppBar(
@@ -171,6 +186,38 @@ class _SaleCartPageState extends ConsumerState<SaleCartPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (readOnly) ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Theme.of(context)
+                      .colorScheme
+                      .surfaceContainerHighest
+                      .withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.info_outline),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        gate.blockingMessage ??
+                            'Read-only: start a cash session to begin selling.',
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    FilledButton(
+                      onPressed: () => context.push(
+                        cashSessionPath,
+                      ),
+                      child: const Text('Cash session'),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
             Text(
               'Order Type',
               style: Theme.of(context).textTheme.titleMedium,
@@ -183,7 +230,9 @@ class _SaleCartPageState extends ConsumerState<SaleCartPage> {
                   label: 'Dine in',
                   value: 'dine_in',
                   selected: _orderType == 'dine_in',
-                  onSelected: () {
+                  onSelected: readOnly
+                      ? null
+                      : () {
                     setState(() => _orderType = 'dine_in');
                     ref.read(saleCartProvider.notifier).setSaleType('dine_in');
                   },
@@ -192,7 +241,9 @@ class _SaleCartPageState extends ConsumerState<SaleCartPage> {
                   label: 'Take away',
                   value: 'take_away',
                   selected: _orderType == 'take_away',
-                  onSelected: () {
+                  onSelected: readOnly
+                      ? null
+                      : () {
                     setState(() => _orderType = 'take_away');
                     ref.read(saleCartProvider.notifier).setSaleType('take_away');
                   },
@@ -201,7 +252,9 @@ class _SaleCartPageState extends ConsumerState<SaleCartPage> {
                   label: 'Delivery',
                   value: 'delivery',
                   selected: _orderType == 'delivery',
-                  onSelected: () {
+                  onSelected: readOnly
+                      ? null
+                      : () {
                     setState(() => _orderType = 'delivery');
                     ref.read(saleCartProvider.notifier).setSaleType('delivery');
                   },
@@ -237,11 +290,12 @@ class _SaleCartPageState extends ConsumerState<SaleCartPage> {
                 grandTotalUsd: grandTotalUsd,
                 grandTotalKhr: grandTotalKhr,
                 fxRate: fxRate,
-            onAmountsChanged: () => setState(() {}),
-          ),
+                readOnly: readOnly,
+                onAmountsChanged: () => setState(() {}),
+              ),
+            ),
+          ],
         ),
-      ],
-    ),
       ),
       bottomNavigationBar: _buildBottomBar(
         context,
@@ -432,6 +486,7 @@ class _CartContent extends StatelessWidget {
     required this.grandTotalUsd,
     required this.grandTotalKhr,
     required this.fxRate,
+    required this.readOnly,
     required this.onAmountsChanged,
   });
 
@@ -449,6 +504,7 @@ class _CartContent extends StatelessWidget {
   final double grandTotalUsd;
   final double grandTotalKhr;
   final double fxRate;
+  final bool readOnly;
   final VoidCallback onAmountsChanged;
 
   @override
@@ -458,6 +514,7 @@ class _CartContent extends StatelessWidget {
     }
 
     void selectTender(String currency) {
+      if (readOnly) return;
       onTenderCurrencyChanged(currency);
       if (currency == 'usd') {
         khrController.clear();
@@ -486,8 +543,10 @@ class _CartContent extends StatelessWidget {
               if (index > 0) const Divider(height: 1),
               _CartItemRow(
                 item: line,
-                onIncrement: () => onIncrement(index, line),
-                onDecrement: () => onDecrement(index, line),
+                onIncrement:
+                    readOnly ? null : () => onIncrement(index, line),
+                onDecrement:
+                    readOnly ? null : () => onDecrement(index, line),
                 groupLookup: groupLookup,
               ),
             ],
@@ -513,7 +572,8 @@ class _CartContent extends StatelessWidget {
         _PaymentMethodCard(
           title: 'Cash',
           selected: paymentMethod == 'cash',
-          onSelected: () => onPaymentMethodChanged('cash'),
+          onSelected:
+              readOnly ? null : () => onPaymentMethodChanged('cash'),
           body: paymentMethod == 'cash'
               ? Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -530,7 +590,7 @@ class _CartContent extends StatelessWidget {
                         Radio<String>(
                           value: 'usd',
                           groupValue: tenderCurrency,
-                          onChanged: paymentMethod == 'cash'
+                          onChanged: paymentMethod == 'cash' && !readOnly
                               ? (value) => selectTender(value ?? 'usd')
                               : null,
                         ),
@@ -541,11 +601,13 @@ class _CartContent extends StatelessWidget {
                       controller: usdController,
                       keyboardType:
                           const TextInputType.numberWithOptions(decimal: true),
-                      enabled: paymentMethod == 'cash',
-                      onTap: paymentMethod == 'cash'
+                      enabled: paymentMethod == 'cash' && !readOnly,
+                      onTap: paymentMethod == 'cash' && !readOnly
                           ? () => selectTender('usd')
                           : null,
-                      onChanged: (_) => onAmountsChanged(),
+                      onChanged: paymentMethod == 'cash' && !readOnly
+                          ? (_) => onAmountsChanged()
+                          : null,
                       inputFormatters: [
                         FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
                       ],
@@ -574,7 +636,7 @@ class _CartContent extends StatelessWidget {
                         Radio<String>(
                           value: 'khr',
                           groupValue: tenderCurrency,
-                          onChanged: paymentMethod == 'cash'
+                          onChanged: paymentMethod == 'cash' && !readOnly
                               ? (value) => selectTender(value ?? 'khr')
                               : null,
                         ),
@@ -584,11 +646,13 @@ class _CartContent extends StatelessWidget {
                     TextField(
                       controller: khrController,
                       keyboardType: TextInputType.number,
-                      enabled: paymentMethod == 'cash',
-                      onTap: paymentMethod == 'cash'
+                      enabled: paymentMethod == 'cash' && !readOnly,
+                      onTap: paymentMethod == 'cash' && !readOnly
                           ? () => selectTender('khr')
                           : null,
-                      onChanged: (_) => onAmountsChanged(),
+                      onChanged: paymentMethod == 'cash' && !readOnly
+                          ? (_) => onAmountsChanged()
+                          : null,
                       inputFormatters: [
                         FilteringTextInputFormatter.digitsOnly,
                       ],
@@ -630,7 +694,7 @@ class _CartContent extends StatelessWidget {
         _PaymentMethodCard(
           title: 'QR / Transfer',
           selected: paymentMethod == 'qr',
-          onSelected: () => onPaymentMethodChanged('qr'),
+          onSelected: readOnly ? null : () => onPaymentMethodChanged('qr'),
         ),
         const SizedBox(height: 12),
       ],
@@ -641,14 +705,14 @@ class _CartContent extends StatelessWidget {
 class _CartItemRow extends StatelessWidget {
   const _CartItemRow({
     required this.item,
-    required this.onIncrement,
-    required this.onDecrement,
+    this.onIncrement,
+    this.onDecrement,
     required this.groupLookup,
   });
 
   final CartLine item;
-  final VoidCallback onIncrement;
-  final VoidCallback onDecrement;
+  final VoidCallback? onIncrement;
+  final VoidCallback? onDecrement;
   final Map<String, ModifierGroup> groupLookup;
 
   double _lineTotal() {
@@ -793,14 +857,17 @@ class _PaymentMethodCard extends StatelessWidget {
 
   final String title;
   final bool selected;
-  final VoidCallback onSelected;
+  final VoidCallback? onSelected;
   final Widget? body;
 
   @override
   Widget build(BuildContext context) {
+    final enabled = onSelected != null;
     return GestureDetector(
       onTap: onSelected,
-      child: Container(
+      child: Opacity(
+        opacity: enabled ? 1 : 0.6,
+        child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: Colors.white,
@@ -827,7 +894,7 @@ class _PaymentMethodCard extends StatelessWidget {
                 Radio<bool>(
                   value: true,
                   groupValue: selected,
-                  onChanged: (_) => onSelected(),
+                  onChanged: enabled ? (_) => onSelected!() : null,
                 ),
               ],
             ),
@@ -836,6 +903,7 @@ class _PaymentMethodCard extends StatelessWidget {
               body!,
             ],
           ],
+        ),
         ),
       ),
     );
@@ -853,14 +921,14 @@ class _OrderTypeChip extends StatelessWidget {
   final String label;
   final String value;
   final bool selected;
-  final VoidCallback onSelected;
+  final VoidCallback? onSelected;
 
   @override
   Widget build(BuildContext context) {
     return ChoiceChip(
       label: Text(label),
       selected: selected,
-      onSelected: (_) => onSelected(),
+      onSelected: onSelected == null ? null : (_) => onSelected!(),
     );
   }
 }

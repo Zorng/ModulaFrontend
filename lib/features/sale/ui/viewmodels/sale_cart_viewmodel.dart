@@ -1,10 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:modular_pos/features/cash_session/ui/viewmodels/cash_session_viewmodel.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 import 'package:modular_pos/features/policy/ui/viewmodels/policy_viewmodel.dart';
 import 'package:modular_pos/features/sale/data/sale_repository.dart';
 import 'package:modular_pos/features/sale/ui/view/sale_item_detail_page.dart';
+import 'package:modular_pos/features/sale/ui/viewmodels/sale_access_gate.dart';
 
 class CartLine {
   const CartLine({
@@ -95,20 +95,22 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
     return policies.salesPolicy.saleFxRateKhrPerUsd;
   }
 
-  static const bool _enforceCashSession = true;
-
-  void _assertCashSessionOpen() {
-    final session = ref.read(cashSessionViewModelProvider);
-    if (_enforceCashSession && session.sessionStatus != SessionStatus.open) {
+  void _assertCanCreateDraftSale() {
+    final gate = ref.read(saleAccessGateProvider);
+    if (gate.policiesLoading || gate.cashSessionLoading) {
+      throw Exception('Loading cash session policies. Please wait.');
+    }
+    if (!gate.canCreateDraftSale) {
       throw Exception(
-        'No active cash session. Please start one to begin selling.',
+        gate.blockingMessage ??
+            'No active cash session. Please start one to begin selling.',
       );
     }
   }
 
   Future<void> _ensureSaleId() async {
     if (state.saleId != null && state.saleId!.isNotEmpty) return;
-    _assertCashSessionOpen();
+    _assertCanCreateDraftSale();
     final id = await _repo.ensureDraft(
       saleType: state.saleType,
       fxRateUsed: _fxRate(),
@@ -117,7 +119,7 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
   }
 
   Future<void> addSelection(SaleItemSelectionResult selection) async {
-    _assertCashSessionOpen();
+    _assertCanCreateDraftSale();
     await _ensureSaleId();
     final saleId = state.saleId;
     if (saleId == null) return;
@@ -186,6 +188,7 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
 
     // If changing sale type mid-cart, recreate the draft with the new type and re-sync items.
     if (state.saleType == saleType) return;
+    _assertCanCreateDraftSale();
     final currentLines = state.lines;
     final newSaleId = await _repo.ensureDraft(
       saleType: saleType,
@@ -214,6 +217,7 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
 
   Future<void> updateQuantity(int index, int quantity) async {
     if (index < 0 || index >= state.lines.length) return;
+    _assertCanCreateDraftSale();
     final lines = [...state.lines];
     final target = lines[index];
     if (quantity <= 0) {
@@ -257,6 +261,7 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
   }
 
   Future<Map<String, dynamic>> checkout() async {
+    _assertCanCreateDraftSale();
     final saleId = state.saleId;
     if (saleId == null) throw Exception('No sale draft');
     final cashReceived = <String, num>{};
@@ -314,8 +319,9 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
 
   List<dynamic> _extractItems(Map<String, dynamic> payload) {
     final data = payload['data'];
-    if (payload['items'] is List)
+    if (payload['items'] is List) {
       return List<dynamic>.from(payload['items'] as List);
+    }
     if (data is Map<String, dynamic> && data['items'] is List) {
       return List<dynamic>.from(data['items'] as List);
     }

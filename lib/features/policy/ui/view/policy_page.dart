@@ -27,17 +27,9 @@ class _PolicyPageState extends ConsumerState<PolicyPage> {
   // Local-only settings not yet backed by the API.
   final Map<String, bool> _localToggleValues = {
     'use_recipes': false,
-    'cash_session_attendance': false,
-    'out_of_shift_approval': false,
-    'early_check_in_buffer': false,
-    'require_session': true,
-    'allow_paid_out': true,
-    'cash_refund_approval': false,
-    'manual_cash_adjustment': false,
   };
 
   final Map<String, String> _localSelectorValues = {
-    'early_check_in_duration': '15 min',
   };
 
   List<PolicySectionData> get _sections => const [
@@ -212,14 +204,17 @@ class _PolicyPageState extends ConsumerState<PolicyPage> {
       Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (_) => EarlyCheckInDetailPage(
-            enabled: _localToggleValues['early_check_in_buffer'] ?? false,
-            duration: _localSelectorValues['early_check_in_duration'] ??
-                '15 min',
+            enabled:
+                policyState.attendancePolicy.attendanceEarlyCheckinBufferEnabled,
+            duration: _durationLabel(
+                policyState.attendancePolicy.attendanceCheckinBufferMinutes),
             onSaved: (enabled, duration) {
-              setState(() {
-                _localToggleValues['early_check_in_buffer'] = enabled;
-                _localSelectorValues['early_check_in_duration'] = duration;
-              });
+              final minutes = _durationToMinutes(duration);
+              policyNotifier.updateAttendance(
+                earlyCheckinBufferEnabled: enabled,
+                checkinBufferMinutes: minutes,
+              );
+              setState(() {});
             },
           ),
         ),
@@ -246,6 +241,30 @@ class _PolicyPageState extends ConsumerState<PolicyPage> {
                 expiryTrackingEnabled: newValue as bool,
                 autoSubtractOnSale:
                     policyState.inventoryPolicy.inventoryAutoSubtractOnSale,
+              );
+            } else if (item.id == 'require_session') {
+              await policyNotifier.updateCashSession(
+                requireSessionForSales: newValue as bool,
+              );
+            } else if (item.id == 'allow_paid_out') {
+              await policyNotifier.updateCashSession(
+                allowPaidOut: newValue as bool,
+              );
+            } else if (item.id == 'cash_refund_approval') {
+              await policyNotifier.updateCashSession(
+                requireRefundApproval: newValue as bool,
+              );
+            } else if (item.id == 'manual_cash_adjustment') {
+              await policyNotifier.updateCashSession(
+                allowManualAdjustment: newValue as bool,
+              );
+            } else if (item.id == 'cash_session_attendance') {
+              await policyNotifier.updateAttendance(
+                autoFromCashSession: newValue as bool,
+              );
+            } else if (item.id == 'out_of_shift_approval') {
+              await policyNotifier.updateAttendance(
+                requireOutOfShiftApproval: newValue as bool,
               );
             } else {
               // Local-only items keep their state here.
@@ -368,6 +387,17 @@ class _PolicyPageState extends ConsumerState<PolicyPage> {
       'apply_vat': state.salesPolicy.saleVatEnabled,
       'subtract_stock': state.inventoryPolicy.inventoryAutoSubtractOnSale,
       'expiry_tracking': state.inventoryPolicy.inventoryExpiryTrackingEnabled,
+      'cash_session_attendance':
+          state.attendancePolicy.attendanceAutoFromCashSession,
+      'out_of_shift_approval':
+          state.attendancePolicy.attendanceRequireOutOfShiftApproval,
+      'early_check_in_buffer':
+          state.attendancePolicy.attendanceEarlyCheckinBufferEnabled,
+      'require_session': state.cashSessionPolicy.cashRequireSessionForSales,
+      'allow_paid_out': state.cashSessionPolicy.cashAllowPaidOut,
+      'cash_refund_approval': state.cashSessionPolicy.cashRequireRefundApproval,
+      'manual_cash_adjustment':
+          state.cashSessionPolicy.cashAllowManualAdjustment,
     };
   }
 
@@ -378,6 +408,8 @@ class _PolicyPageState extends ConsumerState<PolicyPage> {
       'usd_to_khr': state.salesPolicy.saleFxRateKhrPerUsd.toStringAsFixed(0),
       'rounding_mode':
           _roundingLabel(state.salesPolicy.saleKhrRoundingMode),
+      'early_check_in_duration':
+          _durationLabel(state.attendancePolicy.attendanceCheckinBufferMinutes),
     };
   }
 
@@ -402,6 +434,28 @@ class _PolicyPageState extends ConsumerState<PolicyPage> {
         return 'DOWN';
       default:
         return 'NEAREST';
+    }
+  }
+
+  String _durationLabel(int minutes) {
+    switch (minutes) {
+      case 30:
+        return '30 min';
+      case 60:
+        return '1 hour';
+      default:
+        return '15 min';
+    }
+  }
+
+  int _durationToMinutes(String label) {
+    switch (label.toLowerCase()) {
+      case '30 min':
+        return 30;
+      case '1 hour':
+        return 60;
+      default:
+        return 15;
     }
   }
 }
