@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:modular_pos/features/staff/ui/widgets/app_filter_dropdown.dart';
-import 'package:modular_pos/core/widgets/app_search_add_bar.dart';
+import 'package:modular_pos/core/widgets/forms/app_search_add_bar.dart';
 import 'package:modular_pos/features/staff/domain/models/staff_model.dart';
 import 'package:modular_pos/features/staff/ui/widgets/staff_list_card.dart';
 import 'package:modular_pos/features/staff/ui/view/staff_detail_view.dart';

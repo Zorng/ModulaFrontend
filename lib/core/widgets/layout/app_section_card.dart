@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+/// Generic titled card section wrapper used by feature pages.
+///
+/// Folder: `lib/core/widgets/layout/`
 class AppSectionCard extends StatelessWidget {
   const AppSectionCard({
     super.key,

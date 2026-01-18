@@ -1,10 +1,12 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:modular_pos/core/widgets/network_image_helper_stub.dart'
-    if (dart.library.html) 'package:modular_pos/core/widgets/network_image_helper_web.dart';
+import 'package:modular_pos/core/widgets/media/network_image_helper_stub.dart'
+    if (dart.library.html) 'package:modular_pos/core/widgets/media/network_image_helper_web.dart';
 import 'package:modular_pos/features/menu/ui/view/dashed_border_painter.dart';
 
 /// Card for a menu item with image, category, and price.
+///
+/// Folder: `lib/core/widgets/display/`
 class MenuItemCard extends StatelessWidget {
   const MenuItemCard({
     super.key,

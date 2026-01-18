@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:modular_pos/core/theme/responsive.dart';
-import 'package:modular_pos/core/widgets/app_add_new_button.dart';
-import 'package:modular_pos/core/widgets/app_search_bar.dart';
+import 'package:modular_pos/core/widgets/buttons/app_add_new_button.dart';
+import 'package:modular_pos/core/widgets/forms/app_search_bar.dart';
 
 /// A horizontal bar combining search and add-new actions.
 ///
 /// - On mobile, the search takes most of the width with the add button trailing.
 /// - Exposes callbacks for search changes and add action.
+///
+/// Folder: `lib/core/widgets/forms/`
 class AppSearchAddBar extends StatelessWidget {
   const AppSearchAddBar({
     super.key,

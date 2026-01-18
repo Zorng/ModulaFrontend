@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:modular_pos/core/widgets/app_back_button.dart';
+import 'package:modular_pos/core/widgets/navigation/app_back_button.dart';
 
 class PolicySwitchTile extends StatelessWidget {
   const PolicySwitchTile({

@@ -36,6 +36,15 @@ To avoid a junk drawer, `lib/core/widgets/` should be grouped by UI role, e.g.:
 - `buttons/`
 - `media/`
 
+Current structure (kept intentionally small):
+- `lib/core/widgets/buttons/`
+- `lib/core/widgets/display/`
+- `lib/core/widgets/forms/`
+- `lib/core/widgets/layout/`
+- `lib/core/widgets/media/`
+- `lib/core/widgets/navigation/`
+- `lib/core/widgets/widget_gallery_page.dart` (dev-only)
+
 ## Widget gallery
 See `handbook/architecture/widget_gallery.md` for how to preview shared widgets in `lib/core/widgets/widget_gallery_page.dart`.
 

@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+/// Standard back button used across the app.
+///
+/// Folder: `lib/core/widgets/navigation/`
 class AppBackButton extends StatelessWidget {
   const AppBackButton({super.key, this.onPressed});
 

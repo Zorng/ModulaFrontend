@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+/// Primary action button with optional loading state.
+///
+/// Folder: `lib/core/widgets/buttons/`
 class AppPrimaryButton extends StatelessWidget {
   const AppPrimaryButton({
     super.key,

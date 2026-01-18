@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:modular_pos/core/widgets/app_search_add_bar.dart';
+import 'package:modular_pos/core/widgets/forms/app_search_add_bar.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 import 'package:modular_pos/features/menu/ui/view/add_modifier_group_page.dart';
 import 'package:modular_pos/features/menu/ui/view/edit_modifier_group_page.dart';

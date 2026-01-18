@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+/// Defines an action (tab) inside a [PortalShell].
+///
+/// Folder: `lib/core/widgets/navigation/`
 class PortalAction {
   const PortalAction({
     required this.id,

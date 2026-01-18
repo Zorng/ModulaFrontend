@@ -6,6 +6,8 @@ import 'package:modular_pos/core/theme/responsive.dart';
 ///
 /// This is a specific implementation of [AppPrimaryButton] with a fixed
 /// icon and label. It is not full-width by default.
+///
+/// Folder: `lib/core/widgets/buttons/`
 class AppAddNewButton extends StatelessWidget {
   const AppAddNewButton({
     super.key,

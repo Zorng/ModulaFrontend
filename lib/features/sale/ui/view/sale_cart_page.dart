@@ -3,8 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/feedback/user_error_message.dart';
-import 'package:modular_pos/core/widgets/network_image_helper_stub.dart'
-    if (dart.library.html) 'package:modular_pos/core/widgets/network_image_helper_web.dart';
+import 'package:modular_pos/core/widgets/media/network_image_helper_stub.dart'
+    if (dart.library.html) 'package:modular_pos/core/widgets/media/network_image_helper_web.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';

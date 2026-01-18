@@ -4,8 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:modular_pos/core/widgets/network_image_helper_stub.dart'
-    if (dart.library.html) 'package:modular_pos/core/widgets/network_image_helper_web.dart';
+import 'package:modular_pos/core/widgets/media/network_image_helper_stub.dart'
+    if (dart.library.html) 'package:modular_pos/core/widgets/media/network_image_helper_web.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_branch.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';

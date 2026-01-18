@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 /// A horizontal, scrollable list of categories using styled chips.
+///
+/// Folder: `lib/core/widgets/forms/`
 class AppCategorySelector extends StatelessWidget {
   const AppCategorySelector({
     super.key,

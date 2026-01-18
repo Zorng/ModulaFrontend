@@ -11,6 +11,8 @@ class KebabMenuItem {
 /// A standardized kebab menu (three-dot) button that shows a popup menu.
 ///
 /// It is configured by passing a list of [KebabMenuItem] objects.
+///
+/// Folder: `lib/core/widgets/navigation/`
 class AppKebabMenu extends StatelessWidget {
   const AppKebabMenu({super.key, required this.items});
 

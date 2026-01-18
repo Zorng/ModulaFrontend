@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 /// This widget calculates the optimal number of columns based on the available
 /// width and arranges the children provided by the [itemBuilder]. It's designed
 /// to house widgets like [MenuItemCard].
+///
+/// Folder: `lib/core/widgets/layout/`
 class CardContainer extends StatelessWidget {
   const CardContainer({
     super.key,

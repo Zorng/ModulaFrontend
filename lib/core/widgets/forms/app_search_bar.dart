@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 ///
 /// This widget is self-contained and manages the visibility of the clear
 /// button based on whether the input field has text.
+///
+/// Folder: `lib/core/widgets/forms/`
 class AppSearchBar extends StatefulWidget {
   const AppSearchBar({
     super.key,

@@ -5,6 +5,8 @@ import 'dart:ui_web' as ui;
 int _viewIdCounter = 0;
 
 /// Render a network image using a platform view to bypass CanvasKit CORS texture issues.
+///
+/// Folder: `lib/core/widgets/media/`
 Widget buildAdaptiveNetworkImage(String url, Widget placeholder) {
   if (url.isEmpty) return placeholder;
   final viewType = 'menu-img-${_viewIdCounter++}-${url.hashCode}';

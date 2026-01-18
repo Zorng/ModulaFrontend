@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 /// Fallback network image for non-web platforms.
+///
+/// Folder: `lib/core/widgets/media/`
 Widget buildAdaptiveNetworkImage(String url, Widget placeholder) {
   return ClipRRect(
     borderRadius: BorderRadius.circular(12),

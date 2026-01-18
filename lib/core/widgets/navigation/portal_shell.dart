@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:modular_pos/core/theme/responsive.dart';
-import 'package:modular_pos/core/widgets/portal_action.dart';
+import 'package:modular_pos/core/widgets/navigation/portal_action.dart';
 
 class PortalShell extends StatefulWidget {
   const PortalShell({
