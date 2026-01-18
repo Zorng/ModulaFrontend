@@ -1,0 +1,26 @@
+{
+  "employee": {
+    "id": "770e8400-e29b-41d4-a716-446655440010",
+    "first_name": "Admin",
+    "last_name": "User",
+    "phone": "+1234567890",
+    "status": "ACTIVE"
+  },
+  "tokens": {
+    "accessToken": "e30.eyJ0ZW5hbnRJZCI6InRlbmFudC0xIiwicm9sZSI6IkFETUlOIn0.sig",
+    "refreshToken": "refresh-token",
+    "expiresIn": 43200
+  },
+  "branch_assignments": [
+    {
+      "id": "assign-1",
+      "employee_id": "770e8400-e29b-41d4-a716-446655440010",
+      "branch_id": "660e8400-e29b-41d4-a716-446655440000",
+      "branch_name": "Main Branch",
+      "role": "ADMIN",
+      "active": true,
+      "assigned_at": "2025-12-01T00:00:00Z"
+    }
+  ]
+}
+

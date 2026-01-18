@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:modular_pos/core/feedback/user_error_message.dart';
 import 'package:modular_pos/core/widgets/app_search_add_bar.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_category.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/category_controller.dart';
@@ -27,13 +28,10 @@ class _CategoryManagementPageState
   Widget build(BuildContext context) {
     final state = ref.watch(categoryControllerProvider);
     final query = _searchController.text.trim().toLowerCase();
-    final categories = state.categories
-        .where((category) {
-          if (query.isEmpty) return true;
-          return category.name.toLowerCase().contains(query);
-        })
-        .toList()
-      ..sort((a, b) => a.name.compareTo(b.name));
+    final categories = state.categories.where((category) {
+      if (query.isEmpty) return true;
+      return category.name.toLowerCase().contains(query);
+    }).toList()..sort((a, b) => a.name.compareTo(b.name));
 
     return Scaffold(
       appBar: AppBar(title: const Text('Category management')),
@@ -62,9 +60,13 @@ class _CategoryManagementPageState
                     : state.error != null
                     ? Center(
                         child: Text(
-                          state.error!,
+                          UserErrorMessage.build(
+                            context: 'Failed to load categories',
+                            error: state.error,
+                          ),
                           style: Theme.of(context).textTheme.bodyMedium
                               ?.copyWith(color: Theme.of(context).hintColor),
+                          textAlign: TextAlign.center,
                         ),
                       )
                     : categories.isEmpty

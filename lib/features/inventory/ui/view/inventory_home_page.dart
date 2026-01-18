@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:modular_pos/core/feedback/user_error_message.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/widgets/app_kebab_menu.dart';
 import 'package:modular_pos/core/widgets/app_search_add_bar.dart';
@@ -30,9 +31,7 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
     // Ensure fresh data when opening inventory.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(categoryControllerProvider.notifier).loadCategories();
-      ref
-          .read(stockInventoryControllerProvider.notifier)
-          .loadStockItems();
+      ref.read(stockInventoryControllerProvider.notifier).loadStockItems();
     });
   }
 
@@ -46,7 +45,8 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
   Widget build(BuildContext context) {
     final inventoryState = ref.watch(stockInventoryControllerProvider);
     final categoryState = ref.watch(categoryControllerProvider);
-    final userBranches = ref.watch(loginControllerProvider).user?.branches ?? const [];
+    final userBranches =
+        ref.watch(loginControllerProvider).user?.branches ?? const [];
     final items = inventoryState.items;
     final branchEntries = _branchEntries(items, userBranches);
     if (_selectedBranchId == 'all' && branchEntries.length == 2) {
@@ -54,8 +54,9 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
           ? branchEntries[1]['id']!
           : branchEntries.first['id']!;
     } else if (_selectedBranchId == 'all' && userBranches.length == 1) {
-      _selectedBranchId =
-          userBranches.first.branchId.isNotEmpty ? userBranches.first.branchId : userBranches.first.id;
+      _selectedBranchId = userBranches.first.branchId.isNotEmpty
+          ? userBranches.first.branchId
+          : userBranches.first.id;
     }
     final branchLabel = _branchLabel(branchEntries);
     final canSelectBranch = branchEntries.length > 1;
@@ -117,7 +118,9 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
               onAddPressed: () async {
                 await context.push(AppRoute.inventoryRestock.path);
                 if (!mounted) return;
-                ref.read(stockInventoryControllerProvider.notifier).loadStockItems(
+                ref
+                    .read(stockInventoryControllerProvider.notifier)
+                    .loadStockItems(
                       branchId: _selectedBranchId == 'all'
                           ? null
                           : _selectedBranchId,
@@ -178,9 +181,13 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
                     : inventoryState.error != null
                     ? Center(
                         child: Text(
-                          inventoryState.error!,
+                          UserErrorMessage.build(
+                            context: 'Failed to load inventory',
+                            error: inventoryState.error,
+                          ),
                           style: Theme.of(context).textTheme.bodyMedium
                               ?.copyWith(color: Theme.of(context).hintColor),
+                          textAlign: TextAlign.center,
                         ),
                       )
                     : ListView.separated(
@@ -268,15 +275,13 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
         map[item.branchId] = item.branchName;
       }
     }
-    final entries = map.entries
-        .map((entry) => {'id': entry.key, 'name': entry.value})
-        .toList()
-      ..sort((a, b) => a['name']!.compareTo(b['name']!));
+    final entries =
+        map.entries
+            .map((entry) => {'id': entry.key, 'name': entry.value})
+            .toList()
+          ..sort((a, b) => a['name']!.compareTo(b['name']!));
     if (entries.length > 1) {
-      entries.insert(
-        0,
-        {'id': 'all', 'name': 'All branches'},
-      );
+      entries.insert(0, {'id': 'all', 'name': 'All branches'});
     }
     return entries;
   }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:modular_pos/core/feedback/user_error_message.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_journal_entry.dart';
@@ -392,7 +393,16 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Failed to record restock: $e')));
+      ).showSnackBar(
+        SnackBar(
+          content: Text(
+            UserErrorMessage.build(
+              context: 'Failed to record restock',
+              error: e,
+            ),
+          ),
+        ),
+      );
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:modular_pos/core/feedback/user_error_message.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/widgets/app_search_add_bar.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
@@ -149,9 +150,13 @@ class _InventoryStockItemsPageState
                     : inventoryState.error != null
                     ? Center(
                         child: Text(
-                          inventoryState.error!,
+                          UserErrorMessage.build(
+                            context: 'Failed to load stock items',
+                            error: inventoryState.error,
+                          ),
                           style: Theme.of(context).textTheme.bodyMedium
                               ?.copyWith(color: Theme.of(context).hintColor),
+                          textAlign: TextAlign.center,
                         ),
                       )
                     : ListView.separated(

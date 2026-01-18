@@ -6,6 +6,7 @@ Scope: this guide defines what an AI agent must **read**, **respect**, and **ver
 - `handbook/non_negotiables.md`
 - `docs/responsive_breakpoints.md`
 - `handbook/architecture/overview.md`
+- Testing conventions: `handbook/quality/testing.md`
 
 ## Read if relevant
 - Module specs: `docs/modSpec/…`
@@ -36,6 +37,7 @@ Scope: this guide defines what an AI agent must **read**, **respect**, and **ver
 - Error UX:
   - production UI shows: `Oops, something went wrong.`
   - technical details are enabled/disabled via `.env` (e.g., `SHOW_DEBUG_ERRORS`)
+  - prefer `UserErrorMessage.build(...)` (`lib/core/feedback/user_error_message.dart`) for consistent messaging
 
 ## Validation checklist (before handing back)
 - Run `flutter analyze` and `flutter test` locally before handing back changes.

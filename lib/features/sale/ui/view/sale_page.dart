@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:modular_pos/core/feedback/user_error_message.dart';
 import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/core/widgets/app_back_button.dart';
 import 'package:modular_pos/core/widgets/menu_item_card.dart';
@@ -48,16 +49,17 @@ class _SalePageState extends ConsumerState<SalePage> {
     final gridCount = AppBreakpoints.isLarge(width)
         ? 4
         : AppBreakpoints.isMedium(width)
-            ? 3
-            : 2;
+        ? 3
+        : 2;
     final itemAspectRatio = isSmall ? 0.72 : 0.85;
     final categories = [
       const MenuCategory(id: 'all', name: 'All'),
       ...menuState.categories,
     ];
     final filteredItems = menuState.filteredItems;
-    final portalPath =
-        role == 'admin' ? AppRoute.adminPortal.path : AppRoute.cashierPortal.path;
+    final portalPath = role == 'admin'
+        ? AppRoute.adminPortal.path
+        : AppRoute.cashierPortal.path;
 
     return Scaffold(
       appBar: AppBar(
@@ -79,13 +81,12 @@ class _SalePageState extends ConsumerState<SalePage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (!gate.cashSessionLoading && gate.isBlockedByCashSessionPolicy) ...[
+              if (!gate.cashSessionLoading &&
+                  gate.isBlockedByCashSessionPolicy) ...[
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .surfaceContainerHighest
+                    color: Theme.of(context).colorScheme.surfaceContainerHighest
                         .withValues(alpha: 0.5),
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -103,9 +104,7 @@ class _SalePageState extends ConsumerState<SalePage> {
                         width: 140,
                         height: 40,
                         child: FilledButton(
-                          onPressed: () => context.push(
-                            cashSessionPath,
-                          ),
+                          onPressed: () => context.push(cashSessionPath),
                           child: const Text('Cash session'),
                         ),
                       ),
@@ -114,9 +113,7 @@ class _SalePageState extends ConsumerState<SalePage> {
                 ),
                 const SizedBox(height: 12),
               ],
-              _SearchField(
-                onChanged: menuVm.searchItems,
-              ),
+              _SearchField(onChanged: menuVm.searchItems),
               const SizedBox(height: 12),
               _CategoryStrip(
                 categories: categories,
@@ -126,11 +123,13 @@ class _SalePageState extends ConsumerState<SalePage> {
               const SizedBox(height: 12),
               Expanded(
                 child: switch ((menuState.isLoading, menuState.error)) {
-                  (true, _) => const Center(
-                      child: CircularProgressIndicator(),
-                    ),
-                  (false, final String? error) when error != null => _ErrorState(
-                      message: error,
+                  (true, _) => const Center(child: CircularProgressIndicator()),
+                  (false, final String? error) when error != null =>
+                    _ErrorState(
+                      message: UserErrorMessage.build(
+                        context: 'Failed to load menu',
+                        error: error,
+                      ),
                       onRetry: () => menuVm.loadMenu(
                         branchId: menuState.selectedBranchId == 'all'
                             ? null
@@ -138,27 +137,27 @@ class _SalePageState extends ConsumerState<SalePage> {
                       ),
                     ),
                   _ when filteredItems.isEmpty => _EmptyState(
-                      message: 'No menu items found for this branch.',
-                      onRetry: () => menuVm.loadMenu(
-                        branchId: menuState.selectedBranchId == 'all'
-                            ? null
-                            : menuState.selectedBranchId,
-                      ),
+                    message: 'No menu items found for this branch.',
+                    onRetry: () => menuVm.loadMenu(
+                      branchId: menuState.selectedBranchId == 'all'
+                          ? null
+                          : menuState.selectedBranchId,
                     ),
+                  ),
                   _ => RefreshIndicator(
-                      onRefresh: () => menuVm.loadMenu(
-                        branchId: menuState.selectedBranchId == 'all'
-                            ? null
-                            : menuState.selectedBranchId,
-                      ),
-                      child: _MenuCatalog(
-                        items: filteredItems,
-                        categories: menuState.categories,
-                        gridCount: gridCount,
-                        itemAspectRatio: itemAspectRatio,
-                        ref: ref,
-                      ),
+                    onRefresh: () => menuVm.loadMenu(
+                      branchId: menuState.selectedBranchId == 'all'
+                          ? null
+                          : menuState.selectedBranchId,
                     ),
+                    child: _MenuCatalog(
+                      items: filteredItems,
+                      categories: menuState.categories,
+                      gridCount: gridCount,
+                      itemAspectRatio: itemAspectRatio,
+                      ref: ref,
+                    ),
+                  ),
                 },
               ),
             ],
@@ -196,8 +195,9 @@ class _SearchField extends StatelessWidget {
         hintText: 'Search menu items',
         prefixIcon: const Icon(Icons.search),
         filled: true,
-        fillColor:
-            theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+        fillColor: theme.colorScheme.surfaceContainerHighest.withValues(
+          alpha: 0.5,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide.none,
@@ -259,9 +259,7 @@ class _MenuCatalog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (items.isEmpty) {
-      return const Center(
-        child: Text('No menu items found.'),
-      );
+      return const Center(child: Text('No menu items found.'));
     }
 
     final categoryLookup = <String, String>{
@@ -278,8 +276,7 @@ class _MenuCatalog extends StatelessWidget {
       itemCount: items.length,
       itemBuilder: (context, index) {
         final item = items[index];
-        final categoryName =
-            categoryLookup[item.categoryId] ?? 'Uncategorized';
+        final categoryName = categoryLookup[item.categoryId] ?? 'Uncategorized';
         return MenuItemCard(
           title: item.name,
           category: categoryName,
@@ -288,11 +285,7 @@ class _MenuCatalog extends StatelessWidget {
           onTap: () async {
             final selection = await Navigator.push<SaleItemSelectionResult>(
               context,
-              MaterialPageRoute(
-                builder: (_) => SaleItemDetailPage(
-                  item: item,
-                ),
-              ),
+              MaterialPageRoute(builder: (_) => SaleItemDetailPage(item: item)),
             );
             if (selection != null && context.mounted) {
               final gate = ref.read(saleAccessGateProvider);
@@ -308,7 +301,9 @@ class _MenuCatalog extends StatelessWidget {
                 return;
               }
               try {
-                await ref.read(saleCartProvider.notifier).addSelection(selection);
+                await ref
+                    .read(saleCartProvider.notifier)
+                    .addSelection(selection);
               } catch (e, st) {
                 if (kDebugMode) {
                   debugPrint('Add item failed: $e');
@@ -316,7 +311,14 @@ class _MenuCatalog extends StatelessWidget {
                 }
                 if (!context.mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Failed to add item: $e')),
+                  SnackBar(
+                    content: Text(
+                      UserErrorMessage.build(
+                        context: 'Failed to add item',
+                        error: e,
+                      ),
+                    ),
+                  ),
                 );
               }
             }

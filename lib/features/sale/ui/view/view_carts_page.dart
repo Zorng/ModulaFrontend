@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:modular_pos/core/feedback/user_error_message.dart';
 import 'package:modular_pos/features/sale/data/sale_repository.dart';
 
 class ViewCartsPage extends ConsumerStatefulWidget {
@@ -23,7 +24,11 @@ class _ViewCartsPageState extends ConsumerState<ViewCartsPage> {
 
   Future<List<_SaleSummary>> _loadSales() async {
     final repo = ref.read(saleRepositoryProvider);
-    final start = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day);
+    final start = DateTime(
+      _selectedDate.year,
+      _selectedDate.month,
+      _selectedDate.day,
+    );
     final end = start.add(const Duration(days: 1));
     final data = await repo.listSales(
       status: _selectedState,
@@ -31,7 +36,10 @@ class _ViewCartsPageState extends ConsumerState<ViewCartsPage> {
       endDate: end,
       limit: 100,
     );
-    return data.map(_SaleSummary.fromJson).where((s) => s.id.isNotEmpty).toList();
+    return data
+        .map(_SaleSummary.fromJson)
+        .where((s) => s.id.isNotEmpty)
+        .toList();
   }
 
   Future<void> _pickDate() async {
@@ -57,9 +65,7 @@ class _ViewCartsPageState extends ConsumerState<ViewCartsPage> {
         titlePadding: const EdgeInsets.fromLTRB(20, 16, 8, 0),
         title: Row(
           children: [
-            const Expanded(
-              child: Text('Void draft'),
-            ),
+            const Expanded(child: Text('Void draft')),
             IconButton(
               icon: const Icon(Icons.close),
               onPressed: () => Navigator.pop(context, false),
@@ -80,14 +86,18 @@ class _ViewCartsPageState extends ConsumerState<ViewCartsPage> {
     try {
       await repo.voidSale(sale.id, reason: 'Voided from POS');
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Draft voided')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Draft voided')));
       setState(() => _future = _loadSales());
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to void: $e')),
+        SnackBar(
+          content: Text(
+            UserErrorMessage.build(context: 'Failed to void', error: e),
+          ),
+        ),
       );
     }
   }
@@ -158,7 +168,15 @@ class _ViewCartsPageState extends ConsumerState<ViewCartsPage> {
                   return const Center(child: CircularProgressIndicator());
                 }
                 if (snapshot.hasError) {
-                  return Center(child: Text('Failed to load carts: ${snapshot.error}'));
+                  return Center(
+                    child: Text(
+                      UserErrorMessage.build(
+                        context: 'Failed to load carts',
+                        error: snapshot.error,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  );
                 }
                 final sales = snapshot.data ?? const [];
                 if (sales.isEmpty) {
@@ -169,10 +187,15 @@ class _ViewCartsPageState extends ConsumerState<ViewCartsPage> {
                   itemBuilder: (context, index) {
                     final sale = sales[index];
                     return Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 6,
+                      ),
                       child: Card(
                         elevation: 2,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                         child: InkWell(
                           borderRadius: BorderRadius.circular(12),
                           onTap: () => _openSale(sale),
@@ -185,20 +208,34 @@ class _ViewCartsPageState extends ConsumerState<ViewCartsPage> {
                                   children: [
                                     Text(
                                       _formatTime(sale.createdAt),
-                                      style: Theme.of(context).textTheme.titleMedium,
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.titleMedium,
                                     ),
                                     const Spacer(),
                                     GestureDetector(
-                                      onTap: sale.state == 'draft' ? () => _voidSale(sale) : null,
+                                      onTap: sale.state == 'draft'
+                                          ? () => _voidSale(sale)
+                                          : null,
                                       child: Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 6,
+                                        ),
                                         decoration: BoxDecoration(
-                                          color: _stateColor(sale.state).withValues(alpha: 0.15),
-                                          borderRadius: BorderRadius.circular(999),
+                                          color: _stateColor(
+                                            sale.state,
+                                          ).withValues(alpha: 0.15),
+                                          borderRadius: BorderRadius.circular(
+                                            999,
+                                          ),
                                         ),
                                         child: Text(
                                           _stateLabel(sale.state),
-                                          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .labelMedium
+                                              ?.copyWith(
                                                 color: _stateColor(sale.state),
                                                 fontWeight: FontWeight.w600,
                                               ),
@@ -213,11 +250,15 @@ class _ViewCartsPageState extends ConsumerState<ViewCartsPage> {
                                   children: sale.lines
                                       .map(
                                         (line) => Padding(
-                                          padding: const EdgeInsets.symmetric(vertical: 2),
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 2,
+                                          ),
                                           child: Text(
                                             '${line.quantity} × ${line.name}'
                                             '${line.modifiers.isNotEmpty ? ' (${line.modifiers.join(', ')})' : ''}',
-                                            style: Theme.of(context).textTheme.bodyMedium,
+                                            style: Theme.of(
+                                              context,
+                                            ).textTheme.bodyMedium,
                                           ),
                                         ),
                                       )
@@ -274,7 +315,9 @@ class _SaleSummary {
   final List<_SaleLine> lines;
 
   factory _SaleSummary.fromJson(Map<String, dynamic> json) {
-    final created = DateTime.tryParse(json['createdAt']?.toString() ?? '') ?? DateTime.now();
+    final created =
+        DateTime.tryParse(json['createdAt']?.toString() ?? '') ??
+        DateTime.now();
     final lines = <_SaleLine>[];
     if (json['items'] is List) {
       for (final item in json['items'] as List) {
@@ -313,7 +356,11 @@ class _SaleSummary {
 }
 
 class _SaleLine {
-  const _SaleLine({required this.name, required this.quantity, required this.modifiers});
+  const _SaleLine({
+    required this.name,
+    required this.quantity,
+    required this.modifiers,
+  });
 
   final String name;
   final int quantity;
@@ -349,17 +396,22 @@ class _SaleDetailPage extends StatelessWidget {
                 ),
                 const Spacer(),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
-                    color: _detailStateColor(summary.state).withValues(alpha: 0.15),
+                    color: _detailStateColor(
+                      summary.state,
+                    ).withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: Text(
                     _detailStateLabel(summary.state),
-                    style: Theme.of(context)
-                        .textTheme
-                        .labelMedium
-                        ?.copyWith(color: _detailStateColor(summary.state), fontWeight: FontWeight.w600),
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: _detailStateColor(summary.state),
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ],
@@ -373,7 +425,9 @@ class _SaleDetailPage extends StatelessWidget {
                   children: [
                     Text(
                       '${line.quantity} × ${line.name}',
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     if (line.modifiers.isNotEmpty)
                       Padding(

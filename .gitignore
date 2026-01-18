@@ -12,10 +12,6 @@
 .swiftpm/
 migrate_working_dir/
 
-docs/modSpec/
-
-test/
-
 # IntelliJ related
 *.iml
 *.ipr

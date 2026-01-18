@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:modular_pos/core/feedback/user_error_message.dart';
 import 'package:modular_pos/core/widgets/network_image_helper_stub.dart'
     if (dart.library.html) 'package:modular_pos/core/widgets/network_image_helper_web.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
@@ -360,7 +361,11 @@ class _SaleCartPageState extends ConsumerState<SaleCartPage> {
             if (!mounted) return;
             // ignore: use_build_context_synchronously
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Checkout failed: $e')),
+              SnackBar(
+                content: Text(
+                  UserErrorMessage.build(context: 'Checkout failed', error: e),
+                ),
+              ),
             );
           }
         },

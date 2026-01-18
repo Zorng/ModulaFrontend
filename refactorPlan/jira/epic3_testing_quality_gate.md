@@ -39,7 +39,7 @@ Establish a reliable testing baseline (unit + widget + integration) and a lightw
 
 - **Goal:** The team can write and run tests consistently.
 - **AC:**
-  - `docs/TESTING.md` exists and covers: unit/widget/integration test commands and patterns.
+  - `handbook/quality/testing.md` exists and covers: unit/widget/integration test commands and patterns.
   - Clear guidance on: where to put tests, naming conventions, fixtures, and mocking approach.
 - **Tasks:**
   - Document recommended pyramid: Unit (many) / Widget (some) / Integration (few).
@@ -123,4 +123,3 @@ Establish a reliable testing baseline (unit + widget + integration) and a lightw
 - **AC:**
   - Simple rule documented (e.g., any contract/mapping change requires unit test; any new UI guard requires widget test).
   - Review checklist exists and is used.
-

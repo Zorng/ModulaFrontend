@@ -62,7 +62,7 @@ Make the frontend **maintainable and scalable** by improving code organization, 
   - Smell list includes: symptom, impact, example file(s), and proposed remediation.
   - Top 10 smells are prioritized (P0/P1/P2).
 - **Tasks:**
-  - Create `docs/tech_debt_backlog.md` with categories:
+  - Create `handbook/tech_debt_backlog.md` with categories:
     - State management inconsistency
     - Circular provider dependencies
     - Mixed concerns in UI
@@ -142,4 +142,3 @@ Make the frontend **maintainable and scalable** by improving code organization, 
   - High-signal warnings are fixed when encountered (unused imports, async context usage, deprecated APIs).
 - **Tasks:**
   - Adopt a rule: “leave it better than you found it” (only for touched files).
-

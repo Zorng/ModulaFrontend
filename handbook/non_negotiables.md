@@ -2,6 +2,25 @@
 
 These rules exist to keep the frontend predictable, maintainable, and regression-resistant.
 
+## How to use this document
+- Treat this file as the “contract” for PR reviews and agent work.
+- If a rule must be broken for a valid reason, document it in the PR and create a follow-up Jira ticket to remove the exception.
+- For deeper guidance and examples, see:
+  - `handbook/architecture/overview.md`
+  - `handbook/architecture/providers.md`
+  - `handbook/architecture/navigation.md`
+  - `handbook/architecture/widgets.md`
+  - `handbook/quality/testing.md`
+  - `handbook/quality/error_handling.md`
+
+## PR checklist (quick)
+- `flutter analyze` and `flutter test` pass (CI).
+- No DTOs imported in UI/viewmodels.
+- Backend-dependent UI shows loading/error/data (no “freeze”).
+- Production UI does not show raw exceptions; uses `UserErrorMessage.build(...)` where needed.
+- New pages use `go_router` for navigation.
+- Screens touched behave correctly across breakpoints in `docs/responsive_breakpoints.md`.
+
 ## 1) State ownership model (no “1 screen = 1 viewmodel”)
 - Use **State Owners (Stores)** as the single source-of-truth for feature/domain state; they can power multiple screens.
 - Use optional **Screen Controllers** only for screen-local state (filters/tabs/pagination/UI toggles).
@@ -25,6 +44,7 @@ These rules exist to keep the frontend predictable, maintainable, and regression
 - Default production message: `Oops, something went wrong.`
 - Technical details are hidden in production UI and enabled via `.env` in dev (e.g., `SHOW_DEBUG_ERRORS=true`).
 - Provide a retry action when safe/possible.
+- Prefer `UserErrorMessage.build(...)` (`lib/core/feedback/user_error_message.dart`) for consistent messaging.
 
 ## 6) Provider conventions (no legacy StateNotifierProvider)
 - Do not introduce new `StateNotifierProvider`/`StateNotifier`.

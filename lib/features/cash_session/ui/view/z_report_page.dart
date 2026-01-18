@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:modular_pos/core/feedback/user_error_message.dart';
 import 'package:modular_pos/features/cash_session/ui/viewmodels/z_report_viewmodel.dart';
 
 class ZReportPage extends ConsumerWidget {
@@ -44,10 +45,7 @@ class ZReportPage extends ConsumerWidget {
 }
 
 class _DatePickerRow extends StatelessWidget {
-  const _DatePickerRow({
-    required this.date,
-    required this.onPick,
-  });
+  const _DatePickerRow({required this.date, required this.onPick});
 
   final DateTime date;
   final ValueChanged<DateTime> onPick;
@@ -57,10 +55,7 @@ class _DatePickerRow extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Date',
-          style: TextStyle(fontWeight: FontWeight.w600),
-        ),
+        const Text('Date', style: TextStyle(fontWeight: FontWeight.w600)),
         const SizedBox(height: 6),
         OutlinedButton.icon(
           onPressed: () async {
@@ -138,7 +133,10 @@ class _ZReportCard extends StatelessWidget {
                   if (state.error != null) ...[
                     const SizedBox(height: 8),
                     Text(
-                      state.error!,
+                      UserErrorMessage.build(
+                        context: 'Failed to generate Z report',
+                        error: state.error,
+                      ),
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ],
@@ -149,12 +147,18 @@ class _ZReportCard extends StatelessWidget {
                 children: [
                   if (state.error != null) ...[
                     Text(
-                      state.error!,
+                      UserErrorMessage.build(
+                        context: 'Failed to load Z report',
+                        error: state.error,
+                      ),
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                     const SizedBox(height: 8),
                   ],
-                  _detailRow('Date', DateFormat('yyyy-MM-dd').format(summary.date)),
+                  _detailRow(
+                    'Date',
+                    DateFormat('yyyy-MM-dd').format(summary.date),
+                  ),
                   _detailRow('Sessions', summary.sessionCount.toString()),
                   _detailRow(
                     'Opening float (USD)',

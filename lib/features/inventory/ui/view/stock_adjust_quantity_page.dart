@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:modular_pos/core/feedback/user_error_message.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_journal_entry.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_batch.dart';
@@ -242,7 +243,13 @@ class _AdjustStockQuantityPageState
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Failed to adjust stock: $e')));
+      ).showSnackBar(
+        SnackBar(
+          content: Text(
+            UserErrorMessage.build(context: 'Failed to adjust stock', error: e),
+          ),
+        ),
+      );
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }

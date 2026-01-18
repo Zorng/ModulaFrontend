@@ -91,7 +91,7 @@ Make the frontend project easy to take over by:
 
 - **Goal:** Handover includes how to validate changes.
 - **AC:**
-  - `docs/TESTING.md` exists (or links to it) and includes unit/widget/integration commands.
+  - `handbook/quality/testing.md` exists and includes unit/widget/integration commands.
   - Links to test utilities/fixtures conventions.
 - **Dependencies:** Epic 3 Story 3.1.
 
@@ -144,4 +144,3 @@ Make the frontend project easy to take over by:
   - Includes “how to add a new module/screen/provider” in the project style.
 - **Tasks:**
   - Update/create `AGENTS.md` content as needed.
-

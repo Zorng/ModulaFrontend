@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:modular_pos/core/feedback/user_error_message.dart';
 import 'package:modular_pos/core/widgets/app_category_selector.dart';
 import 'package:modular_pos/core/widgets/app_kebab_menu.dart';
 import 'package:modular_pos/core/widgets/app_search_add_bar.dart';
@@ -34,8 +35,9 @@ class _MenuPageState extends ConsumerState<MenuPage> {
     final menuState = ref.watch(menuViewModelProvider);
     final List<_CategoryChip> categories = [
       _CategoryChip(id: 'all', label: 'All'),
-      ...menuState.categories
-          .map((c) => _CategoryChip(id: c.id, label: c.name)),
+      ...menuState.categories.map(
+        (c) => _CategoryChip(id: c.id, label: c.name),
+      ),
     ];
     final selectedChip = categories.firstWhere(
       (chip) => chip.id == menuState.selectedCategoryId,
@@ -45,8 +47,9 @@ class _MenuPageState extends ConsumerState<MenuPage> {
     final items = menuState.filteredItems;
     final branchOptions = [
       const _BranchOption(id: 'all', label: 'All branches'),
-      ...menuState.branches
-          .map((branch) => _BranchOption(id: branch.id, label: branch.name)),
+      ...menuState.branches.map(
+        (branch) => _BranchOption(id: branch.id, label: branch.name),
+      ),
     ];
 
     return Scaffold(
@@ -134,8 +137,9 @@ class _MenuPageState extends ConsumerState<MenuPage> {
               categories: categories.map((c) => c.label).toList(),
               selectedCategory: selectedChip.label,
               onCategorySelected: (label) {
-                final chip =
-                    categories.firstWhere((element) => element.label == label);
+                final chip = categories.firstWhere(
+                  (element) => element.label == label,
+                );
                 ref
                     .read(menuViewModelProvider.notifier)
                     .filterByCategory(chip.id);
@@ -143,14 +147,18 @@ class _MenuPageState extends ConsumerState<MenuPage> {
             ),
             const SizedBox(height: 24),
             if (menuState.isLoading)
-              const Expanded(
-                child: Center(child: CircularProgressIndicator()),
-              )
+              const Expanded(child: Center(child: CircularProgressIndicator()))
             else if (menuState.error != null)
               Expanded(
                 child: Center(
-                  child: Text(menuState.error!,
-                      style: Theme.of(context).textTheme.bodyMedium),
+                  child: Text(
+                    UserErrorMessage.build(
+                      context: 'Failed to load menu',
+                      error: menuState.error,
+                    ),
+                    style: Theme.of(context).textTheme.bodyMedium,
+                    textAlign: TextAlign.center,
+                  ),
                 ),
               )
             else if (items.isEmpty)
@@ -191,9 +199,7 @@ class _MenuPageState extends ConsumerState<MenuPage> {
   Future<void> _openItemDetail(BuildContext context, MenuItem item) async {
     await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => ViewMenuItemPage(menuItem: item),
-      ),
+      MaterialPageRoute(builder: (context) => ViewMenuItemPage(menuItem: item)),
     );
     if (mounted) {
       await ref.read(menuViewModelProvider.notifier).loadMenu();

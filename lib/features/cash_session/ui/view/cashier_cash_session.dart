@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:modular_pos/core/feedback/user_error_message.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/cash_session/ui/viewmodels/cash_session_viewmodel.dart';
@@ -15,10 +16,9 @@ class CashSessionScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final sessionState = ref.watch(cashSessionViewModelProvider);
-    final role =
-        (ref.watch(loginControllerProvider).user?.role ?? 'cashier')
-            .trim()
-            .toLowerCase();
+    final role = (ref.watch(loginControllerProvider).user?.role ?? 'cashier')
+        .trim()
+        .toLowerCase();
     final path = GoRouterState.of(context).uri.path;
     final fromAdminPortal = path == AppRoute.adminCashSession.path;
 
@@ -51,7 +51,10 @@ class CashSessionScreen extends ConsumerWidget {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      sessionState.error!,
+                      UserErrorMessage.build(
+                        context: 'Failed to load cash session',
+                        error: sessionState.error,
+                      ),
                       style: TextStyle(
                         color: Colors.red.shade700,
                         fontWeight: FontWeight.w500,

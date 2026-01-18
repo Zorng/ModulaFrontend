@@ -1,0 +1,15 @@
+{
+  "requires_tenant_selection": true,
+  "selection_token": "selection-token-123",
+  "memberships": [
+    {
+      "tenant": { "id": "tenant-1", "name": "Tenant One" },
+      "employeeId": "770e8400-e29b-41d4-a716-446655440010"
+    },
+    {
+      "tenant": { "id": "tenant-2", "name": "Tenant Two" },
+      "employeeId": "770e8400-e29b-41d4-a716-446655440010"
+    }
+  ]
+}
+

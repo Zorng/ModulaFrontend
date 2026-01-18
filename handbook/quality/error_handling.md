@@ -9,7 +9,7 @@
 - Developer error visibility is configured through `.env` (e.g., `SHOW_DEBUG_ERRORS=true|false`).
 - In dev mode, technical details may be shown (prefer an expandable “Details” section).
 - In production, technical details go to logs/crash reporting, not UI.
+- Use `UserErrorMessage.build(...)` (`lib/core/feedback/user_error_message.dart`) for consistent user-facing messages.
 
 ## Loading UX (non-negotiable)
 - Any backend call must surface a loading state in UI (no freezing).
-

@@ -83,6 +83,7 @@ For each Epic: Draft → Review → Jira.
 - [ ] In Jira
 - Links:
   - Epic notes: `refactorPlan/jira/epic4_codebase_structure_tech_debt.md`
+  - Tech debt backlog: `handbook/tech_debt_backlog.md`
   - Jira Epic:
 
 ### Epic 5 — Printing (thermal + sticker)
@@ -103,8 +104,9 @@ For each Epic: Draft → Review → Jira.
 
 ### Epic 7 — Handover Readiness
 - [x] Drafting
-- [ ] Reviewed
-- [ ] In Jira
+- [ ] Reviewed (Deferred)
+- [ ] In Jira (Deferred)
+- Status note: **Defer executing Epic 7 docs/runbook/ownership until Epic 3 + Epic 4 are completed** (testing + tech debt refactor will change procedures and ownership boundaries).
 - Links:
   - Epic notes: `refactorPlan/jira/epic7_handover_readiness.md`
   - Jira Epic:

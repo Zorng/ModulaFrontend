@@ -1,7 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter_riverpod/legacy.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart' show Ref;
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/features/auth/data/auth_repository.dart';
 import 'package:modular_pos/features/auth/data/auth_session_store.dart';
 import 'package:modular_pos/features/auth/domain/auth_tenant_provider.dart';
