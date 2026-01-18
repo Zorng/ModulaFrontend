@@ -5,7 +5,7 @@ import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/widgets/navigation/portal_action.dart';
 import 'package:modular_pos/core/widgets/navigation/portal_shell.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
-import 'package:modular_pos/features/sale/ui/view/order_page.dart';
+import 'package:modular_pos/features/sale/ui/view/order/order_page.dart';
 import 'package:modular_pos/features/cash_session/ui/view/cashier_cash_session.dart';
 import 'package:modular_pos/features/cash_session/ui/view/x_report_page.dart';
 import 'package:modular_pos/features/staff/ui/view/staff_list_view.dart';
@@ -115,11 +115,9 @@ class _CashierHomeContent extends ConsumerWidget {
       _FeatureEntry(
         title: 'Attendance',
         icon: Icons.access_time_outlined,
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => const AttendancePage(),
-          ),
-        ),
+        onTap: () => Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const AttendancePage())),
       ),
       _FeatureEntry(
         title: 'X Report',
@@ -152,7 +150,6 @@ class _CashierHomeContent extends ConsumerWidget {
     );
   }
 }
-
 
 class _FeatureCard extends StatelessWidget {
   const _FeatureCard({required this.entry});

@@ -1,8 +1,5 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:modular_pos/core/widgets/media/network_image_helper_stub.dart'
-    if (dart.library.html) 'package:modular_pos/core/widgets/media/network_image_helper_web.dart';
-import 'package:modular_pos/features/menu/ui/view/dashed_border_painter.dart';
+import 'package:modular_pos/core/widgets/media/product_image.dart';
 
 /// Card for a menu item with image, category, and price.
 ///
@@ -44,12 +41,14 @@ class MenuItemCard extends StatelessWidget {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    imagePath != null && imagePath!.isNotEmpty
-                        ? buildAdaptiveNetworkImage(
-                            imagePath!,
-                            _buildPlaceholder(context),
-                          )
-                        : _buildPlaceholder(context),
+                    ProductImage(
+                      imagePath: imagePath,
+                      borderRadius: 12,
+                      showPlaceholderLabel: true,
+                      placeholderLabel: 'No image',
+                      placeholderIcon: Icons.image_outlined,
+                      placeholderIconSize: 32,
+                    ),
                     Positioned.fill(
                       child: GestureDetector(
                         behavior: HitTestBehavior.translucent,
@@ -102,41 +101,6 @@ class MenuItemCard extends StatelessWidget {
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-
-  /// A private helper widget to show a consistent placeholder.
-  Widget _buildPlaceholder(BuildContext context) {
-    final theme = Theme.of(context);
-    final color = theme.primaryColor;
-    final textStyle =
-        theme.textTheme.bodySmall?.copyWith(color: color, fontWeight: FontWeight.w600);
-
-    const radius = 12.0;
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(radius),
-      child: CustomPaint(
-        foregroundPainter: DashedBorderPainter(
-          color: color,
-          strokeWidth: 1.4,
-          dashWidth: 6,
-          dashSpace: 4,
-          borderRadius: radius,
-        ),
-        child: Container(
-          width: double.infinity,
-          height: double.infinity,
-          alignment: Alignment.center,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.image_outlined, color: color, size: 32),
-              const SizedBox(height: 6),
-              Text('No image', style: textStyle),
-            ],
-          ),
         ),
       ),
     );

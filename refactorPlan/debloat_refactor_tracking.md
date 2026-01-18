@@ -1,12 +1,16 @@
-# Widget Reuse Candidates (Refactor Tracking)
+# Debloat Refactor Tracking
 
-This file tracks widgets that are potentially reusable across multiple features.
+This file tracks:
+- Which pages/screens have been de-bloated (and what remains)
+- Widgets extracted during debloat work
+- Candidates to promote/dedupe later
+
 It is a refactor-time working document (not long-lived handbook documentation).
 
 Goal:
 - Reduce widget bloat and duplication
 - Make common UI primitives discoverable
-- Avoid premature “core” abstractions while features are still evolving
+- Keep page code readable (composition-first)
 
 ## Rules of thumb
 - If a widget is used by **2+ features**, promote it to `lib/core/widgets/` (pick the correct subfolder).
@@ -22,10 +26,21 @@ Goal:
    - file a Jira “dedupe + promote” task if timing is risky.
 3) When promoted, update `Status` and `Promoted To`.
 
-## Candidate list
+## Page debloat status
+
+| Feature | Page | Current Path | Status | Notes |
+|---|---|---|---|---|
+| Sale | Cart | `lib/features/sale/ui/view/sale_cart/sale_cart_page.dart` | De-bloated | Page-local widgets under `lib/features/sale/ui/view/sale_cart/widgets/` |
+| Sale | Item detail | `lib/features/sale/ui/view/sale_item_detail/sale_item_detail_page.dart` | De-bloated | Page-local widgets under `lib/features/sale/ui/view/sale_item_detail/widgets/` |
+| Sale | Orders | `lib/features/sale/ui/view/order/order_page.dart` | De-bloated | Page-local widgets under `lib/features/sale/ui/view/order/widgets/` |
+| Sale | Sale (menu) | `lib/features/sale/ui/view/sale/sale_page.dart` | De-bloated | Page-local widgets under `lib/features/sale/ui/view/sale/widgets/` |
+| Menu | Menu (main) | `lib/features/menu/ui/view/menu/menu_page.dart` | De-bloated | Page-local widgets under `lib/features/menu/ui/view/menu/widgets/` |
+
+## Widget candidates (from debloat work)
 
 | Widget | Current Path | Used In Features | Candidate Category | Status | Promoted To | Notes / Jira |
 |---|---|---:|---|---|---|---|
+| `ProductImage` | `lib/core/widgets/media/product_image.dart` | 2 | `media/` | Promoted | `lib/core/widgets/media/product_image.dart` | Standard “image + placeholder” used by menu + sale |
 | `SaleCartBottomBar` | `lib/features/sale/ui/view/sale_cart/widgets/sale_cart_bottom_bar.dart` | 1 | `layout/` | Candidate |  | Sale cart: “total + CTA” bottom bar |
 | `SaleCartReadOnlyBanner` | `lib/features/sale/ui/view/sale_cart/widgets/sale_cart_readonly_banner.dart` | 1 | `feedback/` | Candidate |  | Sale cart: read-only banner + action |
 | `SaleOrderTypeSelector` | `lib/features/sale/ui/view/sale_cart/widgets/sale_order_type_selector.dart` | 1 | `forms/` | Candidate |  | Sale cart: order type selector chips |

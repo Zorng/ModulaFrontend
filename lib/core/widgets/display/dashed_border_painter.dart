@@ -51,7 +51,7 @@ class DashedBorderPainter extends CustomPainter {
     for (final metric in source.computeMetrics()) {
       var distance = 0.0;
       while (distance < metric.length) {
-        final double end = math.min(distance + dashWidth, metric.length);
+        final end = math.min(distance + dashWidth, metric.length);
         dashedPath.addPath(metric.extractPath(distance, end), Offset.zero);
         distance += dashWidth + dashSpace;
       }

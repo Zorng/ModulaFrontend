@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:modular_pos/core/widgets/media/network_image_helper_stub.dart'
-    if (dart.library.html) 'package:modular_pos/core/widgets/media/network_image_helper_web.dart';
+import 'package:modular_pos/core/widgets/media/product_image.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_viewmodel.dart';
 import 'package:modular_pos/features/sale/ui/components/quantity_stepper.dart';
@@ -288,18 +287,12 @@ class _CartItemRow extends StatelessWidget {
             child: SizedBox(
               width: 56,
               height: 56,
-              child: () {
-                final imageUrl = item.item.imageUrl ?? '';
-                final placeholder = Container(
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
-                  alignment: Alignment.center,
-                  child: const Icon(Icons.fastfood_outlined),
-                );
-                if (imageUrl.isEmpty) return placeholder;
-                return buildAdaptiveNetworkImage(imageUrl, placeholder);
-              }(),
+              child: ProductImage(
+                imagePath: item.item.imageUrl,
+                borderRadius: 8,
+                placeholderIcon: Icons.fastfood_outlined,
+                showPlaceholderLabel: false,
+              ),
             ),
           ),
           const SizedBox(width: 12),

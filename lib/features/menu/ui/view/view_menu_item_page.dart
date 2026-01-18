@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:modular_pos/core/widgets/media/network_image_helper_stub.dart'
-    if (dart.library.html) 'package:modular_pos/core/widgets/media/network_image_helper_web.dart';
+import 'package:modular_pos/core/widgets/media/product_image.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_category.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
-import 'package:modular_pos/features/menu/ui/view/dashed_border_painter.dart';
 import 'package:modular_pos/features/menu/ui/view/menu_item_form_page.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
 
@@ -80,10 +78,7 @@ class ViewMenuItemPage extends ConsumerWidget {
           children: [
             AspectRatio(
               aspectRatio: 160 / 142,
-              child: _buildImage(
-                context: context,
-                imageUrl: latestItem.imageUrl ?? '',
-              ),
+              child: ProductImage(imagePath: latestItem.imageUrl),
             ),
             const SizedBox(height: 16),
             Text(
@@ -183,58 +178,4 @@ String _resolveCategoryName(
     if (category.id == categoryId) return category.name;
   }
   return 'Unassigned category';
-}
-
-Widget _buildImage({
-  required BuildContext context,
-  required String imageUrl,
-}) {
-  final theme = Theme.of(context);
-  final radius = 12.0;
-  final placeholder = _ImagePlaceholder(radius: radius, color: theme.primaryColor);
-  if (imageUrl.isEmpty) return placeholder;
-  return ClipRRect(
-    borderRadius: BorderRadius.circular(radius),
-    child: buildAdaptiveNetworkImage(
-      imageUrl,
-      placeholder,
-    ),
-  );
-}
-
-class _ImagePlaceholder extends StatelessWidget {
-  const _ImagePlaceholder({required this.radius, required this.color});
-  final double radius;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    final textStyle = Theme.of(context)
-        .textTheme
-        .bodySmall
-        ?.copyWith(color: color, fontWeight: FontWeight.w600);
-    return CustomPaint(
-      foregroundPainter: DashedBorderPainter(
-        color: color,
-        strokeWidth: 1.4,
-        dashWidth: 6,
-        dashSpace: 4,
-        borderRadius: radius,
-      ),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(radius),
-        ),
-        alignment: Alignment.center,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.image_outlined, color: color, size: 32),
-            const SizedBox(height: 6),
-            Text('No image', style: textStyle),
-          ],
-        ),
-      ),
-    );
-  }
 }

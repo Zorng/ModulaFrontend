@@ -5,7 +5,7 @@ import 'package:modular_pos/features/auth/data/auth_repository.dart';
 import 'package:modular_pos/features/auth/data/auth_session_store.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_state.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
-import 'package:modular_pos/features/sale/ui/view/sale_page.dart';
+import 'package:modular_pos/features/sale/ui/view/sale/sale_page.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_access_gate.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -26,8 +26,9 @@ class _StaticMenuViewModel extends MenuViewModel {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('SalePage shows read-only banner + session-required dialog',
-      (tester) async {
+  testWidgets('SalePage shows read-only banner + session-required dialog', (
+    tester,
+  ) async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
     final store = AuthSessionStore(prefs);
@@ -56,7 +57,10 @@ void main() {
 
     expect(find.byType(AlertDialog), findsOneWidget);
     expect(find.text('Cash session required'), findsOneWidget);
-    expect(find.textContaining('not in an active cash session'), findsOneWidget);
+    expect(
+      find.textContaining('not in an active cash session'),
+      findsOneWidget,
+    );
 
     await tester.tap(find.byIcon(Icons.close));
     await tester.pumpAndSettle();

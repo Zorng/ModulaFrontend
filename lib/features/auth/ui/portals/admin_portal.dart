@@ -10,8 +10,8 @@ import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/cash_session/ui/view/cashier_cash_session.dart';
 import 'package:modular_pos/features/cash_session/ui/view/x_report_page.dart';
 import 'package:modular_pos/features/cash_session/ui/view/z_report_page.dart';
-import 'package:modular_pos/features/menu/ui/view/menu_page.dart';
-import 'package:modular_pos/features/sale/ui/view/order_page.dart';
+import 'package:modular_pos/features/menu/ui/view/menu/menu_page.dart';
+import 'package:modular_pos/features/sale/ui/view/order/order_page.dart';
 import 'package:modular_pos/features/staff/ui/view/staff_list_view.dart';
 import 'package:modular_pos/features/staff_attendance/ui/view/attendance_management_page.dart';
 

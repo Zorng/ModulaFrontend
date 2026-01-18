@@ -11,7 +11,7 @@ import 'package:modular_pos/features/inventory/ui/viewmodels/category_controller
 import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_controller.dart';
 import 'package:modular_pos/features/inventory/ui/widgets/inventory_dropdown.dart';
 import 'package:modular_pos/features/inventory/ui/widgets/inventory_section_card.dart';
-import 'package:modular_pos/features/menu/ui/view/dashed_border_painter.dart';
+import 'package:modular_pos/core/widgets/display/dashed_border_painter.dart';
 
 class StockItemDetailPage extends ConsumerStatefulWidget {
   const StockItemDetailPage({super.key, required this.item});
