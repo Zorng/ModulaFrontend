@@ -10,7 +10,7 @@ import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
 import 'package:modular_pos/features/policy/domain/models/policy.dart';
 import 'package:modular_pos/features/policy/ui/viewmodels/policy_viewmodel.dart';
 import 'package:modular_pos/features/sale/data/sale_repository.dart';
-import 'package:modular_pos/features/sale/ui/view/sale_cart_page.dart';
+import 'package:modular_pos/features/sale/ui/view/sale_cart/sale_cart_page.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_access_gate.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_viewmodel.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -55,8 +55,9 @@ class _PrefilledCartNotifier extends SaleCartNotifier {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('Cart checkout becomes disabled when sale becomes read-only',
-      (tester) async {
+  testWidgets('Cart checkout becomes disabled when sale becomes read-only', (
+    tester,
+  ) async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
     final store = AuthSessionStore(prefs);
@@ -89,13 +90,7 @@ void main() {
           () => _PrefilledCartNotifier(
             const SaleCartState(
               saleId: 'sale-1',
-              lines: [
-                CartLine(
-                  item: item,
-                  quantity: 1,
-                  selectedOptionIds: {},
-                ),
-              ],
+              lines: [CartLine(item: item, quantity: 1, selectedOptionIds: {})],
             ),
           ),
         ),
@@ -128,10 +123,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(
-      find.textContaining('Cash session required'),
-      findsOneWidget,
-    );
+    expect(find.textContaining('Cash session required'), findsOneWidget);
     expect(find.widgetWithText(FilledButton, 'Cash session'), findsOneWidget);
     expect(tester.widget<FilledButton>(checkoutButton).onPressed, isNull);
   });

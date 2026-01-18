@@ -7,7 +7,6 @@ import 'package:modular_pos/core/widgets/navigation/portal_shell.dart';
 import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
-import 'package:modular_pos/features/policy/ui/viewmodels/policy_viewmodel.dart';
 import 'package:modular_pos/features/cash_session/ui/view/cashier_cash_session.dart';
 import 'package:modular_pos/features/cash_session/ui/view/x_report_page.dart';
 import 'package:modular_pos/features/cash_session/ui/view/z_report_page.dart';
@@ -205,11 +204,9 @@ class _AdminHomeContent extends StatelessWidget {
       _FeatureEntry(
         title: 'Staff',
         icon: Icons.group_outlined,
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => const StaffListView(),
-          ),
-        ),
+        onTap: () => Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const StaffListView())),
       ),
       _FeatureEntry(
         title: 'Menu',
@@ -247,11 +244,9 @@ class _AdminHomeContent extends StatelessWidget {
       _FeatureEntry(
         title: 'Z Report',
         icon: Icons.summarize_outlined,
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => const ZReportPage(),
-          ),
-        ),
+        onTap: () => Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const ZReportPage())),
       ),
       _FeatureEntry(
         title: 'Orders',
@@ -262,9 +257,7 @@ class _AdminHomeContent extends StatelessWidget {
         title: 'Attendance Management',
         icon: Icons.access_time_outlined,
         onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => const AttendanceManagementPage(),
-          ),
+          MaterialPageRoute(builder: (_) => const AttendanceManagementPage()),
         ),
       ),
       _FeatureEntry(
@@ -279,8 +272,8 @@ class _AdminHomeContent extends StatelessWidget {
         : [...globalFeatures, ...branchFeatures];
     String? selectedBranchId = branches.isNotEmpty
         ? (branches.first.branchId.isNotEmpty
-            ? branches.first.branchId
-            : branches.first.id)
+              ? branches.first.branchId
+              : branches.first.id)
         : null;
 
     return Column(
@@ -355,20 +348,20 @@ class _BranchSectionState extends ConsumerState<_BranchSection> {
         ? DropdownButton<String>(
             value: _selectedBranchId,
             items: widget.branches
-                .map((b) => DropdownMenuItem(
-                      value: _branchKey(b),
-                      child: Text(b.name),
-                    ))
+                .map(
+                  (b) => DropdownMenuItem(
+                    value: _branchKey(b),
+                    child: Text(b.name),
+                  ),
+                )
                 .toList(),
             onChanged: (value) {
               setState(() {
                 _selectedBranchId = value;
               });
-              ref.read(authActiveBranchOverrideProvider.notifier).state =
-                  value;
-              if (value != null && value.isNotEmpty) {
-                ref.read(policyNotifierProvider.notifier).load(branchId: value);
-              }
+              ref
+                  .read(authActiveBranchOverrideProvider.notifier)
+                  .setOverride(value);
             },
           )
         : InkWell(
@@ -462,12 +455,9 @@ class _BranchSectionState extends ConsumerState<_BranchSection> {
       setState(() {
         _selectedBranchId = _branchKey(selected);
       });
-      ref.read(authActiveBranchOverrideProvider.notifier).state =
-          _branchKey(selected);
-      final branchId = _branchKey(selected);
-      if (branchId.isNotEmpty) {
-        ref.read(policyNotifierProvider.notifier).load(branchId: branchId);
-      }
+      ref
+          .read(authActiveBranchOverrideProvider.notifier)
+          .setOverride(_branchKey(selected));
     }
   }
 }
@@ -557,11 +547,10 @@ class _FeatureCard extends StatelessWidget {
                 Text(
                   'Coming soon',
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .onSurface
-                            .withOpacity(0.6),
-                      ),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withOpacity(0.6),
+                  ),
                   textAlign: TextAlign.center,
                 ),
               ],

@@ -4,7 +4,7 @@ import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 import 'package:modular_pos/features/policy/ui/viewmodels/policy_viewmodel.dart';
 import 'package:modular_pos/features/cash_session/ui/viewmodels/x_report_viewmodel.dart';
 import 'package:modular_pos/features/sale/data/sale_repository.dart';
-import 'package:modular_pos/features/sale/ui/view/sale_item_detail_page.dart';
+import 'package:modular_pos/features/sale/ui/view/sale_item_detail/sale_item_detail_page.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_access_gate.dart';
 
 class CartLine {

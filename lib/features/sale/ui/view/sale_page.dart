@@ -11,8 +11,8 @@ import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
-import 'package:modular_pos/features/sale/ui/view/sale_cart_page.dart';
-import 'package:modular_pos/features/sale/ui/view/sale_item_detail_page.dart';
+import 'package:modular_pos/features/sale/ui/view/sale_cart/sale_cart_page.dart';
+import 'package:modular_pos/features/sale/ui/view/sale_item_detail/sale_item_detail_page.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_access_gate.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_viewmodel.dart';
 

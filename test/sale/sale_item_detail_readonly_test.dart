@@ -5,7 +5,7 @@ import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_state.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
-import 'package:modular_pos/features/sale/ui/view/sale_item_detail_page.dart';
+import 'package:modular_pos/features/sale/ui/view/sale_item_detail/sale_item_detail_page.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_access_gate.dart';
 
 class _StaticMenuViewModel extends MenuViewModel {
@@ -36,7 +36,9 @@ class _StaticMenuViewModel extends MenuViewModel {
 }
 
 void main() {
-  testWidgets('SaleItemDetailPage disables Add Item when blocked', (tester) async {
+  testWidgets('SaleItemDetailPage disables Add Item when blocked', (
+    tester,
+  ) async {
     await tester.binding.setSurfaceSize(const Size(800, 1200));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
@@ -76,9 +78,7 @@ void main() {
             ),
           ),
         ],
-        child: const MaterialApp(
-          home: SaleItemDetailPage(item: item),
-        ),
+        child: const MaterialApp(home: SaleItemDetailPage(item: item)),
       ),
     );
 

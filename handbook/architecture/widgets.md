@@ -3,16 +3,18 @@
 ## Reuse-first
 - Check existing widgets before creating new ones:
   - `lib/core/widgets/` (shared)
-  - `lib/features/<feature>/ui/widgets/` (feature-local)
+  - `lib/features/<feature>/ui/components/` (feature-local, shared across multiple pages in the feature)
+  - `lib/features/<feature>/ui/view/<page>/widgets/` (page-local)
 
 Practical workflow:
-1) Search the feature’s `ui/widgets/` first.
-2) Search `lib/core/widgets/` for an existing reusable primitive (cards, key-value rows, empty states, buttons).
-3) Only then create a new widget.
+1) Search the page’s `ui/view/<page>/widgets/` first (if you’re editing an existing page).
+2) Search the feature’s `ui/components/` for a reusable widget within the feature.
+3) Search `lib/core/widgets/` for an app-wide reusable primitive (cards, key-value rows, empty states, buttons).
+4) Only then create a new widget.
 
 ## Shared vs feature-local
 - Used in 2+ features → promote to `lib/core/widgets/`.
-- Used only in one feature → keep in `lib/features/<feature>/ui/widgets/`.
+- Used only in one feature → keep in `lib/features/<feature>/ui/components/` (if shared across pages) or colocate under the page folder (if page-local).
 - If duplication is unavoidable, keep it minimal and create a Jira follow-up to dedupe.
 
 ## Screen composition (practical)

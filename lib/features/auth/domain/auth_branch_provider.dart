@@ -7,7 +7,22 @@ import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 /// Note: today the "active branch" is derived from the auth session payload.
 /// When the app supports explicit branch switching, this provider should be the
 /// single source of truth.
-final authActiveBranchOverrideProvider = StateProvider<String?>((ref) => null);
+final authActiveBranchOverrideProvider =
+    NotifierProvider<AuthActiveBranchOverrideNotifier, String?>(
+      AuthActiveBranchOverrideNotifier.new,
+    );
+
+class AuthActiveBranchOverrideNotifier extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  void setOverride(String? branchId) {
+    final trimmed = (branchId ?? '').trim();
+    state = trimmed.isEmpty ? null : trimmed;
+  }
+
+  void clear() => state = null;
+}
 
 final authActiveBranchProvider = Provider<UserBranch?>((ref) {
   final session = ref.watch(loginControllerProvider).session;
@@ -17,12 +32,7 @@ final authActiveBranchProvider = Provider<UserBranch?>((ref) {
   if (overrideId != null && overrideId.trim().isNotEmpty) {
     final override = branches.firstWhere(
       (b) => b.id == overrideId || b.branchId == overrideId,
-      orElse: () => const UserBranch(
-        id: '',
-        name: '',
-        role: '',
-        active: false,
-      ),
+      orElse: () => const UserBranch(id: '', name: '', role: '', active: false),
     );
     if (override.id.isNotEmpty || override.branchId.isNotEmpty) {
       return override;

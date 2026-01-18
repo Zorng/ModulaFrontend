@@ -5,7 +5,6 @@ import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/theme/app_buttons.dart';
 import 'package:modular_pos/core/theme/app_gradient.dart';
 import 'package:modular_pos/core/theme/responsive.dart';
-import 'package:modular_pos/features/auth/domain/auth_token_provider.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 
 class LoginPage extends ConsumerStatefulWidget {
@@ -25,31 +24,26 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   @override
   void initState() {
     super.initState();
-    _loginSub = ref.listenManual<LoginState>(
-      loginControllerProvider,
-      (previous, next) {
-        final session = next.session;
-        final user = next.user;
-        if (!mounted || session == null || user == null) return;
+    _loginSub = ref.listenManual<LoginState>(loginControllerProvider, (
+      previous,
+      next,
+    ) {
+      final session = next.session;
+      final user = next.user;
+      if (!mounted || session == null || user == null) return;
 
-        // Update in-memory access token for network layer.
-        final token = session.accessToken;
-        if (token.isNotEmpty) {
-          ref.read(authAccessTokenProvider.notifier).state = token;
-        }
-        final route = session.requiresTenantSelection
-            ? AppRoute.tenantSelection.path
-            : switch (user.role.trim().toLowerCase()) {
-                'admin' => AppRoute.adminPortal.path,
-                'cashier' => AppRoute.cashierPortal.path,
-                'manager' => AppRoute.cashierPortal.path,
-                _ => AppRoute.cashierPortal.path,
-              };
-        if (_lastRoute == route) return;
-        _lastRoute = route;
-        context.go(route);
-      },
-    );
+      final route = session.requiresTenantSelection
+          ? AppRoute.tenantSelection.path
+          : switch (user.role.trim().toLowerCase()) {
+              'admin' => AppRoute.adminPortal.path,
+              'cashier' => AppRoute.cashierPortal.path,
+              'manager' => AppRoute.cashierPortal.path,
+              _ => AppRoute.cashierPortal.path,
+            };
+      if (_lastRoute == route) return;
+      _lastRoute = route;
+      context.go(route);
+    });
   }
 
   @override
@@ -139,10 +133,9 @@ class _MobileLoginForm extends StatelessWidget {
               AppGradients.textGradient.createShader(bounds),
           child: Text(
             'Modula',
-            style: Theme.of(context)
-                .textTheme
-                .headlineSmall
-                ?.copyWith(color: Colors.white),
+            style: Theme.of(
+              context,
+            ).textTheme.headlineSmall?.copyWith(color: Colors.white),
             textAlign: TextAlign.left,
           ),
         ),
@@ -173,25 +166,20 @@ class _MobileLoginForm extends StatelessWidget {
         ),
         const SizedBox(height: 16),
         if (state.error != null)
-          Text(
-            state.error!,
-            style: const TextStyle(color: Colors.red),
-          ),
+          Text(state.error!, style: const TextStyle(color: Colors.red)),
         const SizedBox(height: 8),
         FilledButton(
           style: AppButtons.primary(context),
           onPressed: state.isLoading
               ? null
-                  : () {
-                      controller.login(
-                        phoneCtrl.text.trim(),
-                        passwordCtrl.text.trim(),
-                      );
-                    },
+              : () {
+                  controller.login(
+                    phoneCtrl.text.trim(),
+                    passwordCtrl.text.trim(),
+                  );
+                },
           child: state.isLoading
-              ? const CircularProgressIndicator(
-                  strokeWidth: 2.5,
-                )
+              ? const CircularProgressIndicator(strokeWidth: 2.5)
               : const Text('Login'),
         ),
         const SizedBox(height: 8),
@@ -228,9 +216,7 @@ class _DesktopLoginForm extends StatelessWidget {
       constraints: const BoxConstraints(maxWidth: 420),
       child: Card(
         elevation: 4,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: _MobileLoginForm(
