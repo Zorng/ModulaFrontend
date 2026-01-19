@@ -7,10 +7,10 @@ import 'package:modular_pos/core/widgets/navigation/portal_shell.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/sale/ui/view/order/order_page.dart';
 import 'package:modular_pos/features/cash_session/ui/view/cashier_cash_session.dart';
-import 'package:modular_pos/features/cash_session/ui/view/x_report_page.dart';
+import 'package:modular_pos/features/cash_session/ui/view/x_report/x_report_page.dart';
 import 'package:modular_pos/features/staff/ui/view/staff_list_view.dart';
-import 'package:modular_pos/features/policy/ui/view/policy_page.dart';
-import 'package:modular_pos/features/staff_attendance/ui/view/attendance_page.dart';
+import 'package:modular_pos/features/policy/ui/view/policy/policy_page.dart';
+import 'package:modular_pos/features/staff_attendance/ui/view/attendance/attendance_page.dart';
 
 class CashierPortal extends ConsumerWidget {
   const CashierPortal({super.key});

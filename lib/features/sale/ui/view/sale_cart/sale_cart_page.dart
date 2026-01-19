@@ -9,7 +9,7 @@ import 'package:modular_pos/features/policy/ui/viewmodels/policy_viewmodel.dart'
 import 'package:modular_pos/features/sale/ui/viewmodels/order_viewmodel.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_viewmodel.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_access_gate.dart';
-import 'package:modular_pos/features/sale/ui/view/view_carts_page.dart';
+import 'package:modular_pos/features/sale/ui/view/view_carts/view_carts_page.dart';
 import 'package:modular_pos/features/sale/ui/view/sale_cart/widgets/sale_cart_bottom_bar.dart';
 import 'package:modular_pos/features/sale/ui/view/sale_cart/widgets/sale_cart_content.dart';
 import 'package:modular_pos/features/sale/ui/view/sale_cart/widgets/sale_cart_readonly_banner.dart';

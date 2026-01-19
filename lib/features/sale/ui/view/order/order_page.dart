@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:modular_pos/features/sale/ui/view/order_detail_page.dart';
+import 'package:modular_pos/features/sale/ui/view/order_detail/order_detail_page.dart';
 import 'package:modular_pos/features/sale/ui/view/order/widgets/order_card.dart';
 import 'package:modular_pos/features/sale/ui/view/order/widgets/order_filters_bar.dart';
 import 'package:modular_pos/features/sale/ui/view/order/widgets/order_status_bottom_sheet.dart';

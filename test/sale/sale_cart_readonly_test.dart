@@ -52,6 +52,19 @@ class _PrefilledCartNotifier extends SaleCartNotifier {
   SaleCartState build() => _initial;
 }
 
+class _TestSaleAccessGateNotifier extends Notifier<SaleAccessGate> {
+  @override
+  SaleAccessGate build() {
+    return const SaleAccessGate(
+      branchId: 'branch-1',
+      cashSessionOpen: true,
+      cashSessionLoading: false,
+    );
+  }
+
+  void setGate(SaleAccessGate value) => state = value;
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -62,12 +75,9 @@ void main() {
     final prefs = await SharedPreferences.getInstance();
     final store = AuthSessionStore(prefs);
 
-    final gateStateProvider = StateProvider<SaleAccessGate>(
-      (ref) => const SaleAccessGate(
-        branchId: 'branch-1',
-        cashSessionOpen: true,
-        cashSessionLoading: false,
-      ),
+    final gateStateProvider =
+        NotifierProvider<_TestSaleAccessGateNotifier, SaleAccessGate>(
+      _TestSaleAccessGateNotifier.new,
     );
 
     const item = MenuItem(

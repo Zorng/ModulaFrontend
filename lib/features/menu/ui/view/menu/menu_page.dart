@@ -5,8 +5,8 @@ import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
 import 'package:modular_pos/features/menu/ui/view/menu/widgets/menu_page_actions_menu.dart';
 import 'package:modular_pos/features/menu/ui/view/menu/widgets/menu_page_filter_bar.dart';
 import 'package:modular_pos/features/menu/ui/view/menu/widgets/menu_page_items_section.dart';
-import 'package:modular_pos/features/menu/ui/view/menu_item_form_page.dart';
-import 'package:modular_pos/features/menu/ui/view/view_menu_item_page.dart';
+import 'package:modular_pos/features/menu/ui/view/menu_item_form/menu_item_form_page.dart';
+import 'package:modular_pos/features/menu/ui/view/view_menu_item/view_menu_item_page.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
 
 class MenuPage extends ConsumerStatefulWidget {

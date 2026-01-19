@@ -6,30 +6,31 @@ import 'package:modular_pos/core/theme/app_theme.dart';
 import 'package:modular_pos/features/auth/ui/portals/admin_portal.dart';
 import 'package:modular_pos/features/auth/ui/portals/cashier_portal.dart';
 import 'package:modular_pos/features/auth/ui/view/login_view.dart';
-import 'package:modular_pos/features/auth/ui/view/tenant_selection_page.dart';
+import 'package:modular_pos/features/auth/ui/view/tenant_selection/tenant_selection_page.dart';
 import 'package:modular_pos/features/menu/ui/view/menu/menu_page.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/core/widgets/widget_gallery_page.dart';
-import 'package:modular_pos/features/policy/ui/view/policy_page.dart';
+import 'package:modular_pos/features/policy/ui/view/policy/policy_page.dart';
 import 'package:modular_pos/features/sale/ui/view/order/order_page.dart';
 import 'package:modular_pos/features/sale/ui/view/sale/sale_page.dart';
 import 'package:modular_pos/features/common/ui/settings_page.dart';
-import 'package:modular_pos/features/auth/ui/view/account_page.dart';
-import 'package:modular_pos/features/inventory/ui/view/category_management_page.dart';
-import 'package:modular_pos/features/inventory/ui/view/inventory_home_page.dart';
+import 'package:modular_pos/features/auth/ui/view/account/account_page.dart';
+import 'package:modular_pos/features/inventory/ui/view/category_management/category_management_page.dart';
+import 'package:modular_pos/features/inventory/ui/view/inventory_home/inventory_home_page.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
-import 'package:modular_pos/features/inventory/ui/view/add_stock_item_page.dart';
-import 'package:modular_pos/features/inventory/ui/view/stock_item_detail_page.dart';
-import 'package:modular_pos/features/inventory/ui/view/inventory_stock_items_page.dart';
-import 'package:modular_pos/features/inventory/ui/view/stock_adjust_quantity_page.dart';
-import 'package:modular_pos/features/inventory/ui/view/restock_stock_item_page.dart';
+import 'package:modular_pos/features/inventory/ui/view/add_stock_item/add_stock_item_page.dart';
+import 'package:modular_pos/features/inventory/ui/view/stock_item_detail/stock_item_detail_page.dart';
+import 'package:modular_pos/features/inventory/ui/view/inventory_stock_items/inventory_stock_items_page.dart';
+import 'package:modular_pos/features/inventory/ui/view/stock_adjust_quantity/stock_adjust_quantity_page.dart';
+import 'package:modular_pos/features/inventory/ui/view/restock_stock_item/restock_stock_item_page.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_journal_summary.dart';
-import 'package:modular_pos/features/inventory/ui/view/inventory_journal_page.dart';
-import 'package:modular_pos/features/inventory/ui/view/inventory_journal_detail_page.dart';
+import 'package:modular_pos/features/inventory/ui/view/inventory_journal/inventory_journal_page.dart';
+import 'package:modular_pos/features/inventory/ui/view/inventory_journal_detail/inventory_journal_detail_page.dart';
 import 'package:modular_pos/features/cash_session/ui/view/cashier_cash_session.dart';
-import 'package:modular_pos/features/cash_session/ui/view/x_report_page.dart';
-import 'package:modular_pos/features/cash_session/ui/view/z_report_page.dart';
+import 'package:modular_pos/features/cash_session/ui/view/x_report/x_report_page.dart';
+import 'package:modular_pos/features/cash_session/ui/view/z_report/z_report_page.dart';
 import 'package:modular_pos/features/policy/ui/viewmodels/policy_viewmodel.dart';
+import 'package:modular_pos/features/staff_attendance/ui/view/attendance_management/attendance_management_page.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -130,6 +131,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         return '/404';
       }
       if (path == AppRoute.zReport.path && role != 'admin') {
+        return '/404';
+      }
+      if (path == AppRoute.attendanceManagement.path && role != 'admin') {
         return '/404';
       }
 
@@ -280,6 +284,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoute.zReport.path,
         name: AppRoute.zReport.name,
         builder: (context, state) => const ZReportPage(),
+      ),
+      GoRoute(
+        path: AppRoute.attendanceManagement.path,
+        name: AppRoute.attendanceManagement.name,
+        builder: (context, state) => const AttendanceManagementPage(),
       ),
     ],
   );

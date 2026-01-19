@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:modular_pos/core/widgets/navigation/app_kebab_menu.dart';
-import 'package:modular_pos/features/menu/ui/view/categories_management_page.dart';
-import 'package:modular_pos/features/menu/ui/view/modifiers_management_page.dart';
+import 'package:modular_pos/features/menu/ui/view/categories_management/categories_management_page.dart';
+import 'package:modular_pos/features/menu/ui/view/modifiers_management/modifiers_management_page.dart';
 
 class MenuPageActionsMenu extends StatelessWidget {
   const MenuPageActionsMenu({super.key});
