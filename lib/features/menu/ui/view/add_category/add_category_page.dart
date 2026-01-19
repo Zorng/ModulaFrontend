@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import 'package:modular_pos/features/menu/ui/components/menu_form_field_label.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
@@ -29,7 +30,7 @@ class _AddCategoryPageState extends ConsumerState<AddCategoryPage> {
           description: _descriptionController.text.trim(),
           isActive: _isActive,
         );
-    if (mounted) Navigator.pop(context);
+    if (mounted) context.pop();
   }
 
   @override

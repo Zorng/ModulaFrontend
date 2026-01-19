@@ -15,12 +15,21 @@ Rule of engagement:
 
 ## P0 — Must address soon
 
-### TD-001 — Legacy Riverpod state management (StateNotifierProvider/StateNotifier)
+### TD-001 — State management inconsistency (provider patterns + async UX)
 
+- **Status:** In progress (Phase 1 completed: hydration orchestration)
 - **Symptom:** state management still relies on legacy Riverpod APIs in critical flows; patterns are inconsistent across features.
 - **Why it matters:** makes hydration/error handling inconsistent and increases circular dependency risk.
 - **Examples:**
   - `lib/features/auth/ui/viewmodels/login_controller.dart`
+- **Common sub-smells:**
+  - Side-effects triggered from provider `build()` (e.g., `Future.microtask(...)` patterns).
+  - Backend calls executed without `AsyncValue`/loading state, resulting in “frozen” UI.
+- **Progress so far:**
+  - Removed provider-build side effects for policy + cash session (no `Future.microtask(load)` in their `build()`).
+  - Centralized auth/tenant/branch hydration via `lib/core/hydration/app_hydration_listener.dart` (login/logout/branch switch now triggers policy + cash session reload consistently).
+  - Added widget coverage for hydration behavior: `test/core/hydration/app_hydration_listener_test.dart`.
+  - Fixed hydration listener implementation to use `ref.listenManual` (safe outside build) and defer initial session sync until after first frame (avoids Riverpod lifecycle mutation assertions).
 - **Proposed remediation:**
   - Migrate to `Notifier`/`AsyncNotifier` patterns per `handbook/non_negotiables.md`.
   - Keep the public API stable (UI shouldn’t change more than necessary).
@@ -29,6 +38,7 @@ Rule of engagement:
 
 ### TD-002 — Data layer leaks raw JSON/maps and “dynamic” types
 
+- **Status:** In progress (Reporting module migrated; Sale/Cash session pending)
 - **Symptom:** repositories/APIs return `Map<String, dynamic>` / `List<Map<String, dynamic>>` instead of domain models; UI/viewmodels often must interpret payloads.
 - **Why it matters:** API contract changes silently break runtime behavior; hard to test; encourages duplication.
 - **Examples:**
@@ -44,11 +54,23 @@ Rule of engagement:
   - Introduce DTOs in `data/dto/` and domain models in `domain/models/`.
   - Repositories return **domain models only**.
   - Keep API parsing localized to API/DTO layer.
+- **Progress so far:**
+  - Reporting now returns typed DTO/domain models (no raw `Map` escapes):
+    - `lib/features/reporting/data/dto/…`
+    - `lib/features/reporting/domain/models/…`
+    - `lib/features/reporting/data/reporting_api.dart`
+    - `lib/features/reporting/data/reporting_repository.dart`
+  - X/Z report viewmodels no longer parse JSON maps:
+    - `lib/features/cash_session/ui/viewmodels/x_report_viewmodel.dart`
+    - `lib/features/cash_session/ui/viewmodels/z_report_viewmodel.dart`
+  - Added fixture-based unit tests:
+    - `test/reporting/reporting_mapping_test.dart`
 - **Suggested tests:**
   - Parsing/mapping unit tests per endpoint payload (fixture-based).
 
 ### TD-003 — Navigation is inconsistent (go_router vs Navigator.push)
 
+- **Status:** Completed
 - **Symptom:** pages are pushed using `Navigator.push` in many places instead of the declared routing system.
 - **Why it matters:** back-stack inconsistencies, “no page found” surprises, and inconsistent deep-link behavior.
 - **Examples (non-exhaustive):**
@@ -64,9 +86,11 @@ Rule of engagement:
   - Allow `Navigator` only for true modal flows if needed (document exceptions).
 - **Suggested tests:**
   - Widget tests: verify key routes render and back navigation works for a few critical flows.
+  - Completed: replaced all `Navigator.push(...)` / `Navigator.of(context).push(...)` page navigation with `go_router` routes; modals still use `Navigator.pop(...)` where appropriate.
 
 ### TD-004 — Auth context changes are not orchestrated via a single “hydration” flow
 
+- **Status:** Completed (AppHydrationListener)
 - **Symptom:** login/logout/tenant selection/branch switching trigger multiple side effects in an ad-hoc way.
 - **Why it matters:** “works on first login only”, stale policies/cash session state, circular dependency errors.
 - **Examples:**
@@ -81,6 +105,7 @@ Rule of engagement:
   - Avoid triggering network loads from provider `build()` where possible; prefer explicit `load()/refresh()`.
 - **Suggested tests:**
   - Unit tests: “second login” still hydrates; tenant selection hydrates; logout resets without exceptions.
+  - Completed: `lib/core/hydration/app_hydration_listener.dart` orchestrates token/tenant/branch changes and refreshes branch-scoped state (policy + cash session) without provider-build side effects; covered by `test/core/hydration/app_hydration_listener_test.dart`.
 
 ---
 
@@ -88,6 +113,7 @@ Rule of engagement:
 
 ### TD-101 — Widget bloat (very large files / deep widget trees)
 
+- **Status:** In progress (page debloat largely done; dedupe/promote candidates ongoing)
 - **Symptom:** pages and repositories exceed ~500 LOC and mix concerns; hard to review and causes merge conflicts.
 - **Examples (largest files):**
   - `lib/features/sale/ui/view/sale_cart_page.dart`
@@ -100,6 +126,7 @@ Rule of engagement:
 - **Proposed remediation:**
   - Enforce screen composition rule: extract sections to `ui/widgets/` (feature) or `lib/core/widgets/` (shared).
   - Keep page files focused on composition + wiring.
+  - Track extracted widgets and promotion candidates in `refactorPlan/debloat_refactor_tracking.md`.
 - **Suggested tests:**
   - Widget tests on extracted widgets are optional, but keep/extend the screen-level tests for critical states.
 
@@ -132,6 +159,7 @@ Rule of engagement:
 - **Symptom:** toggles / TODOs exist that make it unclear what source-of-truth is.
 - **Examples:**
   - `lib/features/auth/data/auth_repository.dart` (`_useMockRepository`)
+  - `lib/features/inventory/data/stock_item_api.dart` (mock data embedded in API layer)
   - `lib/features/menu/data/menu_api.dart` (`TODO` for real endpoint)
   - `lib/features/menu/data/menu_mock_data_source.dart` (still present)
 - **Proposed remediation:**
@@ -167,4 +195,3 @@ When you create a Jira ticket from an item above, include:
 - **Touched files:** list
 - **Manual QA steps:** short list
 - **Test plan:** what tests you’ll add/adjust
-

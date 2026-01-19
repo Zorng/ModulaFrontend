@@ -1,0 +1,13 @@
+{
+  "success": true,
+  "data": [
+    {
+      "id": "11111111-1111-1111-1111-111111111111",
+      "status": "OPEN",
+      "openedByName": "John Smith",
+      "openedAt": "2025-12-23T08:00:00.000Z",
+      "closedAt": null
+    }
+  ]
+}
+

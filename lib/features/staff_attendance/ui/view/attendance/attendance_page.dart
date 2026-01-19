@@ -61,8 +61,9 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
       if (!mounted) return;
       setState(() => _errorMessage = 'Failed to load shift schedule');
     } finally {
-      if (!mounted) return;
-      setState(() => _scheduleLoading = false);
+      if (mounted) {
+        setState(() => _scheduleLoading = false);
+      }
     }
   }
 
@@ -100,8 +101,9 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
       if (!mounted) return;
       setState(() => _errorMessage = 'Failed to load attendance history');
     } finally {
-      if (!mounted) return;
-      setState(() => _historyLoading = false);
+      if (mounted) {
+        setState(() => _historyLoading = false);
+      }
     }
   }
 
@@ -142,8 +144,9 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
         const SnackBar(content: Text('Failed to update attendance.')),
       );
     } finally {
-      if (!mounted) return;
-      setState(() => _submitting = false);
+      if (mounted) {
+        setState(() => _submitting = false);
+      }
     }
   }
 
@@ -320,4 +323,3 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
     );
   }
 }
-

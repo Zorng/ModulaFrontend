@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/widgets/navigation/portal_action.dart';
+import 'package:modular_pos/core/widgets/navigation/portal_feature_card.dart';
 import 'package:modular_pos/core/widgets/navigation/portal_shell.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/sale/ui/view/order/order_page.dart';
@@ -115,9 +116,7 @@ class _CashierHomeContent extends ConsumerWidget {
       _FeatureEntry(
         title: 'Attendance',
         icon: Icons.access_time_outlined,
-        onTap: () => Navigator.of(
-          context,
-        ).push(MaterialPageRoute(builder: (_) => const AttendancePage())),
+        onTap: () => context.push(AppRoute.attendance.path),
       ),
       _FeatureEntry(
         title: 'X Report',
@@ -145,54 +144,13 @@ class _CashierHomeContent extends ConsumerWidget {
           childAspectRatio: isWide ? 1.4 : 1.0,
         ),
         itemCount: features.length,
-        itemBuilder: (context, index) => _FeatureCard(entry: features[index]),
-      ),
-    );
-  }
-}
-
-class _FeatureCard extends StatelessWidget {
-  const _FeatureCard({required this.entry});
-
-  final _FeatureEntry entry;
-
-  @override
-  Widget build(BuildContext context) {
-    final onTap =
-        entry.onTap ??
-        (entry.route != null ? () => context.push(entry.route!.path) : null);
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(10),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              CircleAvatar(
-                radius: 18,
-                backgroundColor: Theme.of(
-                  context,
-                ).colorScheme.primary.withValues(alpha: 0.1),
-                child: Icon(
-                  entry.icon,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                entry.title,
-                style: Theme.of(context).textTheme.labelMedium,
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ),
-        ),
+        itemBuilder: (context, index) {
+          final entry = features[index];
+          final onTap =
+              entry.onTap ??
+              (entry.route != null ? () => context.push(entry.route!.path) : null);
+          return PortalFeatureCard(title: entry.title, icon: entry.icon, onTap: onTap);
+        },
       ),
     );
   }
@@ -237,31 +195,6 @@ class _SaleShortcutCard extends StatelessWidget {
               icon: const Icon(Icons.point_of_sale),
               label: const Text('Open Sale'),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _PlaceholderCard extends StatelessWidget {
-  const _PlaceholderCard({required this.title, required this.content});
-
-  final String title;
-  final String content;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title, style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            Text(content),
           ],
         ),
       ),

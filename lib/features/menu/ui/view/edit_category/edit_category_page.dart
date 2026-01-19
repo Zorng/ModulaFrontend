@@ -109,10 +109,12 @@ class _EditCategoryPageState extends ConsumerState<EditCategoryPage> {
                   ),
                   onPressed: _isEditing
                       ? () async {
+                          final navigator = Navigator.of(context);
                           await ref
                               .read(menuViewModelProvider.notifier)
                               .deleteCategory(widget.category.id);
-                          if (mounted) Navigator.pop(context);
+                          if (!context.mounted) return;
+                          navigator.pop();
                         }
                       : null,
                   child: Text(

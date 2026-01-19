@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
+import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
-import 'package:modular_pos/features/menu/ui/view/edit_modifier_group/edit_modifier_group_page.dart';
-import 'package:modular_pos/features/menu/ui/view/view_modifier_group/view_modifier_group_page.dart';
 
 class ModifierGroupTile extends StatelessWidget {
   const ModifierGroupTile({
@@ -16,12 +16,7 @@ class ModifierGroupTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => ViewModifierGroupPage(group: group),
-          ),
-        );
+        context.push(AppRoute.adminMenuViewModifierGroup.path, extra: group);
       },
       child: Card(
         color: Colors.white,
@@ -45,12 +40,7 @@ class ModifierGroupTile extends StatelessWidget {
               IconButton(
                 icon: const Icon(Icons.edit_outlined),
                 onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => EditModifierGroupPage(group: group),
-                    ),
-                  );
+                  context.push(AppRoute.adminMenuEditModifierGroup.path, extra: group);
                 },
               ),
             ],

@@ -26,7 +26,7 @@ class StaffListCard extends StatelessWidget {
     return Card(
       color: Colors.white,
       elevation: 2.0,
-      shadowColor: Colors.grey.withOpacity(0.3),
+      shadowColor: Colors.grey.withValues(alpha: 0.3),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12.0),
       ),
@@ -59,7 +59,7 @@ class StaffListCard extends StatelessWidget {
         trailing: Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           decoration: BoxDecoration(
-            color: statusColor.withOpacity(0.12),
+            color: statusColor.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Text(

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
@@ -212,7 +213,7 @@ class _SaleItemDetailPageState extends ConsumerState<SaleItemDetailPage> {
                       unitPriceUsd: pricing.unitPriceUsd,
                       lineTotalUsd: pricing.lineTotalUsd,
                     );
-                    Navigator.pop(context, result);
+                    context.pop(result);
                   }
                 : null,
           ),

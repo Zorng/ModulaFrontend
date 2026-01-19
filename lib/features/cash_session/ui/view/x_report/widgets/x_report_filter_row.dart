@@ -49,7 +49,8 @@ class XReportFilterRow extends ConsumerWidget {
               ),
               const SizedBox(height: 6),
               DropdownButtonFormField<XReportStatusFilter>(
-                value: filters.status,
+                key: ValueKey(filters.status),
+                initialValue: filters.status,
                 decoration: const InputDecoration(
                   isDense: true,
                   border: OutlineInputBorder(),
@@ -80,4 +81,3 @@ class XReportFilterRow extends ConsumerWidget {
     );
   }
 }
-

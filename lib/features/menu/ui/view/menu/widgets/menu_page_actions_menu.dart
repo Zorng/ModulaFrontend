@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/widgets/navigation/app_kebab_menu.dart';
-import 'package:modular_pos/features/menu/ui/view/categories_management/categories_management_page.dart';
-import 'package:modular_pos/features/menu/ui/view/modifiers_management/modifiers_management_page.dart';
 
 class MenuPageActionsMenu extends StatelessWidget {
   const MenuPageActionsMenu({super.key});
@@ -13,23 +13,13 @@ class MenuPageActionsMenu extends StatelessWidget {
         KebabMenuItem(
           label: 'Categories Management',
           onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const CategoriesManagementPage(),
-              ),
-            );
+            context.push(AppRoute.adminMenuCategories.path);
           },
         ),
         KebabMenuItem(
           label: 'Modifiers Management',
           onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const ModifiersManagementPage(),
-              ),
-            );
+            context.push(AppRoute.adminMenuModifiers.path);
           },
         ),
       ],

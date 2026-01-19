@@ -1,12 +1,11 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/features/staff/ui/widgets/app_filter_dropdown.dart';
 import 'package:modular_pos/core/widgets/forms/app_search_add_bar.dart';
 import 'package:modular_pos/features/staff/domain/models/staff_model.dart';
 import 'package:modular_pos/features/staff/ui/widgets/staff_list_card.dart';
-import 'package:modular_pos/features/staff/ui/view/staff_detail_view.dart';
 import 'package:modular_pos/features/staff/data/staff_management_repository.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
@@ -45,7 +44,10 @@ class _StaffListViewState extends ConsumerState<StaffListView> {
   Future<void> _bootstrap() async {
     final user = ref.read(loginControllerProvider).user;
     final branches = user?.branches ?? const [];
-    final options = branches.map((b) => b.name).where((name) => name.isNotEmpty).toList();
+    final options = branches
+        .map((b) => b.name)
+        .where((name) => name.isNotEmpty)
+        .toList();
     setState(() {
       _branchOptions = options;
       if (user?.role.toLowerCase() != 'admin' && options.isNotEmpty) {
@@ -57,7 +59,8 @@ class _StaffListViewState extends ConsumerState<StaffListView> {
 
   String? _branchIdForName(String? name) {
     if (name == null) return null;
-    final branches = ref.read(loginControllerProvider).user?.branches ?? const [];
+    final branches =
+        ref.read(loginControllerProvider).user?.branches ?? const [];
     final match = branches.firstWhere(
       (b) => b.name == name,
       orElse: () => const UserBranch(id: '', name: '', role: '', active: false),
@@ -74,7 +77,9 @@ class _StaffListViewState extends ConsumerState<StaffListView> {
     try {
       final user = ref.read(loginControllerProvider).user;
       final isAdmin = user?.role.toLowerCase() == 'admin';
-      final branchId = isAdmin ? _branchIdForName(_selectedBranch) : _branchIdForName(_selectedBranch);
+      final branchId = isAdmin
+          ? _branchIdForName(_selectedBranch)
+          : _branchIdForName(_selectedBranch);
       final repo = ref.read(staffManagementRepositoryProvider);
       final staff = await repo.fetchStaff(branchId: branchId);
       if (!mounted) return;
@@ -87,15 +92,17 @@ class _StaffListViewState extends ConsumerState<StaffListView> {
         _errorMessage = 'Failed to load staff';
       });
     } finally {
-      if (!mounted) return;
-      setState(() => _loading = false);
+      if (mounted) {
+        setState(() => _loading = false);
+      }
     }
   }
 
   List<Staff> _filteredStaff() {
     return _staffList.where((staff) {
       final search = _searchQuery.trim().toLowerCase();
-      final matchesSearch = search.isEmpty ||
+      final matchesSearch =
+          search.isEmpty ||
           staff.userName.toLowerCase().contains(search) ||
           staff.phoneNumber.toLowerCase().contains(search);
       final matchesRole = _selectedRole == null || staff.role == _selectedRole;
@@ -111,7 +118,10 @@ class _StaffListViewState extends ConsumerState<StaffListView> {
       appBar: AppBar(
         // Per Figma: Add back button and set title to "Staff"
         // Use context.pop() for go_router compatibility
-        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => context.pop()),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.pop(),
+        ),
         title: const Text('Staff'),
       ),
       body: Padding(
@@ -128,11 +138,7 @@ class _StaffListViewState extends ConsumerState<StaffListView> {
               onAddPressed: widget.readOnly
                   ? null
                   : () {
-                      Navigator.of(context).push(
-                        CupertinoPageRoute(
-                          builder: (_) => const _ComingSoonPage(),
-                        ),
-                      );
+                      context.push(AppRoute.staffAdd.path);
                     },
             ),
             const SizedBox(height: 16),
@@ -183,57 +189,37 @@ class _StaffListViewState extends ConsumerState<StaffListView> {
               child: _loading
                   ? const Center(child: CircularProgressIndicator())
                   : _errorMessage != null
-                      ? Center(child: Text(_errorMessage!))
-                      : ListView.separated(
-                          itemCount: _filteredStaff().length,
-                          separatorBuilder: (context, index) =>
-                              const SizedBox(height: 10),
-                          itemBuilder: (context, index) {
-                            final staff = _filteredStaff()[index];
-                            return StaffListCard(
-                              staffMember: staff,
-                              onTap: () async {
-                                final result =
-                                    await Navigator.of(context).push<Staff>(
-                                  CupertinoPageRoute(
-                                    builder: (context) =>
-                                        StaffDetailView(staff: staff),
-                                  ),
-                                );
-
-                                if (result != null) {
-                                  final existingIndex = _staffList.indexWhere(
-                                    (item) => item.id == result.id,
-                                  );
-                                  if (existingIndex == -1) return;
-                                  setState(() {
-                                    _staffList[existingIndex] = result;
-                                  });
-                                }
-                              },
+                  ? Center(child: Text(_errorMessage!))
+                  : ListView.separated(
+                      itemCount: _filteredStaff().length,
+                      separatorBuilder: (context, index) =>
+                          const SizedBox(height: 10),
+                      itemBuilder: (context, index) {
+                        final staff = _filteredStaff()[index];
+                        return StaffListCard(
+                          staffMember: staff,
+                          onTap: () async {
+                            final result = await context.push<Staff>(
+                              AppRoute.staffDetail.path,
+                              extra: staff,
                             );
+
+                            if (result != null) {
+                              final existingIndex = _staffList.indexWhere(
+                                (item) => item.id == result.id,
+                              );
+                              if (existingIndex == -1) return;
+                              setState(() {
+                                _staffList[existingIndex] = result;
+                              });
+                            }
                           },
-                        ),
+                        );
+                      },
+                    ),
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _ComingSoonPage extends StatelessWidget {
-  const _ComingSoonPage();
-
-  @override
-  Widget build(BuildContext context) {
-    return  Scaffold(
-      appBar: AppBar(
-        title: Text('Coming soon'),
-        centerTitle: false,
-      ),
-      body: Center(
-        child: Text('Coming soon'),
       ),
     );
   }

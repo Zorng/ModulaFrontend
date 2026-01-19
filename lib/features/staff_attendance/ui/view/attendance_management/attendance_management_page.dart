@@ -68,8 +68,9 @@ class _AttendanceManagementPageState
             UserErrorMessage.build(context: 'Failed to load attendance', error: error),
       );
     } finally {
-      if (!mounted) return;
-      setState(() => _loading = false);
+      if (mounted) {
+        setState(() => _loading = false);
+      }
     }
   }
 
@@ -109,4 +110,3 @@ class _AttendanceManagementPageState
     );
   }
 }
-

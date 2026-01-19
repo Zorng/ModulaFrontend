@@ -7,10 +7,7 @@ import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/core/widgets/forms/app_search_bar.dart';
 import 'package:modular_pos/core/widgets/navigation/app_back_button.dart';
 import 'package:modular_pos/features/policy/ui/models/policy_models.dart';
-import 'package:modular_pos/features/policy/ui/view/early_check_in_detail/early_check_in_detail_page.dart';
-import 'package:modular_pos/features/policy/ui/view/inventory_policy_detail/inventory_policy_detail_page.dart';
-import 'package:modular_pos/features/policy/ui/view/policy_detail/policy_detail_page.dart';
-import 'package:modular_pos/features/policy/ui/view/vat_policy_detail/vat_policy_detail_page.dart';
+import 'package:modular_pos/features/policy/ui/view/policy/policy_route_args.dart';
 import 'package:modular_pos/features/policy/ui/viewmodels/policy_viewmodel.dart';
 import 'package:modular_pos/features/policy/ui/widgets/policy_section.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
@@ -27,74 +24,71 @@ class _PolicyPageState extends ConsumerState<PolicyPage> {
   String _search = '';
 
   // Local-only settings not yet backed by the API.
-  final Map<String, bool> _localToggleValues = {
-    'use_recipes': false,
-  };
+  final Map<String, bool> _localToggleValues = {'use_recipes': false};
 
-  final Map<String, String> _localSelectorValues = {
-  };
+  final Map<String, String> _localSelectorValues = {};
 
   List<PolicySectionData> get _sections => const [
-        PolicySectionData(
-          title: 'Tax & Currency',
-          items: [
-            PolicyItem(
-              id: 'apply_vat',
-              title: 'Apply VAT',
-              icon: Icons.receipt_long_outlined,
-              subtitle: 'Show VAT line on sales and receipts',
-              type: PolicyItemType.toggle,
-            ),
-            PolicyItem(
-              id: 'usd_to_khr',
-              title: 'KHR per USD',
-              icon: Icons.attach_money_outlined,
-              subtitle: 'Used to show KHR equivalent',
-              type: PolicyItemType.selector,
-              options: ['4000', '4100', '4150', '4200'],
-              defaultValue: '4100',
-            ),
-            PolicyItem(
-              id: 'rounding_mode',
-              title: 'Rounding mode',
-              icon: Icons.swap_vert,
-              subtitle: 'Nearest, up, or down',
-              type: PolicyItemType.selector,
-              options: ['Nearest', 'Up', 'Down'],
-              defaultValue: 'Nearest',
-            ),
-          ],
+    PolicySectionData(
+      title: 'Tax & Currency',
+      items: [
+        PolicyItem(
+          id: 'apply_vat',
+          title: 'Apply VAT',
+          icon: Icons.receipt_long_outlined,
+          subtitle: 'Show VAT line on sales and receipts',
+          type: PolicyItemType.toggle,
         ),
-        PolicySectionData(
-          title: 'Inventory Behavior',
-          items: [
-            PolicyItem(
-              id: 'subtract_stock',
-              title: 'Subtract stock on sale',
-              icon: Icons.inventory_2_outlined,
-              subtitle: 'Coming soon',
-              type: PolicyItemType.info,
-            ),
-            PolicyItem(
-              id: 'expiry_tracking',
-              title: 'Expiry tracking',
-              icon: Icons.event_available_outlined,
-              subtitle: 'Coming soon',
-              type: PolicyItemType.info,
-            ),
-          ],
+        PolicyItem(
+          id: 'usd_to_khr',
+          title: 'KHR per USD',
+          icon: Icons.attach_money_outlined,
+          subtitle: 'Used to show KHR equivalent',
+          type: PolicyItemType.selector,
+          options: ['4000', '4100', '4150', '4200'],
+          defaultValue: '4100',
         ),
-      ];
+        PolicyItem(
+          id: 'rounding_mode',
+          title: 'Rounding mode',
+          icon: Icons.swap_vert,
+          subtitle: 'Nearest, up, or down',
+          type: PolicyItemType.selector,
+          options: ['Nearest', 'Up', 'Down'],
+          defaultValue: 'Nearest',
+        ),
+      ],
+    ),
+    PolicySectionData(
+      title: 'Inventory Behavior',
+      items: [
+        PolicyItem(
+          id: 'subtract_stock',
+          title: 'Subtract stock on sale',
+          icon: Icons.inventory_2_outlined,
+          subtitle: 'Coming soon',
+          type: PolicyItemType.info,
+        ),
+        PolicyItem(
+          id: 'expiry_tracking',
+          title: 'Expiry tracking',
+          icon: Icons.event_available_outlined,
+          subtitle: 'Coming soon',
+          type: PolicyItemType.info,
+        ),
+      ],
+    ),
+  ];
 
-  void _openPolicyDetail(
+  Future<void> _openPolicyDetail(
     BuildContext context,
     PolicyItem item,
     dynamic currentValue,
-  ) {
+  ) async {
     if (item.type == PolicyItemType.info) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(item.subtitle ?? 'Coming soon')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(item.subtitle ?? 'Coming soon')));
       return;
     }
     if (_isReadOnly(ref.read(loginControllerProvider))) {
@@ -107,124 +101,45 @@ class _PolicyPageState extends ConsumerState<PolicyPage> {
     final policyState = ref.read(policyNotifierProvider);
 
     if (item.id == 'apply_vat') {
-      Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => VatPolicyDetailPage(
-            enabled: policyState.salesPolicy.saleVatEnabled,
-            currentRate:
-                _formatPercent(policyState.salesPolicy.saleVatRatePercent),
-            onSaved: (enabled, rate) async {
-              final numericRate =
-                  double.tryParse(rate.replaceAll('%', '').trim()) ?? 0;
-              await policyNotifier.updateVat(
-                enabled: enabled,
-                ratePercent: numericRate,
-              );
-              setState(() {});
-            },
-          ),
+      final result = await context.push<VatPolicySaveResult>(
+        AppRoute.policyVatDetail.path,
+        extra: VatPolicyDetailArgs(
+          enabled: policyState.salesPolicy.saleVatEnabled,
+          ratePercent: policyState.salesPolicy.saleVatRatePercent,
         ),
+      );
+      if (result == null) return;
+      await policyNotifier.updateVat(
+        enabled: result.enabled,
+        ratePercent: result.ratePercent,
       );
       return;
     }
 
-    if (item.id == 'subtract_stock') {
-      Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => InventoryPolicyDetailPage(
-            subtractStock:
-                policyState.inventoryPolicy.inventoryAutoSubtractOnSale,
-            useRecipes: _localToggleValues['use_recipes'] ?? false,
-            onSaved: (subtractStock, useRecipes) async {
-              _localToggleValues['use_recipes'] = useRecipes;
-              await policyNotifier.updateInventory(
-                autoSubtractOnSale: subtractStock,
-                expiryTrackingEnabled:
-                    policyState.inventoryPolicy.inventoryExpiryTrackingEnabled,
-              );
-              setState(() {});
-            },
-          ),
-        ),
-      );
-      return;
-    }
-
-    if (item.id == 'early_check_in_buffer') {
-      Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => EarlyCheckInDetailPage(
-            enabled:
-                policyState.attendancePolicy.attendanceEarlyCheckinBufferEnabled,
-            duration: _durationLabel(
-                policyState.attendancePolicy.attendanceCheckinBufferMinutes),
-            onSaved: (enabled, duration) {
-              final minutes = _durationToMinutes(duration);
-              policyNotifier.updateAttendance(
-                earlyCheckinBufferEnabled: enabled,
-                checkinBufferMinutes: minutes,
-              );
-              setState(() {});
-            },
-          ),
-        ),
-      );
-      return;
-    }
-
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => PolicyDetailPage(
-          item: item,
-          value: currentValue,
-          onSaved: (newValue) async {
-            if (item.id == 'usd_to_khr') {
-              final rate = double.tryParse(newValue.toString()) ?? 0;
-              await policyNotifier.updateCurrency(rate);
-            } else if (item.id == 'rounding_mode') {
-              final backendValue = _roundingToBackend(newValue.toString());
-              await policyNotifier.updateRounding(
-                roundingMode: backendValue,
-              );
-            } else if (item.id == 'expiry_tracking') {
-              await policyNotifier.updateInventory(
-                expiryTrackingEnabled: newValue as bool,
-                autoSubtractOnSale:
-                    policyState.inventoryPolicy.inventoryAutoSubtractOnSale,
-              );
-            } else if (item.id == 'allow_paid_out') {
-              await policyNotifier.updateCashSession(
-                allowPaidOut: newValue as bool,
-              );
-            } else if (item.id == 'cash_refund_approval') {
-              await policyNotifier.updateCashSession(
-                requireRefundApproval: newValue as bool,
-              );
-            } else if (item.id == 'manual_cash_adjustment') {
-              await policyNotifier.updateCashSession(
-                allowManualAdjustment: newValue as bool,
-              );
-            } else if (item.id == 'cash_session_attendance') {
-              await policyNotifier.updateAttendance(
-                autoFromCashSession: newValue as bool,
-              );
-            } else if (item.id == 'out_of_shift_approval') {
-              await policyNotifier.updateAttendance(
-                requireOutOfShiftApproval: newValue as bool,
-              );
-            } else {
-              // Local-only items keep their state here.
-              if (item.type == PolicyItemType.toggle) {
-                _localToggleValues[item.id] = newValue as bool;
-              } else {
-                _localSelectorValues[item.id] = newValue as String;
-              }
-            }
-            setState(() {});
-          },
-        ),
-      ),
+    final newValue = await context.push<dynamic>(
+      AppRoute.policyItemDetail.path,
+      extra: PolicyItemDetailArgs(item: item, value: currentValue),
     );
+    if (newValue == null) return;
+
+    if (item.id == 'usd_to_khr') {
+      final rate = double.tryParse(newValue.toString()) ?? 0;
+      await policyNotifier.updateCurrency(rate);
+      return;
+    }
+
+    if (item.id == 'rounding_mode') {
+      final backendValue = _roundingToBackend(newValue.toString());
+      await policyNotifier.updateRounding(roundingMode: backendValue);
+      return;
+    }
+
+    if (item.type == PolicyItemType.toggle) {
+      _localToggleValues[item.id] = newValue as bool;
+    } else {
+      _localSelectorValues[item.id] = newValue.toString();
+    }
+    setState(() {});
   }
 
   bool _isReadOnly(LoginState state) {
@@ -308,13 +223,11 @@ class _PolicyPageState extends ConsumerState<PolicyPage> {
                         padding: const EdgeInsets.only(top: 8, bottom: 4),
                         child: Text(
                           'Read-only: contact an admin to update policies.',
-                          style: Theme.of(context)
-                              .textTheme
-                              .labelMedium
+                          style: Theme.of(context).textTheme.labelMedium
                               ?.copyWith(
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .onSurfaceVariant,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
                               ),
                         ),
                       ),
@@ -377,10 +290,10 @@ class _PolicyPageState extends ConsumerState<PolicyPage> {
       ..._localSelectorValues,
       'vat_rate': _formatPercent(state.salesPolicy.saleVatRatePercent),
       'usd_to_khr': state.salesPolicy.saleFxRateKhrPerUsd.toStringAsFixed(0),
-      'rounding_mode':
-          _roundingLabel(state.salesPolicy.saleKhrRoundingMode),
-      'early_check_in_duration':
-          _durationLabel(state.attendancePolicy.attendanceCheckinBufferMinutes),
+      'rounding_mode': _roundingLabel(state.salesPolicy.saleKhrRoundingMode),
+      'early_check_in_duration': _durationLabel(
+        state.attendancePolicy.attendanceCheckinBufferMinutes,
+      ),
     };
   }
 
@@ -416,17 +329,6 @@ class _PolicyPageState extends ConsumerState<PolicyPage> {
         return '1 hour';
       default:
         return '15 min';
-    }
-  }
-
-  int _durationToMinutes(String label) {
-    switch (label.toLowerCase()) {
-      case '30 min':
-        return 30;
-      case '1 hour':
-        return 60;
-      default:
-        return 15;
     }
   }
 }

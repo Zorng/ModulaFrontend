@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/feedback/user_error_message.dart';
+import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/features/sale/data/sale_repository.dart';
 import 'package:modular_pos/features/sale/ui/components/view_carts/sale_summary.dart';
-import 'package:modular_pos/features/sale/ui/view/view_cart_detail/view_cart_detail_page.dart';
 import 'package:modular_pos/features/sale/ui/view/view_carts/widgets/sale_summary_card.dart';
 import 'package:modular_pos/features/sale/ui/view/view_carts/widgets/view_carts_filters.dart';
 
@@ -40,7 +41,10 @@ class _ViewCartsPageState extends ConsumerState<ViewCartsPage> {
       endDate: end,
       limit: 100,
     );
-    return data.map(SaleSummary.fromJson).where((s) => s.id.isNotEmpty).toList();
+    return data
+        .map(SaleSummary.fromJson)
+        .where((s) => s.id.isNotEmpty)
+        .toList();
   }
 
   Future<void> _pickDate() async {
@@ -87,9 +91,9 @@ class _ViewCartsPageState extends ConsumerState<ViewCartsPage> {
     try {
       await repo.voidSale(sale.id, reason: 'Voided from POS');
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Draft voided')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Draft voided')));
       setState(() => _future = _loadSales());
     } catch (e) {
       if (!mounted) return;
@@ -104,23 +108,13 @@ class _ViewCartsPageState extends ConsumerState<ViewCartsPage> {
   }
 
   void _openSale(SaleSummary sale) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => ViewCartDetailPage(summary: sale)),
-    );
+    context.push(AppRoute.saleViewCartDetail.path, extra: sale);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
-        centerTitle: false,
-        title: const Text('Carts'),
-      ),
+      appBar: AppBar(centerTitle: false, title: const Text('Carts')),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -170,7 +164,9 @@ class _ViewCartsPageState extends ConsumerState<ViewCartsPage> {
                       child: SaleSummaryCard(
                         summary: sale,
                         onTap: () => _openSale(sale),
-                        onVoid: sale.state == 'draft' ? () => _voidSale(sale) : null,
+                        onVoid: sale.state == 'draft'
+                            ? () => _voidSale(sale)
+                            : null,
                       ),
                     );
                   },

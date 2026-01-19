@@ -84,8 +84,9 @@ class CashSessionState {
       totalPaidOut: totalPaidOut ?? this.totalPaidOut,
       hasCashMovement: hasCashMovement ?? this.hasCashMovement,
       sessionId: sessionId == _unset ? this.sessionId : sessionId as String?,
-      registerId:
-          registerId == _unset ? this.registerId : registerId as String?,
+      registerId: registerId == _unset
+          ? this.registerId
+          : registerId as String?,
       registerName: registerName == _unset
           ? this.registerName
           : registerName as String?,
@@ -102,13 +103,14 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
 
   @override
   CashSessionState build() {
-    // Rebuild when auth or branch changes so session hydrates per user.
-    ref.watch(loginControllerProvider.select((state) {
-      return state.session?.accessToken ?? '';
-    }));
-    final branchId = ref.watch(authActiveBranchIdProvider);
-    Future.microtask(load);
-    return const CashSessionState(isLoading: true);
+    // Rebuild when auth or branch changes so session is tied to user context.
+    ref.watch(
+      loginControllerProvider.select(
+        (state) => state.session?.accessToken ?? '',
+      ),
+    );
+    ref.watch(authActiveBranchIdProvider);
+    return const CashSessionState(isLoading: false);
   }
 
   Future<void> load({String? registerId, String? branchIdOverride}) async {
@@ -137,6 +139,10 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
         hasCashMovement: false,
       );
     }
+  }
+
+  void reset() {
+    state = const CashSessionState(isLoading: false);
   }
 
   Future<void> _fetchActiveSession({

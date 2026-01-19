@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/widgets/media/product_image.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
-import 'package:modular_pos/features/menu/ui/view/menu_item_form/menu_item_form_page.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
 import 'package:modular_pos/features/menu/ui/view/view_menu_item/view_menu_item_utils.dart';
 
@@ -59,11 +60,9 @@ class ViewMenuItemPage extends ConsumerWidget {
         actions: [
           TextButton(
             onPressed: () async {
-              final updated = await Navigator.push<MenuItem>(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => MenuItemFormPage(initialItem: latestItem),
-                ),
+              final updated = await context.push<MenuItem>(
+                AppRoute.adminMenuItemForm.path,
+                extra: latestItem,
               );
               if (updated != null && context.mounted) {
                 await menuVm.loadItemWithModifiers(updated.id);

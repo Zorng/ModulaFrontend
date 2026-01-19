@@ -1,7 +1,9 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/feedback/user_error_message.dart';
+import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/widgets/display/menu_item_card.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_category.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
@@ -50,9 +52,9 @@ class SalePageMenuCatalog extends ConsumerWidget {
           price: item.price,
           imagePath: item.imageUrl,
           onTap: () async {
-            final selection = await Navigator.push<SaleItemSelectionResult>(
-              context,
-              MaterialPageRoute(builder: (_) => SaleItemDetailPage(item: item)),
+            final selection = await context.push<SaleItemSelectionResult>(
+              AppRoute.saleItemDetail.path,
+              extra: item,
             );
             if (selection != null && context.mounted) {
               final gate = ref.read(saleAccessGateProvider);

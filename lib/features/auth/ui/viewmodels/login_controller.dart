@@ -3,8 +3,6 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/features/auth/data/auth_repository.dart';
 import 'package:modular_pos/features/auth/data/auth_session_store.dart';
-import 'package:modular_pos/features/auth/domain/auth_tenant_provider.dart';
-import 'package:modular_pos/features/auth/domain/auth_token_provider.dart';
 import 'package:modular_pos/features/auth/domain/models/auth_session.dart';
 import 'package:modular_pos/features/auth/domain/models/tenant_membership.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
@@ -38,11 +36,6 @@ class LoginController extends Notifier<LoginState> {
   @override
   LoginState build() {
     final initialSession = ref.read(initialAuthSessionProvider);
-    if (initialSession != null) {
-      Future.microtask(() => _applySessionContext(initialSession));
-    } else {
-      Future.microtask(_clearSessionContext);
-    }
     return LoginState(session: initialSession);
   }
 
@@ -56,7 +49,6 @@ class LoginController extends Notifier<LoginState> {
           session.accessToken.trim().isNotEmpty) {
         await _sessionStore.save(session);
       }
-      _applySessionContext(session);
 
       state = state.copyWith(isLoading: false, session: session);
     } catch (e, st) {
@@ -72,18 +64,6 @@ class LoginController extends Notifier<LoginState> {
         error: 'Login failed', // you can inspect e for more details
       );
     }
-  }
-
-  void _applySessionContext(AuthSession session) {
-    ref.read(authAccessTokenProvider.notifier).setToken(session.accessToken);
-
-    final tenantId = (session.activeTenantId ?? session.user.tenantId).trim();
-    ref.read(authTenantIdProvider.notifier).setTenantId(tenantId);
-  }
-
-  void _clearSessionContext() {
-    ref.read(authAccessTokenProvider.notifier).clear();
-    ref.read(authTenantIdProvider.notifier).clear();
   }
 
   Future<void> selectTenant(String tenantId) async {
@@ -108,7 +88,6 @@ class LoginController extends Notifier<LoginState> {
         );
 
         await _sessionStore.save(nextSession);
-        _applySessionContext(nextSession);
         state = state.copyWith(isLoading: false, session: nextSession);
         return;
       }
@@ -136,7 +115,6 @@ class LoginController extends Notifier<LoginState> {
       );
 
       await _sessionStore.save(nextSession);
-      _applySessionContext(nextSession);
       state = state.copyWith(isLoading: false, session: nextSession);
     } catch (e, st) {
       assert(() {
@@ -155,7 +133,6 @@ class LoginController extends Notifier<LoginState> {
 
   Future<void> logout() async {
     await _sessionStore.clear();
-    _clearSessionContext();
     state = const LoginState();
   }
 }

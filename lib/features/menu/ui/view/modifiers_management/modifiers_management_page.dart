@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import 'package:modular_pos/core/widgets/forms/app_search_add_bar.dart';
-import 'package:modular_pos/features/menu/ui/view/add_modifier_group/add_modifier_group_page.dart';
+import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/features/menu/ui/view/modifiers_management/widgets/modifier_group_tile.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
 
@@ -52,12 +53,7 @@ class _ModifiersManagementPageState
                 setState(() => _searchQuery = value);
               },
               onAddPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const AddModifierGroupPage(),
-                  ),
-                );
+                context.push(AppRoute.adminMenuAddModifierGroup.path);
               },
             ),
             const SizedBox(height: 16),

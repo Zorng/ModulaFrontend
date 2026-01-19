@@ -141,7 +141,8 @@ class _AddCashMovementModalState extends State<AddCashMovementModal> {
             style: TextStyle(fontWeight: FontWeight.w500)),
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
-          value: _selectedType,
+          key: ValueKey(_selectedType),
+          initialValue: _selectedType,
           decoration: decoration,
           items: ['Paid In', 'Paid Out']
               .map((label) => DropdownMenuItem(

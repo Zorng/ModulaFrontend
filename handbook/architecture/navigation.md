@@ -16,6 +16,12 @@
   - Avoid: passing a full `MenuItem` in `extra` for long-lived navigation
 - `extra` is allowed only for short-lived flows where the data is already in memory and re-fetching would be wasteful (e.g., a form step in the same flow).
 
+## Path conventions (non-negotiable)
+- Role-scoped pages live under: `/portal/<role>/...` (example: `/portal/admin/inventory`).
+- Cross-role pages live under: `/portal/...` (example: `/portal/x-report`).
+- Do not introduce mixed prefixes like `/admin/portal/...` or `/portal/admin/...` for the same module.
+- Keep “module root” paths stable and nest sub-pages beneath them (example: `/portal/admin/menu/...`).
+
 ## Stack guidance
 - Use `context.go(...)` for switching destinations (portal/home/tab) to avoid confusing back behavior.
 - Use `context.push(...)` for details/sub-pages.

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:modular_pos/core/hydration/app_hydration_listener.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/theme/app_theme.dart';
 import 'package:modular_pos/features/auth/ui/portals/admin_portal.dart';
@@ -8,11 +9,32 @@ import 'package:modular_pos/features/auth/ui/portals/cashier_portal.dart';
 import 'package:modular_pos/features/auth/ui/view/login_view.dart';
 import 'package:modular_pos/features/auth/ui/view/tenant_selection/tenant_selection_page.dart';
 import 'package:modular_pos/features/menu/ui/view/menu/menu_page.dart';
+import 'package:modular_pos/features/menu/ui/view/categories_management/categories_management_page.dart';
+import 'package:modular_pos/features/menu/ui/view/add_category/add_category_page.dart';
+import 'package:modular_pos/features/menu/domain/models/menu_category.dart';
+import 'package:modular_pos/features/menu/ui/view/edit_category/edit_category_page.dart';
+import 'package:modular_pos/features/menu/ui/view/modifiers_management/modifiers_management_page.dart';
+import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
+import 'package:modular_pos/features/menu/ui/view/add_modifier_group/add_modifier_group_page.dart';
+import 'package:modular_pos/features/menu/ui/view/view_modifier_group/view_modifier_group_page.dart';
+import 'package:modular_pos/features/menu/ui/view/edit_modifier_group/edit_modifier_group_page.dart';
+import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
+import 'package:modular_pos/features/menu/ui/view/menu_item_form/menu_item_form_page.dart';
+import 'package:modular_pos/features/menu/ui/view/view_menu_item/view_menu_item_page.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/core/widgets/widget_gallery_page.dart';
 import 'package:modular_pos/features/policy/ui/view/policy/policy_page.dart';
+import 'package:modular_pos/features/policy/ui/view/policy/policy_route_args.dart';
+import 'package:modular_pos/features/policy/ui/view/policy_detail/policy_detail_page.dart';
+import 'package:modular_pos/features/policy/ui/view/vat_policy_detail/vat_policy_detail_page.dart';
 import 'package:modular_pos/features/sale/ui/view/order/order_page.dart';
+import 'package:modular_pos/features/sale/ui/view/order_detail/order_detail_page.dart';
 import 'package:modular_pos/features/sale/ui/view/sale/sale_page.dart';
+import 'package:modular_pos/features/sale/ui/view/sale_cart/sale_cart_page.dart';
+import 'package:modular_pos/features/sale/ui/view/sale_item_detail/sale_item_detail_page.dart';
+import 'package:modular_pos/features/sale/ui/view/view_carts/view_carts_page.dart';
+import 'package:modular_pos/features/sale/ui/components/view_carts/sale_summary.dart';
+import 'package:modular_pos/features/sale/ui/view/view_cart_detail/view_cart_detail_page.dart';
 import 'package:modular_pos/features/common/ui/settings_page.dart';
 import 'package:modular_pos/features/auth/ui/view/account/account_page.dart';
 import 'package:modular_pos/features/inventory/ui/view/category_management/category_management_page.dart';
@@ -29,7 +51,12 @@ import 'package:modular_pos/features/inventory/ui/view/inventory_journal_detail/
 import 'package:modular_pos/features/cash_session/ui/view/cashier_cash_session.dart';
 import 'package:modular_pos/features/cash_session/ui/view/x_report/x_report_page.dart';
 import 'package:modular_pos/features/cash_session/ui/view/z_report/z_report_page.dart';
-import 'package:modular_pos/features/policy/ui/viewmodels/policy_viewmodel.dart';
+import 'package:modular_pos/features/staff/ui/view/staff_list_view.dart';
+import 'package:modular_pos/features/staff/domain/models/staff_model.dart';
+import 'package:modular_pos/features/staff/ui/view/staff_add_placeholder_page.dart';
+import 'package:modular_pos/features/staff/ui/view/staff_detail_view.dart';
+import 'package:modular_pos/features/staff/ui/view/staff_form_view.dart';
+import 'package:modular_pos/features/staff_attendance/ui/view/attendance/attendance_page.dart';
 import 'package:modular_pos/features/staff_attendance/ui/view/attendance_management/attendance_management_page.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -49,6 +76,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final authState = ref.read(loginControllerProvider);
       final session = authState.session;
       final path = state.uri.path; // current path
+
+      // Legacy path aliases (keep old bookmarks working).
+      if (path.startsWith('/admin/portal/menu')) {
+        return path.replaceFirst('/admin/portal/menu', AppRoute.adminMenu.path);
+      }
       final isLoggingIn = path == AppRoute.login.path;
       final isTenantSelection = path == AppRoute.tenantSelection.path;
 
@@ -86,27 +118,26 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       }
 
       // Authenticated but not allowed to access admin portal/menu → 404
+      bool isInPathGroup(String root) {
+        return path == root || path.startsWith('$root/');
+      }
+
       if ((path == AppRoute.adminPortal.path ||
-              path == AppRoute.adminMenu.path) &&
+              isInPathGroup(AppRoute.adminMenu.path)) &&
           role != 'admin') {
         return '/404';
       }
 
       // Authenticated but not allowed to access policy → 404
-      if (path == AppRoute.policy.path &&
+      if (isInPathGroup(AppRoute.policy.path) &&
           role != 'admin' &&
           role != 'cashier') {
         return '/404';
       }
-      if ((path == AppRoute.inventory.path ||
-              path == AppRoute.inventoryAddItem.path ||
-              path == AppRoute.inventoryStockDetail.path ||
-              path == AppRoute.inventoryStockItems.path ||
-              path == AppRoute.inventoryRestock.path ||
-              path == AppRoute.inventoryCategories.path ||
-              path == AppRoute.inventoryJournal.path ||
-              path == AppRoute.inventoryJournalDetail.path) &&
-          role != 'admin') {
+      if (isInPathGroup(AppRoute.inventory.path) && role != 'admin') {
+        return '/404';
+      }
+      if (isInPathGroup(AppRoute.staff.path) && role != 'admin') {
         return '/404';
       }
       // Authenticated but not allowed to access cashier portal → 404
@@ -117,12 +148,17 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       }
 
       // Authenticated but not allowed to access cashier dashboard → 404
-      if (path == AppRoute.cashierCashSession.path &&
+      if (isInPathGroup(AppRoute.cashierCashSession.path) &&
           role != 'cashier' &&
           role != 'admin') {
         return '/404';
       }
       if (path == AppRoute.adminCashSession.path && role != 'admin') {
+        return '/404';
+      }
+      if (isInPathGroup(AppRoute.attendance.path) &&
+          role != 'cashier' &&
+          role != 'manager') {
         return '/404';
       }
       if (path == AppRoute.xReport.path &&
@@ -169,9 +205,91 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const MenuPage(),
       ),
       GoRoute(
+        path: AppRoute.adminMenuCategories.path,
+        name: AppRoute.adminMenuCategories.name,
+        builder: (context, state) => const CategoriesManagementPage(),
+      ),
+      GoRoute(
+        path: AppRoute.adminMenuAddCategory.path,
+        name: AppRoute.adminMenuAddCategory.name,
+        builder: (context, state) => const AddCategoryPage(),
+      ),
+      GoRoute(
+        path: AppRoute.adminMenuEditCategory.path,
+        name: AppRoute.adminMenuEditCategory.name,
+        builder: (context, state) {
+          final category = state.extra as MenuCategory;
+          return EditCategoryPage(category: category);
+        },
+      ),
+      GoRoute(
+        path: AppRoute.adminMenuModifiers.path,
+        name: AppRoute.adminMenuModifiers.name,
+        builder: (context, state) => const ModifiersManagementPage(),
+      ),
+      GoRoute(
+        path: AppRoute.adminMenuAddModifierGroup.path,
+        name: AppRoute.adminMenuAddModifierGroup.name,
+        builder: (context, state) => const AddModifierGroupPage(),
+      ),
+      GoRoute(
+        path: AppRoute.adminMenuViewModifierGroup.path,
+        name: AppRoute.adminMenuViewModifierGroup.name,
+        builder: (context, state) {
+          final group = state.extra as ModifierGroup;
+          return ViewModifierGroupPage(group: group);
+        },
+      ),
+      GoRoute(
+        path: AppRoute.adminMenuEditModifierGroup.path,
+        name: AppRoute.adminMenuEditModifierGroup.name,
+        builder: (context, state) {
+          final group = state.extra as ModifierGroup;
+          return EditModifierGroupPage(group: group);
+        },
+      ),
+      GoRoute(
+        path: AppRoute.adminMenuItemForm.path,
+        name: AppRoute.adminMenuItemForm.name,
+        builder: (context, state) {
+          final item = state.extra is MenuItem ? state.extra as MenuItem : null;
+          return MenuItemFormPage(initialItem: item);
+        },
+      ),
+      GoRoute(
+        path: AppRoute.adminMenuViewMenuItem.path,
+        name: AppRoute.adminMenuViewMenuItem.name,
+        builder: (context, state) {
+          final item = state.extra as MenuItem;
+          return ViewMenuItemPage(menuItem: item);
+        },
+      ),
+      GoRoute(
         path: AppRoute.policy.path,
         name: AppRoute.policy.name,
         builder: (context, state) => const PolicyPage(),
+      ),
+      GoRoute(
+        path: AppRoute.policyVatDetail.path,
+        name: AppRoute.policyVatDetail.name,
+        builder: (context, state) {
+          final args = state.extra as VatPolicyDetailArgs;
+          final rateText = args.ratePercent == args.ratePercent.roundToDouble()
+              ? args.ratePercent.toInt().toString()
+              : args.ratePercent.toString();
+          return VatPolicyDetailPage(
+            enabled: args.enabled,
+            currentRate: '$rateText%',
+          );
+        },
+      ),
+      GoRoute(
+        path: AppRoute.policyItemDetail.path,
+        name: AppRoute.policyItemDetail.name,
+        builder: (context, state) {
+          final args = state.extra as PolicyItemDetailArgs;
+          return PolicyDetailPage(item: args.item, value: args.value);
+        },
       ),
       GoRoute(
         path: AppRoute.account.path,
@@ -187,6 +305,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoute.cashierPortal.path,
         name: AppRoute.cashierPortal.name,
         builder: (context, state) => const CashierPortal(),
+      ),
+      GoRoute(
+        path: AppRoute.attendance.path,
+        name: AppRoute.attendance.name,
+        builder: (context, state) => const AttendancePage(),
       ),
       GoRoute(
         path: AppRoute.inventory.path,
@@ -261,9 +384,43 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const SalePage(),
       ),
       GoRoute(
+        path: AppRoute.saleCart.path,
+        name: AppRoute.saleCart.name,
+        builder: (context, state) => const SaleCartPage(),
+      ),
+      GoRoute(
+        path: AppRoute.saleItemDetail.path,
+        name: AppRoute.saleItemDetail.name,
+        builder: (context, state) {
+          final item = state.extra as MenuItem;
+          return SaleItemDetailPage(item: item);
+        },
+      ),
+      GoRoute(
+        path: AppRoute.saleViewCarts.path,
+        name: AppRoute.saleViewCarts.name,
+        builder: (context, state) => const ViewCartsPage(),
+      ),
+      GoRoute(
+        path: AppRoute.saleViewCartDetail.path,
+        name: AppRoute.saleViewCartDetail.name,
+        builder: (context, state) {
+          final summary = state.extra as SaleSummary;
+          return ViewCartDetailPage(summary: summary);
+        },
+      ),
+      GoRoute(
         path: AppRoute.orders.path,
         name: AppRoute.orders.name,
         builder: (context, state) => const OrderPage(),
+      ),
+      GoRoute(
+        path: AppRoute.orderDetail.path,
+        name: AppRoute.orderDetail.name,
+        builder: (context, state) {
+          final orderNumber = state.extra as String;
+          return OrderDetailPage(orderNumber: orderNumber);
+        },
       ),
       GoRoute(
         path: AppRoute.cashierCashSession.path,
@@ -290,6 +447,32 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         name: AppRoute.attendanceManagement.name,
         builder: (context, state) => const AttendanceManagementPage(),
       ),
+      GoRoute(
+        path: AppRoute.staff.path,
+        name: AppRoute.staff.name,
+        builder: (context, state) => const StaffListView(),
+      ),
+      GoRoute(
+        path: AppRoute.staffDetail.path,
+        name: AppRoute.staffDetail.name,
+        builder: (context, state) {
+          final staff = state.extra as Staff;
+          return StaffDetailView(staff: staff);
+        },
+      ),
+      GoRoute(
+        path: AppRoute.staffForm.path,
+        name: AppRoute.staffForm.name,
+        builder: (context, state) {
+          final staff = state.extra is Staff ? state.extra as Staff : null;
+          return StaffFormView(staff: staff);
+        },
+      ),
+      GoRoute(
+        path: AppRoute.staffAdd.path,
+        name: AppRoute.staffAdd.name,
+        builder: (context, state) => const StaffAddPlaceholderPage(),
+      ),
     ],
   );
 });
@@ -299,15 +482,15 @@ class ModulaApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Keep policy hydration alive once auth context is available.
-    ref.watch(policyNotifierProvider);
     final router = ref.watch(appRouterProvider);
 
-    return MaterialApp.router(
-      debugShowCheckedModeBanner: false,
-      title: 'Modula POS',
-      theme: AppTheme.light,
-      routerConfig: router,
+    return AppHydrationListener(
+      child: MaterialApp.router(
+        debugShowCheckedModeBanner: false,
+        title: 'Modula POS',
+        theme: AppTheme.light,
+        routerConfig: router,
+      ),
     );
   }
 }

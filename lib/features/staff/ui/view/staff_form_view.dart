@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:modular_pos/features/staff/ui/widgets/form_dropdown_field.dart';
 import 'package:modular_pos/features/staff/ui/widgets/form_text_field.dart';
 import 'package:modular_pos/features/staff/ui/widgets/custom_cupertino_list_tile.dart';
@@ -23,7 +24,15 @@ class _StaffFormViewState extends State<StaffFormView> {
   String? _selectedBranch;
   String? _selectedScheduleOption;
   // State for the multi-select working days
-  final List<String> _allDays = const ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  final List<String> _allDays = const [
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+    'Saturday',
+    'Sunday',
+  ];
   Set<String> _selectedWorkingDays = {};
   // State for working hours
   TimeOfDay _startTime = const TimeOfDay(hour: 9, minute: 0);
@@ -31,8 +40,19 @@ class _StaffFormViewState extends State<StaffFormView> {
   // State for different hours per day
   String? _expandedDay; // Tracks which day's time picker is open
   final Map<String, (TimeOfDay, TimeOfDay)> _customHours = {
-    for (var day in const ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'])
-      day: (const TimeOfDay(hour: 9, minute: 0), const TimeOfDay(hour: 17, minute: 0))
+    for (var day in const [
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+      'Sunday',
+    ])
+      day: (
+        const TimeOfDay(hour: 9, minute: 0),
+        const TimeOfDay(hour: 17, minute: 0),
+      ),
   };
   bool _isActive = true;
 
@@ -70,7 +90,7 @@ class _StaffFormViewState extends State<StaffFormView> {
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios),
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () => context.pop(),
         ),
         title: Text(_isEditing ? 'Edit Staff' : 'Add New Staff'),
       ),
@@ -96,7 +116,11 @@ class _StaffFormViewState extends State<StaffFormView> {
                     const CircleAvatar(
                       radius: 60, // Made bigger
                       backgroundColor: Colors.black12,
-                      child: Icon(CupertinoIcons.person_fill, size: 60, color: Colors.white),
+                      child: Icon(
+                        CupertinoIcons.person_fill,
+                        size: 60,
+                        color: Colors.white,
+                      ),
                     ),
                     Positioned(
                       bottom: 0,
@@ -120,7 +144,8 @@ class _StaffFormViewState extends State<StaffFormView> {
                 label: 'User Name',
                 placeholder: 'e.g., Preap Sovath',
                 controller: _userNameController,
-                validator: (value) => value!.isEmpty ? 'Please enter user name' : null,
+                validator: (value) =>
+                    value!.isEmpty ? 'Please enter user name' : null,
               ),
               const SizedBox(height: 12),
               FormDropdownField(
@@ -128,7 +153,8 @@ class _StaffFormViewState extends State<StaffFormView> {
                 placeholder: 'Select Gender',
                 value: _selectedGender,
                 items: const ['Male', 'Female'],
-                validator: (value) => value == null ? 'Please select gender' : null,
+                validator: (value) =>
+                    value == null ? 'Please select gender' : null,
                 onSelected: (value) {
                   setState(() {
                     _selectedGender = value;
@@ -142,8 +168,12 @@ class _StaffFormViewState extends State<StaffFormView> {
                 keyboardType: TextInputType.phone,
                 controller: _phoneNumberController,
                 validator: (value) {
-                  if (value!.isEmpty) return 'Please enter phone number';
-                  if (!RegExp(r'^\+?[0-9]{7,15}$').hasMatch(value)) return 'Enter a valid phone number';
+                  if (value!.isEmpty) {
+                    return 'Please enter phone number';
+                  }
+                  if (!RegExp(r'^\+?[0-9]{7,15}$').hasMatch(value)) {
+                    return 'Enter a valid phone number';
+                  }
                   return null;
                 },
               ),
@@ -154,8 +184,12 @@ class _StaffFormViewState extends State<StaffFormView> {
                 keyboardType: TextInputType.emailAddress,
                 controller: _emailController,
                 validator: (value) {
-                  if (value!.isEmpty) return 'Please enter email address';
-                  if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value)) return 'Enter a valid email address';
+                  if (value!.isEmpty) {
+                    return 'Please enter email address';
+                  }
+                  if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value)) {
+                    return 'Enter a valid email address';
+                  }
                   return null;
                 },
               ),
@@ -172,7 +206,8 @@ class _StaffFormViewState extends State<StaffFormView> {
                           label: 'Assign Role',
                           placeholder: 'Select Role',
                           value: _selectedRole,
-                          validator: (value) => value == null ? 'Please select a role' : null,
+                          validator: (value) =>
+                              value == null ? 'Please select a role' : null,
                           items: const ['Manager', 'Cashier'],
                           onSelected: (value) {
                             setState(() => _selectedRole = value);
@@ -190,7 +225,8 @@ class _StaffFormViewState extends State<StaffFormView> {
                           label: 'Assign Branch',
                           placeholder: 'Select Branch',
                           value: _selectedBranch,
-                          validator: (value) => value == null ? 'Please select a branch' : null,
+                          validator: (value) =>
+                              value == null ? 'Please select a branch' : null,
                           items: const ['Main Branch', 'Second Branch'],
                           onSelected: (value) {
                             setState(() => _selectedBranch = value);
@@ -244,7 +280,9 @@ class _StaffFormViewState extends State<StaffFormView> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const SizedBox(height: 12),
-                    const Text('Working Days'), // This section uses the WorkingDaysDropdown widget
+                    const Text(
+                      'Working Days',
+                    ), // This section uses the WorkingDaysDropdown widget
                     const SizedBox(height: 8),
                     WorkingDaysDropdown(
                       selectedDays: _selectedWorkingDays,
@@ -271,7 +309,8 @@ class _StaffFormViewState extends State<StaffFormView> {
                               const SizedBox(height: 4),
                               TimePickerDropdown(
                                 initialTime: _startTime,
-                                onTimeChanged: (newTime) => setState(() => _startTime = newTime),
+                                onTimeChanged: (newTime) =>
+                                    setState(() => _startTime = newTime),
                               ),
                             ],
                           ),
@@ -281,11 +320,15 @@ class _StaffFormViewState extends State<StaffFormView> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('to', style: TextStyle(color: Colors.grey.shade600)),
+                              Text(
+                                'to',
+                                style: TextStyle(color: Colors.grey.shade600),
+                              ),
                               const SizedBox(height: 4),
                               TimePickerDropdown(
                                 initialTime: _endTime,
-                                onTimeChanged: (newTime) => setState(() => _endTime = newTime),
+                                onTimeChanged: (newTime) =>
+                                    setState(() => _endTime = newTime),
                               ),
                             ],
                           ),
@@ -303,8 +346,17 @@ class _StaffFormViewState extends State<StaffFormView> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text('Working Days', style: TextStyle(fontWeight: FontWeight.w500)),
-                        Text('Select day', style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
+                        const Text(
+                          'Working Days',
+                          style: TextStyle(fontWeight: FontWeight.w500),
+                        ),
+                        Text(
+                          'Select day',
+                          style: TextStyle(
+                            color: Colors.grey.shade600,
+                            fontSize: 13,
+                          ),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 8),
@@ -319,18 +371,32 @@ class _StaffFormViewState extends State<StaffFormView> {
                               });
                             },
                             child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 14,
+                              ),
                               decoration: BoxDecoration(
                                 color: Colors.grey.shade200,
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Text(day, style: TextStyle(color: Colors.grey.shade800, fontWeight: FontWeight.w500)),
+                                  Text(
+                                    day,
+                                    style: TextStyle(
+                                      color: Colors.grey.shade800,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
                                   Icon(
-                                    isExpanded ? CupertinoIcons.circle_filled : CupertinoIcons.circle,
-                                    color: isExpanded ? Theme.of(context).colorScheme.primary : CupertinoColors.inactiveGray,
+                                    isExpanded
+                                        ? CupertinoIcons.circle_filled
+                                        : CupertinoIcons.circle,
+                                    color: isExpanded
+                                        ? Theme.of(context).colorScheme.primary
+                                        : CupertinoColors.inactiveGray,
                                     size: 20,
                                   ),
                                 ],
@@ -339,20 +405,34 @@ class _StaffFormViewState extends State<StaffFormView> {
                           ),
                           if (isExpanded)
                             Padding(
-                              padding: const EdgeInsets.only(top: 12, left: 8, right: 8, bottom: 8),
+                              padding: const EdgeInsets.only(
+                                top: 12,
+                                left: 8,
+                                right: 8,
+                                bottom: 8,
+                              ),
                               child: Row(
                                 children: [
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
-                                        Text('from', style: TextStyle(color: Colors.grey.shade600)),
+                                        Text(
+                                          'from',
+                                          style: TextStyle(
+                                            color: Colors.grey.shade600,
+                                          ),
+                                        ),
                                         const SizedBox(height: 4),
                                         TimePickerDropdown(
                                           initialTime: _customHours[day]!.$1,
                                           onTimeChanged: (newTime) {
                                             setState(() {
-                                              _customHours[day] = (newTime, _customHours[day]!.$2);
+                                              _customHours[day] = (
+                                                newTime,
+                                                _customHours[day]!.$2,
+                                              );
                                             });
                                           },
                                         ),
@@ -362,15 +442,24 @@ class _StaffFormViewState extends State<StaffFormView> {
                                   const SizedBox(width: 16),
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
-                                        Text('to', style: TextStyle(color: Colors.grey.shade600)),
+                                        Text(
+                                          'to',
+                                          style: TextStyle(
+                                            color: Colors.grey.shade600,
+                                          ),
+                                        ),
                                         const SizedBox(height: 4),
                                         TimePickerDropdown(
                                           initialTime: _customHours[day]!.$2,
                                           onTimeChanged: (newTime) {
                                             setState(() {
-                                              _customHours[day] = (_customHours[day]!.$1, newTime);
+                                              _customHours[day] = (
+                                                _customHours[day]!.$1,
+                                                newTime,
+                                              );
                                             });
                                           },
                                         ),
@@ -383,7 +472,7 @@ class _StaffFormViewState extends State<StaffFormView> {
                           const SizedBox(height: 8),
                         ],
                       );
-                    }).toList(),
+                    }),
                   ],
                 ),
               const SizedBox(height: 16),
@@ -393,7 +482,7 @@ class _StaffFormViewState extends State<StaffFormView> {
                 trailing: CupertinoSwitch(
                   value: _isActive,
                   onChanged: (bool value) => setState(() => _isActive = value),
-                  activeColor: Theme.of(context).colorScheme.primary,
+                  activeTrackColor: Theme.of(context).colorScheme.primary,
                 ),
               ),
               const SizedBox(height: 32),
@@ -402,16 +491,25 @@ class _StaffFormViewState extends State<StaffFormView> {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   CupertinoButton(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
                     color: Colors.grey.shade200,
                     onPressed: () {
-                      Navigator.of(context).pop();
+                      context.pop();
                     },
-                    child: const Text('Cancel', style: TextStyle(color: Colors.black87)),
+                    child: const Text(
+                      'Cancel',
+                      style: TextStyle(color: Colors.black87),
+                    ),
                   ),
                   const SizedBox(width: 16),
                   CupertinoButton.filled(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
                     child: Text(_isEditing ? 'Save Changes' : 'Add New Staff'),
                     onPressed: () {
                       if (_formKey.currentState!.validate()) {
@@ -425,23 +523,34 @@ class _StaffFormViewState extends State<StaffFormView> {
                           branch: _selectedBranch,
                           scheduleOption: _selectedScheduleOption,
                           isActive: _isActive,
-                          workingDays: _selectedScheduleOption == 'same_hours' ? _selectedWorkingDays : null,
-                          startTime: _selectedScheduleOption == 'same_hours' ? _startTime : null,
-                          endTime: _selectedScheduleOption == 'same_hours' ? _endTime : null,
-                          customHours: _selectedScheduleOption == 'different_hours' ? _customHours : null,
+                          workingDays: _selectedScheduleOption == 'same_hours'
+                              ? _selectedWorkingDays
+                              : null,
+                          startTime: _selectedScheduleOption == 'same_hours'
+                              ? _startTime
+                              : null,
+                          endTime: _selectedScheduleOption == 'same_hours'
+                              ? _endTime
+                              : null,
+                          customHours:
+                              _selectedScheduleOption == 'different_hours'
+                              ? _customHours
+                              : null,
                         );
 
                         // Pop the screen and return the new staff object
-                        Navigator.of(context).pop(newStaff);
+                        context.pop(newStaff);
                       } else {
                         // Form is invalid, show an error or scroll to first error
-                        print('Form validation failed!');
+                        debugPrint('Form validation failed!');
                       }
                     },
                   ),
                 ],
               ),
-              const SizedBox(height: 150), // Add space at the bottom of the form
+              const SizedBox(
+                height: 150,
+              ), // Add space at the bottom of the form
             ],
           ),
         ),

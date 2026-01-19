@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import 'package:modular_pos/core/widgets/forms/app_search_add_bar.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_category.dart';
-import 'package:modular_pos/features/menu/ui/view/add_category/add_category_page.dart';
+import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/features/menu/ui/view/categories_management/widgets/category_tile.dart';
 import 'package:modular_pos/features/menu/ui/view/categories_management/widgets/edit_category_sheet.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
@@ -47,12 +48,7 @@ class _CategoriesManagementPageState
               searchHint: 'Search categories...',
               onSearchChanged: (_) {},
               onAddPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const AddCategoryPage(),
-                  ),
-                );
+                context.push(AppRoute.adminMenuAddCategory.path);
               },
             ),
             const SizedBox(height: 16),

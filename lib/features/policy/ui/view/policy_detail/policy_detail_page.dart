@@ -1,19 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import 'package:modular_pos/features/policy/ui/widgets/policy_detail_controls.dart';
 import 'package:modular_pos/features/policy/ui/models/policy_models.dart';
 
 class PolicyDetailPage extends StatefulWidget {
-  const PolicyDetailPage({
-    super.key,
-    required this.item,
-    required this.value,
-    required this.onSaved,
-  });
+  const PolicyDetailPage({super.key, required this.item, required this.value});
 
   final PolicyItem item;
   final dynamic value;
-  final ValueChanged<dynamic> onSaved;
 
   @override
   State<PolicyDetailPage> createState() => _PolicyDetailPageState();
@@ -44,8 +39,7 @@ class _PolicyDetailPageState extends State<PolicyDetailPage> {
   }
 
   void _saveChanges() {
-    widget.onSaved(_tempValue);
-    setState(() => _isEditing = false);
+    context.pop(_tempValue);
   }
 
   @override
@@ -114,10 +108,7 @@ class _PolicyDetailPageState extends State<PolicyDetailPage> {
       canSave: widget.item.type != PolicyItemType.info,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (header != null) header,
-          content,
-        ],
+        children: [if (header != null) header, content],
       ),
     );
   }

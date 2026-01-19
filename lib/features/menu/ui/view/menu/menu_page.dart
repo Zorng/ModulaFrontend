@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_category.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
+import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/features/menu/ui/view/menu/widgets/menu_page_actions_menu.dart';
 import 'package:modular_pos/features/menu/ui/view/menu/widgets/menu_page_filter_bar.dart';
 import 'package:modular_pos/features/menu/ui/view/menu/widgets/menu_page_items_section.dart';
-import 'package:modular_pos/features/menu/ui/view/menu_item_form/menu_item_form_page.dart';
-import 'package:modular_pos/features/menu/ui/view/view_menu_item/view_menu_item_page.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
 
 class MenuPage extends ConsumerStatefulWidget {
@@ -64,11 +64,8 @@ class _MenuPageState extends ConsumerState<MenuPage> {
               onBranchSelected: notifier.filterByBranch,
               onSearchChanged: notifier.searchItems,
               onAddPressed: () async {
-                final result = await Navigator.push<MenuItem>(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const MenuItemFormPage(),
-                  ),
+                final result = await context.push<MenuItem>(
+                  AppRoute.adminMenuItemForm.path,
                 );
                 if (result != null && mounted) {
                   await notifier.loadMenu();
@@ -91,10 +88,7 @@ class _MenuPageState extends ConsumerState<MenuPage> {
   }
 
   Future<void> _openItemDetail(BuildContext context, MenuItem item) async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => ViewMenuItemPage(menuItem: item)),
-    );
+    await context.push(AppRoute.adminMenuViewMenuItem.path, extra: item);
     if (mounted) {
       await ref.read(menuViewModelProvider.notifier).loadMenu();
     }

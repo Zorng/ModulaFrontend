@@ -1,18 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:modular_pos/features/policy/ui/widgets/policy_detail_controls.dart';
 import 'package:modular_pos/features/policy/ui/view/vat_policy_detail/widgets/vat_rate_bottom_sheet.dart';
+import 'package:modular_pos/features/policy/ui/view/policy/policy_route_args.dart';
 
 class VatPolicyDetailPage extends StatefulWidget {
   const VatPolicyDetailPage({
     super.key,
     required this.enabled,
     required this.currentRate,
-    required this.onSaved,
   });
 
   final bool enabled;
   final String currentRate;
-  final void Function(bool enabled, String rate) onSaved;
 
   @override
   State<VatPolicyDetailPage> createState() => _VatPolicyDetailPageState();
@@ -66,9 +66,9 @@ class _VatPolicyDetailPageState extends State<VatPolicyDetailPage> {
       return;
     }
     setState(() => _errorText = null);
-    final formattedRate = '$parsed%';
-    widget.onSaved(_enabled, formattedRate);
-    setState(() => _isEditing = false);
+    context.pop(
+      VatPolicySaveResult(enabled: _enabled, ratePercent: parsed.toDouble()),
+    );
   }
 
   @override

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:modular_pos/features/sale/ui/view/order_detail/order_detail_page.dart';
+import 'package:go_router/go_router.dart';
+import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/features/sale/ui/view/order/widgets/order_card.dart';
 import 'package:modular_pos/features/sale/ui/view/order/widgets/order_filters_bar.dart';
 import 'package:modular_pos/features/sale/ui/view/order/widgets/order_status_bottom_sheet.dart';
@@ -82,12 +83,9 @@ class _OrderPageState extends ConsumerState<OrderPage> {
                       return OrderCard(
                         order: order,
                         onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) =>
-                                  OrderDetailPage(orderNumber: order.number),
-                            ),
+                          context.push(
+                            AppRoute.orderDetail.path,
+                            extra: order.number,
                           );
                         },
                         onStatusTap: () => _openStatusSheet(order),

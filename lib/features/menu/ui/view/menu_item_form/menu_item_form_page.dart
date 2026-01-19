@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:modular_pos/core/widgets/media/product_image_picker.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_branch.dart';
@@ -103,7 +104,7 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
       );
     }
     await notifier.loadItemWithModifiers(saved.id);
-    if (mounted) Navigator.pop(context, saved);
+    if (mounted) context.pop(saved);
   }
 
   @override
@@ -327,9 +328,9 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
     if (id.isEmpty) return;
     await ref.read(menuViewModelProvider.notifier).deleteMenuItem(id);
     if (!mounted) return;
-    Navigator.of(context).pop();
-    if (Navigator.of(context).canPop()) {
-      Navigator.of(context).pop();
+    context.pop();
+    if (context.canPop()) {
+      context.pop();
     }
   }
 

@@ -118,7 +118,7 @@ class _WorkingDaysDropdownState extends State<WorkingDaysDropdown> {
                                   });
                                 },
                               );
-                            }).toList(),
+                            }),
                           ],
                         ),
                       );

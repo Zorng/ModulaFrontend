@@ -6,6 +6,8 @@
 
 CI workflow: `.github/workflows/ci.yml`
 
+Note: Treat analyzer warnings/info as failures. Goal state is `No issues found!`.
+
 ## Minimum expectations
 - Bug fixes: add a regression test when feasible.
 - New behavior/use cases: add at least one test (prefer unit; widget when UI logic is involved).

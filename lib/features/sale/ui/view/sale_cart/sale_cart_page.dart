@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/feedback/user_error_message.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
@@ -9,7 +10,6 @@ import 'package:modular_pos/features/policy/ui/viewmodels/policy_viewmodel.dart'
 import 'package:modular_pos/features/sale/ui/viewmodels/order_viewmodel.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_viewmodel.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_access_gate.dart';
-import 'package:modular_pos/features/sale/ui/view/view_carts/view_carts_page.dart';
 import 'package:modular_pos/features/sale/ui/view/sale_cart/widgets/sale_cart_bottom_bar.dart';
 import 'package:modular_pos/features/sale/ui/view/sale_cart/widgets/sale_cart_content.dart';
 import 'package:modular_pos/features/sale/ui/view/sale_cart/widgets/sale_cart_readonly_banner.dart';
@@ -167,10 +167,7 @@ class _SaleCartPageState extends ConsumerState<SaleCartPage> {
           PopupMenuButton<String>(
             onSelected: (value) {
               if (value == 'view_carts') {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const ViewCartsPage()),
-                );
+                context.push(AppRoute.saleViewCarts.path);
               }
             },
             itemBuilder: (_) => const [
@@ -305,14 +302,12 @@ class _SaleCartPageState extends ConsumerState<SaleCartPage> {
             );
             // Refresh orders from backend to persist.
             await ordersNotifier.load(date: DateTime.now());
-            if (!mounted) return;
-            // ignore: use_build_context_synchronously
+            if (!context.mounted) return;
             ScaffoldMessenger.of(
               context,
             ).showSnackBar(const SnackBar(content: Text('Order created')));
           } catch (e) {
-            if (!mounted) return;
-            // ignore: use_build_context_synchronously
+            if (!context.mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(

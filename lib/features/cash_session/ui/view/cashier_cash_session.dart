@@ -193,8 +193,10 @@ class CashSessionScreen extends ConsumerWidget {
         child: const Text('No registers available'),
       );
     }
+    final currentId = state.registerId ?? state.registers.first.id;
     return DropdownButtonFormField<String>(
-      value: state.registerId ?? state.registers.first.id,
+      key: ValueKey(currentId),
+      initialValue: currentId,
       decoration: const InputDecoration(
         labelText: 'Register',
         border: OutlineInputBorder(),

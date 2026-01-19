@@ -13,7 +13,6 @@ import 'package:modular_pos/features/sale/ui/view/sale/widgets/sale_page_categor
 import 'package:modular_pos/features/sale/ui/view/sale/widgets/sale_page_menu_catalog.dart';
 import 'package:modular_pos/features/sale/ui/view/sale/widgets/sale_page_search_field.dart';
 import 'package:modular_pos/features/sale/ui/view/sale/widgets/sale_page_state_message.dart';
-import 'package:modular_pos/features/sale/ui/view/sale_cart/sale_cart_page.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_access_gate.dart';
 
 class SalePage extends ConsumerStatefulWidget {
@@ -24,6 +23,8 @@ class SalePage extends ConsumerStatefulWidget {
 }
 
 class _SalePageState extends ConsumerState<SalePage> {
+  bool _hasShownCashSessionDialog = false;
+
   @override
   void initState() {
     super.initState();
@@ -60,6 +61,42 @@ class _SalePageState extends ConsumerState<SalePage> {
     final portalPath = role == 'admin'
         ? AppRoute.adminPortal.path
         : AppRoute.cashierPortal.path;
+
+    if (!_hasShownCashSessionDialog &&
+        !gate.cashSessionLoading &&
+        gate.isBlockedByCashSessionPolicy) {
+      _hasShownCashSessionDialog = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        showDialog<void>(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => AlertDialog(
+            title: Row(
+              children: [
+                const Expanded(child: Text('Cash session required')),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+              ],
+            ),
+            content: const Text(
+              'You are not in an active cash session. Start one before adding items to cart or checkout.',
+            ),
+            actions: [
+              FilledButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  context.push(cashSessionPath);
+                },
+                child: const Text('Go to cash session'),
+              ),
+            ],
+          ),
+        );
+      });
+    }
 
     VoidCallback retry() =>
         () => menuVm.loadMenu(
@@ -135,10 +172,7 @@ class _SalePageState extends ConsumerState<SalePage> {
         padding: const EdgeInsets.only(right: 12, bottom: 16),
         child: FloatingActionButton.extended(
           onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const SaleCartPage()),
-            );
+            context.push(AppRoute.saleCart.path);
           },
           icon: const Icon(Icons.shopping_cart_outlined),
           label: const Text('Cart'),

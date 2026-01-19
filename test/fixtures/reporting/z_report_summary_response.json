@@ -1,0 +1,18 @@
+{
+  "success": true,
+  "data": {
+    "date": "2025-12-23",
+    "sessionCount": 2,
+    "openingFloatUsd": 20,
+    "openingFloatKhr": 0,
+    "totalSalesCashUsd": 165,
+    "totalSalesCashKhr": 0,
+    "totalPaidInUsd": 0,
+    "totalPaidInKhr": 0,
+    "totalPaidOutUsd": 5,
+    "totalPaidOutKhr": 0,
+    "expectedCashUsd": 180,
+    "expectedCashKhr": 0
+  }
+}
+
