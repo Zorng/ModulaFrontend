@@ -20,6 +20,22 @@ class AuthApi {
 
   final Dio _dio;
 
+  Map<String, dynamic> _readJsonObject(dynamic value) {
+    if (value is Map<String, dynamic>) return Map<String, dynamic>.from(value);
+    if (value is Map) {
+      return value.map((key, val) => MapEntry(key.toString(), val));
+    }
+    if (value is String) {
+      try {
+        final decoded = jsonDecode(value);
+        return _readJsonObject(decoded);
+      } catch (_) {
+        return const <String, dynamic>{};
+      }
+    }
+    return const <String, dynamic>{};
+  }
+
   Map<String, dynamic> _asMap(dynamic value) {
     if (value is Map<String, dynamic>) return Map<String, dynamic>.from(value);
     if (value is Map) {
@@ -149,15 +165,16 @@ class AuthApi {
     final authPrefix = dotenv.env['AUTH_API_PREFIX'] ?? '/v1/auth';
     final path = '$authPrefix/login';
 
-    final response = await _dio.post<Map<String, dynamic>>(
+    final response = await _dio.post(
       path,
+      options: Options(contentType: Headers.jsonContentType),
       data: {
         'phone': username,
         'password': password,
       },
     );
 
-    final data = _unwrap(response.data ?? {});
+    final data = _unwrap(_readJsonObject(response.data));
 
     final requiresTenantSelection =
         data['requires_tenant_selection'] == true || data['requiresTenantSelection'] == true;
@@ -197,8 +214,9 @@ class AuthApi {
     final authPrefix = dotenv.env['AUTH_API_PREFIX'] ?? '/v1/auth';
     final path = '$authPrefix/select-tenant';
 
-    final response = await _dio.post<Map<String, dynamic>>(
+    final response = await _dio.post(
       path,
+      options: Options(contentType: Headers.jsonContentType),
       data: {
         'selection_token': selectionToken,
         'tenant_id': tenantId,
@@ -206,7 +224,7 @@ class AuthApi {
       },
     );
 
-    final data = _unwrap(response.data ?? {});
+    final data = _unwrap(_readJsonObject(response.data));
     return _parseEstablishedSession(data);
   }
 }

@@ -12,6 +12,11 @@ final dioProvider = Provider<Dio>((ref) {
       baseUrl: baseUrl,
       connectTimeout: const Duration(seconds: 20),
       receiveTimeout: const Duration(seconds: 20),
+      contentType: Headers.jsonContentType,
+      responseType: ResponseType.json,
+      headers: {
+        Headers.acceptHeader: Headers.jsonContentType,
+      },
     ),
   );
 

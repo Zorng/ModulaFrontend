@@ -73,7 +73,7 @@ class CashSessionApi {
       final id = json['id']?.toString() ?? json['sessionId']?.toString() ?? '';
       if (id.isEmpty) return null;
       return CashSessionDto.fromJson(json);
-    } on DioException catch (e) {
+    } on DioError catch (e) {
       // Treat 404 (no active session) as empty payload instead of an error.
       if (e.response?.statusCode == 404 || e.response?.statusCode == 401) {
         return null;

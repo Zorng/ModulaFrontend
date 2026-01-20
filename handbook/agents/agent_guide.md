@@ -7,11 +7,14 @@ Scope: this guide defines what an AI agent must **read**, **respect**, and **ver
 - `docs/responsive_breakpoints.md`
 - `handbook/architecture/overview.md`
 - Testing conventions: `handbook/quality/testing.md`
+- Handover index: `handbook/handover/README.md`
 
 ## Read if relevant
 - Module specs: `docs/modSpec/…`
 - API contracts: `docs/apiContracts/…`
 - Feature notes/plans (if referenced by the task): `refactorPlan/…`
+- Runbook + checklists: `handbook/handover/runbook.md`, `handbook/handover/pr_checklist.md`, `handbook/handover/release_checklist.md`
+- Ownership map: `handbook/handover/ownership.md`
 
 ## Preflight checklist (before changing code)
 1) Identify the feature/module(s) touched and locate the relevant modspec + API contract.

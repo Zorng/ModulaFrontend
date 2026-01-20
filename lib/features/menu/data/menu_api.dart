@@ -35,10 +35,10 @@ class MenuApi {
         '$_menuPrefix/categories',
         queryParameters: isActive == null ? null : {'isActive': isActive},
       );
-      final raw = _unwrap(response.data);
-      final categories = raw['categories'] ?? raw['data'] ?? raw;
-      return _parseList(categories, MenuCategoryDto.fromJson);
-    } on DioException catch (error) {
+    final raw = _unwrap(response.data);
+    final categories = raw['categories'] ?? raw['data'] ?? raw;
+    return _parseList(categories, MenuCategoryDto.fromJson);
+    } on DioError catch (error) {
       throw MenuApiException.fromDio(error);
     }
   }
@@ -51,7 +51,7 @@ class MenuApi {
       final groups =
           raw['modifierGroups'] ?? raw['groups'] ?? raw['data'] ?? raw;
       return _parseList(groups, ModifierGroupDto.fromJson);
-    } on DioException catch (error) {
+    } on DioError catch (error) {
       throw MenuApiException.fromDio(error);
     }
   }
@@ -66,7 +66,7 @@ class MenuApi {
       final raw = _unwrap(response.data);
       final options = raw['options'] ?? raw['data'] ?? raw;
       return _parseList(options, ModifierOptionDto.fromJson);
-    } on DioException catch (error) {
+    } on DioError catch (error) {
       throw MenuApiException.fromDio(error);
     }
   }
@@ -87,7 +87,7 @@ class MenuApi {
       final raw = _unwrap(response.data);
       final items = raw['items'] ?? raw['data'] ?? raw;
       return _parseList(items, MenuItemDto.fromJson);
-    } on DioException catch (error) {
+    } on DioError catch (error) {
       throw MenuApiException.fromDio(error);
     }
   }
@@ -102,7 +102,7 @@ class MenuApi {
       );
       final raw = _unwrap(response.data);
       return MenuItemWithModifiersDto.fromJson(raw);
-    } on DioException catch (error) {
+    } on DioError catch (error) {
       throw MenuApiException.fromDio(error);
     }
   }
@@ -119,7 +119,7 @@ class MenuApi {
       );
       final raw = _unwrap(response.data);
       return MenuCategoryDto.fromJson(raw);
-    } on DioException catch (error) {
+    } on DioError catch (error) {
       throw MenuApiException.fromDio(error);
     }
   }
@@ -142,7 +142,7 @@ class MenuApi {
       );
       final raw = _unwrap(response.data);
       return MenuCategoryDto.fromJson(raw);
-    } on DioException catch (error) {
+    } on DioError catch (error) {
       throw MenuApiException.fromDio(error);
     }
   }
@@ -151,7 +151,7 @@ class MenuApi {
     final dio = _requireDio();
     try {
       await dio.delete<void>('$_menuPrefix/categories/$categoryId');
-    } on DioException catch (error) {
+    } on DioError catch (error) {
       throw MenuApiException.fromDio(error);
     }
   }
@@ -168,7 +168,7 @@ class MenuApi {
       );
       final raw = _unwrap(response.data);
       return ModifierGroupDto.fromJson(raw);
-    } on DioException catch (error) {
+    } on DioError catch (error) {
       throw MenuApiException.fromDio(error);
     }
   }
@@ -189,7 +189,7 @@ class MenuApi {
       );
       final raw = _unwrap(response.data);
       return ModifierGroupDto.fromJson(raw);
-    } on DioException catch (error) {
+    } on DioError catch (error) {
       throw MenuApiException.fromDio(error);
     }
   }
@@ -208,7 +208,7 @@ class MenuApi {
       );
       final raw = _unwrap(response.data);
       return ModifierOptionDto.fromJson(raw);
-    } on DioException catch (error) {
+    } on DioError catch (error) {
       throw MenuApiException.fromDio(error);
     }
   }
@@ -217,7 +217,7 @@ class MenuApi {
     final dio = _requireDio();
     try {
       await dio.delete<void>('$_menuPrefix/modifiers/options/$optionId');
-    } on DioException catch (error) {
+    } on DioError catch (error) {
       throw MenuApiException.fromDio(error);
     }
   }
@@ -231,7 +231,7 @@ class MenuApi {
       await dio.delete<void>(
         '$_menuPrefix/items/$menuItemId/modifiers/$modifierGroupId',
       );
-    } on DioException catch (error) {
+    } on DioError catch (error) {
       throw MenuApiException.fromDio(error);
     }
   }
@@ -248,7 +248,7 @@ class MenuApi {
       );
       final raw = _unwrap(response.data);
       return ModifierOptionDto.fromJson(raw);
-    } on DioException catch (error) {
+    } on DioError catch (error) {
       throw MenuApiException.fromDio(error);
     }
   }
@@ -263,7 +263,7 @@ class MenuApi {
         '$_menuPrefix/items/$menuItemId/modifiers',
         data: payload,
       );
-    } on DioException catch (error) {
+    } on DioError catch (error) {
       throw MenuApiException.fromDio(error);
     }
   }
@@ -289,7 +289,7 @@ class MenuApi {
       );
       final raw = _unwrap(response.data);
       return MenuItemDto.fromJson(raw);
-    } on DioException catch (error) {
+    } on DioError catch (error) {
       throw MenuApiException.fromDio(error);
     }
   }
@@ -319,7 +319,7 @@ class MenuApi {
       );
       final raw = _unwrap(response.data);
       return MenuItemDto.fromJson(raw);
-    } on DioException catch (error) {
+    } on DioError catch (error) {
       throw MenuApiException.fromDio(error);
     }
   }
@@ -347,7 +347,7 @@ class MenuApi {
     final dio = _requireDio();
     try {
       await dio.delete<void>('$_menuPrefix/items/$menuItemId');
-    } on DioException catch (error) {
+    } on DioError catch (error) {
       throw MenuApiException.fromDio(error);
     }
   }
@@ -356,7 +356,7 @@ class MenuApi {
     final dio = _requireDio();
     try {
       await dio.delete<void>('$_menuPrefix/modifiers/groups/$groupId');
-    } on DioException catch (error) {
+    } on DioError catch (error) {
       throw MenuApiException.fromDio(error);
     }
   }
@@ -375,7 +375,7 @@ class MenuApi {
           'isAvailable': isAvailable,
         },
       );
-    } on DioException catch (error) {
+    } on DioError catch (error) {
       throw MenuApiException.fromDio(error);
     }
   }
@@ -394,7 +394,7 @@ class MenuApi {
           'priceUsd': priceUsd,
         },
       );
-    } on DioException catch (error) {
+    } on DioError catch (error) {
       throw MenuApiException.fromDio(error);
     }
   }
@@ -440,11 +440,11 @@ class MenuApi {
 class MenuApiException implements Exception {
   const MenuApiException(this.message, [this.statusCode]);
 
-  factory MenuApiException.fromDio(DioException exception) {
-    final message =
-        exception.response?.data?['message']?.toString() ?? exception.message;
+  factory MenuApiException.fromDio(DioError exception) {
+    final data = exception.response?.data;
+    final message = data is Map ? data['message']?.toString() : null;
     return MenuApiException(
-      message ?? 'Menu API error',
+      message ?? exception.message ?? 'Menu API error',
       exception.response?.statusCode,
     );
   }

@@ -1,16 +1,23 @@
-# myios
+# Modular POS (Frontend)
 
-A new Flutter project.
+Flutter frontend for the Modular POS system (web-first, mobile later).
 
-## Getting Started
+## Start here
+- Handover index: `handbook/handover/README.md`
+- Agent guidance: `handbook/agents/agent_guide.md`
+- Architecture: `handbook/architecture/overview.md`
+- Non-negotiables: `handbook/non_negotiables.md`
+- Testing + quality gate: `handbook/quality/testing.md`
+- Responsive breakpoints: `docs/responsive_breakpoints.md`
 
-This project is a starting point for a Flutter application.
+## Quick start (dev)
+1) Create `.env` from `.env.example`
+2) Install deps: `flutter pub get`
+3) Run (web): `flutter run -d chrome`
 
-A few resources to get you started if this is your first Flutter project:
+## CI
+GitHub Actions runs on PRs:
+- `flutter analyze`
+- `flutter test`
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+Workflow: `.github/workflows/ci.yml`

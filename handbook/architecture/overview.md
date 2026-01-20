@@ -72,6 +72,69 @@ Non-negotiable implications:
 - UI must never depend on backend payload shapes directly (no DTO imports in UI/viewmodels).
 - Backend-dependent flows must expose loading/error/data (no “freeze”).
 
+## Hydration (login/tenant/branch → cross-feature refresh)
+
+This app has **branch-scoped** and **tenant-scoped** state (policy, cash session, reports, etc).
+When auth context changes (login/logout, tenant selection, branch switch), we must refresh those
+cross-cutting stores consistently.
+
+We centralize that logic in a single place:
+- `lib/core/hydration/app_hydration_listener.dart`
+
+### Why we do this (and what we avoid)
+- Avoid side-effects inside provider `build()` methods (historically caused circular dependencies and
+  “mutating providers during build” assertions).
+- Avoid duplicating “on login, refresh X” logic in multiple screens.
+- Make auth-context changes deterministic: **one event source** triggers **one hydration pathway**.
+
+### What the hydration listener does
+
+`AppHydrationListener` is a small `ConsumerStatefulWidget` mounted near the app root
+(`lib/app.dart`). It listens to:
+- `loginControllerProvider.session` (login/logout + tenant selection resulting session changes)
+- `authTenantIdProvider` (active tenant changes)
+- `authActiveBranchIdProvider` (active branch changes, including overrides)
+
+When the session becomes:
+- **null** (logout):
+  - clears auth token + tenant + branch override providers
+  - resets branch-scoped stores (currently policy + cash session)
+- **non-null** (login/tenant selected):
+  - sets `authAccessTokenProvider` from session
+  - sets `authTenantIdProvider` from session (active tenant id)
+  - triggers a refresh of branch-scoped stores when token+tenant+branch are all present
+
+Hydration refresh is guarded by a simple “last hydrated” key:
+`(token, tenantId, branchId)`.
+If none of these changed, we skip refresh to prevent loops/redundant calls.
+
+### Sequence (high level)
+
+```
+LoginController.session changes
+  └─ AppHydrationListener applies session
+      ├─ update auth token provider
+      ├─ update active tenant provider
+      └─ refresh branch-scoped stores (policy, cash session)
+
+Active branch changes (e.g. portal dropdown)
+  └─ AppHydrationListener refreshes branch-scoped stores again
+```
+
+### Implementation constraints (non-negotiable)
+- The listener must not depend on feature UI.
+- Hydration triggers must not run synchronously during widget tree construction:
+  - `AppHydrationListener` defers initial sync until after first frame.
+- Stores that participate in hydration must provide:
+  - `reset()` (clear state on logout)
+  - `load(...)` / `refresh(...)` (explicit reload on context change)
+
+### How to add a new hydrated store
+1) Ensure the store follows provider conventions (`Notifier`/`AsyncNotifier`) and exposes `reset()` + `load(...)`.
+2) Add it to `AppHydrationListener._applySession` (reset path) and `_refreshBranchScopedStateIfNeeded` (load path).
+3) Add a test or extend the existing one:
+   - `test/core/hydration/app_hydration_listener_test.dart`
+
 ## Cross-feature dependencies
 
 Allowed:

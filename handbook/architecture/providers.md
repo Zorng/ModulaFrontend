@@ -70,6 +70,7 @@ return items.when(
 - Do not `ref.watch`/`ref.read` the provider you are currently inside.
 - Avoid invalidating or resetting providers during provider construction/build.
   - If you must “hydrate on startup/login”, do it in a UI/controller layer or a post-frame callback (never synchronously during widget build).
+  - In this repo, cross-feature hydration is centralized in `lib/core/hydration/app_hydration_listener.dart` (see `handbook/architecture/overview.md`).
 - Prefer dependency inversion:
   - Store depends on repository (Provider).
   - Repository depends on API client (Provider).

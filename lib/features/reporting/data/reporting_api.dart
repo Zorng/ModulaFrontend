@@ -30,7 +30,7 @@ class ReportingApi {
       );
       final data = _requireDataMap(response.data);
       return XReportDetailDto.fromJson(data);
-    } on DioException catch (error) {
+    } on DioError catch (error) {
       throw ReportingApiException.fromDio(error);
     }
   }
@@ -53,7 +53,7 @@ class ReportingApi {
       );
       final data = _requireDataList(response.data);
       return data.map(XReportListItemDto.fromJson).toList(growable: false);
-    } on DioException catch (error) {
+    } on DioError catch (error) {
       throw ReportingApiException.fromDio(error);
     }
   }
@@ -69,7 +69,7 @@ class ReportingApi {
       );
       final data = _requireDataMap(response.data);
       return ZReportSummaryDto.fromJson(data);
-    } on DioException catch (error) {
+    } on DioError catch (error) {
       throw ReportingApiException.fromDio(error);
     }
   }
@@ -78,11 +78,12 @@ class ReportingApi {
 class ReportingApiException implements Exception {
   const ReportingApiException(this.message, [this.statusCode]);
 
-  factory ReportingApiException.fromDio(DioException exception) {
+  factory ReportingApiException.fromDio(DioError exception) {
+    final data = exception.response?.data;
     final message =
-        exception.response?.data?['message']?.toString() ?? exception.message;
+        data is Map ? data['message']?.toString() : null;
     return ReportingApiException(
-      message ?? 'Reporting API error',
+      message ?? exception.message ?? 'Reporting API error',
       exception.response?.statusCode,
     );
   }
