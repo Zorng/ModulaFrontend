@@ -1,8 +1,8 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/feedback/user_error_message.dart';
+import 'package:modular_pos/core/logging/app_log.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/widgets/display/menu_item_card.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_category.dart';
@@ -74,10 +74,7 @@ class SalePageMenuCatalog extends ConsumerWidget {
                     .read(saleCartProvider.notifier)
                     .addSelection(selection);
               } catch (e, st) {
-                if (kDebugMode) {
-                  debugPrint('Add item failed: $e');
-                  debugPrintStack(stackTrace: st);
-                }
+                AppLog.e('Add item failed', error: e, stackTrace: st);
                 if (!context.mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(

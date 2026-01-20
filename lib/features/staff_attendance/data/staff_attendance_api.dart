@@ -2,6 +2,9 @@ import 'package:dio/dio.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/core/network/dio_client.dart';
+import 'package:modular_pos/features/staff_attendance/data/dto/attendance_record_dto.dart';
+import 'package:modular_pos/features/staff_attendance/data/dto/attendance_shift_schedule_dto.dart';
+import 'package:modular_pos/features/staff_attendance/data/dto/check_in_result_dto.dart';
 
 final staffAttendanceApiProvider = Provider<StaffAttendanceApi>((ref) {
   final dio = ref.watch(dioProvider);
@@ -15,7 +18,7 @@ class StaffAttendanceApi {
   final Dio _dio;
   final String _prefix;
 
-  Future<Map<String, dynamic>> fetchAllAttendance({
+  Future<List<AttendanceRecordDto>> fetchAllAttendance({
     String? branchId,
     String? employeeId,
     String? from,
@@ -34,10 +37,10 @@ class StaffAttendanceApi {
         'offset': offset,
       },
     );
-    return response.data ?? const {};
+    return _parseAttendanceList(response.data);
   }
 
-  Future<Map<String, dynamic>> fetchMyAttendance({
+  Future<List<AttendanceRecordDto>> fetchMyAttendance({
     String? branchId,
     String? from,
     String? to,
@@ -54,19 +57,27 @@ class StaffAttendanceApi {
         'offset': offset,
       },
     );
-    return response.data ?? const {};
+    return _parseAttendanceList(response.data);
   }
 
-  Future<Map<String, dynamic>> fetchMyShiftSchedule({String? branchId}) async {
+  Future<List<AttendanceShiftScheduleEntryDto>> fetchMyShiftSchedule({
+    String? branchId,
+  }) async {
     final response = await _dio.get<Map<String, dynamic>>(
       '$_prefix/me/shifts',
       queryParameters:
           branchId != null && branchId.isNotEmpty ? {'branchId': branchId} : null,
     );
-    return response.data ?? const {};
+    final root = response.data ?? const <String, dynamic>{};
+    final raw = root['data'];
+    if (raw is! List) return const [];
+    return raw
+        .whereType<Map>()
+        .map((e) => AttendanceShiftScheduleEntryDto.fromJson(Map<String, dynamic>.from(e)))
+        .toList();
   }
 
-  Future<Map<String, dynamic>> checkIn({
+  Future<CheckInResultDto?> checkIn({
     required String occurredAt,
     Map<String, num>? location,
     String? shiftStatus,
@@ -84,10 +95,13 @@ class StaffAttendanceApi {
         if (note != null && note.isNotEmpty) 'note': note,
       },
     );
-    return response.data ?? const {};
+    final root = response.data ?? const <String, dynamic>{};
+    final data = root['data'];
+    if (data is! Map<String, dynamic>) return null;
+    return CheckInResultDto.fromJson(data);
   }
 
-  Future<Map<String, dynamic>> checkOut({
+  Future<AttendanceRecordDto?> checkOut({
     required String occurredAt,
     Map<String, num>? location,
   }) async {
@@ -98,6 +112,19 @@ class StaffAttendanceApi {
         if (location != null) 'location': location,
       },
     );
-    return response.data ?? const {};
+    final root = response.data ?? const <String, dynamic>{};
+    final data = root['data'];
+    if (data is Map<String, dynamic>) return AttendanceRecordDto.fromJson(data);
+    return null;
+  }
+
+  List<AttendanceRecordDto> _parseAttendanceList(Map<String, dynamic>? payload) {
+    final root = payload ?? const <String, dynamic>{};
+    final raw = root['data'];
+    if (raw is! List) return const [];
+    return raw
+        .whereType<Map>()
+        .map((e) => AttendanceRecordDto.fromJson(Map<String, dynamic>.from(e)))
+        .toList();
   }
 }

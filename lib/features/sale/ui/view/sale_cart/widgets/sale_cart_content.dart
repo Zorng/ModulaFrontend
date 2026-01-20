@@ -4,6 +4,7 @@ import 'package:modular_pos/core/widgets/media/product_image.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_viewmodel.dart';
 import 'package:modular_pos/features/sale/ui/components/quantity_stepper.dart';
+import 'package:modular_pos/core/input_formatters/decimal_text_input_formatter.dart';
 
 class SaleCartContent extends StatelessWidget {
   const SaleCartContent({
@@ -138,7 +139,7 @@ class SaleCartContent extends StatelessWidget {
                             ? (_) => onAmountsChanged()
                             : null,
                         inputFormatters: [
-                          FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                          DecimalTextInputFormatter(decimalRange: 2),
                         ],
                         decoration: const InputDecoration(
                           prefixIcon: Padding(
@@ -182,7 +183,7 @@ class SaleCartContent extends StatelessWidget {
                             ? (_) => onAmountsChanged()
                             : null,
                         inputFormatters: [
-                          FilteringTextInputFormatter.allow(RegExp(r'[0-9]')),
+                          FilteringTextInputFormatter.digitsOnly,
                         ],
                         decoration: const InputDecoration(
                           prefixIcon: Padding(

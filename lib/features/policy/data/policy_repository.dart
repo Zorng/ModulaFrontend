@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/features/policy/data/policy_api.dart';
+import 'package:modular_pos/features/policy/data/dto/policy_bundle_dto.dart';
 import 'package:modular_pos/features/policy/domain/models/policy.dart';
 
 final policyRepositoryProvider = Provider<PolicyRepository>((ref) {
@@ -13,11 +14,11 @@ class PolicyRepository {
   final PolicyApi _api;
 
   Future<PolicyBundle> fetchPolicies({String? branchId}) async {
-    final payload = await _api.getPolicies(branchId: branchId);
-    final sales = SalesPolicy.fromJson(payload);
-    final inventory = InventoryPolicy.fromJson(payload);
-    final cashSession = CashSessionPolicy.fromJson(payload);
-    final attendance = AttendancePolicy.fromJson(payload);
+    final dto = await _api.getPolicies(branchId: branchId);
+    final sales = _toSales(dto.sales);
+    final inventory = _toInventory(dto.inventory);
+    final cashSession = _toCashSession(dto.cashSession);
+    final attendance = _toAttendance(dto.attendance);
     return PolicyBundle(
       sales: sales,
       inventory: inventory,
@@ -27,13 +28,13 @@ class PolicyRepository {
   }
 
   Future<SalesPolicy> fetchSalesPolicies() async {
-    final payload = await _api.getSalesPolicies();
-    return SalesPolicy.fromJson(payload);
+    final dto = await _api.getSalesPolicies();
+    return _toSales(dto.sales);
   }
 
   Future<InventoryPolicy> fetchInventoryPolicies() async {
-    final payload = await _api.getInventoryPolicies();
-    return InventoryPolicy.fromJson(payload);
+    final dto = await _api.getInventoryPolicies();
+    return _toInventory(dto.inventory);
   }
 
   Future<PolicyBundle> updateTax({
@@ -121,5 +122,41 @@ class PolicyRepository {
       attendanceAllowManagerEdits: attendanceAllowManagerEdits,
     );
     return fetchPolicies(branchId: branchId);
+  }
+
+  SalesPolicy _toSales(SalesPolicyDto dto) {
+    return SalesPolicy(
+      saleVatEnabled: dto.saleVatEnabled,
+      saleVatRatePercent: dto.saleVatRatePercent,
+      saleFxRateKhrPerUsd: dto.saleFxRateKhrPerUsd,
+      saleKhrRoundingEnabled: dto.saleKhrRoundingEnabled,
+      saleKhrRoundingMode: dto.saleKhrRoundingMode,
+      saleKhrRoundingGranularity: dto.saleKhrRoundingGranularity,
+    );
+  }
+
+  InventoryPolicy _toInventory(InventoryPolicyDto dto) {
+    return InventoryPolicy(
+      inventoryAutoSubtractOnSale: dto.inventoryAutoSubtractOnSale,
+      inventoryExpiryTrackingEnabled: dto.inventoryExpiryTrackingEnabled,
+    );
+  }
+
+  CashSessionPolicy _toCashSession(CashSessionPolicyDto dto) {
+    return CashSessionPolicy(
+      cashAllowPaidOut: dto.cashAllowPaidOut,
+      cashRequireRefundApproval: dto.cashRequireRefundApproval,
+      cashAllowManualAdjustment: dto.cashAllowManualAdjustment,
+    );
+  }
+
+  AttendancePolicy _toAttendance(AttendancePolicyDto dto) {
+    return AttendancePolicy(
+      attendanceAutoFromCashSession: dto.attendanceAutoFromCashSession,
+      attendanceRequireOutOfShiftApproval: dto.attendanceRequireOutOfShiftApproval,
+      attendanceEarlyCheckinBufferEnabled: dto.attendanceEarlyCheckinBufferEnabled,
+      attendanceCheckinBufferMinutes: dto.attendanceCheckinBufferMinutes,
+      attendanceAllowManagerEdits: dto.attendanceAllowManagerEdits,
+    );
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:modular_pos/core/logging/app_log.dart';
 import 'package:modular_pos/features/staff/ui/widgets/form_dropdown_field.dart';
 import 'package:modular_pos/features/staff/ui/widgets/form_text_field.dart';
 import 'package:modular_pos/features/staff/ui/widgets/custom_cupertino_list_tile.dart';
@@ -171,7 +172,7 @@ class _StaffFormViewState extends State<StaffFormView> {
                   if (value!.isEmpty) {
                     return 'Please enter phone number';
                   }
-                  if (!RegExp(r'^\+?[0-9]{7,15}$').hasMatch(value)) {
+                  if (!_isValidPhoneNumber(value)) {
                     return 'Enter a valid phone number';
                   }
                   return null;
@@ -187,7 +188,7 @@ class _StaffFormViewState extends State<StaffFormView> {
                   if (value!.isEmpty) {
                     return 'Please enter email address';
                   }
-                  if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value)) {
+                  if (!_isValidEmail(value)) {
                     return 'Enter a valid email address';
                   }
                   return null;
@@ -542,7 +543,7 @@ class _StaffFormViewState extends State<StaffFormView> {
                         context.pop(newStaff);
                       } else {
                         // Form is invalid, show an error or scroll to first error
-                        debugPrint('Form validation failed!');
+                        AppLog.d('Staff form validation failed');
                       }
                     },
                   ),
@@ -556,5 +557,29 @@ class _StaffFormViewState extends State<StaffFormView> {
         ),
       ),
     );
+  }
+
+  bool _isValidPhoneNumber(String raw) {
+    var value = raw.trim();
+    if (value.isEmpty) return false;
+    if (value.startsWith('+')) {
+      value = value.substring(1);
+    }
+    if (value.isEmpty) return false;
+    final allDigits = value.codeUnits.every((c) => c >= 48 && c <= 57);
+    if (!allDigits) return false;
+    return value.length >= 7 && value.length <= 15;
+  }
+
+  bool _isValidEmail(String raw) {
+    final value = raw.trim();
+    if (value.isEmpty) return false;
+    if (value.contains(' ')) return false;
+    final at = value.indexOf('@');
+    if (at <= 0) return false;
+    final dot = value.lastIndexOf('.');
+    if (dot <= at + 1) return false;
+    if (dot >= value.length - 1) return false;
+    return true;
   }
 }

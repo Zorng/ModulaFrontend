@@ -4,9 +4,11 @@ import 'package:dio/dio.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/core/network/dio_client.dart';
-import 'package:modular_pos/features/auth/domain/models/auth_session.dart';
-import 'package:modular_pos/features/auth/domain/models/tenant_membership.dart';
-import 'package:modular_pos/features/auth/domain/models/user.dart';
+import 'package:modular_pos/features/auth/data/dto/auth_login_response_dto.dart';
+import 'package:modular_pos/features/auth/data/dto/auth_tokens_dto.dart';
+import 'package:modular_pos/features/auth/data/dto/auth_user_dto.dart';
+import 'package:modular_pos/features/auth/data/dto/tenant_membership_dto.dart';
+import 'package:modular_pos/features/auth/data/dto/user_branch_dto.dart';
 
 final authApiProvider = Provider<AuthApi>((ref) {
   final dio = ref.read(dioProvider);
@@ -50,7 +52,7 @@ class AuthApi {
     }
   }
 
-  AuthSession _parseEstablishedSession(Map<String, dynamic> data) {
+  EstablishedAuthSessionDto _parseEstablishedSession(Map<String, dynamic> data) {
     final userJson = (() {
       final employee = _asMap(data['employee']);
       if (employee.isNotEmpty) return employee;
@@ -72,19 +74,15 @@ class AuthApi {
             .toList(growable: false)
         : const <Map<String, dynamic>>[];
 
-    if ((userJson['name']?.toString().trim() ?? '').isEmpty) {
-      final first = userJson['first_name']?.toString() ?? '';
-      final last = userJson['last_name']?.toString() ?? '';
-      userJson['name'] = [first, last].where((e) => e.isNotEmpty).join(' ').trim();
-    }
+    final branches = assignments
+        .map(UserBranchDto.fromJson)
+        .where((b) => b.id.isNotEmpty)
+        .toList(growable: false);
 
-    final accessToken =
-        tokens['access_token']?.toString() ?? tokens['accessToken']?.toString() ?? '';
-    final refreshToken = tokens['refresh_token']?.toString() ??
-        tokens['refreshToken']?.toString() ??
-        '';
-    final expiresInSeconds =
-        (tokens['expiresIn'] as num?)?.toInt() ?? (tokens['expires_in'] as num?)?.toInt();
+    final tokensDto = AuthTokensDto.fromJson(tokens);
+    final accessToken = tokensDto.accessToken;
+    final refreshToken = tokensDto.refreshToken;
+    final expiresInSeconds = tokensDto.expiresInSeconds;
 
     final accessExpiry = expiresInSeconds != null
         ? DateTime.now().add(Duration(seconds: expiresInSeconds))
@@ -96,7 +94,7 @@ class AuthApi {
     final roleFromToken = claims['role']?.toString() ?? '';
 
     final roleFromAssignment =
-        assignments.isNotEmpty ? assignments.first['role']?.toString() : null;
+        branches.isNotEmpty ? branches.first.role : null;
 
     final tenantId = (userJson['tenantId']?.toString() ??
             userJson['tenant_id']?.toString() ??
@@ -114,25 +112,27 @@ class AuthApi {
       return 'cashier';
     })();
 
-    userJson['tenantId'] = tenantId;
-    userJson['role'] = role;
+    final normalizedUser = Map<String, dynamic>.from(userJson);
+    if ((normalizedUser['name']?.toString().trim() ?? '').isEmpty) {
+      final first = normalizedUser['first_name']?.toString() ?? '';
+      final last = normalizedUser['last_name']?.toString() ?? '';
+      normalizedUser['name'] =
+          [first, last].where((e) => e.isNotEmpty).join(' ').trim();
+    }
+    normalizedUser['tenantId'] = tenantId;
+    normalizedUser['role'] = role;
 
-    final branches = assignments.map(UserBranch.fromJson).toList(growable: false);
-
-    final membership = TenantMembership(
+    final membership = TenantMembershipDto(
       tenantId: tenantId,
       tenantName: tenantId,
       role: role,
       branches: branches,
     );
 
-    userJson['branches'] =
-        branches.map((b) => b.toJson()).toList(growable: false);
-
     final refreshExpiry = DateTime.now().add(const Duration(hours: 72));
 
-    return AuthSession(
-      user: User.fromJson(userJson),
+    return EstablishedAuthSessionDto(
+      user: AuthUserDto.fromJson(normalizedUser, branches: branches),
       memberships: [membership],
       activeTenantId: tenantId.isEmpty ? null : tenantId,
       accessToken: accessToken,
@@ -142,7 +142,7 @@ class AuthApi {
     );
   }
 
-  Future<AuthSession> login({
+  Future<AuthLoginResponseDto> login({
     required String username,
     required String password,
   }) async {
@@ -169,32 +169,27 @@ class AuthApi {
       final memberships = rawMemberships is List
           ? rawMemberships
               .map(_asMap)
-              .map(TenantMembership.fromJson)
+              .map(TenantMembershipDto.fromJson)
               .where((m) => m.tenantId.isNotEmpty)
               .toList(growable: false)
-          : const <TenantMembership>[];
+          : const <TenantMembershipDto>[];
 
-      return AuthSession(
-        user: User(
-          id: '',
-          name: '',
-          role: '',
-          tenantId: '',
+      return AuthLoginResponseDto(
+        tenantSelection: TenantSelectionRequiredDto(
+          selectionToken: selectionToken,
+          memberships: memberships,
         ),
-        memberships: memberships,
-        activeTenantId: null,
-        accessToken: '',
-        refreshToken: '',
-        accessTokenExpiresAt: DateTime.now().add(const Duration(minutes: 15)),
-        refreshTokenExpiresAt: DateTime.now().add(const Duration(hours: 72)),
-        tenantSelectionToken: selectionToken,
+        established: null,
       );
     }
 
-    return _parseEstablishedSession(data);
+    return AuthLoginResponseDto(
+      tenantSelection: null,
+      established: _parseEstablishedSession(data),
+    );
   }
 
-  Future<AuthSession> selectTenant({
+  Future<EstablishedAuthSessionDto> selectTenant({
     required String selectionToken,
     required String tenantId,
     String? branchId,

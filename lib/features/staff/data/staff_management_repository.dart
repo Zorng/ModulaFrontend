@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/features/staff/data/staff_management_api.dart';
+import 'package:modular_pos/features/staff/data/dto/shift_schedule_entry_dto.dart';
+import 'package:modular_pos/features/staff/data/dto/staff_dto.dart';
 import 'package:modular_pos/features/staff/domain/models/staff_model.dart';
 
 final staffManagementRepositoryProvider =
@@ -14,52 +16,40 @@ class StaffManagementRepository {
   final StaffManagementApi _api;
 
   Future<List<Staff>> fetchStaff({String? branchId}) async {
-    final payload = await _api.fetchStaffList(branchId: branchId);
-    final raw = payload['staff'];
-    if (raw is! List) return const [];
-
-    return raw
-        .whereType<Map>()
-        .map((item) => _mapStaff(Map<String, dynamic>.from(item)))
-        .toList();
+    final staff = await _api.fetchStaffList(branchId: branchId);
+    return staff.map(_mapStaff).toList();
   }
 
   Future<List<ShiftScheduleEntry>> fetchShiftSchedule({
     required String userId,
     required String branchId,
   }) async {
-    final payload =
+    final schedule =
         await _api.fetchShiftSchedule(userId: userId, branchId: branchId);
-    final raw = payload['schedule'];
-    if (raw is! List) return const [];
-
-    return raw
-        .whereType<Map>()
-        .map((item) => _mapScheduleEntry(Map<String, dynamic>.from(item)))
-        .toList();
+    return schedule.map(_mapScheduleEntry).toList();
   }
 
-  Staff _mapStaff(Map<String, dynamic> json) {
-    final first = json['first_name']?.toString() ?? '';
-    final last = json['last_name']?.toString() ?? '';
+  Staff _mapStaff(StaffDto dto) {
+    final first = dto.firstName;
+    final last = dto.lastName;
     final fullName = [first, last].where((e) => e.isNotEmpty).join(' ').trim();
-    final recordType = json['record_type']?.toString().toUpperCase() ?? '';
-    final statusRaw = json['status']?.toString().toUpperCase() ?? '';
+    final recordType = dto.recordType.toUpperCase();
+    final statusRaw = dto.status.toUpperCase();
     final status =
         statusRaw.isNotEmpty ? statusRaw : (recordType == 'INVITE' ? 'INVITED' : '');
-    final roleRaw = json['role']?.toString() ?? '';
-    final branchName = json['branch_name']?.toString() ?? '';
-    final phone = json['phone']?.toString() ?? '';
+    final roleRaw = dto.role;
+    final branchName = dto.branchName;
+    final phone = dto.phone;
 
     return Staff(
-      id: json['id']?.toString() ?? '',
+      id: dto.id,
       userName: fullName.isNotEmpty ? fullName : phone,
       gender: null,
       phoneNumber: phone,
-      email: json['email']?.toString() ?? '',
+      email: dto.email,
       role: _titleCase(roleRaw),
       branch: branchName.isNotEmpty ? branchName : null,
-      branchId: json['branch_id']?.toString(),
+      branchId: dto.branchId,
       status: status.isNotEmpty ? _titleCase(status) : null,
       isActive: status == 'ACTIVE',
       scheduleOption: null,
@@ -71,12 +61,12 @@ class StaffManagementRepository {
     );
   }
 
-  ShiftScheduleEntry _mapScheduleEntry(Map<String, dynamic> json) {
+  ShiftScheduleEntry _mapScheduleEntry(ShiftScheduleEntryDto dto) {
     return ShiftScheduleEntry(
-      dayOfWeek: (json['day_of_week'] as num?)?.toInt() ?? -1,
-      startTime: json['start_time']?.toString(),
-      endTime: json['end_time']?.toString(),
-      isOff: json['is_off'] as bool? ?? false,
+      dayOfWeek: dto.dayOfWeek,
+      startTime: dto.startTime,
+      endTime: dto.endTime,
+      isOff: dto.isOff,
     );
   }
 

@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:modular_pos/features/policy/data/policy_api.dart';
+import 'package:modular_pos/features/policy/data/dto/policy_bundle_dto.dart';
 import 'package:modular_pos/features/policy/data/policy_repository.dart';
 import 'package:modular_pos/features/policy/domain/models/policy.dart';
 
@@ -59,7 +60,9 @@ void main() {
     final payload = readJsonMapFixture('test/fixtures/policy/policy_bundle.json');
 
     final api = _MockPolicyApi();
-    when(() => api.getPolicies()).thenAnswer((_) async => payload);
+    when(() => api.getPolicies()).thenAnswer(
+      (_) async => PolicyBundleDto.fromJson(payload),
+    );
 
     final repo = PolicyRepository(api);
     final bundle = await repo.fetchPolicies();

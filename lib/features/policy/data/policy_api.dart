@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/core/network/dio_client.dart';
+import 'package:modular_pos/features/policy/data/dto/policy_bundle_dto.dart';
 
 final policyApiProvider = Provider<PolicyApi>((ref) {
   final dio = ref.watch(dioProvider);
@@ -15,27 +16,27 @@ class PolicyApi {
   final Dio _dio;
   final String _prefix;
 
-  Future<Map<String, dynamic>> getPolicies({String? branchId}) async {
+  Future<PolicyBundleDto> getPolicies({String? branchId}) async {
     final response = await _dio.get<Map<String, dynamic>>(
       _prefix,
       queryParameters:
           branchId != null && branchId.isNotEmpty ? {'branchId': branchId} : null,
     );
-    return response.data ?? const {};
+    return PolicyBundleDto.fromJson(response.data ?? const {});
   }
 
-  Future<Map<String, dynamic>> getSalesPolicies() async {
+  Future<PolicyBundleDto> getSalesPolicies() async {
     final response = await _dio.get<Map<String, dynamic>>('$_prefix/sales');
-    return response.data ?? const {};
+    return PolicyBundleDto.fromJson(response.data ?? const {});
   }
 
-  Future<Map<String, dynamic>> getInventoryPolicies() async {
+  Future<PolicyBundleDto> getInventoryPolicies() async {
     final response =
         await _dio.get<Map<String, dynamic>>('$_prefix/inventory');
-    return response.data ?? const {};
+    return PolicyBundleDto.fromJson(response.data ?? const {});
   }
 
-  Future<Map<String, dynamic>> updateTax({
+  Future<void> updateTax({
     String? branchId,
     required bool saleVatEnabled,
     required double saleVatRatePercent,
@@ -47,14 +48,14 @@ class PolicyApi {
     if (branchId != null && branchId.isNotEmpty) {
       body['branchId'] = branchId;
     }
-    final response = await _dio.patch<Map<String, dynamic>>(
+    await _dio.patch<Map<String, dynamic>>(
       '$_prefix/tax',
       data: body,
     );
-    return response.data ?? const {};
+    // ignore response; repository re-fetches canonical policies.
   }
 
-  Future<Map<String, dynamic>> updateCurrency({
+  Future<void> updateCurrency({
     String? branchId,
     required double saleFxRateKhrPerUsd,
   }) async {
@@ -64,14 +65,13 @@ class PolicyApi {
     if (branchId != null && branchId.isNotEmpty) {
       body['branchId'] = branchId;
     }
-    final response = await _dio.patch<Map<String, dynamic>>(
+    await _dio.patch<Map<String, dynamic>>(
       '$_prefix/currency',
       data: body,
     );
-    return response.data ?? const {};
   }
 
-  Future<Map<String, dynamic>> updateRounding({
+  Future<void> updateRounding({
     String? branchId,
     bool? saleKhrRoundingEnabled,
     String? saleKhrRoundingMode,
@@ -90,14 +90,13 @@ class PolicyApi {
     if (saleKhrRoundingGranularity != null) {
       body['saleKhrRoundingGranularity'] = saleKhrRoundingGranularity;
     }
-    final response = await _dio.patch<Map<String, dynamic>>(
+    await _dio.patch<Map<String, dynamic>>(
       '$_prefix/rounding',
       data: body,
     );
-    return response.data ?? const {};
   }
 
-  Future<Map<String, dynamic>> updateInventory({
+  Future<void> updateInventory({
     String? branchId,
     bool? inventoryAutoSubtractOnSale,
     bool? inventoryExpiryTrackingEnabled,
@@ -113,14 +112,13 @@ class PolicyApi {
       body['inventoryExpiryTrackingEnabled'] =
           inventoryExpiryTrackingEnabled;
     }
-    final response = await _dio.patch<Map<String, dynamic>>(
+    await _dio.patch<Map<String, dynamic>>(
       '$_prefix/inventory',
       data: body,
     );
-    return response.data ?? const {};
   }
 
-  Future<Map<String, dynamic>> updateCashSession({
+  Future<void> updateCashSession({
     String? branchId,
     bool? cashAllowPaidOut,
     bool? cashRequireRefundApproval,
@@ -139,14 +137,13 @@ class PolicyApi {
     if (cashAllowManualAdjustment != null) {
       body['cashAllowManualAdjustment'] = cashAllowManualAdjustment;
     }
-    final response = await _dio.patch<Map<String, dynamic>>(
+    await _dio.patch<Map<String, dynamic>>(
       '$_prefix/cash-sessions',
       data: body,
     );
-    return response.data ?? const {};
   }
 
-  Future<Map<String, dynamic>> updateAttendance({
+  Future<void> updateAttendance({
     String? branchId,
     bool? attendanceAutoFromCashSession,
     bool? attendanceRequireOutOfShiftApproval,
@@ -175,10 +172,9 @@ class PolicyApi {
     if (attendanceAllowManagerEdits != null) {
       body['attendanceAllowManagerEdits'] = attendanceAllowManagerEdits;
     }
-    final response = await _dio.patch<Map<String, dynamic>>(
+    await _dio.patch<Map<String, dynamic>>(
       '$_prefix/attendance',
       data: body,
     );
-    return response.data ?? const {};
   }
 }

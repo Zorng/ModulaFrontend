@@ -1,5 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/features/inventory/data/inventory_api.dart';
+import 'package:modular_pos/features/inventory/data/dto/branch_stock_item_dto.dart';
+import 'package:modular_pos/features/inventory/data/dto/on_hand_record_dto.dart';
+import 'package:modular_pos/features/inventory/data/dto/stock_item_dto.dart';
+import 'package:modular_pos/features/inventory/domain/models/on_hand_record.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
 
 final stockItemRepositoryProvider = Provider<StockItemRepository>((ref) {
@@ -12,47 +16,56 @@ class StockItemRepository {
 
   final InventoryApi _api;
 
-  Future<List<dynamic>> fetchOnHand({String? branchId}) {
-    return _api.fetchOnHand(branchId: branchId);
+  Future<List<OnHandRecord>> fetchOnHand({String? branchId}) async {
+    final records = await _api.fetchOnHand(branchId: branchId);
+    return records.map(_toOnHandDomain).toList(growable: false);
   }
 
   Future<List<StockItem>> fetchStockItems({String? branchId}) async {
     // Always fetch master items so we can hydrate unit/piece info.
-    final masterRaw = await _api.fetchStockItems(pageSize: 200);
-    final master = masterRaw.whereType<Map<String, dynamic>>().toList();
-    final masterById = {for (final m in master) _primaryId(m): m};
+    final masterDtos = await _api.fetchStockItems(pageSize: 200);
+    final masterById = {for (final dto in masterDtos) dto.id: dto};
 
-    final branchData = await _api.fetchBranchStockItems(branchId: branchId);
+    final branchDtos = await _api.fetchBranchStockItems(branchId: branchId);
 
-    // If a branch is explicitly requested, only show items returned for that branch.
-    final data = (branchId != null && branchId.isNotEmpty)
-        ? branchData
-        : (branchData.isNotEmpty ? branchData : master);
+    if (branchDtos.isNotEmpty) {
+      return branchDtos
+          .map((assignment) => _toStockItemFromBranchAssignment(
+                assignment: assignment,
+                masterById: masterById,
+                branchIdHint: branchId,
+              ))
+          .toList(growable: false);
+    }
 
-    return data
-        .whereType<Map<String, dynamic>>()
-        .map((json) => _normalizeBranchStock(json, branchIdHint: branchId))
-        .map((json) {
-          final id = _primaryId(json);
-          final base = masterById[id];
-          if (base == null) return json;
-          // Merge base unit/piece/category info from master if missing.
-          final merged = Map<String, dynamic>.from(base)..addAll(json);
-          // Ensure we keep the real stock item id (from master) instead of branch assignment id.
-          merged['id'] = _primaryId(base);
-          return merged;
-        })
-        .map(StockItem.fromJson)
-        .toList();
+    // Fallback for flows that need stock items regardless of branch assignment.
+    return masterDtos
+        .map(
+          (dto) => _toStockItem(
+            dto: dto,
+            branchId: branchId ?? '',
+            branchName: '',
+            onHand: 0,
+            minThreshold: 0,
+          ),
+        )
+        .toList(growable: false);
   }
 
   /// Fetch only the master stock items (no branch assignment overlay).
   Future<List<StockItem>> fetchMasterStockItems({int pageSize = 200}) async {
-    final masterRaw = await _api.fetchStockItems(pageSize: pageSize);
-    return masterRaw
-        .whereType<Map<String, dynamic>>()
-        .map(StockItem.fromJson)
-        .toList();
+    final masterDtos = await _api.fetchStockItems(pageSize: pageSize);
+    return masterDtos
+        .map(
+          (dto) => _toStockItem(
+            dto: dto,
+            branchId: '',
+            branchName: '',
+            onHand: 0,
+            minThreshold: 0,
+          ),
+        )
+        .toList(growable: false);
   }
 
   Future<StockItem> createStockItem(
@@ -69,12 +82,18 @@ class StockItemRepository {
       if (item.barcode != null && item.barcode!.isNotEmpty) 'barcode': item.barcode,
       'isActive': item.isActive,
     };
-    final json = await _api.createStockItem(
+    final dto = await _api.createStockItem(
       body,
       imagePath: imagePath,
       imageBytes: imageBytes,
     );
-    return StockItem.fromJson(_unwrap(json, fallback: item));
+    return _toStockItem(
+      dto: dto,
+      branchId: '',
+      branchName: '',
+      onHand: 0,
+      minThreshold: 0,
+    );
   }
 
   Future<StockItem> updateStockItem(
@@ -91,13 +110,19 @@ class StockItemRepository {
         'categoryId': item.categoryId,
       if (item.barcode != null && item.barcode!.isNotEmpty) 'barcode': item.barcode,
     };
-    final json = await _api.updateStockItem(
+    final dto = await _api.updateStockItem(
       item.id,
       body,
       imagePath: imagePath,
       imageBytes: imageBytes,
     );
-    return StockItem.fromJson(_unwrap(json, fallback: item));
+    return _toStockItem(
+      dto: dto,
+      branchId: item.branchId,
+      branchName: item.branchName,
+      onHand: item.onHand,
+      minThreshold: item.minThreshold,
+    );
   }
 
   Future<void> deleteStockItem(String id) => _api.deactivateStockItem(id);
@@ -114,56 +139,58 @@ class StockItemRepository {
     );
     // Response is informational; local state is updated by the caller.
   }
+}
 
-  Map<String, dynamic> _unwrap(Map<String, dynamic> json, {StockItem? fallback}) {
-    if (json['data'] is Map<String, dynamic>) return json['data'] as Map<String, dynamic>;
-    if (json.isNotEmpty) return json;
-    return fallback?.toJson() ?? {};
-  }
+OnHandRecord _toOnHandDomain(OnHandRecordDto dto) {
+  return OnHandRecord(
+    stockItemId: dto.stockItemId,
+    branchId: dto.branchId,
+    onHand: dto.onHand,
+    minThreshold: dto.minThreshold,
+  );
+}
 
-  Map<String, dynamic> _normalizeBranchStock(
-    Map<String, dynamic> json, {
-    String? branchIdHint,
-  }) {
-    // Branch stock endpoint may wrap stock item details under a key.
-    if (json.containsKey('stockItem') && json['stockItem'] is Map<String, dynamic>) {
-      final item = Map<String, dynamic>.from(json['stockItem'] as Map<String, dynamic>);
-      final onHand = json['onHand'] ?? json['qty'] ?? json['quantity'];
-      String? branchId = json['branchId'] ?? json['branch_id'];
-      String? branchName = json['branchName'] ?? json['branch_name'];
-      final minThreshold = json['minThreshold'] ?? json['threshold'];
-      if (onHand != null) item['onHand'] = onHand;
-      final hasBranchId =
-          branchId != null && branchId.toString().isNotEmpty;
-      if (hasBranchId) {
-        item['branchId'] = branchId;
-      } else if (branchIdHint != null && branchIdHint.isNotEmpty) {
-        item['branchId'] = branchIdHint;
-        branchId = branchIdHint;
-      }
-      if (branchName != null && branchName.toString().isNotEmpty) {
-        item['branchName'] = branchName;
-      } else if (branchIdHint != null && branchIdHint.isNotEmpty) {
-        item['branchName'] = '';
-      }
-      if (minThreshold != null) item['minThreshold'] = minThreshold;
-      return item;
-    }
-    final branchIdValue = json['branchId'] ?? json['branch_id'];
-    if ((branchIdValue == null || branchIdValue.toString().isEmpty) &&
-        branchIdHint != null &&
-        branchIdHint.isNotEmpty) {
-      json = Map<String, dynamic>.from(json);
-      json['branchId'] = branchIdHint;
-    }
-    return json;
-  }
+StockItem _toStockItemFromBranchAssignment({
+  required BranchStockItemDto assignment,
+  required Map<String, StockItemDto> masterById,
+  String? branchIdHint,
+}) {
+  final base = masterById[assignment.stockItemId] ?? assignment.stockItem;
+  final resolvedBranchId = assignment.branchId.isNotEmpty
+      ? assignment.branchId
+      : (branchIdHint ?? '');
+  return _toStockItem(
+    dto: base,
+    branchId: resolvedBranchId,
+    branchName: assignment.branchName,
+    onHand: assignment.onHand ?? 0,
+    minThreshold: assignment.minThreshold ?? 0,
+  );
+}
 
-  String _primaryId(Map<String, dynamic> json) {
-    return (json['stockItemId'] ??
-            json['stock_item_id'] ??
-            json['id'] ??
-            '')
-        .toString();
-  }
+StockItem _toStockItem({
+  required StockItemDto dto,
+  required String branchId,
+  required String branchName,
+  required int onHand,
+  required int minThreshold,
+}) {
+  return StockItem(
+    id: dto.id,
+    name: dto.name,
+    category: 'Uncategorized',
+    categoryId: dto.categoryId,
+    baseUnit: dto.unitText,
+    pieceSize: dto.pieceSize,
+    branchId: branchId,
+    branchName: branchName,
+    onHand: onHand,
+    minThreshold: minThreshold,
+    isActive: dto.isActive,
+    barcode: dto.barcode,
+    imageUrl: dto.imageUrl,
+    lastRestockDate: '-',
+    expiryDate: '-',
+    usageTags: dto.usageTags,
+  );
 }

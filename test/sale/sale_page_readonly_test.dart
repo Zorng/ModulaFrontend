@@ -9,6 +9,8 @@ import 'package:modular_pos/features/sale/ui/view/sale/sale_page.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_access_gate.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../test_utils/fakes/fake_auth_repository.dart';
+
 class _StaticMenuViewModel extends MenuViewModel {
   _StaticMenuViewModel(this._state);
 
@@ -34,10 +36,10 @@ void main() {
     final store = AuthSessionStore(prefs);
 
     await tester.pumpWidget(
-      ProviderScope(
+          ProviderScope(
         overrides: [
           authSessionStoreProvider.overrideWithValue(store),
-          authRepositoryProvider.overrideWithValue(MockAuthRepository()),
+          authRepositoryProvider.overrideWithValue(FakeAuthRepository()),
           menuViewModelProvider.overrideWith(
             () => _StaticMenuViewModel(const MenuState(isLoading: false)),
           ),

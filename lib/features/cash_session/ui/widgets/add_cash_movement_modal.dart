@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:modular_pos/core/input_formatters/decimal_text_input_formatter.dart';
 
 /// A modal bottom sheet for adding a cash movement (Paid In/Paid Out).
 class AddCashMovementModal extends StatefulWidget {
@@ -181,7 +181,8 @@ class _AddCashMovementModalState extends State<AddCashMovementModal> {
           keyboardType: isNumeric
               ? const TextInputType.numberWithOptions(decimal: true)
               : TextInputType.text,
-          inputFormatters: isNumeric ? [FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}'))] : [],
+          inputFormatters:
+              isNumeric ? [DecimalTextInputFormatter(decimalRange: 2)] : [],
         ),
       ],
     );

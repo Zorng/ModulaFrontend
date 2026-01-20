@@ -15,6 +15,7 @@ import 'package:modular_pos/features/sale/ui/viewmodels/sale_access_gate.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_viewmodel.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../test_utils/fakes/fake_auth_repository.dart';
 import '../test_utils/riverpod_test_utils.dart';
 
 class _MockSaleRepository extends Mock implements SaleRepository {}
@@ -90,7 +91,7 @@ void main() {
     final container = createTestContainer(
       overrides: [
         authSessionStoreProvider.overrideWithValue(store),
-        authRepositoryProvider.overrideWithValue(MockAuthRepository()),
+        authRepositoryProvider.overrideWithValue(FakeAuthRepository()),
         saleRepositoryProvider.overrideWithValue(_MockSaleRepository()),
         policyNotifierProvider.overrideWith(_StaticPolicyNotifier.new),
         menuViewModelProvider.overrideWith(

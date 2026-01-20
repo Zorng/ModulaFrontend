@@ -3,6 +3,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:modular_pos/features/auth/data/auth_api.dart';
+import 'package:modular_pos/features/auth/data/dto/auth_login_response_dto.dart';
 
 import '../test_utils/fixture_reader.dart';
 
@@ -34,11 +35,13 @@ void main() {
 
     final api = AuthApi(dio);
 
-    final session = await api.login(username: '+123', password: 'pw');
+    final response = await api.login(username: '+123', password: 'pw');
 
-    expect(session.requiresTenantSelection, isFalse);
-    expect(session.tenantSelectionToken, isEmpty);
+    expect(response.requiresTenantSelection, isFalse);
+    expect(response.tenantSelection, isNull);
+    expect(response.established, isA<EstablishedAuthSessionDto>());
 
+    final session = response.established!;
     expect(session.accessToken, isNotEmpty);
     expect(session.refreshToken, 'refresh-token');
     expect(session.activeTenantId, 'tenant-1');
@@ -84,18 +87,18 @@ void main() {
 
     final api = AuthApi(dio);
 
-    final session = await api.login(username: '+123', password: 'pw');
+    final response = await api.login(username: '+123', password: 'pw');
 
-    expect(session.requiresTenantSelection, isTrue);
-    expect(session.tenantSelectionToken, 'selection-token-123');
-    expect(session.activeTenantId, isNull);
-    expect(session.accessToken, isEmpty);
-    expect(session.refreshToken, isEmpty);
+    expect(response.requiresTenantSelection, isTrue);
+    expect(response.established, isNull);
+    expect(response.tenantSelection, isNotNull);
 
-    expect(session.memberships, hasLength(2));
-    expect(session.memberships.first.tenantId, 'tenant-1');
-    expect(session.memberships.first.tenantName, 'Tenant One');
-    expect(session.memberships.last.tenantId, 'tenant-2');
-    expect(session.memberships.last.tenantName, 'Tenant Two');
+    final selection = response.tenantSelection!;
+    expect(selection.selectionToken, 'selection-token-123');
+    expect(selection.memberships, hasLength(2));
+    expect(selection.memberships.first.tenantId, 'tenant-1');
+    expect(selection.memberships.first.tenantName, 'Tenant One');
+    expect(selection.memberships.last.tenantId, 'tenant-2');
+    expect(selection.memberships.last.tenantName, 'Tenant Two');
   });
 }

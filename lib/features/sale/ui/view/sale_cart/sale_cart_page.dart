@@ -267,25 +267,16 @@ class _SaleCartPageState extends ConsumerState<SaleCartPage> {
             khr: double.tryParse(_khrController.text.trim()) ?? 0,
           );
           try {
-            final result = await cartNotifier.checkout();
-            final saleData = _extractSaleData(result);
+            final summary = await cartNotifier.checkout();
             final tenderCurrency =
-                (saleData['tenderCurrency']?.toString() ?? _tenderCurrency)
+                (summary.tenderCurrency.isEmpty ? _tenderCurrency : summary.tenderCurrency)
                     .toLowerCase();
-            final totalUsd =
-                (saleData['totalUsdExact'] ?? saleData['totalUsd'] ?? 0)
-                    .toDouble();
-            final totalKhr =
-                (saleData['totalKhrExact'] ?? saleData['totalKhr'] ?? 0)
-                    .toDouble();
-            final cashUsd =
-                (saleData['cashReceivedUsd'] ?? cartSnapshot.cashUsd) as num? ??
-                0;
-            final cashKhr =
-                (saleData['cashReceivedKhr'] ?? cartSnapshot.cashKhr) as num? ??
-                0;
-            final changeUsd = (saleData['changeGivenUsd'] ?? 0) as num? ?? 0;
-            final changeKhr = (saleData['changeGivenKhr'] ?? 0) as num? ?? 0;
+            final totalUsd = summary.totalUsdExact;
+            final totalKhr = summary.totalKhrExact;
+            final cashUsd = summary.cashReceivedUsd;
+            final cashKhr = summary.cashReceivedKhr;
+            final changeUsd = summary.changeGivenUsd;
+            final changeKhr = summary.changeGivenKhr;
             ordersNotifier.createOrder(
               orderType: _orderType,
               paymentMethod: _paymentMethod,
@@ -339,22 +330,4 @@ List<String> _modifierNames(
     }
   });
   return names;
-}
-
-Map<String, dynamic> _extractSaleData(Map<String, dynamic> payload) {
-  final finalize = payload['finalize'];
-  final pre = payload['preCheckout'];
-  Map<String, dynamic> pick(dynamic value) {
-    if (value is Map<String, dynamic>) {
-      if (value['data'] is Map<String, dynamic>) {
-        return Map<String, dynamic>.from(value['data'] as Map);
-      }
-      return value;
-    }
-    return {};
-  }
-
-  final fromFinalize = pick(finalize);
-  if (fromFinalize.isNotEmpty) return fromFinalize;
-  return pick(pre);
 }

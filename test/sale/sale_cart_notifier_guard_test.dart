@@ -89,6 +89,7 @@ void main() {
           menuItemId: any(named: 'menuItemId'),
           quantity: any(named: 'quantity'),
           modifiers: any(named: 'modifiers'),
+          selectedOptionIds: any(named: 'selectedOptionIds'),
           unitPriceUsd: any(named: 'unitPriceUsd'),
           lineTotalUsdExact: any(named: 'lineTotalUsdExact'),
           addonTotalUsd: any(named: 'addonTotalUsd'),
@@ -116,21 +117,13 @@ void main() {
           menuItemId: any(named: 'menuItemId'),
           quantity: any(named: 'quantity'),
           modifiers: any(named: 'modifiers'),
+          selectedOptionIds: any(named: 'selectedOptionIds'),
           unitPriceUsd: any(named: 'unitPriceUsd'),
           lineTotalUsdExact: any(named: 'lineTotalUsdExact'),
           addonTotalUsd: any(named: 'addonTotalUsd'),
           pricingSnapshot: any(named: 'pricingSnapshot'),
         ),
-      ).thenAnswer(
-        (_) async => {
-          'success': true,
-          'data': {
-            'items': [
-              {'id': 'sale-item-1', 'menuItemId': 'menu-1', 'modifiers': []},
-            ],
-          },
-        },
-      );
+      ).thenAnswer((_) async => 'sale-item-1');
 
       final container = createTestContainer(
         overrides: [
@@ -177,6 +170,7 @@ void main() {
           menuItemId: any(named: 'menuItemId'),
           quantity: any(named: 'quantity'),
           modifiers: any(named: 'modifiers'),
+          selectedOptionIds: any(named: 'selectedOptionIds'),
           unitPriceUsd: any(named: 'unitPriceUsd'),
           lineTotalUsdExact: any(named: 'lineTotalUsdExact'),
           addonTotalUsd: any(named: 'addonTotalUsd'),
@@ -211,21 +205,13 @@ void main() {
           menuItemId: any(named: 'menuItemId'),
           quantity: any(named: 'quantity'),
           modifiers: any(named: 'modifiers'),
+          selectedOptionIds: any(named: 'selectedOptionIds'),
           unitPriceUsd: any(named: 'unitPriceUsd'),
           lineTotalUsdExact: any(named: 'lineTotalUsdExact'),
           addonTotalUsd: any(named: 'addonTotalUsd'),
           pricingSnapshot: any(named: 'pricingSnapshot'),
         ),
-      ).thenAnswer(
-        (_) async => {
-          'success': true,
-          'data': {
-            'items': [
-              {'id': 'sale-item-1', 'menuItemId': 'menu-1', 'modifiers': []},
-            ],
-          },
-        },
-      );
+      ).thenAnswer((_) async => 'sale-item-1');
 
       final container = createTestContainer(
         overrides: [
@@ -272,6 +258,7 @@ void main() {
           menuItemId: any(named: 'menuItemId'),
           quantity: any(named: 'quantity'),
           modifiers: any(named: 'modifiers'),
+          selectedOptionIds: any(named: 'selectedOptionIds'),
           unitPriceUsd: any(named: 'unitPriceUsd'),
           lineTotalUsdExact: any(named: 'lineTotalUsdExact'),
           addonTotalUsd: any(named: 'addonTotalUsd'),

@@ -1,9 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:modular_pos/core/logging/app_log.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 import 'package:modular_pos/features/policy/ui/viewmodels/policy_viewmodel.dart';
 import 'package:modular_pos/features/cash_session/ui/viewmodels/x_report_viewmodel.dart';
 import 'package:modular_pos/features/sale/data/sale_repository.dart';
+import 'package:modular_pos/features/sale/domain/models/sale.dart';
 import 'package:modular_pos/features/sale/ui/view/sale_item_detail/sale_item_detail_page.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_access_gate.dart';
 
@@ -88,6 +90,14 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
 
   late final SaleRepository _repo = ref.read(saleRepositoryProvider);
 
+  void _logIgnoredError(String context, Object error, StackTrace stackTrace) {
+    AppLog.e(
+      '[SaleCartNotifier] Ignored error: $context',
+      error: error,
+      stackTrace: stackTrace,
+    );
+  }
+
   @override
   SaleCartState build() => const SaleCartState();
 
@@ -126,20 +136,16 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
     if (saleId == null) return;
 
     final addPayload = _buildAddPayloadFromSelection(selection);
-    final added = await _repo.addItem(
+    final saleItemId = await _repo.addItem(
       saleId: saleId,
       menuItemId: selection.item.id,
       quantity: selection.quantity,
       modifiers: addPayload.modifiers,
+      selectedOptionIds: selection.selectedOptionIds,
       unitPriceUsd: addPayload.unitPriceUsd,
       lineTotalUsdExact: addPayload.lineTotalUsdExact,
       addonTotalUsd: addPayload.addonTotalUsd,
       pricingSnapshot: addPayload.pricingSnapshot,
-    );
-    final saleItemId = _extractSaleItemId(
-      added,
-      selection.item.id,
-      selection.selectedOptionIds,
     );
     // Only update local state after successful sync.
     final lines = [...state.lines];
@@ -243,7 +249,9 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
         itemId: line.saleItemId ?? line.item.id,
         quantity: quantity,
       );
-    } catch (_) {}
+    } catch (e, st) {
+      _logIgnoredError('_updateRemoteQuantity', e, st);
+    }
   }
 
   Future<void> _removeRemote(CartLine line) async {
@@ -254,14 +262,16 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
         saleId: saleId,
         itemId: line.saleItemId ?? line.item.id,
       );
-    } catch (_) {}
+    } catch (e, st) {
+      _logIgnoredError('_removeRemote', e, st);
+    }
   }
 
   void clear() {
     state = const SaleCartState();
   }
 
-  Future<Map<String, dynamic>> checkout() async {
+  Future<SaleCheckoutSummary> checkout() async {
     _assertCanCreateDraftSale();
     final saleId = state.saleId;
     if (saleId == null) throw Exception('No sale draft');
@@ -272,19 +282,18 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
         state.cashKhr > 0) {
       cashReceived['khr'] = state.cashKhr;
     }
-    final pre = await _repo.preCheckout(
+    await _repo.preCheckout(
       saleId: saleId,
       tenderCurrency: state.tenderCurrency,
       paymentMethod: state.paymentMethod,
       cashReceived: cashReceived.isEmpty ? null : cashReceived,
     );
     final finalized = await _repo.finalize(saleId);
-    final result = {'preCheckout': pre, 'finalize': finalized};
     ref.invalidate(xReportEntriesProvider);
     ref.invalidate(xReportDetailProvider);
     // Reset state so subsequent carts start with a fresh draft.
     clear();
-    return result;
+    return finalized;
   }
 
   bool _mapsEqual(Map<String, List<String>> a, Map<String, List<String>> b) {
@@ -298,66 +307,6 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
       for (var i = 0; i < listA.length; i++) {
         if (listA[i] != listB[i]) return false;
       }
-    }
-    return true;
-  }
-
-  String? _extractSaleItemId(
-    Map<String, dynamic> payload,
-    String menuItemId,
-    Map<String, List<String>> selectedOptionIds,
-  ) {
-    final items = _extractItems(payload);
-    for (final raw in items.reversed) {
-      if (raw is! Map<String, dynamic>) continue;
-      final rawMenuItemId = raw['menuItemId']?.toString();
-      if (rawMenuItemId != menuItemId) continue;
-      final modifiers = raw['modifiers'];
-      if (!_modifiersMatch(modifiers, selectedOptionIds)) continue;
-      final id = raw['id']?.toString();
-      if (id != null && id.isNotEmpty) return id;
-    }
-    return null;
-  }
-
-  List<dynamic> _extractItems(Map<String, dynamic> payload) {
-    final data = payload['data'];
-    if (payload['items'] is List) {
-      return List<dynamic>.from(payload['items'] as List);
-    }
-    if (data is Map<String, dynamic> && data['items'] is List) {
-      return List<dynamic>.from(data['items'] as List);
-    }
-    return const [];
-  }
-
-  bool _modifiersMatch(
-    dynamic rawModifiers,
-    Map<String, List<String>> selectedOptionIds,
-  ) {
-    if (rawModifiers is! List) return true;
-    final normalizedSelected = {
-      for (final entry in selectedOptionIds.entries)
-        entry.key: [...entry.value]..sort(),
-    };
-    for (final mod in rawModifiers) {
-      if (mod is! Map<String, dynamic>) continue;
-      final groupId = mod['groupId']?.toString();
-      if (groupId == null) continue;
-      final optionIdsRaw = mod['optionIds'];
-      if (optionIdsRaw is! List) continue;
-      final optIds = optionIdsRaw.map((e) => e.toString()).toList()..sort();
-      final selected = normalizedSelected[groupId];
-      if (selected == null) continue;
-      if (!_listsEqual(selected, optIds)) return false;
-    }
-    return true;
-  }
-
-  bool _listsEqual(List<String> a, List<String> b) {
-    if (a.length != b.length) return false;
-    for (var i = 0; i < a.length; i++) {
-      if (a[i] != b[i]) return false;
     }
     return true;
   }
@@ -419,20 +368,16 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
 
   Future<CartLine> _replayLineToSale(String saleId, CartLine line) async {
     final payload = _buildAddPayloadFromLine(line);
-    final added = await _repo.addItem(
+    final saleItemId = await _repo.addItem(
       saleId: saleId,
       menuItemId: line.item.id,
       quantity: line.quantity,
       modifiers: payload.modifiers,
+      selectedOptionIds: line.selectedOptionIds,
       unitPriceUsd: payload.unitPriceUsd,
       lineTotalUsdExact: payload.lineTotalUsdExact,
       addonTotalUsd: payload.addonTotalUsd,
       pricingSnapshot: payload.pricingSnapshot,
-    );
-    final saleItemId = _extractSaleItemId(
-      added,
-      line.item.id,
-      line.selectedOptionIds,
     );
     return line.copyWith(saleItemId: saleItemId);
   }

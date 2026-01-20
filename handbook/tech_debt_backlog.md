@@ -132,11 +132,16 @@ Rule of engagement:
 
 ### TD-102 — Silent error swallowing (`catch (_) {}`) hides failures
 
+- **Status:** Completed
 - **Symptom:** failures are ignored, leaving UI in inconsistent state without explaining why.
 - **Examples:**
   - `lib/features/menu/data/menu_repository.dart` (multiple `catch (_) {}`)
   - `lib/features/sale/ui/viewmodels/sale_cart_viewmodel.dart` (remote update failures swallowed)
-  - `lib/features/auth/ui/viewmodels/login_controller.dart` (invalidate failure swallowed)
+- **Progress so far:**
+  - Added debug-only logging (guarded by `kDebugMode`) for previously ignored failures in:
+    - `lib/features/menu/data/menu_repository.dart`
+    - `lib/features/sale/ui/viewmodels/sale_cart_viewmodel.dart`
+  - Kept user-visible behavior stable (no technical errors shown in production UI).
 - **Proposed remediation:**
   - Replace silent catches with:
     - logged errors (debug)
@@ -147,15 +152,26 @@ Rule of engagement:
 
 ### TD-103 — Debug prints leak into runtime behavior
 
+- **Status:** Completed
 - **Symptom:** `print(...)` exists in production paths.
 - **Examples:**
   - `lib/features/auth/ui/viewmodels/login_controller.dart`
   - `lib/features/staff/ui/view/staff_form_view.dart`
 - **Proposed remediation:**
   - Use a logger abstraction (or guarded debug logging) and keep UI user-safe (see `handbook/quality/error_handling.md`).
+- **Progress so far:**
+  - Added `lib/core/logging/app_log.dart` (debug-only; no-op in release/profile).
+  - Replaced `print(...)`/`debugPrint(...)` call sites with `AppLog`:
+    - `lib/features/auth/ui/viewmodels/login_controller.dart`
+    - `lib/features/menu/ui/viewmodels/menu_viewmodel.dart`
+    - `lib/features/staff/ui/view/staff_form_view.dart`
+    - `lib/features/menu/data/menu_repository.dart`
+    - `lib/features/sale/ui/viewmodels/sale_cart_viewmodel.dart`
+    - `lib/features/sale/ui/view/sale/widgets/sale_page_menu_catalog.dart`
 
 ### TD-104 — Mock/dead code paths in core repositories
 
+- **Status:** Completed
 - **Symptom:** toggles / TODOs exist that make it unclear what source-of-truth is.
 - **Examples:**
   - `lib/features/auth/data/auth_repository.dart` (`_useMockRepository`)
@@ -165,6 +181,16 @@ Rule of engagement:
 - **Proposed remediation:**
   - Gate mocks behind explicit build flavors / dependency injection for tests only.
   - Remove/relocate demo mock data so production path is unambiguous.
+- **Progress so far:**
+  - Removed production mock implementations/toggles:
+    - `lib/features/auth/data/auth_repository.dart` no longer contains `MockAuthRepository`/`_useMockRepository`.
+    - `lib/features/menu/data/menu_api.dart` no longer supports mock mode (`MENU_USE_MOCK`), and removed mock branches from methods.
+  - Deleted dead/mock-only sources not used in production:
+    - `lib/features/inventory/data/stock_item_api.dart`
+    - `lib/features/inventory/data/stock_batch_repository.dart`
+    - `lib/features/menu/data/menu_mock_data_source.dart`
+  - Tests now use a test-only fake:
+    - `test/test_utils/fakes/fake_auth_repository.dart`
 
 ---
 

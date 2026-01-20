@@ -2,6 +2,8 @@ import 'package:dio/dio.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/core/network/dio_client.dart';
+import 'package:modular_pos/features/staff/data/dto/shift_schedule_entry_dto.dart';
+import 'package:modular_pos/features/staff/data/dto/staff_dto.dart';
 
 final staffManagementApiProvider = Provider<StaffManagementApi>((ref) {
   final dio = ref.watch(dioProvider);
@@ -15,17 +17,23 @@ class StaffManagementApi {
   final Dio _dio;
   final String _prefix;
 
-  Future<Map<String, dynamic>> fetchStaffList({String? branchId}) async {
+  Future<List<StaffDto>> fetchStaffList({String? branchId}) async {
     final response = await _dio.get<Map<String, dynamic>>(
       '$_prefix/staff',
       queryParameters: branchId != null && branchId.isNotEmpty
           ? {'branch_id': branchId}
           : null,
     );
-    return response.data ?? const {};
+    final root = response.data ?? const <String, dynamic>{};
+    final raw = root['staff'];
+    if (raw is! List) return const [];
+    return raw
+        .whereType<Map>()
+        .map((e) => StaffDto.fromJson(Map<String, dynamic>.from(e)))
+        .toList();
   }
 
-  Future<Map<String, dynamic>> fetchShiftSchedule({
+  Future<List<ShiftScheduleEntryDto>> fetchShiftSchedule({
     required String userId,
     required String branchId,
   }) async {
@@ -33,6 +41,12 @@ class StaffManagementApi {
       '$_prefix/users/$userId/shifts',
       queryParameters: {'branch_id': branchId},
     );
-    return response.data ?? const {};
+    final root = response.data ?? const <String, dynamic>{};
+    final raw = root['schedule'];
+    if (raw is! List) return const [];
+    return raw
+        .whereType<Map>()
+        .map((e) => ShiftScheduleEntryDto.fromJson(Map<String, dynamic>.from(e)))
+        .toList();
   }
 }

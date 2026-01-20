@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/menu/data/menu_repository.dart';
@@ -49,17 +48,6 @@ class MenuViewModel extends Notifier<MenuState> {
           : branchId ??
               (state.selectedBranchId != 'all' ? state.selectedBranchId : null) ??
               fallbackBranchId;
-      final snapshotBranchId = requestedBranchId ?? fallbackBranchId;
-      if (snapshotBranchId != null) {
-        // Quick snapshot fetch for debugging payload structure.
-        try {
-          final snapshot =
-              await _menuRepository.fetchMenuSnapshot(snapshotBranchId);
-          debugPrint('Menu snapshot payload: $snapshot');
-        } catch (e) {
-          debugPrint('Menu snapshot failed: $e');
-        }
-      }
       final bundle = await _menuRepository.fetchMenuData(
         branchId: requestedBranchId,
         branchIdsForHydration: shouldFetchAll

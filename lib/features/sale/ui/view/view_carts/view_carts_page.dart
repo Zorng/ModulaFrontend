@@ -42,7 +42,7 @@ class _ViewCartsPageState extends ConsumerState<ViewCartsPage> {
       limit: 100,
     );
     return data
-        .map(SaleSummary.fromJson)
+        .map(SaleSummary.fromSale)
         .where((s) => s.id.isNotEmpty)
         .toList();
   }

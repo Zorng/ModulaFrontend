@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/features/staff_attendance/data/staff_attendance_api.dart';
+import 'package:modular_pos/features/staff_attendance/data/dto/attendance_record_dto.dart';
+import 'package:modular_pos/features/staff_attendance/data/dto/attendance_shift_schedule_dto.dart';
 import 'package:modular_pos/features/staff_attendance/domain/models/attendance_record.dart';
 import 'package:modular_pos/features/staff_attendance/domain/models/attendance_shift_schedule.dart';
 
@@ -22,7 +24,7 @@ class StaffAttendanceRepository {
     int limit = 100,
     int offset = 0,
   }) async {
-    final payload = await _api.fetchAllAttendance(
+    final records = await _api.fetchAllAttendance(
       branchId: branchId,
       employeeId: employeeId,
       from: from,
@@ -30,12 +32,7 @@ class StaffAttendanceRepository {
       limit: limit,
       offset: offset,
     );
-    final raw = payload['data'];
-    if (raw is! List) return const [];
-    return raw
-        .whereType<Map>()
-        .map((item) => _mapRecord(Map<String, dynamic>.from(item)))
-        .toList();
+    return records.map(_mapRecord).toList();
   }
 
   Future<List<AttendanceRecord>> fetchMyAttendance({
@@ -45,31 +42,21 @@ class StaffAttendanceRepository {
     int limit = 100,
     int offset = 0,
   }) async {
-    final payload = await _api.fetchMyAttendance(
+    final records = await _api.fetchMyAttendance(
       branchId: branchId,
       from: from,
       to: to,
       limit: limit,
       offset: offset,
     );
-    final raw = payload['data'];
-    if (raw is! List) return const [];
-    return raw
-        .whereType<Map>()
-        .map((item) => _mapRecord(Map<String, dynamic>.from(item)))
-        .toList();
+    return records.map(_mapRecord).toList();
   }
 
   Future<List<AttendanceShiftScheduleEntry>> fetchMyShiftSchedule({
     String? branchId,
   }) async {
-    final payload = await _api.fetchMyShiftSchedule(branchId: branchId);
-    final raw = payload['data'];
-    if (raw is! List) return const [];
-    return raw
-        .whereType<Map>()
-        .map((item) => _mapShiftSchedule(Map<String, dynamic>.from(item)))
-        .toList();
+    final schedule = await _api.fetchMyShiftSchedule(branchId: branchId);
+    return schedule.map(_mapShiftSchedule).toList();
   }
 
   Future<AttendanceRecord?> checkIn({
@@ -79,21 +66,16 @@ class StaffAttendanceRepository {
     int? earlyMinutes,
     String? note,
   }) async {
-    final payload = await _api.checkIn(
+    final result = await _api.checkIn(
       occurredAt: occurredAt,
       location: location,
       shiftStatus: shiftStatus,
       earlyMinutes: earlyMinutes,
       note: note,
     );
-    final data = payload['data'];
-    if (data is! Map) return null;
-    final status = data['status']?.toString() ?? '';
-    if (status == 'CHECKED_IN') {
-      final record = data['record'];
-      if (record is Map) {
-        return _mapRecord(Map<String, dynamic>.from(record));
-      }
+    if (result == null) return null;
+    if (result.status == 'CHECKED_IN' && result.record != null) {
+      return _mapRecord(result.record!);
     }
     return null;
   }
@@ -102,50 +84,40 @@ class StaffAttendanceRepository {
     required String occurredAt,
     Map<String, num>? location,
   }) async {
-    final payload = await _api.checkOut(
+    final record = await _api.checkOut(
       occurredAt: occurredAt,
       location: location,
     );
-    final data = payload['data'];
-    if (data is Map) {
-      return _mapRecord(Map<String, dynamic>.from(data));
-    }
-    return null;
+    if (record == null) return null;
+    return _mapRecord(record);
   }
 
-  AttendanceRecord _mapRecord(Map<String, dynamic> json) {
-    final location = json['location'];
+  AttendanceRecord _mapRecord(AttendanceRecordDto dto) {
     AttendanceLocation? parsedLocation;
-    if (location is Map<String, dynamic>) {
-      final lat = location['lat'];
-      final lng = location['lng'];
-      if (lat is num && lng is num) {
-        parsedLocation = AttendanceLocation(lat: lat.toDouble(), lng: lng.toDouble());
-      }
+    final location = dto.location;
+    if (location != null) {
+      parsedLocation = AttendanceLocation(lat: location.lat, lng: location.lng);
     }
-
     return AttendanceRecord(
-      id: json['id']?.toString() ?? '',
-      tenantId: json['tenantId']?.toString() ?? '',
-      branchId: json['branchId']?.toString() ?? '',
-      employeeId: json['employeeId']?.toString() ?? '',
-      type: json['type']?.toString() ?? '',
-      occurredAt: DateTime.tryParse(json['occurredAt']?.toString() ?? '') ??
-          DateTime.fromMillisecondsSinceEpoch(0),
-      createdAt: DateTime.tryParse(json['createdAt']?.toString() ?? '') ??
-          DateTime.fromMillisecondsSinceEpoch(0),
+      id: dto.id,
+      tenantId: dto.tenantId,
+      branchId: dto.branchId,
+      employeeId: dto.employeeId,
+      type: dto.type,
+      occurredAt: dto.occurredAt.toLocal(),
+      createdAt: dto.createdAt.toLocal(),
       location: parsedLocation,
     );
   }
 
   AttendanceShiftScheduleEntry _mapShiftSchedule(
-    Map<String, dynamic> json,
+    AttendanceShiftScheduleEntryDto dto,
   ) {
     return AttendanceShiftScheduleEntry(
-      dayOfWeek: (json['dayOfWeek'] as num?)?.toInt() ?? -1,
-      startTime: json['startTime']?.toString(),
-      endTime: json['endTime']?.toString(),
-      isOff: json['isOff'] as bool? ?? false,
+      dayOfWeek: dto.dayOfWeek,
+      startTime: dto.startTime,
+      endTime: dto.endTime,
+      isOff: dto.isOff,
     );
   }
 }

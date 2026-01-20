@@ -1,3 +1,5 @@
+import 'package:modular_pos/features/sale/domain/models/sale.dart';
+
 class SaleSummary {
   const SaleSummary({
     required this.id,
@@ -11,41 +13,22 @@ class SaleSummary {
   final DateTime createdAt;
   final List<SaleLine> lines;
 
-  factory SaleSummary.fromJson(Map<String, dynamic> json) {
-    final created =
-        DateTime.tryParse(json['createdAt']?.toString() ?? '') ?? DateTime.now();
-    final lines = <SaleLine>[];
-    if (json['items'] is List) {
-      for (final item in json['items'] as List) {
-        if (item is! Map<String, dynamic>) continue;
-        final mods = <String>[];
-        if (item['modifiers'] is List) {
-          for (final m in item['modifiers'] as List) {
-            if (m is! Map<String, dynamic>) continue;
-            final options = m['options'];
-            if (options is List) {
-              for (final o in options) {
-                if (o is Map<String, dynamic>) {
-                  final label = o['label']?.toString() ?? o['name']?.toString();
-                  if (label != null && label.isNotEmpty) mods.add(label);
-                }
-              }
-            }
-          }
-        }
-        lines.add(
-          SaleLine(
-            name: item['menuItemName']?.toString() ?? 'Item',
-            quantity: (item['quantity'] as num?)?.toInt() ?? 1,
-            modifiers: mods,
+  factory SaleSummary.fromSale(Sale sale) {
+    final lines = sale.items
+        .map(
+          (item) => SaleLine(
+            name: item.menuItemName.isEmpty ? 'Item' : item.menuItemName,
+            quantity: item.quantity,
+            modifiers: [
+              for (final mod in item.modifiers) ...mod.optionLabels,
+            ],
           ),
-        );
-      }
-    }
+        )
+        .toList();
     return SaleSummary(
-      id: json['id']?.toString() ?? '',
-      state: json['state']?.toString() ?? '',
-      createdAt: created,
+      id: sale.id,
+      state: sale.state,
+      createdAt: sale.createdAt,
       lines: lines,
     );
   }
@@ -62,4 +45,3 @@ class SaleLine {
   final int quantity;
   final List<String> modifiers;
 }
-

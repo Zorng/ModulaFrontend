@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:modular_pos/core/logging/app_log.dart';
 import 'package:modular_pos/features/auth/data/auth_repository.dart';
 import 'package:modular_pos/features/auth/data/auth_session_store.dart';
 import 'package:modular_pos/features/auth/domain/models/auth_session.dart';
@@ -52,13 +53,7 @@ class LoginController extends Notifier<LoginState> {
 
       state = state.copyWith(isLoading: false, session: session);
     } catch (e, st) {
-      assert(() {
-        // ignore: avoid_print
-        print('Login failed: $e');
-        // ignore: avoid_print
-        print(st);
-        return true;
-      }());
+      AppLog.e('Login failed', error: e, stackTrace: st);
       state = state.copyWith(
         isLoading: false,
         error: 'Login failed', // you can inspect e for more details
@@ -117,13 +112,7 @@ class LoginController extends Notifier<LoginState> {
       await _sessionStore.save(nextSession);
       state = state.copyWith(isLoading: false, session: nextSession);
     } catch (e, st) {
-      assert(() {
-        // ignore: avoid_print
-        print('Tenant selection failed: $e');
-        // ignore: avoid_print
-        print(st);
-        return true;
-      }());
+      AppLog.e('Tenant selection failed', error: e, stackTrace: st);
       state = state.copyWith(
         isLoading: false,
         error: 'Tenant selection failed',
