@@ -12,19 +12,10 @@ final menuViewModelProvider =
     NotifierProvider<MenuViewModel, MenuState>(MenuViewModel.new);
 
 class MenuViewModel extends Notifier<MenuState> {
-  bool _hasRequestedInitialLoad = false;
-
   MenuRepository get _menuRepository => ref.read(menuRepositoryProvider);
 
   @override
   MenuState build() {
-    final loginState = ref.watch(loginControllerProvider);
-    if (loginState.session == null) {
-      _hasRequestedInitialLoad = false;
-    } else if (!_hasRequestedInitialLoad) {
-      _hasRequestedInitialLoad = true;
-      Future.microtask(loadMenu);
-    }
     return const MenuState();
   }
 

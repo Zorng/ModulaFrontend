@@ -17,7 +17,7 @@ Rule of engagement:
 
 ### TD-001 — State management inconsistency (provider patterns + async UX)
 
-- **Status:** In progress (Phase 1 completed: hydration orchestration)
+- **Status:** Completed (hydration orchestration + provider-build side effects removed)
 - **Symptom:** state management still relies on legacy Riverpod APIs in critical flows; patterns are inconsistent across features.
 - **Why it matters:** makes hydration/error handling inconsistent and increases circular dependency risk.
 - **Examples:**
@@ -27,6 +27,7 @@ Rule of engagement:
   - Backend calls executed without `AsyncValue`/loading state, resulting in “frozen” UI.
 - **Progress so far:**
   - Removed provider-build side effects for policy + cash session (no `Future.microtask(load)` in their `build()`).
+  - Removed remaining provider-build side effects in other features (menu + inventory controllers); `build()` is now pure and data loads are explicitly triggered via `load()/refresh()`.
   - Centralized auth/tenant/branch hydration via `lib/core/hydration/app_hydration_listener.dart` (login/logout/branch switch now triggers policy + cash session reload consistently).
   - Added widget coverage for hydration behavior: `test/core/hydration/app_hydration_listener_test.dart`.
   - Fixed hydration listener implementation to use `ref.listenManual` (safe outside build) and defer initial session sync until after first frame (avoids Riverpod lifecycle mutation assertions).
@@ -38,7 +39,7 @@ Rule of engagement:
 
 ### TD-002 — Data layer leaks raw JSON/maps and “dynamic” types
 
-- **Status:** In progress (Reporting module migrated; Sale/Cash session pending)
+- **Status:** Completed (DTO boundaries across features)
 - **Symptom:** repositories/APIs return `Map<String, dynamic>` / `List<Map<String, dynamic>>` instead of domain models; UI/viewmodels often must interpret payloads.
 - **Why it matters:** API contract changes silently break runtime behavior; hard to test; encourages duplication.
 - **Examples:**
@@ -55,18 +56,24 @@ Rule of engagement:
   - Repositories return **domain models only**.
   - Keep API parsing localized to API/DTO layer.
 - **Progress so far:**
-  - Reporting now returns typed DTO/domain models (no raw `Map` escapes):
-    - `lib/features/reporting/data/dto/…`
-    - `lib/features/reporting/domain/models/…`
-    - `lib/features/reporting/data/reporting_api.dart`
-    - `lib/features/reporting/data/reporting_repository.dart`
+  - All feature APIs now parse **DTOs** and repositories return **domain models only** (no `Map<String, dynamic>` escapes into UI/viewmodels):
+    - Auth: `lib/features/auth/data/dto/…`, `lib/features/auth/data/auth_api.dart`, `lib/features/auth/data/auth_repository.dart`
+    - Policy: `lib/features/policy/data/dto/…`, `lib/features/policy/data/policy_api.dart`, `lib/features/policy/data/policy_repository.dart`
+    - Menu: `lib/features/menu/data/dto/…`, `lib/features/menu/data/menu_api.dart`, `lib/features/menu/data/menu_repository.dart`
+    - Inventory: `lib/features/inventory/data/dto/…`, `lib/features/inventory/data/inventory_api.dart`,
+      `lib/features/inventory/data/stock_item_repository.dart`, `lib/features/inventory/data/inventory_journal_repository.dart`
+    - Sale: `lib/features/sale/data/dto/…`, `lib/features/sale/data/sale_api.dart`, `lib/features/sale/data/sale_repository.dart`
+    - Cash sessions & reporting: `lib/features/cash_session/data/dto/…`, `lib/features/reporting/data/dto/…`
   - X/Z report viewmodels no longer parse JSON maps:
     - `lib/features/cash_session/ui/viewmodels/x_report_viewmodel.dart`
     - `lib/features/cash_session/ui/viewmodels/z_report_viewmodel.dart`
-  - Added fixture-based unit tests:
+  - Updated fixture/mapping tests to align with DTO boundaries:
     - `test/reporting/reporting_mapping_test.dart`
+    - `test/auth/auth_api_parsing_test.dart`
+    - `test/policy/policy_parsing_test.dart`
+    - `test/sale/sale_cart_notifier_guard_test.dart`
 - **Suggested tests:**
-  - Parsing/mapping unit tests per endpoint payload (fixture-based).
+  - Parsing/mapping unit tests per endpoint payload (fixture-based) for each feature DTO→domain mapping.
 
 ### TD-003 — Navigation is inconsistent (go_router vs Navigator.push)
 
@@ -113,7 +120,7 @@ Rule of engagement:
 
 ### TD-101 — Widget bloat (very large files / deep widget trees)
 
-- **Status:** In progress (page debloat largely done; dedupe/promote candidates ongoing)
+- **Status:** Completed (page debloat + tracking in place; dedupe/promote is ongoing work)
 - **Symptom:** pages and repositories exceed ~500 LOC and mix concerns; hard to review and causes merge conflicts.
 - **Examples (largest files):**
   - `lib/features/sale/ui/view/sale_cart_page.dart`
@@ -127,6 +134,8 @@ Rule of engagement:
   - Enforce screen composition rule: extract sections to `ui/widgets/` (feature) or `lib/core/widgets/` (shared).
   - Keep page files focused on composition + wiring.
   - Track extracted widgets and promotion candidates in `refactorPlan/debloat_refactor_tracking.md`.
+- **Progress so far:**
+  - Debloated the highest-merge-conflict pages (sale cart/item detail, menu forms, inventory forms, X/Z report pages, admin portal, staff form) and tracked all debloated pages + widget candidates in `refactorPlan/debloat_refactor_tracking.md`.
 - **Suggested tests:**
   - Widget tests on extracted widgets are optional, but keep/extend the screen-level tests for critical states.
 

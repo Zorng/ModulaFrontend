@@ -55,7 +55,7 @@ import 'package:modular_pos/features/staff/ui/view/staff_list_view.dart';
 import 'package:modular_pos/features/staff/domain/models/staff_model.dart';
 import 'package:modular_pos/features/staff/ui/view/staff_add_placeholder_page.dart';
 import 'package:modular_pos/features/staff/ui/view/staff_detail_view.dart';
-import 'package:modular_pos/features/staff/ui/view/staff_form_view.dart';
+import 'package:modular_pos/features/staff/ui/view/staff_form/staff_form_page.dart';
 import 'package:modular_pos/features/staff_attendance/ui/view/attendance/attendance_page.dart';
 import 'package:modular_pos/features/staff_attendance/ui/view/attendance_management/attendance_management_page.dart';
 

@@ -31,6 +31,7 @@ Goal:
 | Feature | Page | Current Path | Status | Notes |
 |---|---|---|---|---|
 | Auth | Account | `lib/features/auth/ui/view/account/account_page.dart` | De-bloated | Page-local widgets under `lib/features/auth/ui/view/account/widgets/` |
+| Auth | Admin portal | `lib/features/auth/ui/portals/admin_portal.dart` | De-bloated | Extracted sections under `lib/features/auth/ui/portals/admin/widgets/` |
 | Auth | Tenant selection | `lib/features/auth/ui/view/tenant_selection/tenant_selection_page.dart` | De-bloated | Page-local widgets under `lib/features/auth/ui/view/tenant_selection/widgets/` |
 | Cash session | X report | `lib/features/cash_session/ui/view/x_report/x_report_page.dart` | De-bloated | Page-local widgets under `lib/features/cash_session/ui/view/x_report/widgets/` |
 | Cash session | Z report | `lib/features/cash_session/ui/view/z_report/z_report_page.dart` | De-bloated | Page-local widgets under `lib/features/cash_session/ui/view/z_report/widgets/` |
@@ -64,6 +65,7 @@ Goal:
 | Policy | VAT detail | `lib/features/policy/ui/view/vat_policy_detail/vat_policy_detail_page.dart` | De-bloated | Extracted rate sheet into page-local widget |
 | Policy | Inventory policy detail | `lib/features/policy/ui/view/inventory_policy_detail/inventory_policy_detail_page.dart` | De-bloated | Moved into page folder |
 | Policy | Early check-in detail | `lib/features/policy/ui/view/early_check_in_detail/early_check_in_detail_page.dart` | De-bloated | Moved into page folder |
+| Staff | Staff form | `lib/features/staff/ui/view/staff_form/staff_form_page.dart` | De-bloated | Page-local widgets under `lib/features/staff/ui/view/staff_form/widgets/` |
 | Staff attendance | Attendance | `lib/features/staff_attendance/ui/view/attendance/attendance_page.dart` | De-bloated | Extracted tab switcher + shift/today/history cards |
 | Staff attendance | Attendance management | `lib/features/staff_attendance/ui/view/attendance_management/attendance_management_page.dart` | De-bloated | Extracted date picker row + record card widgets |
 | Menu | Menu (main) | `lib/features/menu/ui/view/menu/menu_page.dart` | De-bloated | Page-local widgets under `lib/features/menu/ui/view/menu/widgets/` |
@@ -80,6 +82,12 @@ Goal:
 | `MenuItemCard` | `lib/core/widgets/display/menu_item_card.dart` | 2 | `display/` | Promoted | `lib/core/widgets/display/menu_item_card.dart` | Shared item card base (menu + sale) |
 | `AppBackButton` | `lib/core/widgets/navigation/app_back_button.dart` | 2 | `navigation/` | Promoted | `lib/core/widgets/navigation/app_back_button.dart` | Shared back button (policy + sale) |
 | `AppKebabMenu` | `lib/core/widgets/navigation/app_kebab_menu.dart` | 2 | `navigation/` | Promoted | `lib/core/widgets/navigation/app_kebab_menu.dart` | Shared kebab menu trigger (inventory + menu) |
+| `AdminHomeContent` | `lib/features/auth/ui/portals/admin/widgets/admin_home_content.dart` | 1 | `layout/` | Candidate |  | Admin portal: extracted page section (not a promotion candidate yet) |
+| `PortalPlaceholderCard` | `lib/features/auth/ui/portals/admin/widgets/portal_placeholder_card.dart` | 1 | `display/` | Candidate |  | Admin portal: “coming soon” placeholder card (consider dedupe with cashier portal placeholders) |
+| `SaleShortcutCard` | `lib/features/auth/ui/portals/admin/widgets/sale_shortcut_card.dart` | 1 | `display/` | Candidate |  | Admin portal: quick sale shortcut card (may merge with shared portal feature cards) |
+| `StaffProfileAvatar` | `lib/features/staff/ui/view/staff_form/widgets/staff_profile_avatar.dart` | 1 | `display/` | Candidate |  | Staff form: extracted avatar (keep page-local unless reused) |
+| `StaffScheduleSection` | `lib/features/staff/ui/view/staff_form/widgets/staff_schedule_section.dart` | 1 | `forms/` | Candidate |  | Staff form: schedule editor section (keep page-local unless reused) |
+| `StaffFormActions` | `lib/features/staff/ui/view/staff_form/widgets/staff_form_actions.dart` | 1 | `layout/` | Candidate |  | Staff form: action buttons row (keep page-local unless reused) |
 | `SaleCartBottomBar` | `lib/features/sale/ui/view/sale_cart/widgets/sale_cart_bottom_bar.dart` | 1 | `layout/` | Candidate |  | Sale cart: “total + CTA” bottom bar |
 | `SaleCartReadOnlyBanner` | `lib/features/sale/ui/view/sale_cart/widgets/sale_cart_readonly_banner.dart` | 1 | `feedback/` | Candidate |  | Sale cart: read-only banner + action |
 | `SaleOrderTypeSelector` | `lib/features/sale/ui/view/sale_cart/widgets/sale_order_type_selector.dart` | 1 | `forms/` | Candidate |  | Sale cart: order type selector chips |

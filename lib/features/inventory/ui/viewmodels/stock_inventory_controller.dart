@@ -16,16 +16,11 @@ final stockInventoryControllerProvider =
 class StockInventoryController extends Notifier<StockInventoryState> {
   late final StockItemRepository _repository;
   late final InventoryJournalRepository _journalRepository;
-  bool _hasLoaded = false;
 
   @override
   StockInventoryState build() {
     _repository = ref.read(stockItemRepositoryProvider);
     _journalRepository = ref.read(inventoryJournalRepositoryProvider);
-    if (!_hasLoaded) {
-      _hasLoaded = true;
-      Future.microtask(loadStockItems);
-    }
     return const StockInventoryState();
   }
 
