@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/features/sale/data/sale_repository.dart';
+import 'package:modular_pos/features/sale/domain/models/sale.dart';
 
 final ordersProvider =
     NotifierProvider<OrdersNotifier, List<Order>>(OrdersNotifier.new);
@@ -51,7 +52,7 @@ class OrdersNotifier extends Notifier<List<Order>> {
         limit: 100,
       );
       final orders = sales
-          .map((sale) => Order.fromJson(sale))
+          .map(Order.fromSale)
           .where((o) => o.id.isNotEmpty)
           .toList();
       state = orders;
@@ -137,58 +138,32 @@ class Order {
   final double changeAmount;
   final List<OrderLine> lines;
 
-  factory Order.fromJson(Map<String, dynamic> json) {
-    final id = json['id']?.toString() ?? '';
-    final placed = DateTime.tryParse(json['createdAt']?.toString() ?? '')
-            ?.toLocal() ??
-        DateTime.now();
-    final items = <OrderLine>[];
-    if (json['items'] is List) {
-      for (final item in json['items'] as List) {
-        if (item is! Map<String, dynamic>) continue;
-        final mods = <String>[];
-        if (item['modifiers'] is List) {
-          for (final m in item['modifiers'] as List) {
-            if (m is! Map<String, dynamic>) continue;
-            final options = m['options'];
-            if (options is List) {
-              for (final o in options) {
-                if (o is Map<String, dynamic>) {
-                  final label = o['label']?.toString() ?? o['name']?.toString();
-                  if (label != null && label.isNotEmpty) mods.add(label);
-                }
-              }
-            }
-          }
-        }
-        items.add(
-          OrderLine(
-            name: item['menuItemName']?.toString() ?? 'Item',
-            modifiers: mods,
-            quantity: (item['quantity'] as num?)?.toInt() ?? 1,
-          ),
-        );
-      }
-    }
+  factory Order.fromSale(Sale sale) {
+    final items = [
+      for (final item in sale.items)
+        OrderLine(
+          name: item.menuItemName.isEmpty ? 'Item' : item.menuItemName,
+          modifiers: [
+            for (final mod in item.modifiers) ...mod.optionLabels,
+          ],
+          quantity: item.quantity,
+        ),
+    ];
     final tenderCurrency =
-        (json['tenderCurrency']?.toString() ?? 'usd').toLowerCase();
-    final cashUsd = (json['cashReceivedUsd'] as num?)?.toDouble() ?? 0;
-    final cashKhr = (json['cashReceivedKhr'] as num?)?.toDouble() ?? 0;
-    final changeUsd = (json['changeGivenUsd'] as num?)?.toDouble() ?? 0;
-    final changeKhr = (json['changeGivenKhr'] as num?)?.toDouble() ?? 0;
+        (sale.tenderCurrency.isEmpty ? 'usd' : sale.tenderCurrency).toLowerCase();
+    final cashUsd = sale.cashReceivedUsd ?? 0;
+    final cashKhr = sale.cashReceivedKhr ?? 0;
+    final changeUsd = sale.changeGivenUsd ?? 0;
+    final changeKhr = sale.changeGivenKhr ?? 0;
     return Order(
-      id: id,
-      number: id,
-      status: json['fulfillmentStatus']?.toString() ?? 'in_prep',
-      placedAt: placed,
-      orderType: json['saleType']?.toString() ?? 'take_away',
-      paymentMethod: json['paymentMethod']?.toString() ?? 'cash',
-      totalUsd: (json['totalUsdExact'] as num?)?.toDouble() ??
-          (json['totalUsd'] as num?)?.toDouble() ??
-          0,
-      totalKhr: (json['totalKhrExact'] as num?)?.toDouble() ??
-          (json['totalKhr'] as num?)?.toDouble() ??
-          0,
+      id: sale.id,
+      number: sale.id,
+      status: sale.fulfillmentStatus.isEmpty ? 'in_prep' : sale.fulfillmentStatus,
+      placedAt: sale.createdAt,
+      orderType: sale.saleType.isEmpty ? 'take_away' : sale.saleType,
+      paymentMethod: sale.paymentMethod.isEmpty ? 'cash' : sale.paymentMethod,
+      totalUsd: sale.totalUsdExact,
+      totalKhr: sale.totalKhrExact,
       tenderCurrency: tenderCurrency,
       tenderAmount: tenderCurrency == 'usd' ? cashUsd : cashKhr,
       changeAmount: tenderCurrency == 'usd' ? changeUsd : changeKhr,

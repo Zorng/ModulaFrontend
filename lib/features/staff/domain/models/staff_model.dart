@@ -13,6 +13,10 @@ class Staff {
   final TimeOfDay? startTime;
   final TimeOfDay? endTime;
   final Map<String, (TimeOfDay, TimeOfDay)>? customHours;
+  final List<ShiftScheduleEntry>? shiftSchedule;
+  final String? id;
+  final String? branchId;
+  final String? status;
 
   Staff({
     required this.userName,
@@ -27,5 +31,23 @@ class Staff {
     this.startTime,
     this.endTime,
     this.customHours,
+    this.shiftSchedule,
+    this.id,
+    this.branchId,
+    this.status,
   });
+}
+
+class ShiftScheduleEntry {
+  const ShiftScheduleEntry({
+    required this.dayOfWeek,
+    this.startTime,
+    this.endTime,
+    this.isOff = false,
+  });
+
+  final int dayOfWeek; // 0=Sun ... 6=Sat
+  final String? startTime; // "HH:MM" or "HH:MM:SS"
+  final String? endTime;
+  final bool isOff;
 }

@@ -1,27 +1,17 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/cash_session/data/cash_session_repository.dart';
+import 'package:modular_pos/features/cash_session/domain/models/cash_register.dart';
+import 'package:modular_pos/features/cash_session/domain/models/cash_session.dart';
 
 /// Enum to represent the distinct states of a cash session.
 enum SessionStatus { notStarted, open, closed }
 
-class CashRegister {
-  CashRegister({required this.id, required this.name, this.status = 'ACTIVE'});
-  final String id;
-  final String name;
-  final String status;
-
-  factory CashRegister.fromJson(Map<String, dynamic> json) {
-    return CashRegister(
-      id: json['id']?.toString() ?? '',
-      name: json['name']?.toString() ?? 'Register',
-      status: json['status']?.toString() ?? 'ACTIVE',
-    );
-  }
-}
-
 /// An immutable class that holds the state for a cash session.
 class CashSessionState {
+  static const _unset = Object();
+
   const CashSessionState({
     this.sessionStatus = SessionStatus.notStarted,
     this.startTime,
@@ -57,32 +47,36 @@ class CashSessionState {
   /// Creates a copy of the state with the given fields replaced with the new values.
   CashSessionState copyWith({
     SessionStatus? sessionStatus,
-    DateTime? startTime,
-    DateTime? endTime,
+    Object? startTime = _unset,
+    Object? endTime = _unset,
     double? openFloatUsd,
     double? openFloatKhr,
     double? totalPaidIn,
     double? totalPaidOut,
     bool? hasCashMovement,
-    String? sessionId,
-    String? registerId,
-    String? registerName,
+    Object? sessionId = _unset,
+    Object? registerId = _unset,
+    Object? registerName = _unset,
     bool? isLoading,
     String? error,
     List<CashRegister>? registers,
   }) {
     return CashSessionState(
       sessionStatus: sessionStatus ?? this.sessionStatus,
-      startTime: startTime ?? this.startTime,
-      endTime: endTime ?? this.endTime,
+      startTime: startTime == _unset ? this.startTime : startTime as DateTime?,
+      endTime: endTime == _unset ? this.endTime : endTime as DateTime?,
       openFloatUsd: openFloatUsd ?? this.openFloatUsd,
       openFloatKhr: openFloatKhr ?? this.openFloatKhr,
       totalPaidIn: totalPaidIn ?? this.totalPaidIn,
       totalPaidOut: totalPaidOut ?? this.totalPaidOut,
       hasCashMovement: hasCashMovement ?? this.hasCashMovement,
-      sessionId: sessionId ?? this.sessionId,
-      registerId: registerId ?? this.registerId,
-      registerName: registerName ?? this.registerName,
+      sessionId: sessionId == _unset ? this.sessionId : sessionId as String?,
+      registerId: registerId == _unset
+          ? this.registerId
+          : registerId as String?,
+      registerName: registerName == _unset
+          ? this.registerName
+          : registerName as String?,
       isLoading: isLoading ?? this.isLoading,
       error: error,
       registers: registers ?? this.registers,
@@ -96,14 +90,20 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
 
   @override
   CashSessionState build() {
-    Future.microtask(load);
-    return const CashSessionState(isLoading: true);
+    // Rebuild when auth or branch changes so session is tied to user context.
+    ref.watch(
+      loginControllerProvider.select(
+        (state) => state.session?.accessToken ?? '',
+      ),
+    );
+    ref.watch(authActiveBranchIdProvider);
+    return const CashSessionState(isLoading: false);
   }
 
-  Future<void> load({String? registerId}) async {
+  Future<void> load({String? registerId, String? branchIdOverride}) async {
     state = state.copyWith(isLoading: true, error: null);
     try {
-      final branchId = _currentBranchId();
+      final branchId = branchIdOverride ?? _currentBranchId();
       // Device-agnostic: skip register fetch; rely on branch-level session.
       state = state.copyWith(
         registers: const [],
@@ -112,8 +112,24 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
       );
       await _fetchActiveSession(branchId: branchId, registerId: null);
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(
+        isLoading: false,
+        error: e.toString(),
+        sessionStatus: SessionStatus.notStarted,
+        sessionId: null,
+        startTime: null,
+        endTime: null,
+        openFloatUsd: 0,
+        openFloatKhr: 0,
+        totalPaidIn: 0,
+        totalPaidOut: 0,
+        hasCashMovement: false,
+      );
     }
+  }
+
+  void reset() {
+    state = const CashSessionState(isLoading: false);
   }
 
   Future<void> _fetchActiveSession({
@@ -121,12 +137,11 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
     String? registerId,
   }) async {
     try {
-      final payload = await _repo.getActiveSession(
+      final active = await _repo.getActiveSession(
         registerId: registerId,
         branchId: branchId,
       );
-      final data = _unwrapData(payload);
-      if (data.isEmpty) {
+      if (active == null || active.id.isEmpty) {
         state = state.copyWith(
           isLoading: false,
           sessionStatus: SessionStatus.notStarted,
@@ -141,9 +156,21 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
         );
         return;
       }
-      _applySessionPayload(data);
+      _applySession(active);
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(
+        isLoading: false,
+        error: e.toString(),
+        sessionStatus: SessionStatus.notStarted,
+        sessionId: null,
+        startTime: null,
+        endTime: null,
+        openFloatUsd: 0,
+        openFloatKhr: 0,
+        totalPaidIn: 0,
+        totalPaidOut: 0,
+        hasCashMovement: false,
+      );
     }
   }
 
@@ -155,14 +182,14 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
     state = state.copyWith(isLoading: true, error: null);
     try {
       final branchId = _currentBranchId();
-      final payload = await _repo.openSession(
+      final session = await _repo.openSession(
         registerId: state.registerId,
         branchId: branchId,
         openingFloatUsd: usdAmount,
         openingFloatKhr: khrAmount,
         note: note,
       );
-      _applySessionPayload(_unwrapData(payload));
+      _applySession(session);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
     }
@@ -212,76 +239,93 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
     if (sessionId == null || sessionId.isEmpty) return;
     state = state.copyWith(isLoading: true, error: null);
     try {
-      final payload = await _repo.closeSession(
+      final session = await _repo.closeSession(
         sessionId: sessionId,
         countedCashUsd: countedUsd,
         countedCashKhr: countedKhr,
         note: note,
       );
-      _applySessionPayload(_unwrapData(payload));
+      _applySession(session);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
     }
   }
 
-  Map<String, dynamic> _unwrapData(Map<String, dynamic> payload) {
-    if (payload['data'] is Map<String, dynamic>) {
-      return Map<String, dynamic>.from(payload['data'] as Map);
+  void _applySession(CashSession session) {
+    final sessionId = session.id;
+    if (sessionId.isEmpty) {
+      state = state.copyWith(
+        isLoading: false,
+        sessionStatus: SessionStatus.notStarted,
+        sessionId: null,
+        startTime: null,
+        endTime: null,
+        openFloatUsd: 0,
+        openFloatKhr: 0,
+        totalPaidIn: 0,
+        totalPaidOut: 0,
+        hasCashMovement: false,
+      );
+      return;
     }
-    return payload;
-  }
 
-  void _applySessionPayload(Map<String, dynamic> json) {
-    final sessionId =
-        json['id']?.toString() ?? json['sessionId']?.toString() ?? '';
-    final start = DateTime.tryParse(
-      json['startedAt']?.toString() ?? json['createdAt']?.toString() ?? '',
-    );
-    final end = DateTime.tryParse(json['closedAt']?.toString() ?? '');
-    final openingUsd = (json['openingFloatUsd'] as num?)?.toDouble() ?? 0;
-    final openingKhr = (json['openingFloatKhr'] as num?)?.toDouble() ?? 0;
-    final paidIn =
-        (json['totalPaidInUsd'] as num?)?.toDouble() ??
-        (json['totalPaidIn'] as num?)?.toDouble() ??
-        0;
-    final paidOut =
-        (json['totalPaidOutUsd'] as num?)?.toDouble() ??
-        (json['totalPaidOut'] as num?)?.toDouble() ??
-        0;
+    final ownerId = session.ownerId;
+    final currentUserId = _currentUserId();
+    if (ownerId != null &&
+        ownerId.isNotEmpty &&
+        currentUserId != null &&
+        currentUserId.isNotEmpty &&
+        ownerId != currentUserId) {
+      state = state.copyWith(
+        isLoading: false,
+        sessionStatus: SessionStatus.notStarted,
+        sessionId: null,
+        startTime: null,
+        endTime: null,
+        openFloatUsd: 0,
+        openFloatKhr: 0,
+        totalPaidIn: 0,
+        totalPaidOut: 0,
+        hasCashMovement: false,
+      );
+      return;
+    }
+
     final statusRaw =
-        json['status']?.toString().toLowerCase() ??
-        (end != null ? 'closed' : 'open');
+        session.status.trim().toLowerCase().isEmpty
+            ? (session.closedAt != null ? 'closed' : 'open')
+            : session.status.trim().toLowerCase();
     final status = switch (statusRaw) {
       'open' => SessionStatus.open,
       'closed' => SessionStatus.closed,
       _ => SessionStatus.notStarted,
     };
+
+    final paidIn = session.totalPaidInUsd;
+    final paidOut = session.totalPaidOutUsd;
+
     state = state.copyWith(
       isLoading: false,
       sessionStatus: status,
-      sessionId: sessionId.isNotEmpty ? sessionId : state.sessionId,
-      startTime: start ?? state.startTime,
-      endTime: end,
-      openFloatUsd: openingUsd,
-      openFloatKhr: openingKhr,
+      sessionId: sessionId,
+      startTime: session.openedAt,
+      endTime: session.closedAt,
+      openFloatUsd: session.openingFloatUsd,
+      openFloatKhr: session.openingFloatKhr,
       totalPaidIn: paidIn,
       totalPaidOut: paidOut,
       hasCashMovement: paidIn > 0 || paidOut > 0,
-      registerId: state.registerId,
-      registerName: state.registerName,
     );
   }
 
   String? _currentBranchId() {
-    final session = ref.read(loginControllerProvider).session;
-    final branches = session?.user.branches ?? const [];
-    if (branches.isEmpty) return null;
-    final active = branches.firstWhere(
-      (b) => b.active && b.branchId.isNotEmpty,
-      orElse: () => branches.first,
-    );
-    return active.branchId.isNotEmpty ? active.branchId : active.id;
+    return ref.read(authActiveBranchIdProvider);
   }
+
+  String? _currentUserId() {
+    return ref.read(loginControllerProvider).user?.id;
+  }
+
 }
 
 /// The global provider for accessing the CashSessionViewModel.

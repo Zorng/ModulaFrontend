@@ -3,6 +3,7 @@ import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/inventory/data/stock_item_repository.dart';
 import 'package:modular_pos/features/inventory/data/inventory_journal_repository.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_batch.dart';
+import 'package:modular_pos/features/inventory/domain/models/on_hand_record.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_state.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/category_controller.dart';
@@ -15,16 +16,11 @@ final stockInventoryControllerProvider =
 class StockInventoryController extends Notifier<StockInventoryState> {
   late final StockItemRepository _repository;
   late final InventoryJournalRepository _journalRepository;
-  bool _hasLoaded = false;
 
   @override
   StockInventoryState build() {
     _repository = ref.read(stockItemRepositoryProvider);
     _journalRepository = ref.read(inventoryJournalRepositoryProvider);
-    if (!_hasLoaded) {
-      _hasLoaded = true;
-      Future.microtask(loadStockItems);
-    }
     return const StockInventoryState();
   }
 
@@ -127,9 +123,7 @@ class StockInventoryController extends Notifier<StockInventoryState> {
     final reloadBranch =
         (branchId != null && branchId.isNotEmpty && branchId != 'all')
         ? branchId
-        : (item.branchId.isNotEmpty && item.branchId != 'all'
-              ? item.branchId
-              : null);
+        : null;
     await loadStockItems(branchId: reloadBranch);
   }
 
@@ -270,32 +264,21 @@ class StockInventoryController extends Notifier<StockInventoryState> {
 
   List<StockItem> _applyOnHand(
     List<StockItem> items,
-    List<dynamic> onHandData,
+    List<OnHandRecord> onHandData,
   ) {
     if (onHandData.isEmpty) return items;
-    final lookup = <String, Map<String, dynamic>>{};
-    for (final raw in onHandData) {
-      if (raw is! Map<String, dynamic>) continue;
-      final stockItemId =
-          (raw['stockItemId'] ?? raw['stock_item_id'] ?? raw['id'] ?? '')
-              .toString();
-      if (stockItemId.isEmpty) continue;
-      final branchId = (raw['branchId'] ?? raw['branch_id'] ?? '').toString();
-      final key = '$stockItemId|$branchId';
-      lookup[key] = raw;
+    final lookup = <String, OnHandRecord>{};
+    for (final record in onHandData) {
+      if (record.stockItemId.isEmpty) continue;
+      final key = '${record.stockItemId}|${record.branchId}';
+      lookup[key] = record;
     }
     return items.map((item) {
       final key = '${item.id}|${item.branchId}';
       final data = lookup[key] ?? lookup['${item.id}|'];
       if (data == null) return item;
-      final onHand =
-          _asInt(data['onHand']) ??
-          _asInt(data['onHandQty']) ??
-          _asInt(data['onHandExact']) ??
-          _asInt(data['quantity']) ??
-          _asInt(data['qty']);
-      final minThreshold =
-          _asInt(data['minThreshold']) ?? _asInt(data['threshold']);
+      final onHand = data.onHand;
+      final minThreshold = data.minThreshold;
       return item.copyWith(
         onHand: onHand ?? item.onHand,
         minThreshold: minThreshold ?? item.minThreshold,
@@ -303,48 +286,41 @@ class StockInventoryController extends Notifier<StockInventoryState> {
     }).toList();
   }
 
-  Future<List<dynamic>> _fetchOnHand({String? branchId}) async {
+  Future<List<OnHandRecord>> _fetchOnHand({String? branchId}) async {
     // If a specific branch is selected, fetch on-hand once.
     if (branchId != null && branchId.isNotEmpty && branchId != 'all') {
       final data = await _repository.fetchOnHand(branchId: branchId);
-      // Guard against backend sending the wrong branchId by filtering and stamping the requested id.
       return data
-          .whereType<Map<String, dynamic>>()
-          .where((raw) {
-            final payloadBranch =
-                (raw['branchId'] ?? raw['branch_id'] ?? '').toString();
-            return payloadBranch.isEmpty || payloadBranch == branchId;
-          })
-          .map((raw) => {
-                ...raw,
-                'branchId': branchId,
-                'branch_id': branchId,
-              })
-          .toList();
+          .map((record) => record.branchId.isEmpty
+              ? OnHandRecord(
+                  stockItemId: record.stockItemId,
+                  branchId: branchId,
+                  onHand: record.onHand,
+                  minThreshold: record.minThreshold,
+                )
+              : record)
+          .where((record) => record.branchId == branchId)
+          .toList(growable: false);
     }
     // Aggregate on-hand across all user branches.
     final branches =
         ref.read(loginControllerProvider).user?.branches ?? const [];
     if (branches.isEmpty) return const [];
-    final aggregated = <String, Map<String, dynamic>>{};
+    final aggregated = <String, OnHandRecord>{};
     for (final branch in branches) {
       final id = branch.branchId.isNotEmpty ? branch.branchId : branch.id;
       final data = await _repository.fetchOnHand(branchId: id);
-      for (final raw in data.whereType<Map<String, dynamic>>()) {
-        final stockItemId =
-            (raw['stockItemId'] ?? raw['stock_item_id'] ?? raw['id'] ?? '')
-                .toString();
-        if (stockItemId.isEmpty) continue;
-        final payloadBranch =
-            (raw['branchId'] ?? raw['branch_id'] ?? '').toString();
-        // Ignore records that explicitly refer to a different branch to avoid bleeding counts across branches.
-        if (payloadBranch.isNotEmpty && payloadBranch != id) continue;
-        final key = '$stockItemId|$id';
-        aggregated[key] = {
-          ...raw,
-          'branchId': id,
-          'branch_id': id,
-        };
+      for (final record in data) {
+        if (record.stockItemId.isEmpty) continue;
+        final key = '${record.stockItemId}|$id';
+        aggregated[key] = record.branchId.isEmpty
+            ? OnHandRecord(
+                stockItemId: record.stockItemId,
+                branchId: id,
+                onHand: record.onHand,
+                minThreshold: record.minThreshold,
+              )
+            : record;
       }
     }
     return aggregated.values.toList();
@@ -380,12 +356,6 @@ class StockInventoryController extends Notifier<StockInventoryState> {
     }
     return deduped;
   }
-}
-
-int? _asInt(dynamic value) {
-  if (value == null) return null;
-  if (value is num) return value.toInt();
-  return int.tryParse(value.toString());
 }
 
 String? _toUtcIso(String? dateString) {

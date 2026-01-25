@@ -1,32 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:modular_pos/core/hydration/app_hydration_listener.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
+import 'package:modular_pos/core/routing/routes/account_routes.dart';
+import 'package:modular_pos/core/routing/routes/attendance_routes.dart';
+import 'package:modular_pos/core/routing/routes/cash_routes.dart';
+import 'package:modular_pos/core/routing/routes/core_routes.dart';
+import 'package:modular_pos/core/routing/routes/inventory_routes.dart';
+import 'package:modular_pos/core/routing/routes/menu_routes.dart';
+import 'package:modular_pos/core/routing/routes/policy_routes.dart';
+import 'package:modular_pos/core/routing/routes/portal_routes.dart';
+import 'package:modular_pos/core/routing/routes/sale_routes.dart';
+import 'package:modular_pos/core/routing/routes/staff_routes.dart';
 import 'package:modular_pos/core/theme/app_theme.dart';
-import 'package:modular_pos/features/auth/ui/portals/admin_portal.dart';
-import 'package:modular_pos/features/auth/ui/portals/cashier_portal.dart';
-import 'package:modular_pos/features/auth/ui/view/login_view.dart';
-import 'package:modular_pos/features/menu/ui/view/menu_page.dart';
+import 'package:modular_pos/core/theme/responsive.dart';
+import 'package:modular_pos/core/widgets/navigation/app_wide_navigation_rail_shell.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
-import 'package:modular_pos/core/widgets/widget_gallery_page.dart';
-import 'package:modular_pos/features/policy/ui/view/policy_page.dart';
-import 'package:modular_pos/features/sale/ui/view/order_page.dart';
-import 'package:modular_pos/features/sale/ui/view/sale_page.dart';
-import 'package:modular_pos/features/common/ui/settings_page.dart';
-import 'package:modular_pos/features/auth/ui/view/account_page.dart';
-import 'package:modular_pos/features/inventory/ui/view/category_management_page.dart';
-import 'package:modular_pos/features/inventory/ui/view/inventory_home_page.dart';
-import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
-import 'package:modular_pos/features/inventory/ui/view/add_stock_item_page.dart';
-import 'package:modular_pos/features/inventory/ui/view/stock_item_detail_page.dart';
-import 'package:modular_pos/features/inventory/ui/view/inventory_stock_items_page.dart';
-import 'package:modular_pos/features/inventory/ui/view/stock_adjust_quantity_page.dart';
-import 'package:modular_pos/features/inventory/ui/view/restock_stock_item_page.dart';
-import 'package:modular_pos/features/inventory/domain/models/inventory_journal_summary.dart';
-import 'package:modular_pos/features/inventory/ui/view/inventory_journal_page.dart';
-import 'package:modular_pos/features/inventory/ui/view/inventory_journal_detail_page.dart';
-import 'package:modular_pos/features/cash_session/ui/view/cashier_cash_session.dart';
-import 'package:modular_pos/features/cash_session/ui/viewmodels/cash_session_viewmodel.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -45,7 +35,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final authState = ref.read(loginControllerProvider);
       final session = authState.session;
       final path = state.uri.path; // current path
+
       final isLoggingIn = path == AppRoute.login.path;
+      final isTenantSelection = path == AppRoute.tenantSelection.path;
+      final isPortal = path == AppRoute.portal.path;
 
       // Developer-only gallery should be reachable without auth.
       if (path == AppRoute.components.path) {
@@ -57,16 +50,20 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         return isLoggingIn ? null : AppRoute.login.path;
       }
 
-      final role = session.user.role.toLowerCase();
+      // Authenticated, but tenant context not selected yet.
+      if (session.requiresTenantSelection) {
+        return isTenantSelection ? null : AppRoute.tenantSelection.path;
+      }
+
+      final role = session.user.role.trim().toLowerCase();
 
       String homeForRole() {
         switch (role) {
           case 'admin':
-            return AppRoute.adminPortal.path;
           case 'cashier':
           case 'manager':
           default:
-            return AppRoute.cashierPortal.path;
+            return AppRoute.sale.path;
         }
       }
 
@@ -75,39 +72,57 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         return homeForRole();
       }
 
+      if (isPortal) {
+        final mediaQuery = MediaQuery.maybeOf(context);
+        if (mediaQuery != null &&
+            AppBreakpoints.isLarge(mediaQuery.size.width)) {
+          return homeForRole();
+        }
+      }
+
       // Authenticated but not allowed to access admin portal/menu → 404
-      if ((path == AppRoute.adminPortal.path ||
-              path == AppRoute.adminMenu.path) &&
-          role != 'admin') {
+      bool isInPathGroup(String root) {
+        return path == root || path.startsWith('$root/');
+      }
+
+      if (isInPathGroup(AppRoute.adminMenu.path) && role != 'admin') {
         return '/404';
       }
 
       // Authenticated but not allowed to access policy → 404
-      if (path == AppRoute.policy.path && role != 'admin') {
+      if (isInPathGroup(AppRoute.policy.path) &&
+          role != 'admin' &&
+          role != 'cashier') {
         return '/404';
       }
-      if ((path == AppRoute.inventory.path ||
-              path == AppRoute.inventoryAddItem.path ||
-              path == AppRoute.inventoryStockDetail.path ||
-              path == AppRoute.inventoryStockItems.path ||
-              path == AppRoute.inventoryRestock.path ||
-              path == AppRoute.inventoryCategories.path ||
-              path == AppRoute.inventoryJournal.path ||
-              path == AppRoute.inventoryJournalDetail.path) &&
-          role != 'admin') {
+      if (isInPathGroup(AppRoute.inventory.path) && role != 'admin') {
         return '/404';
       }
-      // Authenticated but not allowed to access cashier portal → 404
-      if (path == AppRoute.cashierPortal.path &&
-          role != 'cashier' &&
-          role != 'admin') {
+      if (isInPathGroup(AppRoute.staff.path) && role != 'admin') {
         return '/404';
       }
+      // Portal routes removed; role gating handled per feature.
 
       // Authenticated but not allowed to access cashier dashboard → 404
-      if (path == AppRoute.cashierCashSession.path &&
+      if (isInPathGroup(AppRoute.cashSession.path) &&
           role != 'cashier' &&
           role != 'admin') {
+        return '/404';
+      }
+      if (isInPathGroup(AppRoute.attendance.path) &&
+          role != 'cashier' &&
+          role != 'manager') {
+        return '/404';
+      }
+      if (path == AppRoute.xReport.path &&
+          role != 'admin' &&
+          role != 'cashier') {
+        return '/404';
+      }
+      if (path == AppRoute.zReport.path && role != 'admin') {
+        return '/404';
+      }
+      if (path == AppRoute.attendanceManagement.path && role != 'admin') {
         return '/404';
       }
 
@@ -117,127 +132,23 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     },
     initialLocation: AppRoute.login.path,
     routes: [
-      GoRoute(
-        path: AppRoute.login.path,
-        name: AppRoute.login.name,
-        builder: (context, state) => const LoginPage(),
-      ),
-      GoRoute(
-        path: AppRoute.components.path,
-        name: AppRoute.components.name,
-        builder: (context, state) => const WidgetGalleryPage(),
-      ),
-      GoRoute(
-        path: AppRoute.adminPortal.path,
-        name: AppRoute.adminPortal.name,
-        builder: (context, state) => const AdminPortal(),
-      ),
-      GoRoute(
-        path: AppRoute.adminMenu.path,
-        name: AppRoute.adminMenu.name,
-        builder: (context, state) => const MenuPage(),
-      ),
-      GoRoute(
-        path: AppRoute.policy.path,
-        name: AppRoute.policy.name,
-        builder: (context, state) => const PolicyPage(),
-      ),
-      GoRoute(
-        path: AppRoute.account.path,
-        name: AppRoute.account.name,
-        builder: (context, state) => const AccountPage(),
-      ),
-      GoRoute(
-        path: AppRoute.settings.path,
-        name: AppRoute.settings.name,
-        builder: (context, state) => const SettingsPage(),
-      ),
-      GoRoute(
-        path: AppRoute.cashierPortal.path,
-        name: AppRoute.cashierPortal.name,
-        builder: (context, state) => const CashierPortal(),
-      ),
-      GoRoute(
-        path: AppRoute.inventory.path,
-        name: AppRoute.inventory.name,
-        builder: (context, state) => const InventoryHomePage(),
-      ),
-      GoRoute(
-        path: AppRoute.inventoryAddItem.path,
-        name: AppRoute.inventoryAddItem.name,
-        builder: (context, state) => const AddStockItemPage(),
-      ),
-      GoRoute(
-        path: AppRoute.inventoryStockDetail.path,
-        name: AppRoute.inventoryStockDetail.name,
-        builder: (context, state) {
-          final item = state.extra is StockItem
-              ? state.extra as StockItem
-              : const StockItem(
-                  id: 'unknown',
-                  name: 'Unknown item',
-                  category: 'Uncategorized',
-                  baseUnit: 'pcs',
-                  pieceSize: 1,
-                  branchId: 'main',
-                  branchName: 'Main Branch',
-                  onHand: 0,
-                  minThreshold: 0,
-                  isActive: true,
-                );
-          return StockItemDetailPage(item: item);
-        },
-      ),
-      GoRoute(
-        path: AppRoute.inventoryAdjustStock.path,
-        name: AppRoute.inventoryAdjustStock.name,
-        builder: (context, state) {
-          final item = state.extra as StockItem;
-          return AdjustStockQuantityPage(item: item);
-        },
-      ),
-      GoRoute(
-        path: AppRoute.inventoryStockItems.path,
-        name: AppRoute.inventoryStockItems.name,
-        builder: (context, state) => const InventoryStockItemsPage(),
-      ),
-      GoRoute(
-        path: AppRoute.inventoryRestock.path,
-        name: AppRoute.inventoryRestock.name,
-        builder: (context, state) => const RestockStockItemPage(),
-      ),
-      GoRoute(
-        path: AppRoute.inventoryCategories.path,
-        name: AppRoute.inventoryCategories.name,
-        builder: (context, state) => const CategoryManagementPage(),
-      ),
-      GoRoute(
-        path: AppRoute.inventoryJournal.path,
-        name: AppRoute.inventoryJournal.name,
-        builder: (context, state) => const InventoryJournalPage(),
-      ),
-      GoRoute(
-        path: AppRoute.inventoryJournalDetail.path,
-        name: AppRoute.inventoryJournalDetail.name,
-        builder: (context, state) {
-          final summary = state.extra as InventoryJournalDaySummary;
-          return InventoryJournalDetailPage(summary: summary);
-        },
-      ),
-      GoRoute(
-        path: AppRoute.sale.path,
-        name: AppRoute.sale.name,
-        builder: (context, state) => const SalePage(),
-      ),
-      GoRoute(
-        path: AppRoute.orders.path,
-        name: AppRoute.orders.name,
-        builder: (context, state) => const OrderPage(),
-      ),
-      GoRoute(
-        path: AppRoute.cashierCashSession.path,
-        name: AppRoute.cashierCashSession.name,
-        builder: (context, state) => const CashSessionScreen(),
+      ...buildCoreRoutes(),
+      ShellRoute(
+        builder: (context, state, child) => AppScaffoldShell(
+          currentPath: state.uri.path,
+          child: child,
+        ),
+        routes: [
+          buildPortalRoute(ref),
+          ...buildMenuRoutes(),
+          ...buildPolicyRoutes(),
+          ...buildAccountRoutes(),
+          ...buildAttendanceRoutes(),
+          ...buildInventoryRoutes(),
+          ...buildSaleRoutes(),
+          ...buildCashRoutes(),
+          ...buildStaffRoutes(),
+        ],
       ),
     ],
   );
@@ -250,11 +161,13 @@ class ModulaApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(appRouterProvider);
 
-    return MaterialApp.router(
-      debugShowCheckedModeBanner: false,
-      title: 'Modula POS',
-      theme: AppTheme.light,
-      routerConfig: router,
+    return AppHydrationListener(
+      child: MaterialApp.router(
+        debugShowCheckedModeBanner: false,
+        title: 'Modula POS',
+        theme: AppTheme.light,
+        routerConfig: router,
+      ),
     );
   }
 }

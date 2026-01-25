@@ -2,6 +2,8 @@ import 'package:dio/dio.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/core/network/dio_client.dart';
+import 'package:modular_pos/features/cash_session/data/dto/cash_register_dto.dart';
+import 'package:modular_pos/features/cash_session/data/dto/cash_session_dto.dart';
 
 final cashSessionApiProvider = Provider<CashSessionApi>((ref) {
   final dio = ref.watch(dioProvider);
@@ -15,25 +17,26 @@ class CashSessionApi {
   final Dio _dio;
   final String _prefix;
 
-  Future<Map<String, dynamic>> openSession(Map<String, dynamic> body) async {
+  Future<CashSessionDto> openSession(Map<String, dynamic> body) async {
     final response = await _dio.post<Map<String, dynamic>>(
       '$_prefix/sessions',
       data: body,
     );
-    return response.data ?? const {};
+    return CashSessionDto.fromJson(_unwrapMap(response.data));
   }
 
-  Future<Map<String, dynamic>> takeOverSession(
+  Future<CashSessionDto> forceCloseSession(
+    String sessionId,
     Map<String, dynamic> body,
   ) async {
     final response = await _dio.post<Map<String, dynamic>>(
-      '$_prefix/sessions/take-over',
+      '$_prefix/sessions/$sessionId/force-close',
       data: body,
     );
-    return response.data ?? const {};
+    return CashSessionDto.fromJson(_unwrapMap(response.data));
   }
 
-  Future<Map<String, dynamic>> closeSession(
+  Future<CashSessionDto> closeSession(
     String sessionId,
     Map<String, dynamic> body,
   ) async {
@@ -41,10 +44,10 @@ class CashSessionApi {
       '$_prefix/sessions/$sessionId/close',
       data: body,
     );
-    return response.data ?? const {};
+    return CashSessionDto.fromJson(_unwrapMap(response.data));
   }
 
-  Future<Map<String, dynamic>> getActiveSession({
+  Future<CashSessionDto?> getActiveSession({
     String? registerId,
     String? branchId,
   }) async {
@@ -65,44 +68,63 @@ class CashSessionApi {
                   'branchId': branchId,
               },
       );
-      return response.data ?? const {};
-    } on DioException catch (e) {
+      final json = _unwrapMap(response.data);
+      if (json.isEmpty) return null;
+      final id = json['id']?.toString() ?? json['sessionId']?.toString() ?? '';
+      if (id.isEmpty) return null;
+      return CashSessionDto.fromJson(json);
+    } on DioError catch (e) {
       // Treat 404 (no active session) as empty payload instead of an error.
       if (e.response?.statusCode == 404 || e.response?.statusCode == 401) {
-        return const {};
+        return null;
       }
       rethrow;
     }
   }
 
-  Future<Map<String, dynamic>> recordMovement(
+  Future<void> recordMovement(
     String sessionId,
     Map<String, dynamic> body,
   ) async {
-    final response = await _dio.post<Map<String, dynamic>>(
+    await _dio.post<Map<String, dynamic>>(
       '$_prefix/sessions/$sessionId/movements',
       data: body,
     );
-    return response.data ?? const {};
   }
 
-  Future<List<dynamic>> fetchRegisters({bool includeInactive = false}) async {
+  Future<List<CashRegisterDto>> fetchRegisters({
+    bool includeInactive = false,
+  }) async {
     final response = await _dio.get<Map<String, dynamic>>(
       '$_prefix/registers',
       queryParameters: includeInactive ? {'includeInactive': true} : null,
     );
     final data = response.data;
     if (data == null) return const [];
-    if (data['data'] is List) return List<dynamic>.from(data['data'] as List);
-    if (data['items'] is List) return List<dynamic>.from(data['items'] as List);
-    return const [];
+    final list =
+        (data['data'] is List)
+            ? (data['data'] as List)
+            : (data['items'] is List)
+                ? (data['items'] as List)
+                : const [];
+    return list
+        .whereType<Map>()
+        .map((e) => CashRegisterDto.fromJson(Map<String, dynamic>.from(e)))
+        .toList();
   }
 
-  Future<Map<String, dynamic>> createRegister(String name) async {
+  Future<CashRegisterDto> createRegister(String name) async {
     final response = await _dio.post<Map<String, dynamic>>(
       '$_prefix/registers',
       data: {'name': name},
     );
-    return response.data ?? const {};
+    return CashRegisterDto.fromJson(_unwrapMap(response.data));
+  }
+
+  Map<String, dynamic> _unwrapMap(Map<String, dynamic>? payload) {
+    final json = payload ?? const <String, dynamic>{};
+    final data = json['data'];
+    if (data is Map<String, dynamic>) return data;
+    return json;
   }
 }

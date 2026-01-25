@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:modular_pos/core/feedback/user_error_message.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
-import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
+import 'package:modular_pos/core/theme/responsive.dart';
+import 'package:modular_pos/core/widgets/navigation/app_back_button.dart';
 import 'package:modular_pos/features/cash_session/ui/viewmodels/cash_session_viewmodel.dart';
 import 'package:modular_pos/features/cash_session/ui/widgets/cash_session_bottom_action_area.dart';
 import 'package:modular_pos/features/cash_session/ui/widgets/start_session_modal.dart';
@@ -15,24 +17,21 @@ class CashSessionScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final sessionState = ref.watch(cashSessionViewModelProvider);
-    final role =
-        (ref.watch(loginControllerProvider).user?.role ?? 'cashier').toLowerCase();
-
+    final isSmall = AppBreakpoints.isSmall(
+      MediaQuery.of(context).size.width,
+    );
     return Scaffold(
       appBar: AppBar(
         centerTitle: false,
         title: const Text('Cash Session'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            // Always return to the appropriate portal to prevent bypassing the cash-session gate.
-            if (role == 'admin') {
-              context.go(AppRoute.adminPortal.path);
-            } else {
-              context.go(AppRoute.cashierPortal.path);
-            }
-          },
-        ),
+        automaticallyImplyLeading: false,
+        leading: isSmall
+            ? AppBackButton(
+                icon: Icons.home_outlined,
+                tooltip: 'Home',
+                onPressed: () => context.go(AppRoute.portal.path),
+              )
+            : null,
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -47,7 +46,10 @@ class CashSessionScreen extends ConsumerWidget {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      sessionState.error!,
+                      UserErrorMessage.build(
+                        context: 'Failed to load cash session',
+                        error: sessionState.error,
+                      ),
                       style: TextStyle(
                         color: Colors.red.shade700,
                         fontWeight: FontWeight.w500,
@@ -186,8 +188,10 @@ class CashSessionScreen extends ConsumerWidget {
         child: const Text('No registers available'),
       );
     }
+    final currentId = state.registerId ?? state.registers.first.id;
     return DropdownButtonFormField<String>(
-      value: state.registerId ?? state.registers.first.id,
+      key: ValueKey(currentId),
+      initialValue: currentId,
       decoration: const InputDecoration(
         labelText: 'Register',
         border: OutlineInputBorder(),

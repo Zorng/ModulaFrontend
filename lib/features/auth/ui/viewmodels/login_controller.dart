@@ -1,12 +1,11 @@
 import 'dart:async';
 
-import 'package:flutter_riverpod/legacy.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart' show Ref;
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:modular_pos/core/logging/app_log.dart';
 import 'package:modular_pos/features/auth/data/auth_repository.dart';
 import 'package:modular_pos/features/auth/data/auth_session_store.dart';
-import 'package:modular_pos/features/auth/domain/auth_tenant_provider.dart';
-import 'package:modular_pos/features/auth/domain/auth_token_provider.dart';
 import 'package:modular_pos/features/auth/domain/models/auth_session.dart';
+import 'package:modular_pos/features/auth/domain/models/tenant_membership.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
 
 class LoginState {
@@ -14,19 +13,11 @@ class LoginState {
   final AuthSession? session;
   final String? error;
 
-  const LoginState({
-    this.isLoading = false,
-    this.session,
-    this.error,
-  });
+  const LoginState({this.isLoading = false, this.session, this.error});
 
   User? get user => session?.user;
 
-  LoginState copyWith({
-    bool? isLoading,
-    AuthSession? session,
-    String? error,
-  }) {
+  LoginState copyWith({bool? isLoading, AuthSession? session, String? error}) {
     return LoginState(
       isLoading: isLoading ?? this.isLoading,
       session: session ?? this.session,
@@ -35,47 +26,34 @@ class LoginState {
   }
 }
 
-final loginControllerProvider = StateNotifierProvider<LoginController, LoginState>((ref) {
-  final repository = ref.read(authRepositoryProvider);
-  final store = ref.read(authSessionStoreProvider);
-  final initialSession = ref.read(initialAuthSessionProvider);
-  return LoginController(
-    ref: ref,
-    repository: repository,
-    sessionStore: store,
-    initialSession: initialSession,
-  );
-});
+final loginControllerProvider = NotifierProvider<LoginController, LoginState>(
+  LoginController.new,
+);
 
-class LoginController extends StateNotifier<LoginState> {
-  LoginController({
-    required this.ref,
-    required AuthRepository repository,
-    required AuthSessionStore sessionStore,
-    AuthSession? initialSession,
-  })  : _repository = repository,
-        _sessionStore = sessionStore,
-        super(LoginState(session: initialSession)) {
-    if (initialSession != null) {
-      // Defer provider updates to avoid mutating providers during build.
-      Future.microtask(() => _applySessionContext(initialSession));
-    }
+class LoginController extends Notifier<LoginState> {
+  AuthRepository get _repository => ref.read(authRepositoryProvider);
+  AuthSessionStore get _sessionStore => ref.read(authSessionStoreProvider);
+
+  @override
+  LoginState build() {
+    final initialSession = ref.read(initialAuthSessionProvider);
+    return LoginState(session: initialSession);
   }
-
-  final Ref ref;
-  final AuthRepository _repository;
-  final AuthSessionStore _sessionStore;
 
   Future<void> login(String username, String password) async {
     state = state.copyWith(isLoading: true, error: null);
 
     try {
       final session = await _repository.login(username, password);
-      await _sessionStore.save(session);
-      _applySessionContext(session);
+      // Only persist fully-established sessions.
+      if (!session.requiresTenantSelection &&
+          session.accessToken.trim().isNotEmpty) {
+        await _sessionStore.save(session);
+      }
 
       state = state.copyWith(isLoading: false, session: session);
-    } catch (e) {
+    } catch (e, st) {
+      AppLog.e('Login failed', error: e, stackTrace: st);
       state = state.copyWith(
         isLoading: false,
         error: 'Login failed', // you can inspect e for more details
@@ -83,15 +61,67 @@ class LoginController extends StateNotifier<LoginState> {
     }
   }
 
-  void _applySessionContext(AuthSession session) {
-    ref.read(authAccessTokenProvider.notifier).state = session.accessToken;
-    ref.read(authTenantIdProvider.notifier).state = session.user.tenantId;
+  Future<void> selectTenant(String tenantId) async {
+    final current = state.session;
+    if (current == null) return;
+
+    state = state.copyWith(isLoading: true, error: null);
+
+    try {
+      if (current.tenantSelectionToken.trim().isNotEmpty) {
+        final selected = await _repository.selectTenant(
+          selectionToken: current.tenantSelectionToken,
+          tenantId: tenantId,
+        );
+
+        final nextSession = selected.copyWith(
+          memberships: current.memberships.isNotEmpty
+              ? current.memberships
+              : selected.memberships,
+          activeTenantId: tenantId,
+          tenantSelectionToken: '',
+        );
+
+        await _sessionStore.save(nextSession);
+        state = state.copyWith(isLoading: false, session: nextSession);
+        return;
+      }
+
+      TenantMembership? membership;
+      for (final m in current.memberships) {
+        if (m.tenantId == tenantId) {
+          membership = m;
+          break;
+        }
+      }
+      if (membership == null) {
+        state = state.copyWith(isLoading: false);
+        return;
+      }
+
+      final nextUser = current.user.copyWith(
+        tenantId: membership.tenantId,
+        role: membership.role.isNotEmpty ? membership.role : current.user.role,
+        branches: membership.branches,
+      );
+      final nextSession = current.copyWith(
+        user: nextUser,
+        activeTenantId: membership.tenantId,
+      );
+
+      await _sessionStore.save(nextSession);
+      state = state.copyWith(isLoading: false, session: nextSession);
+    } catch (e, st) {
+      AppLog.e('Tenant selection failed', error: e, stackTrace: st);
+      state = state.copyWith(
+        isLoading: false,
+        error: 'Tenant selection failed',
+      );
+    }
   }
 
   Future<void> logout() async {
     await _sessionStore.clear();
-    ref.read(authAccessTokenProvider.notifier).state = null;
-    ref.read(authTenantIdProvider.notifier).state = null;
     state = const LoginState();
   }
 }

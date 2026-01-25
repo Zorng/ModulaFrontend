@@ -1,0 +1,312 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import 'package:modular_pos/core/feedback/user_error_message.dart';
+import 'package:modular_pos/core/routing/app_router.dart';
+import 'package:modular_pos/core/widgets/forms/app_search_add_bar.dart';
+import 'package:modular_pos/features/auth/domain/models/user.dart';
+import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
+import 'package:modular_pos/features/inventory/domain/models/category_defaults.dart';
+import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
+import 'package:modular_pos/features/inventory/ui/viewmodels/category_controller.dart';
+import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_controller.dart';
+import 'package:modular_pos/features/inventory/ui/widgets/inventory_item_card.dart';
+
+class InventoryHomePage extends ConsumerStatefulWidget {
+  const InventoryHomePage({super.key});
+
+  @override
+  ConsumerState<InventoryHomePage> createState() => _InventoryHomePageState();
+}
+
+class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
+  String _selectedBranchId = 'all';
+  String _selectedCategory = 'All';
+  final _searchController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    // Ensure fresh data when opening inventory.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(categoryControllerProvider.notifier).loadCategories();
+      ref.read(stockInventoryControllerProvider.notifier).loadStockItems();
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final inventoryState = ref.watch(stockInventoryControllerProvider);
+    final categoryState = ref.watch(categoryControllerProvider);
+    final userBranches =
+        ref.watch(loginControllerProvider).user?.branches ?? const [];
+    final items = inventoryState.items;
+    final branchEntries = _branchEntries(items, userBranches);
+    if (_selectedBranchId == 'all' && branchEntries.length == 2) {
+      _selectedBranchId = branchEntries.first['id'] == 'all'
+          ? branchEntries[1]['id']!
+          : branchEntries.first['id']!;
+    } else if (_selectedBranchId == 'all' && userBranches.length == 1) {
+      _selectedBranchId = userBranches.first.branchId.isNotEmpty
+          ? userBranches.first.branchId
+          : userBranches.first.id;
+    }
+    final branchLabel = _branchLabel(branchEntries);
+    final canSelectBranch = branchEntries.length > 1;
+    final filtered = items.where((item) {
+      final matchesCategory =
+          _selectedCategory == 'All' || item.category == _selectedCategory;
+      final matchesBranch =
+          _selectedBranchId == 'all' || item.branchId == _selectedBranchId;
+      final matchesSearch =
+          _searchController.text.isEmpty ||
+          item.name.toLowerCase().contains(
+            _searchController.text.toLowerCase(),
+          );
+      return matchesCategory && matchesBranch && matchesSearch;
+    }).toList();
+
+    final displayed = _selectedBranchId == 'all'
+        ? _aggregateItems(filtered)
+        : filtered;
+
+    final categoryList = categoryState.categories.isEmpty
+        ? defaultInventoryCategories
+        : (categoryState.categories.map((c) => c.name).toList()..sort());
+    final categories = ['All', ...categoryList];
+
+    return Scaffold(
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            AppSearchAddBar(
+              searchHint: 'Search stock items',
+              searchController: _searchController,
+              onSearchChanged: (_) => setState(() {}),
+              addButtonLabel: 'Restock',
+              onAddPressed: () async {
+                await context.push(AppRoute.inventoryRestock.path);
+                if (!mounted) return;
+                ref
+                    .read(stockInventoryControllerProvider.notifier)
+                    .loadStockItems(
+                      branchId: _selectedBranchId == 'all'
+                          ? null
+                          : _selectedBranchId,
+                    );
+              },
+            ),
+            const SizedBox(height: 12),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: categories.map((category) {
+                  final selected = category == _selectedCategory;
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: ChoiceChip(
+                      label: Text(category),
+                      selected: selected,
+                      onSelected: (_) =>
+                          setState(() => _selectedCategory = category),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '${displayed.length} item${displayed.length == 1 ? '' : 's'}',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                ),
+                OutlinedButton.icon(
+                  onPressed: canSelectBranch
+                      ? () => _showBranchSelector(branchEntries)
+                      : null,
+                  icon: const Icon(Icons.store_outlined),
+                  label: Text(branchLabel),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(64, 40),
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: Card(
+                elevation: 0,
+                color: Colors.transparent,
+                shadowColor: Colors.transparent,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: inventoryState.isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : inventoryState.error != null
+                    ? Center(
+                        child: Text(
+                          UserErrorMessage.build(
+                            context: 'Failed to load inventory',
+                            error: inventoryState.error,
+                          ),
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(color: Theme.of(context).hintColor),
+                          textAlign: TextAlign.center,
+                        ),
+                      )
+                    : ListView.separated(
+                        itemCount: displayed.length,
+                        itemBuilder: (context, index) {
+                          final item = displayed[index];
+                          return InventoryItemCard(
+                            item: item,
+                            showState: _selectedBranchId != 'all',
+                            onTap: () {
+                              if (item.branchId == 'all') {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Select a branch to adjust stock',
+                                    ),
+                                  ),
+                                );
+                                return;
+                              }
+                              context.push(
+                                AppRoute.inventoryAdjustStock.path,
+                                extra: item,
+                              );
+                            },
+                          );
+                        },
+                        separatorBuilder: (_, __) => const SizedBox(height: 12),
+                      ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showBranchSelector(List<Map<String, String>> branches) async {
+    if (branches.length <= 1) return;
+    final selection = await showModalBottomSheet<Map<String, String>>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) {
+        return SafeArea(
+          child: ListView.separated(
+            shrinkWrap: true,
+            itemBuilder: (context, index) {
+              final branch = branches[index];
+              final selected = branch['id'] == _selectedBranchId;
+              return ListTile(
+                title: Text(branch['name']!),
+                trailing: selected ? const Icon(Icons.check) : null,
+                onTap: () => Navigator.of(context).pop(branch),
+              );
+            },
+            separatorBuilder: (_, __) => const Divider(height: 1),
+            itemCount: branches.length,
+          ),
+        );
+      },
+    );
+
+    if (selection != null) {
+      final id = selection['id']!;
+      setState(() => _selectedBranchId = id);
+      // Reload inventory for the selected branch (or all branches).
+      ref
+          .read(stockInventoryControllerProvider.notifier)
+          .loadStockItems(branchId: id == 'all' ? null : id);
+    }
+  }
+
+  List<Map<String, String>> _branchEntries(
+    List<StockItem> items,
+    List<UserBranch> userBranches,
+  ) {
+    final map = <String, String>{};
+    if (userBranches.isNotEmpty) {
+      for (final b in userBranches) {
+        final id = b.branchId.isNotEmpty ? b.branchId : b.id;
+        map[id] = b.name;
+      }
+    } else {
+      for (final item in items) {
+        map[item.branchId] = item.branchName;
+      }
+    }
+    final entries =
+        map.entries
+            .map((entry) => {'id': entry.key, 'name': entry.value})
+            .toList()
+          ..sort((a, b) => a['name']!.compareTo(b['name']!));
+    if (entries.length > 1) {
+      entries.insert(0, {'id': 'all', 'name': 'All branches'});
+    }
+    return entries;
+  }
+
+  String _branchLabel(List<Map<String, String>> branches) {
+    if (_selectedBranchId == 'all') return 'All branches';
+    for (final branch in branches) {
+      if (branch['id'] == _selectedBranchId) {
+        return branch['name']!;
+      }
+    }
+    if (branches.isNotEmpty) return branches.first['name']!;
+    return 'All branches';
+  }
+
+  List<StockItem> _aggregateItems(List<StockItem> items) {
+    final grouped = <String, List<StockItem>>{};
+    for (final item in items) {
+      final key =
+          '${item.name}|${item.category}|${item.baseUnit}|${item.pieceSize}|${item.barcode ?? ''}';
+      grouped.putIfAbsent(key, () => []).add(item);
+    }
+
+    return grouped.entries.map((entry) {
+      final first = entry.value.first;
+      final totalOnHand = entry.value.fold<int>(
+        0,
+        (sum, item) => sum + item.onHand,
+      );
+      final totalThreshold = entry.value.fold<int>(
+        0,
+        (sum, item) => sum + item.minThreshold,
+      );
+      final mergedTags = <String>{};
+      for (final item in entry.value) {
+        mergedTags.addAll(item.usageTags);
+      }
+      return first.copyWith(
+        id: '${entry.key}_aggregate',
+        branchId: 'all',
+        branchName: 'All branches',
+        onHand: totalOnHand,
+        minThreshold: totalThreshold,
+        lastRestockDate: '-',
+        expiryDate: '-',
+        usageTags: mergedTags.toList(),
+      );
+    }).toList();
+  }
+}

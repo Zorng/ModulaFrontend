@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/core/network/dio_client.dart';
+import 'package:modular_pos/features/policy/data/dto/policy_bundle_dto.dart';
 
 final policyApiProvider = Provider<PolicyApi>((ref) {
   final dio = ref.watch(dioProvider);
@@ -15,52 +16,71 @@ class PolicyApi {
   final Dio _dio;
   final String _prefix;
 
-  Future<Map<String, dynamic>> getPolicies() async {
-    final response = await _dio.get<Map<String, dynamic>>(_prefix);
-    return response.data ?? const {};
+  Future<PolicyBundleDto> getPolicies({String? branchId}) async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      _prefix,
+      queryParameters:
+          branchId != null && branchId.isNotEmpty ? {'branchId': branchId} : null,
+    );
+    return PolicyBundleDto.fromJson(response.data ?? const {});
   }
 
-  Future<Map<String, dynamic>> getSalesPolicies() async {
+  Future<PolicyBundleDto> getSalesPolicies() async {
     final response = await _dio.get<Map<String, dynamic>>('$_prefix/sales');
-    return response.data ?? const {};
+    return PolicyBundleDto.fromJson(response.data ?? const {});
   }
 
-  Future<Map<String, dynamic>> getInventoryPolicies() async {
+  Future<PolicyBundleDto> getInventoryPolicies() async {
     final response =
         await _dio.get<Map<String, dynamic>>('$_prefix/inventory');
-    return response.data ?? const {};
+    return PolicyBundleDto.fromJson(response.data ?? const {});
   }
 
-  Future<Map<String, dynamic>> updateTax({
+  Future<void> updateTax({
+    String? branchId,
     required bool saleVatEnabled,
     required double saleVatRatePercent,
   }) async {
-    final response = await _dio.patch<Map<String, dynamic>>(
+    final body = <String, dynamic>{
+      'saleVatEnabled': saleVatEnabled,
+      'saleVatRatePercent': saleVatRatePercent,
+    };
+    if (branchId != null && branchId.isNotEmpty) {
+      body['branchId'] = branchId;
+    }
+    await _dio.patch<Map<String, dynamic>>(
       '$_prefix/tax',
-      data: {
-        'saleVatEnabled': saleVatEnabled,
-        'saleVatRatePercent': saleVatRatePercent,
-      },
+      data: body,
     );
-    return response.data ?? const {};
+    // ignore response; repository re-fetches canonical policies.
   }
 
-  Future<Map<String, dynamic>> updateCurrency({
+  Future<void> updateCurrency({
+    String? branchId,
     required double saleFxRateKhrPerUsd,
   }) async {
-    final response = await _dio.patch<Map<String, dynamic>>(
+    final body = <String, dynamic>{
+      'saleFxRateKhrPerUsd': saleFxRateKhrPerUsd,
+    };
+    if (branchId != null && branchId.isNotEmpty) {
+      body['branchId'] = branchId;
+    }
+    await _dio.patch<Map<String, dynamic>>(
       '$_prefix/currency',
-      data: {'saleFxRateKhrPerUsd': saleFxRateKhrPerUsd},
+      data: body,
     );
-    return response.data ?? const {};
   }
 
-  Future<Map<String, dynamic>> updateRounding({
+  Future<void> updateRounding({
+    String? branchId,
     bool? saleKhrRoundingEnabled,
     String? saleKhrRoundingMode,
     String? saleKhrRoundingGranularity,
   }) async {
     final body = <String, dynamic>{};
+    if (branchId != null && branchId.isNotEmpty) {
+      body['branchId'] = branchId;
+    }
     if (saleKhrRoundingEnabled != null) {
       body['saleKhrRoundingEnabled'] = saleKhrRoundingEnabled;
     }
@@ -70,18 +90,21 @@ class PolicyApi {
     if (saleKhrRoundingGranularity != null) {
       body['saleKhrRoundingGranularity'] = saleKhrRoundingGranularity;
     }
-    final response = await _dio.patch<Map<String, dynamic>>(
+    await _dio.patch<Map<String, dynamic>>(
       '$_prefix/rounding',
       data: body,
     );
-    return response.data ?? const {};
   }
 
-  Future<Map<String, dynamic>> updateInventory({
+  Future<void> updateInventory({
+    String? branchId,
     bool? inventoryAutoSubtractOnSale,
     bool? inventoryExpiryTrackingEnabled,
   }) async {
     final body = <String, dynamic>{};
+    if (branchId != null && branchId.isNotEmpty) {
+      body['branchId'] = branchId;
+    }
     if (inventoryAutoSubtractOnSale != null) {
       body['inventoryAutoSubtractOnSale'] = inventoryAutoSubtractOnSale;
     }
@@ -89,10 +112,69 @@ class PolicyApi {
       body['inventoryExpiryTrackingEnabled'] =
           inventoryExpiryTrackingEnabled;
     }
-    final response = await _dio.patch<Map<String, dynamic>>(
+    await _dio.patch<Map<String, dynamic>>(
       '$_prefix/inventory',
       data: body,
     );
-    return response.data ?? const {};
+  }
+
+  Future<void> updateCashSession({
+    String? branchId,
+    bool? cashAllowPaidOut,
+    bool? cashRequireRefundApproval,
+    bool? cashAllowManualAdjustment,
+  }) async {
+    final body = <String, dynamic>{};
+    if (branchId != null && branchId.isNotEmpty) {
+      body['branchId'] = branchId;
+    }
+    if (cashAllowPaidOut != null) {
+      body['cashAllowPaidOut'] = cashAllowPaidOut;
+    }
+    if (cashRequireRefundApproval != null) {
+      body['cashRequireRefundApproval'] = cashRequireRefundApproval;
+    }
+    if (cashAllowManualAdjustment != null) {
+      body['cashAllowManualAdjustment'] = cashAllowManualAdjustment;
+    }
+    await _dio.patch<Map<String, dynamic>>(
+      '$_prefix/cash-sessions',
+      data: body,
+    );
+  }
+
+  Future<void> updateAttendance({
+    String? branchId,
+    bool? attendanceAutoFromCashSession,
+    bool? attendanceRequireOutOfShiftApproval,
+    bool? attendanceEarlyCheckinBufferEnabled,
+    int? attendanceCheckinBufferMinutes,
+    bool? attendanceAllowManagerEdits,
+  }) async {
+    final body = <String, dynamic>{};
+    if (branchId != null && branchId.isNotEmpty) {
+      body['branchId'] = branchId;
+    }
+    if (attendanceAutoFromCashSession != null) {
+      body['attendanceAutoFromCashSession'] = attendanceAutoFromCashSession;
+    }
+    if (attendanceRequireOutOfShiftApproval != null) {
+      body['attendanceRequireOutOfShiftApproval'] =
+          attendanceRequireOutOfShiftApproval;
+    }
+    if (attendanceEarlyCheckinBufferEnabled != null) {
+      body['attendanceEarlyCheckinBufferEnabled'] =
+          attendanceEarlyCheckinBufferEnabled;
+    }
+    if (attendanceCheckinBufferMinutes != null) {
+      body['attendanceCheckinBufferMinutes'] = attendanceCheckinBufferMinutes;
+    }
+    if (attendanceAllowManagerEdits != null) {
+      body['attendanceAllowManagerEdits'] = attendanceAllowManagerEdits;
+    }
+    await _dio.patch<Map<String, dynamic>>(
+      '$_prefix/attendance',
+      data: body,
+    );
   }
 }

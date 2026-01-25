@@ -1,23 +1,25 @@
-import 'dart:convert';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/features/auth/data/auth_api.dart';
+import 'package:modular_pos/features/auth/data/dto/auth_login_response_dto.dart';
+import 'package:modular_pos/features/auth/data/dto/tenant_membership_dto.dart';
+import 'package:modular_pos/features/auth/data/dto/user_branch_dto.dart';
+import 'package:modular_pos/features/auth/data/dto/auth_user_dto.dart';
 import 'package:modular_pos/features/auth/domain/models/auth_session.dart';
+import 'package:modular_pos/features/auth/domain/models/tenant_membership.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
 
-const _useMockRepository = false;
-
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
-  if (_useMockRepository) {
-    return MockAuthRepository();
-  }
-
   final api = ref.read(authApiProvider);
   return RemoteAuthRepository(api);
 });
 
 abstract class AuthRepository {
   Future<AuthSession> login(String username, String password);
+  Future<AuthSession> selectTenant({
+    required String selectionToken,
+    required String tenantId,
+    String? branchId,
+  });
 }
 
 class RemoteAuthRepository implements AuthRepository {
@@ -27,183 +29,81 @@ class RemoteAuthRepository implements AuthRepository {
 
   @override
   Future<AuthSession> login(String username, String password) async {
-    return _api.login(username: username, password: password);
+    final response = await _api.login(username: username, password: password);
+    if (response.requiresTenantSelection) {
+      final selection = response.tenantSelection!;
+      return AuthSession(
+        user: User(id: '', name: '', role: '', tenantId: ''),
+        memberships: selection.memberships.map(_toMembership).toList(growable: false),
+        activeTenantId: null,
+        accessToken: '',
+        refreshToken: '',
+        accessTokenExpiresAt: DateTime.now().add(const Duration(minutes: 15)),
+        refreshTokenExpiresAt: DateTime.now().add(const Duration(hours: 72)),
+        tenantSelectionToken: selection.selectionToken,
+      );
+    }
+    final established = response.established!;
+    return _toAuthSession(established);
   }
-}
-
-class MockAuthRepository implements AuthRepository {
-  MockAuthRepository() : _records = _parseMockData();
-
-  final List<_MockLoginRecord> _records;
 
   @override
-  Future<AuthSession> login(String username, String password) async {
-    await Future<void>.delayed(const Duration(milliseconds: 350));
-
-    final record = _records.firstWhere(
-      (record) =>
-          record.username.toLowerCase() == username.toLowerCase() &&
-          record.password == password,
-      orElse: () => throw Exception('Invalid credentials'),
-    );
-
-    final now = DateTime.now().toUtc();
-
-    return AuthSession(
-      user: record.user,
-      accessToken: record.accessToken,
-      refreshToken: record.refreshToken,
-      accessTokenExpiresAt: now.add(
-        Duration(seconds: record.accessTokenTtlSeconds),
-      ),
-      refreshTokenExpiresAt: now.add(
-        Duration(hours: record.refreshTokenTtlHours),
-      ),
-    );
-  }
-
-  static List<_MockLoginRecord> _parseMockData() {
-    final List<dynamic> decoded = jsonDecode(_mockLoginData) as List<dynamic>;
-    return decoded
-        .map(
-          (entry) => _MockLoginRecord.fromJson(entry as Map<String, dynamic>),
+  Future<AuthSession> selectTenant({
+    required String selectionToken,
+    required String tenantId,
+    String? branchId,
+  }) {
+    return _api
+        .selectTenant(
+          selectionToken: selectionToken,
+          tenantId: tenantId,
+          branchId: branchId,
         )
-        .toList(growable: false);
+        .then(_toAuthSession);
   }
 }
 
-class _MockLoginRecord {
-  const _MockLoginRecord({
-    required this.username,
-    required this.password,
-    required this.user,
-    required this.accessToken,
-    required this.refreshToken,
-    required this.accessTokenTtlSeconds,
-    required this.refreshTokenTtlHours,
-  });
-
-  final String username;
-  final String password;
-  final User user;
-  final String accessToken;
-  final String refreshToken;
-  final int accessTokenTtlSeconds;
-  final int refreshTokenTtlHours;
-
-  factory _MockLoginRecord.fromJson(Map<String, dynamic> json) {
-    final tokens = json['tokens'] as Map<String, dynamic>? ?? const {};
-
-    return _MockLoginRecord(
-      username: json['username'] as String,
-      password: json['password'] as String,
-      user: User.fromJson(json['user'] as Map<String, dynamic>),
-      accessToken: tokens['accessToken'] as String? ?? '',
-      refreshToken: tokens['refreshToken'] as String? ?? '',
-      accessTokenTtlSeconds: tokens['accessTokenTtlSeconds'] as int? ?? 900,
-      refreshTokenTtlHours: tokens['refreshTokenTtlHours'] as int? ?? 72,
-    );
-  }
+AuthSession _toAuthSession(EstablishedAuthSessionDto dto) {
+  return AuthSession(
+    user: _toUser(dto.user),
+    memberships: dto.memberships.map(_toMembership).toList(growable: false),
+    activeTenantId: dto.activeTenantId,
+    accessToken: dto.accessToken,
+    refreshToken: dto.refreshToken,
+    accessTokenExpiresAt: dto.accessTokenExpiresAt.toUtc(),
+    refreshTokenExpiresAt: dto.refreshTokenExpiresAt.toUtc(),
+    tenantSelectionToken: '',
+  );
 }
 
-const _mockLoginData = '''
-[
-  {
-    "username": "cashier@modula.app",
-    "password": "password123",
-    "tokens": {
-      "accessToken": "cashier-access-token",
-      "refreshToken": "cashier-refresh-token",
-      "accessTokenTtlSeconds": 900,
-      "refreshTokenTtlHours": 72
-    },
-    "user": {
-      "id": "user_cashier_1",
-      "name": "Demo Cashier",
-      "role": "cashier",
-      "tenantId": "tenant_demo",
-      "branches": [
-        {"id": "branch_1", "name": "Main Branch"}
-      ]
-    }
-  },
-  {
-    "username": "manager@modula.app",
-    "password": "password123",
-    "tokens": {
-      "accessToken": "manager-access-token",
-      "refreshToken": "manager-refresh-token",
-      "accessTokenTtlSeconds": 900,
-      "refreshTokenTtlHours": 72
-    },
-    "user": {
-      "id": "user_manager_1",
-      "name": "Demo Manager",
-      "role": "manager",
-      "tenantId": "tenant_demo",
-      "branches": [
-        {"id": "branch_1", "name": "Main Branch"}
-      ]
-    }
-  },
-  {
-    "username": "admin@modula.app",
-    "password": "adminStrongPass!",
-    "tokens": {
-      "accessToken": "admin-access-token",
-      "refreshToken": "admin-refresh-token",
-      "accessTokenTtlSeconds": 900,
-      "refreshTokenTtlHours": 72
-    },
-    "user": {
-      "id": "user_admin_1",
-      "name": "Tenant Admin",
-      "role": "admin",
-      "tenantId": "tenant_demo",
-      "branches": [
-        {"id": "branch_1", "name": "Main Branch"},
-        {"id": "branch_2", "name": "Downtown"},
-        {"id": "branch_3", "name": "Airport"}
-      ]
-    }
-  },
-  {
-    "username": "admin@tenantb.app",
-    "password": "password123",
-    "tokens": {
-      "accessToken": "tenantb-admin-access-token",
-      "refreshToken": "tenantb-admin-refresh-token",
-      "accessTokenTtlSeconds": 900,
-      "refreshTokenTtlHours": 72
-    },
-    "user": {
-      "id": "user_admin_b_1",
-      "name": "Tenant B Admin",
-      "role": "admin",
-      "tenantId": "tenant_b",
-      "branches": [
-        {"id": "branch_b1", "name": "North"}
-      ]
-    }
-  },
-  {
-    "username": "cashier@tenantb.app",
-    "password": "password123",
-    "tokens": {
-      "accessToken": "tenantb-cashier-access-token",
-      "refreshToken": "tenantb-cashier-refresh-token",
-      "accessTokenTtlSeconds": 900,
-      "refreshTokenTtlHours": 72
-    },
-    "user": {
-      "id": "user_cashier_b_1",
-      "name": "Tenant B Cashier",
-      "role": "cashier",
-      "tenantId": "tenant_b",
-      "branches": [
-        {"id": "branch_b1", "name": "North"}
-      ]
-    }
-  }
-]
-''';
+User _toUser(AuthUserDto dto) {
+  return User(
+    id: dto.id,
+    name: dto.name,
+    role: dto.role,
+    tenantId: dto.tenantId,
+    phone: dto.phone,
+    status: dto.status,
+    branches: dto.branches.map(_toBranch).toList(growable: false),
+  );
+}
+
+TenantMembership _toMembership(TenantMembershipDto dto) {
+  return TenantMembership(
+    tenantId: dto.tenantId,
+    tenantName: dto.tenantName,
+    role: dto.role,
+    branches: dto.branches.map(_toBranch).toList(growable: false),
+  );
+}
+
+UserBranch _toBranch(UserBranchDto dto) {
+  return UserBranch(
+    id: dto.id,
+    name: dto.name,
+    role: dto.role,
+    active: dto.active,
+    employeeId: dto.employeeId,
+    branchId: dto.branchId,
+  );
+}

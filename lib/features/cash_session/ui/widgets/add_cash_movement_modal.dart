@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
+import 'package:modular_pos/core/input_formatters/decimal_text_input_formatter.dart';
 
 /// A modal bottom sheet for adding a cash movement (Paid In/Paid Out).
 class AddCashMovementModal extends StatefulWidget {
@@ -77,7 +78,7 @@ class _AddCashMovementModalState extends State<AddCashMovementModal> {
                         TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 IconButton(
                   icon: const Icon(Icons.close),
-                  onPressed: () => Navigator.of(context).pop(),
+                  onPressed: () => context.pop(),
                 ),
               ],
             ),
@@ -141,7 +142,8 @@ class _AddCashMovementModalState extends State<AddCashMovementModal> {
             style: TextStyle(fontWeight: FontWeight.w500)),
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
-          value: _selectedType,
+          key: ValueKey(_selectedType),
+          initialValue: _selectedType,
           decoration: decoration,
           items: ['Paid In', 'Paid Out']
               .map((label) => DropdownMenuItem(
@@ -180,7 +182,8 @@ class _AddCashMovementModalState extends State<AddCashMovementModal> {
           keyboardType: isNumeric
               ? const TextInputType.numberWithOptions(decimal: true)
               : TextInputType.text,
-          inputFormatters: isNumeric ? [FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}'))] : [],
+          inputFormatters:
+              isNumeric ? [DecimalTextInputFormatter(decimalRange: 2)] : [],
         ),
       ],
     );

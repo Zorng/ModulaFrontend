@@ -1,0 +1,69 @@
+import 'package:flutter/material.dart';
+import 'package:modular_pos/core/widgets/display/dashed_border_painter.dart';
+
+class SelectionChipsField extends StatelessWidget {
+  const SelectionChipsField({
+    super.key,
+    required this.selectedIds,
+    required this.labelResolver,
+    required this.addButtonLabel,
+    required this.onAddTap,
+    required this.onRemove,
+  });
+
+  final Iterable<String> selectedIds;
+  final String Function(String id) labelResolver;
+  final String addButtonLabel;
+  final VoidCallback onAddTap;
+  final void Function(String id) onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: selectedIds
+              .map(
+                (id) => Chip(
+                  label: Text(labelResolver(id)),
+                  onDeleted: () => onRemove(id),
+                ),
+              )
+              .toList(),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: InkWell(
+            onTap: onAddTap,
+            child: CustomPaint(
+              foregroundPainter: DashedBorderPainter(
+                color: Theme.of(context).primaryColor,
+              ),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  addButtonLabel,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+

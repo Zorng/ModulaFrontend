@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/features/inventory/data/inventory_api.dart';
+import 'package:modular_pos/features/inventory/data/dto/inventory_journal_entry_dto.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_journal_entry.dart';
 
 final inventoryJournalRepositoryProvider = Provider<InventoryJournalRepository>((ref) {
@@ -19,14 +20,14 @@ class InventoryJournalRepository {
     String? note,
     String? occurredAt,
   }) async {
-    final json = await _api.receiveStock(
+    final dto = await _api.receiveStock(
       branchId: branchId,
       stockItemId: stockItemId,
       qty: qty,
       note: note,
       occurredAt: occurredAt,
     );
-    return _maybeEntry(json, fallbackReason: InventoryJournalReason.restock);
+    return _maybeEntry(dto, fallbackReason: InventoryJournalReason.restock);
   }
 
   Future<InventoryJournalEntry?> waste({
@@ -36,14 +37,14 @@ class InventoryJournalRepository {
     required String note,
     String? occurredAt,
   }) async {
-    final json = await _api.wasteStock(
+    final dto = await _api.wasteStock(
       branchId: branchId,
       stockItemId: stockItemId,
       qty: qty,
       note: note,
       occurredAt: occurredAt,
     );
-    return _maybeEntry(json, fallbackReason: InventoryJournalReason.remove);
+    return _maybeEntry(dto, fallbackReason: InventoryJournalReason.remove);
   }
 
   Future<InventoryJournalEntry?> correct({
@@ -53,14 +54,14 @@ class InventoryJournalRepository {
     required String note,
     String? occurredAt,
   }) async {
-    final json = await _api.correctStock(
+    final dto = await _api.correctStock(
       branchId: branchId,
       stockItemId: stockItemId,
       delta: delta,
       note: note,
       occurredAt: occurredAt,
     );
-    return _maybeEntry(json, fallbackReason: InventoryJournalReason.add);
+    return _maybeEntry(dto, fallbackReason: InventoryJournalReason.add);
   }
 
   Future<List<InventoryJournalEntry>> fetch({
@@ -82,36 +83,21 @@ class InventoryJournalRepository {
       pageSize: pageSize,
     );
     return items
-        .whereType<Map<String, dynamic>>()
-        .map(InventoryJournalEntry.fromJson)
-        .toList();
+        .map((dto) => _toDomain(dto))
+        .toList(growable: false);
   }
 
   Future<List<InventoryJournalEntry>> lowStockAlerts({String? branchId}) async {
     final items = await _api.fetchLowStockAlerts(branchId: branchId);
-    return items
-        .whereType<Map<String, dynamic>>()
-        .map(InventoryJournalEntry.fromJson)
-        .toList();
+    return items.map(_toDomain).toList(growable: false);
   }
 
   InventoryJournalEntry? _maybeEntry(
-    Map<String, dynamic> json, {
+    InventoryJournalEntryDto? dto, {
     InventoryJournalReason? fallbackReason,
   }) {
-    if (json['data'] is Map<String, dynamic>) {
-      return InventoryJournalEntry.fromJson(
-        json['data'] as Map<String, dynamic>,
-        fallbackReason: fallbackReason,
-      );
-    }
-    if (json.isNotEmpty) {
-      return InventoryJournalEntry.fromJson(
-        json,
-        fallbackReason: fallbackReason,
-      );
-    }
-    return null;
+    if (dto == null) return null;
+    return _toDomain(dto, fallbackReason: fallbackReason);
   }
 
   String _reasonToApi(InventoryJournalReason reason) => switch (reason) {
@@ -123,4 +109,46 @@ class InventoryJournalRepository {
         InventoryJournalReason.reopen => 'reopen',
         InventoryJournalReason.unknown => '',
       };
+}
+
+InventoryJournalEntry _toDomain(
+  InventoryJournalEntryDto dto, {
+  InventoryJournalReason? fallbackReason,
+}) {
+  final reason = _reasonFromApi(dto.reason, fallback: fallbackReason);
+  final actor = dto.actorName.isNotEmpty ? dto.actorName : dto.actorId;
+  return InventoryJournalEntry(
+    id: dto.id,
+    itemId: dto.stockItemId,
+    itemName: dto.stockItemName,
+    branchId: dto.branchId,
+    branchName: dto.branchName,
+    reason: reason,
+    delta: dto.delta,
+    note: dto.note,
+    actor: actor,
+    createdAt: dto.createdAt,
+    occurredAt: dto.occurredAt,
+  );
+}
+
+InventoryJournalReason _reasonFromApi(
+  String reason, {
+  InventoryJournalReason? fallback,
+}) {
+  switch (reason.trim().toLowerCase()) {
+    case 'receive':
+    case 'restock':
+      return InventoryJournalReason.restock;
+    case 'waste':
+      return InventoryJournalReason.remove;
+    case 'sale':
+      return InventoryJournalReason.sale;
+    case 'void':
+      return InventoryJournalReason.voided;
+    case 'reopen':
+      return InventoryJournalReason.reopen;
+    default:
+      return fallback ?? InventoryJournalReason.unknown;
+  }
 }

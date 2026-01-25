@@ -1,19 +1,30 @@
 import 'package:modular_pos/features/auth/domain/models/user.dart';
+import 'package:modular_pos/features/auth/domain/models/tenant_membership.dart';
 
 class AuthSession {
   const AuthSession({
     required this.user,
+    required this.memberships,
+    required this.activeTenantId,
     required this.accessToken,
     required this.refreshToken,
     required this.accessTokenExpiresAt,
     required this.refreshTokenExpiresAt,
+    this.tenantSelectionToken = '',
   });
 
   final User user;
+  final List<TenantMembership> memberships;
+  final String? activeTenantId;
   final String accessToken;
   final String refreshToken;
   final DateTime accessTokenExpiresAt;
   final DateTime refreshTokenExpiresAt;
+  final String tenantSelectionToken;
+
+  bool get requiresTenantSelection =>
+      tenantSelectionToken.isNotEmpty ||
+      (memberships.length > 1 && (activeTenantId == null || activeTenantId!.isEmpty));
 
   bool get isAccessTokenExpired =>
       DateTime.now().isAfter(accessTokenExpiresAt);
@@ -36,14 +47,24 @@ class AuthSession {
         'status': user.status,
         'branches': user.branches.map((b) => b.toJson()).toList(),
       },
+      'memberships': memberships.map((m) => m.toJson()).toList(growable: false),
+      'activeTenantId': activeTenantId,
       'accessTokenExpiresAt': accessTokenExpiresAt.toIso8601String(),
       'refreshTokenExpiresAt': refreshTokenExpiresAt.toIso8601String(),
     };
   }
 
   factory AuthSession.fromJson(Map<String, dynamic> json) {
+    final memberships = (json['memberships'] as List<dynamic>?)
+            ?.whereType<Map<String, dynamic>>()
+            .map(TenantMembership.fromJson)
+            .toList(growable: false) ??
+        const <TenantMembership>[];
+
     return AuthSession(
       user: User.fromJson(json['user'] as Map<String, dynamic>),
+      memberships: memberships,
+      activeTenantId: json['activeTenantId']?.toString(),
       accessToken: '',
       refreshToken: '',
       accessTokenExpiresAt: DateTime.parse(
@@ -52,6 +73,28 @@ class AuthSession {
       refreshTokenExpiresAt: DateTime.parse(
         json['refreshTokenExpiresAt'] as String,
       ).toUtc(),
+    );
+  }
+
+  AuthSession copyWith({
+    User? user,
+    List<TenantMembership>? memberships,
+    String? activeTenantId,
+    String? accessToken,
+    String? refreshToken,
+    DateTime? accessTokenExpiresAt,
+    DateTime? refreshTokenExpiresAt,
+    String? tenantSelectionToken,
+  }) {
+    return AuthSession(
+      user: user ?? this.user,
+      memberships: memberships ?? this.memberships,
+      activeTenantId: activeTenantId ?? this.activeTenantId,
+      accessToken: accessToken ?? this.accessToken,
+      refreshToken: refreshToken ?? this.refreshToken,
+      accessTokenExpiresAt: accessTokenExpiresAt ?? this.accessTokenExpiresAt,
+      refreshTokenExpiresAt: refreshTokenExpiresAt ?? this.refreshTokenExpiresAt,
+      tenantSelectionToken: tenantSelectionToken ?? this.tenantSelectionToken,
     );
   }
 }

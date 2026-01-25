@@ -11,15 +11,10 @@ final categoryControllerProvider =
 
 class CategoryController extends Notifier<CategoryState> {
   late final InventoryCategoryRepository _repository;
-  bool _hasLoaded = false;
 
   @override
   CategoryState build() {
     _repository = ref.read(inventoryCategoryRepositoryProvider);
-    if (!_hasLoaded) {
-      _hasLoaded = true;
-      Future.microtask(loadCategories);
-    }
     return const CategoryState();
   }
 

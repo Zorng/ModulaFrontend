@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/menu/data/menu_repository.dart';
@@ -13,19 +12,10 @@ final menuViewModelProvider =
     NotifierProvider<MenuViewModel, MenuState>(MenuViewModel.new);
 
 class MenuViewModel extends Notifier<MenuState> {
-  bool _hasRequestedInitialLoad = false;
-
   MenuRepository get _menuRepository => ref.read(menuRepositoryProvider);
 
   @override
   MenuState build() {
-    final loginState = ref.watch(loginControllerProvider);
-    if (loginState.session == null) {
-      _hasRequestedInitialLoad = false;
-    } else if (!_hasRequestedInitialLoad) {
-      _hasRequestedInitialLoad = true;
-      Future.microtask(loadMenu);
-    }
     return const MenuState();
   }
 
@@ -49,17 +39,6 @@ class MenuViewModel extends Notifier<MenuState> {
           : branchId ??
               (state.selectedBranchId != 'all' ? state.selectedBranchId : null) ??
               fallbackBranchId;
-      final snapshotBranchId = requestedBranchId ?? fallbackBranchId;
-      if (snapshotBranchId != null) {
-        // Quick snapshot fetch for debugging payload structure.
-        try {
-          final snapshot =
-              await _menuRepository.fetchMenuSnapshot(snapshotBranchId);
-          debugPrint('Menu snapshot payload: $snapshot');
-        } catch (e) {
-          debugPrint('Menu snapshot failed: $e');
-        }
-      }
       final bundle = await _menuRepository.fetchMenuData(
         branchId: requestedBranchId,
         branchIdsForHydration: shouldFetchAll

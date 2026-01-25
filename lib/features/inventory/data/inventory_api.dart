@@ -2,6 +2,11 @@ import 'package:dio/dio.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/core/network/dio_client.dart';
+import 'package:modular_pos/features/inventory/data/dto/branch_stock_item_dto.dart';
+import 'package:modular_pos/features/inventory/data/dto/inventory_category_dto.dart';
+import 'package:modular_pos/features/inventory/data/dto/inventory_journal_entry_dto.dart';
+import 'package:modular_pos/features/inventory/data/dto/on_hand_record_dto.dart';
+import 'package:modular_pos/features/inventory/data/dto/stock_item_dto.dart';
 
 final inventoryApiProvider = Provider<InventoryApi>((ref) {
   final dio = ref.watch(dioProvider);
@@ -16,7 +21,7 @@ class InventoryApi {
   final String _prefix;
 
   // Categories
-  Future<List<dynamic>> fetchCategories({bool? isActive}) async {
+  Future<List<InventoryCategoryDto>> fetchCategories({bool? isActive}) async {
     final query = <String, dynamic>{
       if (isActive != null) 'isActive': isActive,
     };
@@ -24,26 +29,26 @@ class InventoryApi {
       '$_prefix/categories',
       queryParameters: query.isEmpty ? null : query,
     );
-    final data = response.data;
-    if (data == null) return const [];
-    if (data['data'] is List) return List<dynamic>.from(data['data'] as List);
-    if (data['items'] is List) return List<dynamic>.from(data['items'] as List);
-    return const [];
+    final root = _asMap(response.data);
+    final list = _pickList(root);
+    return list.map(InventoryCategoryDto.fromJson).toList(growable: false);
   }
 
-  Future<Map<String, dynamic>> createCategory(Map<String, dynamic> body) async {
+  Future<InventoryCategoryDto> createCategory(Map<String, dynamic> body) async {
     final response =
         await _dio.post<Map<String, dynamic>>('$_prefix/categories', data: body);
-    return response.data ?? const {};
+    final json = _unwrap(_asMap(response.data));
+    return InventoryCategoryDto.fromJson(json);
   }
 
-  Future<Map<String, dynamic>> updateCategory(
+  Future<InventoryCategoryDto> updateCategory(
     String id,
     Map<String, dynamic> body,
   ) async {
     final response =
         await _dio.patch<Map<String, dynamic>>('$_prefix/categories/$id', data: body);
-    return response.data ?? const {};
+    final json = _unwrap(_asMap(response.data));
+    return InventoryCategoryDto.fromJson(json);
   }
 
   Future<void> deleteCategory(String id, {bool? safeMode}) async {
@@ -54,7 +59,7 @@ class InventoryApi {
   }
 
   // Stock items (master)
-  Future<List<dynamic>> fetchStockItems({
+  Future<List<StockItemDto>> fetchStockItems({
     String? search,
     bool? isActive,
     String? categoryId,
@@ -70,30 +75,12 @@ class InventoryApi {
     };
     final response =
         await _dio.get<Map<String, dynamic>>('$_prefix/stock-items', queryParameters: query);
-    final data = response.data;
-    if (data == null) return const [];
-    if (data['data'] is List) {
-      return List<dynamic>.from(data['data'] as List);
-    }
-    if (data['items'] is List) {
-      return List<dynamic>.from(data['items'] as List);
-    }
-    if (data['data'] is Map<String, dynamic>) {
-      final inner = data['data'] as Map<String, dynamic>;
-      if (inner['items'] is List) {
-        return List<dynamic>.from(inner['items'] as List);
-      }
-      if (inner['entries'] is List) {
-        return List<dynamic>.from(inner['entries'] as List);
-      }
-      if (inner['data'] is List) {
-        return List<dynamic>.from(inner['data'] as List);
-      }
-    }
-    return const [];
+    final root = _asMap(response.data);
+    final list = _pickList(root);
+    return list.map(StockItemDto.fromJson).toList(growable: false);
   }
 
-  Future<Map<String, dynamic>> createStockItem(
+  Future<StockItemDto> createStockItem(
     Map<String, dynamic> body, {
     String? imagePath,
     List<int>? imageBytes,
@@ -112,10 +99,11 @@ class InventoryApi {
         : FormData.fromMap(body);
     final response =
         await _dio.post<Map<String, dynamic>>('$_prefix/stock-items', data: payload);
-    return response.data ?? const {};
+    final json = _unwrap(_asMap(response.data));
+    return StockItemDto.fromJson(json);
   }
 
-  Future<Map<String, dynamic>> updateStockItem(
+  Future<StockItemDto> updateStockItem(
     String id,
     Map<String, dynamic> body, {
     String? imagePath,
@@ -135,14 +123,15 @@ class InventoryApi {
         : FormData.fromMap(body);
     final response =
         await _dio.patch<Map<String, dynamic>>('$_prefix/stock-items/$id', data: payload);
-    return response.data ?? const {};
+    final json = _unwrap(_asMap(response.data));
+    return StockItemDto.fromJson(json);
   }
 
   Future<void> deactivateStockItem(String id) async {
     await _dio.put<Map<String, dynamic>>('$_prefix/stock-items/$id', data: {'isActive': false});
   }
 
-  Future<List<dynamic>> fetchBranchStockItems({String? branchId}) async {
+  Future<List<BranchStockItemDto>> fetchBranchStockItems({String? branchId}) async {
     final response =
         await _dio.get<Map<String, dynamic>>(
       '$_prefix/branch/stock-items',
@@ -150,23 +139,19 @@ class InventoryApi {
           ? null
           : <String, dynamic>{'branchId': branchId},
     );
-    final data = response.data;
-    if (data == null) return const [];
-    if (data['data'] is List) return List<dynamic>.from(data['data'] as List);
-    if (data['items'] is List) return List<dynamic>.from(data['items'] as List);
-    if (data['data'] is Map<String, dynamic>) {
-      final inner = data['data'] as Map<String, dynamic>;
-      if (inner['items'] is List) return List<dynamic>.from(inner['items'] as List);
-    }
-    return const [];
+    final root = _asMap(response.data);
+    final list = _pickList(root);
+    return list
+        .map((json) => BranchStockItemDto.fromJson(json, branchIdHint: branchId))
+        .toList(growable: false);
   }
 
-  Future<Map<String, dynamic>> assignStockItemToBranch({
+  Future<void> assignStockItemToBranch({
     required String stockItemId,
     required String branchId,
     required int minThreshold,
   }) async {
-    final response = await _dio.post<Map<String, dynamic>>(
+    await _dio.post<Map<String, dynamic>>(
       '$_prefix/branch/stock-items',
       data: {
         'stockItemId': stockItemId,
@@ -174,29 +159,24 @@ class InventoryApi {
         'minThreshold': minThreshold,
       },
     );
-    return response.data ?? const {};
   }
 
-  Future<List<dynamic>> fetchOnHand({String? branchId}) async {
+  Future<List<OnHandRecordDto>> fetchOnHand({String? branchId}) async {
     final response = await _dio.get<Map<String, dynamic>>(
       '$_prefix/branch/on-hand',
       queryParameters: branchId == null || branchId.isEmpty
           ? null
           : <String, dynamic>{'branchId': branchId},
     );
-    final data = response.data;
-    if (data == null) return const [];
-    if (data['data'] is List) return List<dynamic>.from(data['data'] as List);
-    if (data['items'] is List) return List<dynamic>.from(data['items'] as List);
-    if (data['data'] is Map<String, dynamic>) {
-      final inner = data['data'] as Map<String, dynamic>;
-      if (inner['items'] is List) return List<dynamic>.from(inner['items'] as List);
-    }
-    return const [];
+    final root = _asMap(response.data);
+    final list = _pickList(root);
+    return list
+        .map((json) => OnHandRecordDto.fromJson(json, branchIdHint: branchId))
+        .toList(growable: false);
   }
 
   // Inventory journal / stock movements
-  Future<Map<String, dynamic>> receiveStock({
+  Future<InventoryJournalEntryDto?> receiveStock({
     required String branchId,
     required String stockItemId,
     required num qty,
@@ -213,10 +193,10 @@ class InventoryApi {
         if (occurredAt != null && occurredAt.isNotEmpty) 'occurredAt': occurredAt,
       },
     );
-    return response.data ?? const {};
+    return _maybeJournalEntry(response.data);
   }
 
-  Future<Map<String, dynamic>> wasteStock({
+  Future<InventoryJournalEntryDto?> wasteStock({
     required String branchId,
     required String stockItemId,
     required num qty,
@@ -233,10 +213,10 @@ class InventoryApi {
         if (occurredAt != null && occurredAt.isNotEmpty) 'occurredAt': occurredAt,
       },
     );
-    return response.data ?? const {};
+    return _maybeJournalEntry(response.data);
   }
 
-  Future<Map<String, dynamic>> correctStock({
+  Future<InventoryJournalEntryDto?> correctStock({
     required String branchId,
     required String stockItemId,
     required num delta,
@@ -253,10 +233,10 @@ class InventoryApi {
         if (occurredAt != null && occurredAt.isNotEmpty) 'occurredAt': occurredAt,
       },
     );
-    return response.data ?? const {};
+    return _maybeJournalEntry(response.data);
   }
 
-  Future<List<dynamic>> fetchJournal({
+  Future<List<InventoryJournalEntryDto>> fetchJournal({
     String? branchId,
     String? stockItemId,
     String? reason,
@@ -278,33 +258,67 @@ class InventoryApi {
       '$_prefix/branch/journal',
       queryParameters: query,
     );
-    final data = response.data;
-    return _extractList(data);
+    final root = _asMap(response.data);
+    final list = _pickList(root);
+    return list.map(InventoryJournalEntryDto.fromJson).toList(growable: false);
   }
 
-  Future<List<dynamic>> fetchLowStockAlerts({String? branchId}) async {
+  Future<List<InventoryJournalEntryDto>> fetchLowStockAlerts({String? branchId}) async {
     final response = await _dio.get<Map<String, dynamic>>(
       '$_prefix/branch/alerts/low-stock',
       queryParameters: branchId == null || branchId.isEmpty
           ? null
           : <String, dynamic>{'branchId': branchId},
     );
-    return _extractList(response.data);
+    final root = _asMap(response.data);
+    final list = _pickList(root);
+    return list.map(InventoryJournalEntryDto.fromJson).toList(growable: false);
   }
 }
 
-List<dynamic> _extractList(dynamic data) {
-  if (data == null) return const [];
-  if (data is List) return List<dynamic>.from(data);
-  if (data is Map<String, dynamic>) {
-    for (final key in ['data', 'items', 'entries']) {
-      final value = data[key];
-      if (value is List) return List<dynamic>.from(value);
-      if (value is Map<String, dynamic>) {
-        final nested = _extractList(value);
-        if (nested.isNotEmpty) return nested;
-      }
-    }
+Map<String, dynamic> _asMap(dynamic value) {
+  if (value is Map<String, dynamic>) return Map<String, dynamic>.from(value);
+  if (value is Map) {
+    return value.map((key, val) => MapEntry(key.toString(), val));
   }
-  return const [];
+  return const <String, dynamic>{};
+}
+
+Map<String, dynamic> _unwrap(Map<String, dynamic> root) {
+  final inner = root['data'];
+  if (root['success'] == true && inner is Map) {
+    return _asMap(inner);
+  }
+  if (inner is Map<String, dynamic>) return inner;
+  return root;
+}
+
+List<Map<String, dynamic>> _pickList(Map<String, dynamic> root) {
+  final value = _extractListValue(root);
+  if (value is List) {
+    return value
+        .whereType<Map>()
+        .map((e) => _asMap(e))
+        .toList(growable: false);
+  }
+  return const <Map<String, dynamic>>[];
+}
+
+dynamic _extractListValue(Map<String, dynamic> root) {
+  if (root['data'] is List) return root['data'];
+  if (root['items'] is List) return root['items'];
+  if (root['entries'] is List) return root['entries'];
+  if (root['data'] is Map) {
+    final inner = _asMap(root['data']);
+    final nested = _extractListValue(inner);
+    if (nested != null) return nested;
+  }
+  return null;
+}
+
+InventoryJournalEntryDto? _maybeJournalEntry(Map<String, dynamic>? payload) {
+  final map = _asMap(payload);
+  final json = _unwrap(map);
+  if (json.isEmpty) return null;
+  return InventoryJournalEntryDto.fromJson(json);
 }

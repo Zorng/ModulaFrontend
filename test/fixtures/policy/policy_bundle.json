@@ -1,0 +1,22 @@
+{
+  "success": true,
+  "data": {
+    "sales": {
+      "saleVatEnabled": false,
+      "saleVatRatePercent": 0,
+      "saleFxRateKhrPerUsd": 4000,
+      "saleKhrRoundingEnabled": false,
+      "saleKhrRoundingMode": "NEAREST",
+      "saleKhrRoundingGranularity": "100"
+    },
+    "inventory": {
+      "inventoryAutoSubtractOnSale": false,
+      "inventoryExpiryTrackingEnabled": false
+    },
+    "cashSession": {
+      "cashAllowPaidOut": false,
+      "cashRequireRefundApproval": false,
+      "cashAllowManualAdjustment": false
+    }
+  }
+}
