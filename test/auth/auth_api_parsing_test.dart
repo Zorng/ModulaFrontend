@@ -13,6 +13,7 @@ void main() {
   setUpAll(() {
     // AuthApi reads `dotenv.env[...]`; widget/unit tests don't load .env files.
     dotenv.testLoad();
+    registerFallbackValue(Options());
   });
 
   test('AuthApi.login parses established single-tenant session', () async {
@@ -22,12 +23,13 @@ void main() {
 
     final dio = _MockDio();
     when(
-      () => dio.post<Map<String, dynamic>>(
+      () => dio.post(
         any(),
         data: any(named: 'data'),
+        options: any(named: 'options'),
       ),
     ).thenAnswer(
-      (_) async => Response<Map<String, dynamic>>(
+      (_) async => Response<dynamic>(
         data: payload,
         requestOptions: RequestOptions(path: '/v1/auth/login'),
       ),
@@ -74,12 +76,13 @@ void main() {
 
     final dio = _MockDio();
     when(
-      () => dio.post<Map<String, dynamic>>(
+      () => dio.post(
         any(),
         data: any(named: 'data'),
+        options: any(named: 'options'),
       ),
     ).thenAnswer(
-      (_) async => Response<Map<String, dynamic>>(
+      (_) async => Response<dynamic>(
         data: payload,
         requestOptions: RequestOptions(path: '/v1/auth/login'),
       ),

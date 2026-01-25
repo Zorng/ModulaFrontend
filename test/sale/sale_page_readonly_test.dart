@@ -57,21 +57,12 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    expect(find.byType(AlertDialog), findsOneWidget);
-    expect(find.text('Cash session required'), findsOneWidget);
-    expect(
-      find.textContaining('not in an active cash session'),
-      findsOneWidget,
-    );
-
-    await tester.tap(find.byIcon(Icons.close));
-    await tester.pumpAndSettle();
-
     expect(find.byType(AlertDialog), findsNothing);
     expect(
       find.text('Read-only: start a cash session to add items and checkout.'),
       findsOneWidget,
     );
+    expect(find.text('Cash session'), findsOneWidget);
     expect(find.text('Search menu items'), findsOneWidget);
   });
 }
