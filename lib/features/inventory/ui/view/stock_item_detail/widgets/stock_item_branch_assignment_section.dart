@@ -1,0 +1,88 @@
+import 'package:flutter/material.dart';
+import 'package:modular_pos/features/auth/domain/models/user.dart';
+import 'package:modular_pos/features/inventory/ui/components/branch_assignment.dart';
+import 'package:modular_pos/features/inventory/ui/components/branch_assignment_card.dart';
+import 'package:modular_pos/features/inventory/ui/widgets/inventory_section_card.dart';
+
+class StockItemBranchAssignmentSection extends StatelessWidget {
+  const StockItemBranchAssignmentSection({
+    super.key,
+    required this.isEditing,
+    required this.userBranches,
+    required this.branchAssignments,
+    required this.branchNameResolver,
+    required this.usedBranchIds,
+    required this.onAddAssignment,
+    required this.onAssignmentChanged,
+    required this.onRemoveAssignment,
+  });
+
+  final bool isEditing;
+  final List<UserBranch> userBranches;
+  final List<BranchAssignment> branchAssignments;
+  final String Function(String? branchId) branchNameResolver;
+  final Set<String> Function(BranchAssignment assignment) usedBranchIds;
+  final VoidCallback onAddAssignment;
+  final VoidCallback onAssignmentChanged;
+  final void Function(BranchAssignment assignment) onRemoveAssignment;
+
+  @override
+  Widget build(BuildContext context) {
+    return InventorySectionCard(
+      title: 'Branch assignment',
+      backgroundColor: Colors.white,
+      children: [
+        if (userBranches.isEmpty)
+          const Text('No branches available.')
+        else if (isEditing) ...[
+          ...branchAssignments.map(
+            (assignment) => BranchAssignmentCard(
+              assignment: assignment,
+              branches: userBranches,
+              usedBranchIds: usedBranchIds(assignment),
+              onChanged: onAssignmentChanged,
+              onRemove: () => onRemoveAssignment(assignment),
+            ),
+          ),
+          if (branchAssignments.length < userBranches.length)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: onAddAssignment,
+                icon: const Icon(Icons.add),
+                label: const Text('Assign to branch'),
+              ),
+            ),
+        ] else ...[
+          if (branchAssignments.isEmpty)
+            const Text('Not assigned to any branch.')
+          else
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: branchAssignments
+                  .map(
+                    (assignment) => Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              branchNameResolver(assignment.branchId),
+                              style: Theme.of(context).textTheme.bodyLarge,
+                            ),
+                          ),
+                          Text(
+                            'Min ${assignment.thresholdCtrl.text}',
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                  .toList(),
+            ),
+        ],
+      ],
+    );
+  }
+}

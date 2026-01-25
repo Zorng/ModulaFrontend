@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/feedback/user_error_message.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/widgets/forms/app_search_add_bar.dart';
-import 'package:modular_pos/core/widgets/navigation/app_kebab_menu.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/inventory/domain/models/category_defaults.dart';
@@ -84,28 +83,6 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
     final categories = ['All', ...categoryList];
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Inventory'),
-        centerTitle: false,
-        actions: [
-          AppKebabMenu(
-            items: [
-              KebabMenuItem(
-                label: 'Category management',
-                onTap: () => context.push(AppRoute.inventoryCategories.path),
-              ),
-              KebabMenuItem(
-                label: 'Stock item management',
-                onTap: () => context.push(AppRoute.inventoryStockItems.path),
-              ),
-              KebabMenuItem(
-                label: 'Inventory journal',
-                onTap: () => context.push(AppRoute.inventoryJournal.path),
-              ),
-            ],
-          ),
-        ],
-      ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(

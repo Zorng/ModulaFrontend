@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
+import 'package:modular_pos/core/theme/responsive.dart';
+import 'package:modular_pos/core/widgets/navigation/app_back_button.dart';
 import 'package:modular_pos/features/staff/ui/widgets/app_filter_dropdown.dart';
 import 'package:modular_pos/core/widgets/forms/app_search_add_bar.dart';
 import 'package:modular_pos/features/staff/domain/models/staff_model.dart';
@@ -114,14 +116,19 @@ class _StaffListViewState extends ConsumerState<StaffListView> {
 
   @override
   Widget build(BuildContext context) {
+    final isSmall = AppBreakpoints.isSmall(
+      MediaQuery.of(context).size.width,
+    );
     return Scaffold(
       appBar: AppBar(
-        // Per Figma: Add back button and set title to "Staff"
-        // Use context.pop() for go_router compatibility
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.pop(),
-        ),
+        automaticallyImplyLeading: false,
+        leading: isSmall
+            ? AppBackButton(
+                icon: Icons.home_outlined,
+                tooltip: 'Home',
+                onPressed: () => context.go(AppRoute.portal.path),
+              )
+            : null,
         title: const Text('Staff'),
       ),
       body: Padding(

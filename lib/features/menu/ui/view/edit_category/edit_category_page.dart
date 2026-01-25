@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:modular_pos/features/menu/domain/models/menu_category.dart';
@@ -46,7 +47,7 @@ class _EditCategoryPageState extends ConsumerState<EditCategoryPage> {
     );
     await ref.read(menuViewModelProvider.notifier).updateCategory(updated);
     if (!mounted) return;
-    Navigator.pop(context);
+    context.pop();
   }
 
   @override

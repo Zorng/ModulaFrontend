@@ -23,25 +23,25 @@ This doc is derived from searching the Flutter codebase for:
 
 ## Findings
 
-### Inventory — `lib/features/inventory/ui/view/inventory_home_page.dart`
+### Inventory — `lib/features/inventory/ui/view/inventory_home/inventory_home_page.dart`
 
-| UI Location | Menu Label | Type | Navigation Target |
-|---|---|---|---|
-| AppBar kebab | Category management | Destination | `AppRoute.inventoryCategories.path` |
-| AppBar kebab | Stock item management | Destination | `AppRoute.inventoryStockItems.path` |
-| AppBar kebab | Inventory journal | Destination | `AppRoute.inventoryJournal.path` |
+| UI Location | Menu Label | Type | Navigation Target | Replacement (Epic 2) |
+|---|---|---|---|---|
+| AppBar kebab | Category management | Destination | `AppRoute.inventoryCategories.path` | Inventory bottom nav shell |
+| AppBar kebab | Stock item management | Destination | `AppRoute.inventoryStockItems.path` | Inventory bottom nav shell |
+| AppBar kebab | Inventory journal | Destination | `AppRoute.inventoryJournal.path` | Inventory bottom nav shell |
 
 **Notes**
 - Inventory also has an explicit action button “Restock” in `AppSearchAddBar` (this is an action, not a destination tab).
 
 ---
 
-### Menu — `lib/features/menu/ui/view/menu_page.dart`
+### Menu — `lib/features/menu/ui/view/menu/menu_page.dart`
 
-| UI Location | Menu Label | Type | Navigation Target |
-|---|---|---|---|
-| AppBar kebab | Categories Management | Destination | Push `CategoriesManagementPage` |
-| AppBar kebab | Modifiers Management | Destination | Push `ModifiersManagementPage` |
+| UI Location | Menu Label | Type | Navigation Target | Replacement (Epic 2) |
+|---|---|---|---|---|
+| AppBar kebab | Categories Management | Destination | Push `CategoriesManagementPage` | Menu bottom nav shell |
+| AppBar kebab | Modifiers Management | Destination | Push `ModifiersManagementPage` | Menu bottom nav shell |
 
 **Notes**
 - This screen uses `Navigator.push` with `MaterialPageRoute` instead of `go_router` routes.
@@ -58,4 +58,3 @@ The following areas did not show `AppKebabMenu`/`PopupMenuButton` usage in code 
 - Policy
 
 If you expect kebab navigation in these areas, it likely uses a different widget/pattern and should be added here once identified.
-

@@ -1,11 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/feedback/user_error_message.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/theme/responsive.dart';
-import 'package:modular_pos/core/widgets/navigation/app_back_button.dart';
-import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_category.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
 import 'package:modular_pos/features/sale/ui/view/sale/widgets/sale_page_access_banner.dart';
@@ -23,8 +20,6 @@ class SalePage extends ConsumerStatefulWidget {
 }
 
 class _SalePageState extends ConsumerState<SalePage> {
-  bool _hasShownCashSessionDialog = false;
-
   @override
   void initState() {
     super.initState();
@@ -38,12 +33,7 @@ class _SalePageState extends ConsumerState<SalePage> {
     final menuState = ref.watch(menuViewModelProvider);
     final menuVm = ref.read(menuViewModelProvider.notifier);
     final gate = ref.watch(saleAccessGateProvider);
-    final role = (ref.watch(loginControllerProvider).user?.role ?? 'cashier')
-        .trim()
-        .toLowerCase();
-    final cashSessionPath = role == 'admin'
-        ? AppRoute.adminCashSession.path
-        : AppRoute.cashierCashSession.path;
+    final cashSessionPath = AppRoute.cashSession.path;
 
     final width = MediaQuery.of(context).size.width;
     final isSmall = AppBreakpoints.isSmall(width);
@@ -58,45 +48,6 @@ class _SalePageState extends ConsumerState<SalePage> {
       ...menuState.categories,
     ];
     final filteredItems = menuState.filteredItems;
-    final portalPath = role == 'admin'
-        ? AppRoute.adminPortal.path
-        : AppRoute.cashierPortal.path;
-
-    if (!_hasShownCashSessionDialog &&
-        !gate.cashSessionLoading &&
-        gate.isBlockedByCashSessionPolicy) {
-      _hasShownCashSessionDialog = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        showDialog<void>(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => AlertDialog(
-            title: Row(
-              children: [
-                const Expanded(child: Text('Cash session required')),
-                IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: () => Navigator.of(context).pop(),
-                ),
-              ],
-            ),
-            content: const Text(
-              'You are not in an active cash session. Start one before adding items to cart or checkout.',
-            ),
-            actions: [
-              FilledButton(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  context.push(cashSessionPath);
-                },
-                child: const Text('Go to cash session'),
-              ),
-            ],
-          ),
-        );
-      });
-    }
 
     VoidCallback retry() =>
         () => menuVm.loadMenu(
@@ -106,19 +57,6 @@ class _SalePageState extends ConsumerState<SalePage> {
         );
 
     return Scaffold(
-      appBar: AppBar(
-        centerTitle: false,
-        leading: AppBackButton(
-          onPressed: () {
-            if (context.canPop()) {
-              context.pop();
-            } else {
-              context.go(portalPath);
-            }
-          },
-        ),
-        title: const Text('Sale'),
-      ),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -166,16 +104,6 @@ class _SalePageState extends ConsumerState<SalePage> {
               ),
             ],
           ),
-        ),
-      ),
-      floatingActionButton: Padding(
-        padding: const EdgeInsets.only(right: 12, bottom: 16),
-        child: FloatingActionButton.extended(
-          onPressed: () {
-            context.push(AppRoute.saleCart.path);
-          },
-          icon: const Icon(Icons.shopping_cart_outlined),
-          label: const Text('Cart'),
         ),
       ),
     );

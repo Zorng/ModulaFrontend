@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 /// A modal bottom sheet for starting a new cash session.
 ///
@@ -71,7 +72,7 @@ class _StartSessionModalState extends State<StartSessionModal> {
                 ),
                 IconButton(
                   icon: const Icon(Icons.close),
-                  onPressed: () => Navigator.of(context).pop(),
+                  onPressed: () => context.pop(),
                 ),
               ],
             ),

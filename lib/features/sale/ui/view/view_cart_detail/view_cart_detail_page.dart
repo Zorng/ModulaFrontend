@@ -5,19 +5,27 @@ import 'package:modular_pos/features/sale/ui/view/view_cart_detail/widgets/view_
 import 'package:modular_pos/features/sale/ui/view/view_cart_detail/widgets/view_cart_detail_status_chip.dart';
 
 class ViewCartDetailPage extends StatelessWidget {
-  const ViewCartDetailPage({super.key, required this.summary});
+  const ViewCartDetailPage({
+    super.key,
+    required this.summary,
+    this.showBack = true,
+  });
 
   final SaleSummary summary;
+  final bool showBack;
 
   @override
   Widget build(BuildContext context) {
     final color = viewCartsStateColor(summary.state);
     return Scaffold(
       appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
+        automaticallyImplyLeading: showBack,
+        leading: showBack
+            ? null
+            : IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: () => Navigator.of(context).maybePop(),
+              ),
         centerTitle: false,
         title: const Text('Cart Detail'),
       ),
@@ -52,4 +60,3 @@ class ViewCartDetailPage extends StatelessWidget {
     );
   }
 }
-

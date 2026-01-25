@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/input_formatters/decimal_text_input_formatter.dart';
 
 /// A modal bottom sheet for adding a cash movement (Paid In/Paid Out).
@@ -77,7 +78,7 @@ class _AddCashMovementModalState extends State<AddCashMovementModal> {
                         TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 IconButton(
                   icon: const Icon(Icons.close),
-                  onPressed: () => Navigator.of(context).pop(),
+                  onPressed: () => context.pop(),
                 ),
               ],
             ),

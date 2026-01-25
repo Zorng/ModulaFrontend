@@ -3,7 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/feedback/user_error_message.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
-import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
+import 'package:modular_pos/core/theme/responsive.dart';
+import 'package:modular_pos/core/widgets/navigation/app_back_button.dart';
 import 'package:modular_pos/features/cash_session/ui/viewmodels/cash_session_viewmodel.dart';
 import 'package:modular_pos/features/cash_session/ui/widgets/cash_session_bottom_action_area.dart';
 import 'package:modular_pos/features/cash_session/ui/widgets/start_session_modal.dart';
@@ -16,27 +17,21 @@ class CashSessionScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final sessionState = ref.watch(cashSessionViewModelProvider);
-    final role = (ref.watch(loginControllerProvider).user?.role ?? 'cashier')
-        .trim()
-        .toLowerCase();
-    final path = GoRouterState.of(context).uri.path;
-    final fromAdminPortal = path == AppRoute.adminCashSession.path;
-
+    final isSmall = AppBreakpoints.isSmall(
+      MediaQuery.of(context).size.width,
+    );
     return Scaffold(
       appBar: AppBar(
         centerTitle: false,
         title: const Text('Cash Session'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            // Always return to the appropriate portal to prevent bypassing the cash-session gate.
-            if (fromAdminPortal || role == 'admin') {
-              context.go(AppRoute.adminPortal.path);
-            } else {
-              context.go(AppRoute.cashierPortal.path);
-            }
-          },
-        ),
+        automaticallyImplyLeading: false,
+        leading: isSmall
+            ? AppBackButton(
+                icon: Icons.home_outlined,
+                tooltip: 'Home',
+                onPressed: () => context.go(AppRoute.portal.path),
+              )
+            : null,
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

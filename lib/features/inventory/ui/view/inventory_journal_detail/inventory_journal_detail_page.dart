@@ -8,9 +8,14 @@ import 'package:modular_pos/features/inventory/ui/view/inventory_journal_detail/
 import 'package:modular_pos/features/inventory/ui/view/inventory_journal_detail/widgets/inventory_journal_search_autocomplete.dart';
 
 class InventoryJournalDetailPage extends ConsumerStatefulWidget {
-  const InventoryJournalDetailPage({super.key, required this.summary});
+  const InventoryJournalDetailPage({
+    super.key,
+    required this.summary,
+    this.showBack = true,
+  });
 
   final InventoryJournalDaySummary summary;
+  final bool showBack;
 
   @override
   ConsumerState<InventoryJournalDetailPage> createState() =>
@@ -35,6 +40,13 @@ class _InventoryJournalDetailPageState
     final entries = _filteredEntries();
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: widget.showBack,
+        leading: widget.showBack
+            ? null
+            : IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: () => Navigator.of(context).maybePop(),
+              ),
         title: Text('Journal on ${_summaryDate(widget.summary.date)}'),
         centerTitle: false,
       ),

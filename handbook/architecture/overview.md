@@ -18,7 +18,7 @@ lib/
 │  ├─ config/                     # environment flags (dotenv)
 │  ├─ feedback/                   # user-safe error + messaging helpers
 │  ├─ network/                    # Dio client + interceptors
-│  ├─ routing/                    # route constants/enums
+│  ├─ routing/                    # route constants/enums + route builders
 │  ├─ theme/                      # theming + responsive helpers
 │  └─ widgets/                    # shared widgets used across features
 └─ features/                      # feature modules (bounded contexts)
@@ -47,7 +47,7 @@ lib/features/<feature>/
 │  └─ repository/           # maps DTO → domain; returns domain models only (target)
 └─ ui/
    ├─ view/                 # pages/screens
-   ├─ widgets/              # feature-local reusable widgets
+   ├─ components/           # feature-local reusable widgets (across pages)
    └─ viewmodels/           # state owners (stores) + screen controllers
 ```
 
@@ -148,6 +148,16 @@ If you need cross-feature UI reuse:
 
 ## Responsive behavior
 All new screens/features must support breakpoints in `docs/responsive_breakpoints.md`.
+
+## Navigation model (canonical)
+See `handbook/architecture/navigation.md` for full rules.
+
+At a high level:
+- **Mobile**: portal (feature hub) → feature root pages with **feature tabs** (bottom nav).
+- **Wide**: persistent left NavigationRail + content area; no back button on feature roots.
+
+Routes are role‑agnostic and live under `lib/core/routing/routes/`; authorization happens via
+router redirect + page gating (not duplicate routes per role).
 
 ## Non-negotiables
 Authoritative list: `handbook/non_negotiables.md`

@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/core/feedback/user_error_message.dart';
-import 'package:modular_pos/core/routing/app_router.dart';
+import 'package:modular_pos/core/widgets/navigation/responsive_detail_modal.dart';
 import 'package:modular_pos/features/sale/data/sale_repository.dart';
 import 'package:modular_pos/features/sale/ui/components/view_carts/sale_summary.dart';
+import 'package:modular_pos/features/sale/ui/view/view_cart_detail/view_cart_detail_page.dart';
 import 'package:modular_pos/features/sale/ui/view/view_carts/widgets/sale_summary_card.dart';
 import 'package:modular_pos/features/sale/ui/view/view_carts/widgets/view_carts_filters.dart';
 
@@ -72,14 +73,14 @@ class _ViewCartsPageState extends ConsumerState<ViewCartsPage> {
             const Expanded(child: Text('Void draft')),
             IconButton(
               icon: const Icon(Icons.close),
-              onPressed: () => Navigator.pop(context, false),
+              onPressed: () => context.pop(false),
             ),
           ],
         ),
         content: const Text('Are you sure you want to void this draft cart?'),
         actions: [
           FilledButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () => context.pop(true),
             child: const Text('Void'),
           ),
         ],
@@ -108,7 +109,13 @@ class _ViewCartsPageState extends ConsumerState<ViewCartsPage> {
   }
 
   void _openSale(SaleSummary sale) {
-    context.push(AppRoute.saleViewCartDetail.path, extra: sale);
+    showResponsiveDetailModal<void>(
+      context: context,
+      builder: (modalContext) => ViewCartDetailPage(
+        summary: sale,
+        showBack: false,
+      ),
+    );
   }
 
   @override

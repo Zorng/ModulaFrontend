@@ -69,18 +69,7 @@ class TenantSelectionPage extends ConsumerWidget {
                                 updatedSession.requiresTenantSelection) {
                               return;
                             }
-                            final role =
-                                (updatedSession.user.role.isNotEmpty
-                                        ? updatedSession.user.role
-                                        : 'cashier')
-                                    .trim()
-                                    .toLowerCase();
-                            final route = switch (role) {
-                              'admin' => AppRoute.adminPortal.path,
-                              'cashier' || 'manager' =>
-                                AppRoute.cashierPortal.path,
-                              _ => AppRoute.cashierPortal.path,
-                            };
+                            final route = AppRoute.portal.path;
 
                             if (context.mounted) context.go(route);
                           },

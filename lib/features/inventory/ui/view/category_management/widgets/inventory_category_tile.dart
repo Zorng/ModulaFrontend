@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:modular_pos/features/inventory/domain/models/inventory_category.dart';
@@ -123,7 +124,7 @@ class InventoryCategoryTile extends ConsumerWidget {
                         borderRadius: BorderRadius.circular(8),
                       ),
                     ),
-                    onPressed: () => Navigator.of(context).pop(),
+                    onPressed: () => context.pop(),
                     child: const Text('Cancel'),
                   ),
                 ),
@@ -139,7 +140,7 @@ class InventoryCategoryTile extends ConsumerWidget {
                     onPressed: () {
                       final value = ctrl.text.trim();
                       if (value.isEmpty) return;
-                      Navigator.of(context).pop(value);
+                      context.pop(value);
                     },
                     child: const Text('Save'),
                   ),
@@ -159,4 +160,3 @@ class InventoryCategoryTile extends ConsumerWidget {
 }
 
 enum _CategoryAction { rename, toggle, delete }
-

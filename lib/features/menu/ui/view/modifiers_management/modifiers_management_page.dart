@@ -39,10 +39,6 @@ class _ModifiersManagementPageState
         .toList();
 
     return Scaffold(
-      appBar: AppBar(
-        centerTitle: false,
-        title: const Text('Modifiers Management'),
-      ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(

@@ -1,8 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/core/logging/app_log.dart';
 import 'package:modular_pos/features/menu/data/menu_api.dart';
+import 'package:modular_pos/features/menu/data/menu_mappers.dart';
 import 'package:modular_pos/features/menu/data/dto/menu_branch_dto.dart';
-import 'package:modular_pos/features/menu/data/dto/menu_category_dto.dart';
 import 'package:modular_pos/features/menu/data/dto/menu_item_dto.dart';
 import 'package:modular_pos/features/menu/data/dto/modifier_group_dto.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_branch.dart';
@@ -73,17 +73,19 @@ class MenuRepository {
       itemsRaw = const [];
     }
 
-    final branches = branchesRaw.map(_toBranch).toList(growable: false);
+    final branches = branchesRaw
+        .map(MenuMappers.toBranch)
+        .toList(growable: false);
     final categories = categoriesRaw
         .where((dto) => dto.isActive)
-        .map(_toCategory)
+        .map(MenuMappers.toCategory)
         .toList(growable: false);
     final modifierGroups = await _hydrateModifierOptions(
       modifiersRaw.where((dto) => dto.isActive).toList(growable: false),
     );
     final items = itemsRaw
         .where((dto) => dto.isActive)
-        .map(_toItem)
+        .map(MenuMappers.toItem)
         .toList(growable: false);
 
     return MenuDataBundle(
@@ -96,7 +98,7 @@ class MenuRepository {
 
   Future<List<MenuCategory>> fetchCategoriesOnly({bool? isActive}) async {
     final categoriesRaw = await _api.fetchCategories(isActive: isActive);
-    return categoriesRaw.map(_toCategory).toList(growable: false);
+    return categoriesRaw.map(MenuMappers.toCategory).toList(growable: false);
   }
 
   Future<(MenuItem, List<ModifierGroup>)> fetchItemWithModifiers(
@@ -117,8 +119,9 @@ class MenuRepository {
       return fetchItemWithModifiers(menuItemId, retrying: true);
     }
 
-    final modifiers = modifierDtos.map(_toGroup).toList(growable: false);
-    final item = _toItem(
+    final modifiers =
+        modifierDtos.map(MenuMappers.toGroup).toList(growable: false);
+    final item = MenuMappers.toItem(
       itemDto.copyWith(
         modifierGroupIds:
             modifiers.map((m) => m.id).where((id) => id.isNotEmpty).toList(),
@@ -141,7 +144,7 @@ class MenuRepository {
       'displayOrder': category.displayOrder,
     };
     final dto = await _api.createCategory(payload);
-    return _toCategory(dto);
+    return MenuMappers.toCategory(dto);
   }
 
   Future<MenuCategory> updateCategory(MenuCategory category) async {
@@ -153,7 +156,7 @@ class MenuRepository {
       'displayOrder': category.displayOrder,
     };
     final dto = await _api.updateCategory(payload);
-    return _toCategory(dto);
+    return MenuMappers.toCategory(dto);
   }
 
   Future<void> deleteCategory(String categoryId) async {
@@ -163,12 +166,14 @@ class MenuRepository {
   Future<ModifierGroup> createModifierGroup(ModifierGroup group) async {
     final payload = {
       'name': group.name,
-      'selectionType': _formatSelectionType(group.selectionType),
-      'pricingBehavior': _formatPricingBehavior(group.pricingBehavior),
+      'selectionType': MenuMappers.formatSelectionType(group.selectionType),
+      'pricingBehavior': MenuMappers.formatPricingBehavior(
+        group.pricingBehavior,
+      ),
       'isRequired': group.isRequired,
     };
     final dto = await _api.createModifierGroup(payload);
-    var createdGroup = _toGroup(dto);
+    var createdGroup = MenuMappers.toGroup(dto);
 
     if (group.options.isEmpty) {
       return createdGroup;
@@ -186,7 +191,7 @@ class MenuRepository {
         'isDefault': isDefault,
       };
       final createdOptionDto = await _api.addModifierOption(optionPayload);
-      final createdOption = _toOption(createdOptionDto);
+      final createdOption = MenuMappers.toOption(createdOptionDto);
       if (createdOption.isDefault) {
         defaultOptionId = createdOption.id;
       }
@@ -210,12 +215,14 @@ class MenuRepository {
     final payload = {
       'id': group.id,
       'name': group.name,
-      'selectionType': _formatSelectionType(group.selectionType),
-      'pricingBehavior': _formatPricingBehavior(group.pricingBehavior),
+      'selectionType': MenuMappers.formatSelectionType(group.selectionType),
+      'pricingBehavior': MenuMappers.formatPricingBehavior(
+        group.pricingBehavior,
+      ),
       'isRequired': group.isRequired,
     };
     final dto = await _api.updateModifierGroup(payload);
-    final baseGroup = _toGroup(dto);
+    final baseGroup = MenuMappers.toGroup(dto);
 
     final prevOptionsById = {
       for (final option in (previous?.options ?? const <ModifierOption>[]))
@@ -251,7 +258,7 @@ class MenuRepository {
             'priceAdjustmentUsd': option.price,
             'isDefault': option.isDefault,
           });
-          final created = _toOption(createdDto);
+          final created = MenuMappers.toOption(createdDto);
           updatedOptions.add(created);
           if (option.isDefault || created.isDefault) {
             resolvedDefaultId = created.id;
@@ -295,7 +302,7 @@ class MenuRepository {
       imagePath: imagePath,
       imageBytes: imageBytes,
     );
-    final created = _toItem(dto);
+    final created = MenuMappers.toItem(dto);
     await _syncBranchAvailability(created.id, item.branchIds);
     await _syncModifierAttachments(created.id, item.modifierGroupIds);
     return created.copyWith(
@@ -315,7 +322,7 @@ class MenuRepository {
       imagePath: imagePath,
       imageBytes: imageBytes,
     );
-    final updated = _toItem(dto);
+    final updated = MenuMappers.toItem(dto);
     await _syncBranchAvailability(updated.id, item.branchIds);
     await _syncModifierAttachmentsDiff(
       menuItemId: updated.id,
@@ -436,26 +443,6 @@ class MenuRepository {
     await Future.wait(futures);
   }
 
-  String _formatSelectionType(String value) {
-    final normalized = value.trim().toUpperCase();
-    if (normalized == 'MULTIPLE' || normalized == 'MULTI') {
-      return 'MULTI';
-    }
-    return 'SINGLE';
-  }
-
-  String? _formatPricingBehavior(String value) {
-    if (value.isEmpty) return null;
-    switch (value.trim().toLowerCase()) {
-      case 'fixed':
-        return 'FIXED';
-      case 'none':
-        return 'NONE';
-      default:
-        return 'ADDON';
-    }
-  }
-
   List<MenuItemDto> _ensureBranchOnItems(
     List<MenuItemDto> items,
     String branchId,
@@ -510,7 +497,8 @@ class MenuRepository {
   Future<List<ModifierGroup>> _hydrateModifierOptions(
     List<ModifierGroupDto> modifiersRaw,
   ) async {
-    final groups = modifiersRaw.map(_toGroup).toList(growable: false);
+    final groups =
+        modifiersRaw.map(MenuMappers.toGroup).toList(growable: false);
     if (groups.isEmpty) return groups;
 
     final futures = groups.map((group) async {
@@ -519,7 +507,7 @@ class MenuRepository {
         final optionsRaw = await _api.fetchModifierOptions(group.id);
         final options = optionsRaw
             .where((o) => o.isActive)
-            .map(_toOption)
+            .map(MenuMappers.toOption)
             .toList(growable: false);
         return group.copyWith(options: options);
       } catch (e, st) {
@@ -530,57 +518,4 @@ class MenuRepository {
 
     return Future.wait(futures);
   }
-}
-
-MenuBranch _toBranch(MenuBranchDto dto) {
-  return MenuBranch(
-    id: dto.id,
-    name: dto.name,
-  );
-}
-
-MenuCategory _toCategory(MenuCategoryDto dto) {
-  return MenuCategory(
-    id: dto.id,
-    name: dto.name,
-    description: dto.description,
-    isActive: dto.isActive,
-    displayOrder: dto.displayOrder,
-    createdAt: dto.createdAt,
-    updatedAt: dto.updatedAt,
-  );
-}
-
-MenuItem _toItem(MenuItemDto dto) {
-  return MenuItem(
-    id: dto.id,
-    name: dto.name,
-    categoryId: dto.categoryId,
-    price: dto.priceUsd,
-    imageUrl: dto.imageUrl,
-    modifierGroupIds: dto.modifierGroupIds,
-    description: dto.description,
-    branchIds: dto.branchIds,
-  );
-}
-
-ModifierOption _toOption(ModifierOptionDto dto) {
-  return ModifierOption(
-    id: dto.id,
-    name: dto.label,
-    price: dto.priceAdjustmentUsd,
-    isDefault: dto.isDefault,
-  );
-}
-
-ModifierGroup _toGroup(ModifierGroupDto dto) {
-  return ModifierGroup(
-    id: dto.id,
-    name: dto.name,
-    selectionType: dto.selectionType,
-    pricingBehavior: dto.pricingBehavior,
-    options: dto.options.where((o) => o.isActive).map(_toOption).toList(),
-    defaultOptionId: dto.defaultOptionId,
-    isRequired: dto.isRequired,
-  );
 }

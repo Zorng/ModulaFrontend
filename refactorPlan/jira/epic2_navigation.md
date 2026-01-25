@@ -4,7 +4,9 @@
 
 - Replace **kebab-menu navigation** (hidden destinations) with **visible navigation** suitable for mobile and extensible to wide screens.
 - Kebab menus remain for **secondary actions** only (filters, management actions, etc.), not for navigation between screens.
-- Bottom navigation is **not** “primary modules”; it is for destinations that are currently accessible via kebab menus.
+- Standard navigation primitives:
+  - **Wide screens:** `NavigationRail` for global navigation (modules/destinations).
+  - **Within a module/section (mobile):** `BottomNavigationBar` with an **indexed stack** for sub-pages that were previously hidden in kebab menus.
 
 ## Deliverable
 
@@ -41,13 +43,13 @@
 
 ---
 
-### Spike 2.2 — `[Navigation] Decide bottom-nav information architecture for “kebab destinations”`
+### Spike 2.2 — `[Navigation] Decide information architecture for replacing kebab destinations`
 
-- **Goal:** Decide how many tabs per area, naming, and iconography, without overloading bottom nav.
-- **Scope:** Mobile navigation only.
+- **Goal:** Decide what becomes a **module sub-page** (bottom nav) vs what stays a **secondary action**, and naming conventions.
+- **Scope:** Mobile + wide (navigation primitives only; layout handled by Epic 1).
 - **AC:**
-  - Written decision: max tab count, tab labels, and what becomes “More” vs “Action”.
-  - Confirm which screens are “destinations” vs “actions” (e.g., Restock is an action, not a destination tab).
+  - Written decision: max bottom-nav item count per module and naming conventions.
+  - Confirm which screens are “destinations” vs “actions” (e.g., Restock is an action, not a tab).
 - **QA:** Decision reviewed by team.
 
 ---
@@ -56,13 +58,13 @@
 
 - **Goal:** Inventory section becomes navigable without kebab menu.
 - **Scope:** Inventory home + its current kebab destinations.
-- **Tabs (confirmed):**
+- **Bottom nav items (confirmed):**
   - Inventory
   - Stock Items
   - Categories
   - Journal
 - **AC:**
-  - Inventory pages reachable from bottom nav without opening kebab:
+  - Inventory pages reachable from bottom navigation without opening kebab:
     - Inventory Home
     - Stock Item Management
     - Category Management
@@ -70,17 +72,17 @@
   - Inventory kebab menu no longer contains navigation entries (may remain for secondary actions only).
   - Existing routes/deep links continue to work.
 - **Tasks:**
-  - Implement Inventory “navigation shell” for mobile (BottomNavigationBar).
-  - Wire each tab to existing pages/routes.
+  - Implement Inventory “navigation shell” (bottom nav + indexed stack).
+  - Wire each tab to existing pages/routes (deep-linkable).
   - Remove navigation items from Inventory kebab menu.
 - **QA:**
-  - Navigate between tabs; state does not crash.
+  - Navigate between bottom-nav items; state does not crash.
   - Back button returns to portal predictably.
 
 **Implementation notes (for Jira story description)**
-- Prefer `go_router` shell-style navigation so the bottom nav is visible across Inventory tabs:
-  - Opening `AppRoute.inventoryCategories` should still show Inventory bottom nav with “Categories” selected.
-  - Opening `AppRoute.inventoryJournal` should still show Inventory bottom nav with “Journal” selected.
+- Prefer `go_router` shell-style navigation so the bottom nav is visible across Inventory sub-pages:
+  - Opening `AppRoute.inventoryCategories` should still show the Inventory bottom nav with “Categories” selected.
+  - Opening `AppRoute.inventoryJournal` should still show the Inventory bottom nav with “Journal” selected.
 - Restock remains an action (button), not a tab.
 
 ---
@@ -114,8 +116,8 @@
 - **Goal:** The same destinations are available on wide screens using NavigationRail.
 - **Scope:** Inventory pilot first, then extend to other areas.
 - **AC:**
-  - On wide screens, rail appears and bottom nav is replaced/hidden.
-  - Same destinations as mobile bottom nav are accessible.
+  - On wide screens, rail appears for global navigation.
+  - Inventory subpages still work (bottom nav remains the sub-navigation until a wide-screen variant is implemented).
 - **Dependencies:** Epic 1 (responsive shell/breakpoints).
 
 ---
@@ -131,7 +133,6 @@
   - Kebab menu in Menu contains secondary actions only (or is removed if empty).
   - Navigation method is consistent (prefer `go_router` over raw `Navigator.push` where possible).
 - **Tasks:**
-  - Decide “Menu management nav” pattern (bottom nav vs segmented buttons vs tabs) for mobile.
-  - Implement the navigation and remove kebab destinations accordingly.
+  - Implement “Menu management nav” using a bottom-nav shell (mobile) with indexed stack.
+  - Remove kebab destinations accordingly.
 - **Dependencies:** Story 2.1 (audit) and Story 2.2 (IA decision).
-

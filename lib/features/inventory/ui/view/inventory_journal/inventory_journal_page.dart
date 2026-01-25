@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
-import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_journal_entry.dart';
@@ -12,6 +10,8 @@ import 'package:modular_pos/features/inventory/ui/view/inventory_journal/invento
 import 'package:modular_pos/features/inventory/ui/view/inventory_journal/widgets/inventory_journal_branch_section.dart';
 import 'package:modular_pos/features/inventory/ui/view/inventory_journal/widgets/inventory_journal_date_field.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/inventory_journal_controller.dart';
+import 'package:modular_pos/core/widgets/navigation/responsive_detail_modal.dart';
+import 'package:modular_pos/features/inventory/ui/view/inventory_journal_detail/inventory_journal_detail_page.dart';
 
 class InventoryJournalPage extends ConsumerStatefulWidget {
   const InventoryJournalPage({super.key});
@@ -63,10 +63,6 @@ class _InventoryJournalPageState extends ConsumerState<InventoryJournalPage> {
     final branchGroups = _groupByBranch(filteredEntries);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Inventory journal'),
-        centerTitle: false,
-      ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -147,10 +143,15 @@ class _InventoryJournalPageState extends ConsumerState<InventoryJournalPage> {
                         final group = branchGroups[index];
                         return InventoryJournalBranchSection(
                           group: group,
-                          onOpenSummary: (summary) => context.push(
-                            AppRoute.inventoryJournalDetail.path,
-                            extra: summary,
-                          ),
+                          onOpenSummary: (summary) =>
+                              showResponsiveDetailModal<void>(
+                                context: context,
+                                builder: (modalContext) =>
+                                    InventoryJournalDetailPage(
+                                  summary: summary,
+                                  showBack: false,
+                                ),
+                              ),
                         );
                       },
                     ),
@@ -173,8 +174,8 @@ class _InventoryJournalPageState extends ConsumerState<InventoryJournalPage> {
     for (final entry in entries) {
       if (entry.branchId.isNotEmpty) {
         map[entry.branchId] = entry.branchName;
-      }
-    }
+  }
+}
     return map.entries.toList()..sort((a, b) => a.value.compareTo(b.value));
   }
 

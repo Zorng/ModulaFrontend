@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 Future<void> showCheckboxSelectionSheet<T>({
   required BuildContext context,
@@ -32,7 +33,7 @@ Future<void> showCheckboxSelectionSheet<T>({
                     Text(title, style: Theme.of(context).textTheme.titleMedium),
                     IconButton(
                       icon: const Icon(Icons.close),
-                      onPressed: () => Navigator.pop(context),
+                      onPressed: () => context.pop(),
                     ),
                   ],
                 ),
@@ -71,7 +72,7 @@ Future<void> showCheckboxSelectionSheet<T>({
                         if (selections[i]) updatedSelection.add(itemIds[i]);
                       }
                       onApply(updatedSelection);
-                      Navigator.pop(context);
+                      context.pop();
                     },
                     child: const Text('Apply'),
                   ),
@@ -84,4 +85,3 @@ Future<void> showCheckboxSelectionSheet<T>({
     },
   );
 }
-

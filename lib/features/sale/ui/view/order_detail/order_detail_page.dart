@@ -5,9 +5,14 @@ import 'package:modular_pos/features/sale/ui/view/order_detail/order_detail_util
 import 'package:modular_pos/features/sale/ui/view/order_detail/widgets/order_detail_summary_row.dart';
 
 class OrderDetailPage extends ConsumerWidget {
-  const OrderDetailPage({super.key, required this.orderNumber});
+  const OrderDetailPage({
+    super.key,
+    required this.orderNumber,
+    this.showBack = true,
+  });
 
   final String orderNumber;
+  final bool showBack;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -32,6 +37,13 @@ class OrderDetailPage extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: showBack,
+        leading: showBack
+            ? null
+            : IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: () => Navigator.of(context).maybePop(),
+              ),
         title: Text('Order No. ${order.number}'),
         centerTitle: false,
       ),

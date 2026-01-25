@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:modular_pos/core/feedback/user_error_message.dart';
@@ -227,7 +228,7 @@ class _AdjustStockQuantityPageState
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('${_typeLabel()} of $magnitude applied')),
       );
-      Navigator.of(context).pop();
+      context.pop();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(

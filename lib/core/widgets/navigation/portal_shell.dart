@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/core/widgets/navigation/portal_action.dart';
+import 'package:modular_pos/core/widgets/navigation/tenant_profile_header.dart';
 
 class PortalShell extends StatefulWidget {
   const PortalShell({
@@ -9,9 +9,9 @@ class PortalShell extends StatefulWidget {
     required this.subtitle,
     required this.actions,
     this.initialActionId,
-    this.userName,
-    this.userRole,
-    this.userInitial,
+    this.tenantName,
+    this.branchName,
+    this.tenantInitial,
     this.onSettingsTap,
     this.onProfileTap,
   });
@@ -20,9 +20,9 @@ class PortalShell extends StatefulWidget {
   final String subtitle;
   final List<PortalAction> actions;
   final String? initialActionId;
-  final String? userName;
-  final String? userRole;
-  final String? userInitial;
+  final String? tenantName;
+  final String? branchName;
+  final String? tenantInitial;
   final VoidCallback? onSettingsTap;
   final VoidCallback? onProfileTap;
 
@@ -49,8 +49,6 @@ class _PortalShellState extends State<PortalShell> {
 
   @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
-    final isWide = AppBreakpoints.isLarge(width);
     final action = widget.actions[_selectedIndex];
     final content = action.builder(context);
 
@@ -66,28 +64,12 @@ class _PortalShellState extends State<PortalShell> {
           padding: const EdgeInsets.symmetric(horizontal: 18),
           child: Row(
             children: [
-              InkWell(
-                customBorder: const CircleBorder(),
-                onTap: widget.onProfileTap,
-                child: CircleAvatar(
-                  radius: 18,
-                  child: Text(
-                    widget.userInitial ??
-                        (widget.userName?.characters.first.toUpperCase() ?? '?'),
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(widget.userName ?? widget.title),
-                  Text(
-                    widget.userRole ?? widget.subtitle,
-                    style: Theme.of(context).textTheme.labelMedium,
-                  ),
-                ],
+              TenantProfileHeader(
+                tenantName: widget.tenantName ?? widget.title,
+                branchName: widget.branchName ?? widget.subtitle,
+                initial:
+                    widget.tenantInitial ??
+                    (widget.tenantName?.characters.first.toUpperCase() ?? '?'),
               ),
               const Spacer(),
               IconButton(
@@ -101,34 +83,6 @@ class _PortalShellState extends State<PortalShell> {
       ),
       body: Row(
         children: [
-          if (isWide)
-            SizedBox(
-              width: 260,
-              child: Material(
-                elevation: 1,
-                child: ListView.separated(
-                  itemCount: widget.actions.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
-                  itemBuilder: (context, index) {
-                    final item = widget.actions[index];
-                    final selected = index == _selectedIndex;
-                    return ListTile(
-                      leading: Icon(item.icon),
-                      title: Text(item.label),
-                      selected: selected,
-                      onTap: () {
-                        setState(() => _selectedIndex = index);
-                        final onSelected = item.onSelected;
-                        if (onSelected != null) {
-                          onSelected(context);
-                          return;
-                        }
-                      },
-                    );
-                  },
-                ),
-              ),
-            ),
           Expanded(
             child: content is Scaffold
                 ? content

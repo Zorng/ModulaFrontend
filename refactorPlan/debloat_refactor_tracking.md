@@ -40,8 +40,8 @@ Goal:
 | Inventory | Inventory categories | `lib/features/inventory/ui/view/category_management/category_management_page.dart` | De-bloated | Extracted category tile widget |
 | Inventory | Inventory journal (main) | `lib/features/inventory/ui/view/inventory_journal/inventory_journal_page.dart` | De-bloated | Extracted group/date widgets + models |
 | Inventory | Inventory journal (detail) | `lib/features/inventory/ui/view/inventory_journal_detail/inventory_journal_detail_page.dart` | De-bloated | Extracted search + entry card widgets |
-| Inventory | Add stock item | `lib/features/inventory/ui/view/add_stock_item/add_stock_item_page.dart` | De-bloated | Uses `ProductImagePicker` via `UploadImageTile`; supports clear-local selection |
-| Inventory | Stock item detail | `lib/features/inventory/ui/view/stock_item_detail/stock_item_detail_page.dart` | De-bloated | Extracted image upload tile; branch assignment moved to `ui/components/` |
+| Inventory | Add stock item | `lib/features/inventory/ui/view/add_stock_item/add_stock_item_page.dart` | De-bloated | Extracted details/usage/branch/save sections under `add_stock_item/widgets/` |
+| Inventory | Stock item detail | `lib/features/inventory/ui/view/stock_item_detail/stock_item_detail_page.dart` | De-bloated | Extracted image/info/branch/save sections under `stock_item_detail/widgets/` |
 | Inventory | Restock stock item | `lib/features/inventory/ui/view/restock_stock_item/restock_stock_item_page.dart` | De-bloated | Extracted branch selector/autocomplete/quantity/summary widgets |
 | Inventory | Adjust quantity | `lib/features/inventory/ui/view/stock_adjust_quantity/stock_adjust_quantity_page.dart` | De-bloated | Extracted inputs + batch list into page-local widgets |
 | Menu | Categories management | `lib/features/menu/ui/view/categories_management/categories_management_page.dart` | De-bloated | Extracted tile + edit sheet widgets |
@@ -53,7 +53,7 @@ Goal:
 | Menu | View menu item | `lib/features/menu/ui/view/view_menu_item/view_menu_item_page.dart` | De-bloated | Moved into page folder; extracted utils |
 | Menu | Menu item form | `lib/features/menu/ui/view/menu_item_form/menu_item_form_page.dart` | De-bloated | Extracted image picker + selection chips + bottom sheet util; removed `dart:io` dependency |
 | Menu | View modifier group | `lib/features/menu/ui/view/view_modifier_group/view_modifier_group_page.dart` | De-bloated | Extracted option row widget (still uses `Navigator` for edit) |
-| Sale | Cart | `lib/features/sale/ui/view/sale_cart/sale_cart_page.dart` | De-bloated | Page-local widgets under `lib/features/sale/ui/view/sale_cart/widgets/` |
+| Sale | Cart | `lib/features/sale/ui/view/sale_cart/sale_cart_page.dart` | De-bloated | Extracted cart line/summary/payment widgets under `sale_cart/widgets/` |
 | Sale | Item detail | `lib/features/sale/ui/view/sale_item_detail/sale_item_detail_page.dart` | De-bloated | Page-local widgets under `lib/features/sale/ui/view/sale_item_detail/widgets/` |
 | Sale | Orders | `lib/features/sale/ui/view/order/order_page.dart` | De-bloated | Page-local widgets under `lib/features/sale/ui/view/order/widgets/` |
 | Sale | Order detail | `lib/features/sale/ui/view/order_detail/order_detail_page.dart` | De-bloated | Page-local widgets under `lib/features/sale/ui/view/order_detail/widgets/` |
@@ -113,3 +113,14 @@ Goal:
 | `InventorySectionCard` | `lib/features/inventory/ui/widgets/inventory_section_card.dart` | 1 | `layout/` | Candidate |  | Compare with `lib/core/widgets/layout/app_section_card.dart` |
 | `InventoryDropdown` | `lib/features/inventory/ui/widgets/inventory_dropdown.dart` | 1 | `forms/` | Candidate |  | Likely becomes shared dropdown pattern |
 | `BranchAssignmentCard` | `lib/features/inventory/ui/components/branch_assignment_card.dart` | 1 | `forms/` | Candidate |  | Reused by inventory add/edit stock item pages |
+| `StockItemImageSection` | `lib/features/inventory/ui/view/stock_item_detail/widgets/stock_item_image_section.dart` | 1 | `media/` | Candidate |  | Stock item detail image block |
+| `StockItemInfoSection` | `lib/features/inventory/ui/view/stock_item_detail/widgets/stock_item_info_section.dart` | 1 | `layout/` | Candidate |  | Stock item detail: info form/summary |
+| `StockItemBranchAssignmentSection` | `lib/features/inventory/ui/view/stock_item_detail/widgets/stock_item_branch_assignment_section.dart` | 1 | `layout/` | Candidate |  | Stock item detail: branch assignment block |
+| `StockItemSaveSection` | `lib/features/inventory/ui/view/stock_item_detail/widgets/stock_item_save_section.dart` | 1 | `layout/` | Candidate |  | Stock item detail: save action |
+| `AddStockItemDetailsSection` | `lib/features/inventory/ui/view/add_stock_item/widgets/add_stock_item_details_section.dart` | 1 | `layout/` | Candidate |  | Add stock item: details block |
+| `AddStockItemUsageSection` | `lib/features/inventory/ui/view/add_stock_item/widgets/add_stock_item_usage_section.dart` | 1 | `layout/` | Candidate |  | Add stock item: usage block |
+| `AddStockItemBranchAssignmentSection` | `lib/features/inventory/ui/view/add_stock_item/widgets/add_stock_item_branch_assignment_section.dart` | 1 | `layout/` | Candidate |  | Add stock item: branch assignment block |
+| `AddStockItemSaveSection` | `lib/features/inventory/ui/view/add_stock_item/widgets/add_stock_item_save_section.dart` | 1 | `layout/` | Candidate |  | Add stock item: save action |
+| `SaleCartItemRow` | `lib/features/sale/ui/view/sale_cart/widgets/sale_cart_item_row.dart` | 1 | `display/` | Candidate |  | Sale cart: line item row |
+| `SaleCartSummaryRow` | `lib/features/sale/ui/view/sale_cart/widgets/sale_cart_summary_row.dart` | 1 | `display/` | Candidate |  | Sale cart: summary row |
+| `SaleCartPaymentCard` | `lib/features/sale/ui/view/sale_cart/widgets/sale_cart_payment_card.dart` | 1 | `display/` | Candidate |  | Sale cart: payment method card |

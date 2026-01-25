@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/core/widgets/display/dashed_border_painter.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
@@ -116,7 +117,7 @@ class _EditModifierGroupPageState extends ConsumerState<EditModifierGroupPage> {
     );
 
     await ref.read(menuViewModelProvider.notifier).updateModifierGroup(updated);
-    if (mounted) Navigator.pop(context);
+    if (mounted) context.pop();
   }
 
   Future<void> _tryDeleteGroup() async {
@@ -296,4 +297,3 @@ class _EditModifierGroupPageState extends ConsumerState<EditModifierGroupPage> {
     );
   }
 }
-

@@ -16,8 +16,17 @@ AppBreakpoints.isLarge(width);  // width >= 1024
 
 ## Usage Examples
 - **Login view**: checks `AppBreakpoints.isSmall(constraints.maxWidth)` to switch between mobile and desktop form layouts.
-- **Portal shell**: uses `AppBreakpoints.isLarge(width)` to decide when to show a side rail vs. chips.
+- **Portal shell**: uses `AppBreakpoints.isLarge(width)` to decide when to show the wide rail shell vs. the mobile portal.
 - **Search + Add bar**: uses `AppBreakpoints.compact` to tighten spacing on narrow screens.
+
+## Navigation behavior by breakpoint
+- **Mobile (small/compact)**:
+  - Portal is the feature hub.
+  - Feature roots use **feature tabs** (bottom nav) for intra‑feature navigation.
+  - Bottom nav may auto‑hide on scroll for mobile web.
+- **Wide (large)**:
+  - Persistent left **NavigationRail** + content area.
+  - No back button on feature roots (rail is primary navigation).
 
 ## How to Apply
 - Import `package:modular_pos/core/theme/responsive.dart`.

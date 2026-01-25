@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:modular_pos/core/widgets/navigation/responsive_detail_modal.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_category.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
-import 'package:modular_pos/features/menu/ui/view/menu/widgets/menu_page_actions_menu.dart';
 import 'package:modular_pos/features/menu/ui/view/menu/widgets/menu_page_filter_bar.dart';
 import 'package:modular_pos/features/menu/ui/view/menu/widgets/menu_page_items_section.dart';
+import 'package:modular_pos/features/menu/ui/view/view_menu_item/view_menu_item_page.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
 
 class MenuPage extends ConsumerStatefulWidget {
@@ -45,12 +46,6 @@ class _MenuPageState extends ConsumerState<MenuPage> {
     ];
 
     return Scaffold(
-      appBar: AppBar(
-        leading: const BackButton(),
-        centerTitle: false,
-        title: const Text('Menu'),
-        actions: const [MenuPageActionsMenu()],
-      ),
       body: Padding(
         padding: const EdgeInsets.fromLTRB(18, 0, 18, 24),
         child: Column(
@@ -88,7 +83,13 @@ class _MenuPageState extends ConsumerState<MenuPage> {
   }
 
   Future<void> _openItemDetail(BuildContext context, MenuItem item) async {
-    await context.push(AppRoute.adminMenuViewMenuItem.path, extra: item);
+    await showResponsiveDetailModal<void>(
+      context: context,
+      builder: (modalContext) => ViewMenuItemPage(
+        menuItem: item,
+        showBack: false,
+      ),
+    );
     if (mounted) {
       await ref.read(menuViewModelProvider.notifier).loadMenu();
     }

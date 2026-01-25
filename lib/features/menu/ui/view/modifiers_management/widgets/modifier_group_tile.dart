@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-
 import 'package:modular_pos/core/routing/app_router.dart';
+import 'package:modular_pos/core/widgets/navigation/responsive_detail_modal.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
+import 'package:modular_pos/features/menu/ui/view/view_modifier_group/view_modifier_group_page.dart';
 
 class ModifierGroupTile extends StatelessWidget {
   const ModifierGroupTile({
@@ -16,7 +17,13 @@ class ModifierGroupTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: () {
-        context.push(AppRoute.adminMenuViewModifierGroup.path, extra: group);
+        showResponsiveDetailModal<void>(
+          context: context,
+          builder: (modalContext) => ViewModifierGroupPage(
+            group: group,
+            showBack: false,
+          ),
+        );
       },
       child: Card(
         color: Colors.white,

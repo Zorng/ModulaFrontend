@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/core/network/dio_client.dart';
+import 'package:modular_pos/features/menu/data/menu_api_helpers.dart';
 import 'package:modular_pos/features/menu/data/dto/menu_branch_dto.dart';
 import 'package:modular_pos/features/menu/data/dto/menu_category_dto.dart';
 import 'package:modular_pos/features/menu/data/dto/menu_item_dto.dart';
@@ -35,9 +36,9 @@ class MenuApi {
         '$_menuPrefix/categories',
         queryParameters: isActive == null ? null : {'isActive': isActive},
       );
-    final raw = _unwrap(response.data);
-    final categories = raw['categories'] ?? raw['data'] ?? raw;
-    return _parseList(categories, MenuCategoryDto.fromJson);
+      final raw = MenuApiHelpers.unwrap(response.data);
+      final categories = raw['categories'] ?? raw['data'] ?? raw;
+      return MenuApiHelpers.parseList(categories, MenuCategoryDto.fromJson);
     } on DioError catch (error) {
       throw MenuApiException.fromDio(error);
     }
@@ -47,10 +48,10 @@ class MenuApi {
     final dio = _requireDio();
     try {
       final response = await dio.get<dynamic>('$_menuPrefix/modifiers/groups');
-      final raw = _unwrap(response.data);
+      final raw = MenuApiHelpers.unwrap(response.data);
       final groups =
           raw['modifierGroups'] ?? raw['groups'] ?? raw['data'] ?? raw;
-      return _parseList(groups, ModifierGroupDto.fromJson);
+      return MenuApiHelpers.parseList(groups, ModifierGroupDto.fromJson);
     } on DioError catch (error) {
       throw MenuApiException.fromDio(error);
     }
@@ -63,9 +64,9 @@ class MenuApi {
       final response = await dio.get<dynamic>(
         '$_menuPrefix/modifiers/groups/$modifierGroupId/options',
       );
-      final raw = _unwrap(response.data);
+      final raw = MenuApiHelpers.unwrap(response.data);
       final options = raw['options'] ?? raw['data'] ?? raw;
-      return _parseList(options, ModifierOptionDto.fromJson);
+      return MenuApiHelpers.parseList(options, ModifierOptionDto.fromJson);
     } on DioError catch (error) {
       throw MenuApiException.fromDio(error);
     }
@@ -84,9 +85,9 @@ class MenuApi {
         path,
         queryParameters: query,
       );
-      final raw = _unwrap(response.data);
+      final raw = MenuApiHelpers.unwrap(response.data);
       final items = raw['items'] ?? raw['data'] ?? raw;
-      return _parseList(items, MenuItemDto.fromJson);
+      return MenuApiHelpers.parseList(items, MenuItemDto.fromJson);
     } on DioError catch (error) {
       throw MenuApiException.fromDio(error);
     }
@@ -100,7 +101,7 @@ class MenuApi {
       final response = await dio.get<dynamic>(
         '$_menuPrefix/items/$menuItemId/with-modifiers',
       );
-      final raw = _unwrap(response.data);
+      final raw = MenuApiHelpers.unwrap(response.data);
       return MenuItemWithModifiersDto.fromJson(raw);
     } on DioError catch (error) {
       throw MenuApiException.fromDio(error);
@@ -117,7 +118,7 @@ class MenuApi {
         '$_menuPrefix/categories',
         data: body,
       );
-      final raw = _unwrap(response.data);
+      final raw = MenuApiHelpers.unwrap(response.data);
       return MenuCategoryDto.fromJson(raw);
     } on DioError catch (error) {
       throw MenuApiException.fromDio(error);
@@ -140,7 +141,7 @@ class MenuApi {
         '$_menuPrefix/categories/$categoryId',
         data: updateMap,
       );
-      final raw = _unwrap(response.data);
+      final raw = MenuApiHelpers.unwrap(response.data);
       return MenuCategoryDto.fromJson(raw);
     } on DioError catch (error) {
       throw MenuApiException.fromDio(error);
@@ -166,7 +167,7 @@ class MenuApi {
         '$_menuPrefix/modifiers/groups',
         data: body,
       );
-      final raw = _unwrap(response.data);
+      final raw = MenuApiHelpers.unwrap(response.data);
       return ModifierGroupDto.fromJson(raw);
     } on DioError catch (error) {
       throw MenuApiException.fromDio(error);
@@ -187,7 +188,7 @@ class MenuApi {
         '$_menuPrefix/modifiers/groups/$groupId',
         data: updateMap,
       );
-      final raw = _unwrap(response.data);
+      final raw = MenuApiHelpers.unwrap(response.data);
       return ModifierGroupDto.fromJson(raw);
     } on DioError catch (error) {
       throw MenuApiException.fromDio(error);
@@ -206,7 +207,7 @@ class MenuApi {
         '$_menuPrefix/modifiers/options/$optionId',
         data: body,
       );
-      final raw = _unwrap(response.data);
+      final raw = MenuApiHelpers.unwrap(response.data);
       return ModifierOptionDto.fromJson(raw);
     } on DioError catch (error) {
       throw MenuApiException.fromDio(error);
@@ -246,7 +247,7 @@ class MenuApi {
         '$_menuPrefix/modifiers/options',
         data: body,
       );
-      final raw = _unwrap(response.data);
+      final raw = MenuApiHelpers.unwrap(response.data);
       return ModifierOptionDto.fromJson(raw);
     } on DioError catch (error) {
       throw MenuApiException.fromDio(error);
@@ -278,7 +279,7 @@ class MenuApi {
       final body = Map<String, dynamic>.from(payload)
         ..removeWhere((key, value) => key == 'id' || value == null);
       final formData = FormData.fromMap(body);
-      final imagePart = await _buildImagePart(
+      final imagePart = await MenuApiHelpers.buildImagePart(
         imagePath: imagePath,
         imageBytes: imageBytes,
       );
@@ -287,7 +288,7 @@ class MenuApi {
         '$_menuPrefix/items',
         data: formData,
       );
-      final raw = _unwrap(response.data);
+      final raw = MenuApiHelpers.unwrap(response.data);
       return MenuItemDto.fromJson(raw);
     } on DioError catch (error) {
       throw MenuApiException.fromDio(error);
@@ -308,7 +309,7 @@ class MenuApi {
       ..removeWhere((key, value) => key == 'id' || value == null);
     try {
       final formData = FormData.fromMap(updateMap);
-      final imagePart = await _buildImagePart(
+      final imagePart = await MenuApiHelpers.buildImagePart(
         imagePath: imagePath,
         imageBytes: imageBytes,
       );
@@ -317,30 +318,11 @@ class MenuApi {
         '$_menuPrefix/items/$itemId',
         data: formData,
       );
-      final raw = _unwrap(response.data);
+      final raw = MenuApiHelpers.unwrap(response.data);
       return MenuItemDto.fromJson(raw);
     } on DioError catch (error) {
       throw MenuApiException.fromDio(error);
     }
-  }
-
-  Future<MultipartFile?> _buildImagePart({
-    String? imagePath,
-    List<int>? imageBytes,
-  }) async {
-    if (imagePath != null && imagePath.isNotEmpty) {
-      return MultipartFile.fromFile(
-        imagePath,
-        filename: imagePath.split('/').last,
-      );
-    }
-    if (imageBytes != null && imageBytes.isNotEmpty) {
-      return MultipartFile.fromBytes(
-        imageBytes,
-        filename: 'upload.jpg',
-      );
-    }
-    return null;
   }
 
   Future<void> deleteMenuItem(String menuItemId) async {
@@ -403,38 +385,6 @@ class MenuApi {
     return _dio;
   }
 
-  Map<String, dynamic> _asMap(dynamic value) {
-    if (value is Map<String, dynamic>) return Map<String, dynamic>.from(value);
-    if (value is Map) {
-      return value.map((key, val) => MapEntry(key.toString(), val));
-    }
-    return const <String, dynamic>{};
-  }
-
-  Map<String, dynamic> _unwrap(dynamic body) {
-    final map = _asMap(body);
-    final inner = map['data'];
-    if (map['success'] == true && inner is Map) {
-      return _asMap(inner);
-    }
-    return map;
-  }
-
-  List<T> _parseList<T>(
-    dynamic data,
-    T Function(Map<String, dynamic> json) fromJson,
-  ) {
-    if (data is List) {
-      return data
-          .whereType<Map>()
-          .map((e) => fromJson(_asMap(e)))
-          .toList(growable: false);
-    }
-    if (data is Map<String, dynamic>) {
-      return [fromJson(data)];
-    }
-    return <T>[];
-  }
 }
 
 class MenuApiException implements Exception {

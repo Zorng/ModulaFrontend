@@ -34,12 +34,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
       final route = session.requiresTenantSelection
           ? AppRoute.tenantSelection.path
-          : switch (user.role.trim().toLowerCase()) {
-              'admin' => AppRoute.adminPortal.path,
-              'cashier' => AppRoute.cashierPortal.path,
-              'manager' => AppRoute.cashierPortal.path,
-              _ => AppRoute.cashierPortal.path,
-            };
+          : AppRoute.portal.path;
       if (_lastRoute == route) return;
       _lastRoute = route;
       context.go(route);

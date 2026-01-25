@@ -138,19 +138,42 @@ class AuthApi {
     normalizedUser['tenantId'] = tenantId;
     normalizedUser['role'] = role;
 
-    final membership = TenantMembershipDto(
+    final rawMemberships = data['memberships'];
+    final memberships = rawMemberships is List
+        ? rawMemberships
+            .map(_asMap)
+            .map(TenantMembershipDto.fromJson)
+            .where((m) => m.tenantId.isNotEmpty)
+            .toList(growable: false)
+        : const <TenantMembershipDto>[];
+
+    final tenantObject = _asMap(data['tenant']);
+    final tenantName =
+        data['tenantName']?.toString() ??
+        data['tenant_name']?.toString() ??
+        normalizedUser['tenantName']?.toString() ??
+        normalizedUser['tenant_name']?.toString() ??
+        (tenantObject.isNotEmpty ? tenantObject['name']?.toString() : null) ??
+        tenantId;
+
+    final fallbackMembership = TenantMembershipDto(
       tenantId: tenantId,
-      tenantName: tenantId,
+      tenantName: tenantName,
       role: role,
       branches: branches,
     );
+
+    final activeTenantId =
+        data['activeTenantId']?.toString() ??
+        data['active_tenant_id']?.toString() ??
+        (memberships.isNotEmpty ? memberships.first.tenantId : tenantId);
 
     final refreshExpiry = DateTime.now().add(const Duration(hours: 72));
 
     return EstablishedAuthSessionDto(
       user: AuthUserDto.fromJson(normalizedUser, branches: branches),
-      memberships: [membership],
-      activeTenantId: tenantId.isEmpty ? null : tenantId,
+      memberships: memberships.isNotEmpty ? memberships : [fallbackMembership],
+      activeTenantId: activeTenantId.isEmpty ? null : activeTenantId,
       accessToken: accessToken,
       refreshToken: refreshToken,
       accessTokenExpiresAt: accessExpiry,

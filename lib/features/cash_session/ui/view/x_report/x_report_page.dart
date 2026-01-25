@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:modular_pos/core/routing/app_router.dart';
+import 'package:modular_pos/core/theme/responsive.dart';
+import 'package:modular_pos/core/widgets/navigation/app_back_button.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/cash_session/ui/viewmodels/cash_session_viewmodel.dart';
 import 'package:modular_pos/features/cash_session/ui/viewmodels/x_report_viewmodel.dart';
@@ -17,9 +21,20 @@ class XReportPage extends ConsumerWidget {
     final cashState = ref.watch(cashSessionViewModelProvider);
     final entriesAsync = ref.watch(xReportEntriesProvider);
     final filters = ref.watch(xReportFiltersProvider);
+    final isSmall = AppBreakpoints.isSmall(
+      MediaQuery.of(context).size.width,
+    );
 
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: false,
+        leading: isSmall
+            ? AppBackButton(
+                icon: Icons.home_outlined,
+                tooltip: 'Home',
+                onPressed: () => context.go(AppRoute.portal.path),
+              )
+            : null,
         title: const Align(
           alignment: Alignment.centerLeft,
           child: Text('X Report'),

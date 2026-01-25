@@ -155,9 +155,7 @@ class _PolicyPageState extends ConsumerState<PolicyPage> {
     final toggleValues = _composeToggleValues(policyState);
     final selectorValues = _composeSelectorValues(policyState);
     final isReadOnly = _isReadOnly(loginState);
-    final portalPath = isReadOnly
-        ? AppRoute.cashierPortal.path
-        : AppRoute.adminPortal.path;
+    final portalPath = AppRoute.portal.path;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -186,15 +184,13 @@ class _PolicyPageState extends ConsumerState<PolicyPage> {
         return Scaffold(
           appBar: AppBar(
             automaticallyImplyLeading: false,
-            leading: AppBackButton(
-              onPressed: () {
-                if (context.canPop()) {
-                  context.pop();
-                } else {
-                  context.go(portalPath);
-                }
-              },
-            ),
+            leading: isSmall
+                ? AppBackButton(
+                    icon: Icons.home_outlined,
+                    tooltip: 'Home',
+                    onPressed: () => context.go(portalPath),
+                  )
+                : null,
             titleSpacing: 0,
             centerTitle: false,
             title: const Text('Settings'),

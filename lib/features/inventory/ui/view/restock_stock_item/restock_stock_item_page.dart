@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/core/feedback/user_error_message.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
@@ -334,7 +335,7 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
           ),
         ),
       );
-      Navigator.of(context).pop();
+      context.pop();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -352,4 +353,3 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
     }
   }
 }
-

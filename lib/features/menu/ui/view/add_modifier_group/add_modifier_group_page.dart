@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/core/widgets/display/dashed_border_painter.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
@@ -98,7 +99,7 @@ class _AddModifierGroupPageState extends ConsumerState<AddModifierGroupPage> {
     );
 
     await ref.read(menuViewModelProvider.notifier).addModifierGroup(group);
-    if (mounted) Navigator.pop(context);
+    if (mounted) context.pop();
   }
 
   void _addOption() => setState(() => _options.add(ModifierOptionRowModel()));
@@ -231,4 +232,3 @@ class _AddModifierGroupPageState extends ConsumerState<AddModifierGroupPage> {
     );
   }
 }
-

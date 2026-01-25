@@ -39,6 +39,8 @@ These rules exist to keep the frontend predictable, maintainable, and regression
 - New page navigation must use `context.go(...)` / `context.push(...)`.
 - Do not use `Navigator.of(context).push(...)` for page navigation.
 - Prefer passing **IDs** in routes over passing full objects via `extra` (exceptions only for short-lived flows).
+- Routes are **role‑agnostic**; do not create role‑scoped paths.
+- Mobile uses **portal → feature tabs**; wide screens use **rail → content** (see `handbook/architecture/navigation.md`).
 
 ## 5) Errors are user-safe in production
 - Default production message: `Oops, something went wrong.`
@@ -54,7 +56,7 @@ These rules exist to keep the frontend predictable, maintainable, and regression
 ## 7) Widget reuse before duplication
 - Check existing shared/feature widgets before creating a new one.
 - Used in 2+ features → promote to `lib/core/widgets/`.
-- Used in one feature → keep in `lib/features/<feature>/ui/widgets/`.
+- Used in one feature → keep in `lib/features/<feature>/ui/components/` (shared) or `ui/view/<page>/widgets/` (page-local).
 - If duplication is unavoidable, it must be minimal and tracked with a Jira “dedupe” ticket.
 
 ## 8) Screen composition rule (practical)

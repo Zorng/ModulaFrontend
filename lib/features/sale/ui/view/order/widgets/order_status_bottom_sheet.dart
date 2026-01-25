@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:modular_pos/features/sale/ui/view/order/order_utils.dart';
 
 class OrderStatusBottomSheet extends StatefulWidget {
@@ -51,7 +52,7 @@ class _OrderStatusBottomSheetState extends State<OrderStatusBottomSheet> {
                 const Spacer(),
                 IconButton(
                   visualDensity: VisualDensity.compact,
-                  onPressed: _isSaving ? null : () => Navigator.pop(context),
+                  onPressed: _isSaving ? null : () => context.pop(),
                   icon: const Icon(Icons.close),
                 ),
               ],
@@ -86,7 +87,7 @@ class _OrderStatusBottomSheetState extends State<OrderStatusBottomSheet> {
                         try {
                           await widget.onSubmit(_selected);
                           if (!context.mounted) return;
-                          Navigator.pop(context);
+                          context.pop();
                         } finally {
                           if (mounted) setState(() => _isSaving = false);
                         }

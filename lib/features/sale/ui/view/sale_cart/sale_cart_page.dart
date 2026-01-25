@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/feedback/user_error_message.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
-import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
 import 'package:modular_pos/features/policy/ui/viewmodels/policy_viewmodel.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/order_viewmodel.dart';
+import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_state.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_viewmodel.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_access_gate.dart';
 import 'package:modular_pos/features/sale/ui/view/sale_cart/widgets/sale_cart_bottom_bar.dart';
@@ -126,12 +125,7 @@ class _SaleCartPageState extends ConsumerState<SaleCartPage> {
     final gate = ref.watch(saleAccessGateProvider);
     final readOnly =
         !gate.cashSessionLoading && gate.isBlockedByCashSessionPolicy;
-    final role = (ref.watch(loginControllerProvider).user?.role ?? 'cashier')
-        .trim()
-        .toLowerCase();
-    final cashSessionPath = role == 'admin'
-        ? AppRoute.adminCashSession.path
-        : AppRoute.cashierCashSession.path;
+    final cashSessionPath = AppRoute.cashSession.path;
     final policyState = ref.watch(policyNotifierProvider);
     final salesPolicy = policyState.salesPolicy;
     final fxRate = salesPolicy.saleFxRateKhrPerUsd;
@@ -160,25 +154,6 @@ class _SaleCartPageState extends ConsumerState<SaleCartPage> {
         (_paymentMethod != 'cash' || tenderUsd >= grandTotalUsd);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Cart'),
-        centerTitle: false,
-        actions: [
-          PopupMenuButton<String>(
-            onSelected: (value) {
-              if (value == 'view_carts') {
-                context.push(AppRoute.saleViewCarts.path);
-              }
-            },
-            itemBuilder: (_) => const [
-              PopupMenuItem<String>(
-                value: 'view_carts',
-                child: Text('View carts'),
-              ),
-            ],
-          ),
-        ],
-      ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(

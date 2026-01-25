@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:modular_pos/features/menu/domain/models/menu_category.dart';
@@ -48,7 +49,7 @@ class _EditCategorySheetState extends ConsumerState<EditCategorySheet> {
     );
     await ref.read(menuViewModelProvider.notifier).updateCategory(updated);
     if (!mounted) return;
-    Navigator.pop(context);
+    context.pop();
   }
 
   Future<void> _delete() async {
@@ -56,7 +57,7 @@ class _EditCategorySheetState extends ConsumerState<EditCategorySheet> {
         .read(menuViewModelProvider.notifier)
         .deleteCategory(widget.category.id);
     if (!mounted) return;
-    Navigator.pop(context);
+    context.pop();
   }
 
   @override
@@ -206,4 +207,3 @@ class _EditCategorySheetState extends ConsumerState<EditCategorySheet> {
     );
   }
 }
-

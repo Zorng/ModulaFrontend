@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:modular_pos/core/widgets/media/product_image.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
-import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_viewmodel.dart';
-import 'package:modular_pos/features/sale/ui/components/quantity_stepper.dart';
+import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_state.dart';
 import 'package:modular_pos/core/input_formatters/decimal_text_input_formatter.dart';
+import 'package:modular_pos/features/sale/ui/view/sale_cart/widgets/sale_cart_item_row.dart';
+import 'package:modular_pos/features/sale/ui/view/sale_cart/widgets/sale_cart_payment_card.dart';
+import 'package:modular_pos/features/sale/ui/view/sale_cart/widgets/sale_cart_summary_row.dart';
 
 class SaleCartContent extends StatelessWidget {
   const SaleCartContent({
@@ -79,7 +80,7 @@ class SaleCartContent extends StatelessWidget {
           return Column(
             children: [
               if (index > 0) const Divider(height: 1),
-              _CartItemRow(
+              SaleCartItemRow(
                 item: line,
                 onIncrement: readOnly ? null : () => onIncrement(index, line),
                 onDecrement: readOnly ? null : () => onDecrement(index, line),
@@ -89,13 +90,13 @@ class SaleCartContent extends StatelessWidget {
           );
         }),
         const Divider(height: 16),
-        _SummaryRow(label: 'Subtotal', value: subtotal),
+        SaleCartSummaryRow(label: 'Subtotal', value: subtotal),
         const SizedBox(height: 4),
-        const _SummaryRow(label: 'VAT', value: 0),
+        const SaleCartSummaryRow(label: 'VAT', value: 0),
         const SizedBox(height: 12),
         Text('Payment Methods', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 8),
-        _PaymentMethodCard(
+        SaleCartPaymentCard(
           title: 'Cash',
           selected: paymentMethod == 'cash',
           onSelected: readOnly ? null : () => onPaymentMethodChanged('cash'),
@@ -223,203 +224,13 @@ class SaleCartContent extends StatelessWidget {
               : null,
         ),
         const SizedBox(height: 8),
-        _PaymentMethodCard(
+        SaleCartPaymentCard(
           title: 'QR / Transfer',
           selected: paymentMethod == 'qr',
           onSelected: readOnly ? null : () => onPaymentMethodChanged('qr'),
         ),
         const SizedBox(height: 12),
       ],
-    );
-  }
-}
-
-class _CartItemRow extends StatelessWidget {
-  const _CartItemRow({
-    required this.item,
-    this.onIncrement,
-    this.onDecrement,
-    required this.groupLookup,
-  });
-
-  final CartLine item;
-  final VoidCallback? onIncrement;
-  final VoidCallback? onDecrement;
-  final Map<String, ModifierGroup> groupLookup;
-
-  double _lineTotal() {
-    double addons = 0;
-    item.selectedOptionIds.forEach((groupId, optionIds) {
-      final group = groupLookup[groupId];
-      if (group == null) return;
-      for (final id in optionIds) {
-        final opt = group.options.firstWhere(
-          (o) => o.id == id,
-          orElse: () => const ModifierOption(id: '', name: '', price: 0),
-        );
-        addons += opt.price;
-      }
-    });
-    return (item.item.price + addons) * item.quantity;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final optionNames = <String>[];
-    item.selectedOptionIds.forEach((groupId, optionIds) {
-      final group = groupLookup[groupId];
-      if (group == null) return;
-      for (final id in optionIds) {
-        final opt = group.options.firstWhere(
-          (o) => o.id == id,
-          orElse: () => const ModifierOption(id: '', name: '', price: 0),
-        );
-        if (opt.id.isNotEmpty) optionNames.add(opt.name);
-      }
-    });
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: SizedBox(
-              width: 56,
-              height: 56,
-              child: ProductImage(
-                imagePath: item.item.imageUrl,
-                borderRadius: 8,
-                placeholderIcon: Icons.fastfood_outlined,
-                showPlaceholderLabel: false,
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  item.item.name,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  optionNames.isNotEmpty
-                      ? optionNames.join(', ')
-                      : 'No modifiers',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              QuantityStepper(
-                label: null,
-                dense: true,
-                quantity: item.quantity,
-                onDecrement: onDecrement,
-                onIncrement: onIncrement,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                '\$${_lineTotal().toStringAsFixed(2)}',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SummaryRow extends StatelessWidget {
-  const _SummaryRow({required this.label, required this.value});
-
-  final String label;
-  final double value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Text(label, style: Theme.of(context).textTheme.bodyMedium),
-        const Spacer(),
-        Text(
-          '\$${value.toStringAsFixed(2)}',
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
-      ],
-    );
-  }
-}
-
-class _PaymentMethodCard extends StatelessWidget {
-  const _PaymentMethodCard({
-    required this.title,
-    required this.selected,
-    required this.onSelected,
-    this.body,
-  });
-
-  final String title;
-  final bool selected;
-  final VoidCallback? onSelected;
-  final Widget? body;
-
-  @override
-  Widget build(BuildContext context) {
-    final enabled = onSelected != null;
-    return GestureDetector(
-      onTap: onSelected,
-      child: Opacity(
-        opacity: enabled ? 1 : 0.6,
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.06),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              RadioGroup<bool>(
-                groupValue: selected ? true : null,
-                onChanged: (_) {
-                  if (enabled) {
-                    onSelected!();
-                  }
-                },
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        title,
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                    ),
-                    Radio<bool>(value: true, enabled: enabled),
-                  ],
-                ),
-              ),
-              if (body != null) ...[const SizedBox(height: 8), body!],
-            ],
-          ),
-        ),
-      ),
     );
   }
 }

@@ -12,6 +12,7 @@ import 'package:modular_pos/features/policy/ui/viewmodels/policy_viewmodel.dart'
 import 'package:modular_pos/features/sale/data/sale_repository.dart';
 import 'package:modular_pos/features/sale/ui/view/sale_cart/sale_cart_page.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_access_gate.dart';
+import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_state.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_viewmodel.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 

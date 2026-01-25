@@ -28,10 +28,10 @@ Purpose: keep a durable record of decisions and progress while we translate the 
 | Date | Decision | Reason | Impacted Areas |
 |---|---|---|---|
 | 2026-01-17 | Jira hierarchy: Epics → Stories → Tasks/Bugs/Spikes | Enables tracking and delegation | Whole project |
-| 2026-01-17 | Bottom nav is for “destinations currently hidden in kebab menus” | Improves discoverability; not “primary modules” | Navigation |
+| 2026-01-17 | Use visible navigation for “kebab destinations” | Improves discoverability; kebab should be secondary actions only | Navigation |
 | 2026-01-17 | Roles not needed for backlog drafting (for now) | Team already has project knowledge base | Planning |
 | 2026-01-17 | Wide screens use single global `NavigationRail` (no sub-rails) | Keep wide-screen chrome simple; section navigation stays in-page | Responsive + Navigation |
-| 2026-01-17 | Wide screens keep bottom nav always visible | Consistent access to “kebab destinations” while rail handles global nav | Responsive + Navigation |
+| 2026-01-22 | Standard navigation primitives: `NavigationRail` (wide) + `BottomNavigationBar` (module subpages on mobile, indexed stack) | Keeps destinations visible while preserving state; avoids hidden navigation and excessive kebab usage | Navigation + Responsive |
 
 Add new decisions as we go.
 
@@ -43,7 +43,8 @@ Add new decisions as we go.
 - Which printer integrations are “must-have” for demo vs production?
 - What is the expected CI gate (analyze only vs analyze + unit + widget + integration)?
 - Which modules are stable enough for refactor vs still changing rapidly?
-- (Resolved) Wide screens keep bottom nav visible; only mobile-web hides on scroll.
+- (Resolved) Kebab is secondary actions only; module sub-navigation uses bottom navigation on mobile (indexed stack).
+  - Updated: module sub-navigation uses bottom navigation on mobile (indexed stack).
 
 ---
 

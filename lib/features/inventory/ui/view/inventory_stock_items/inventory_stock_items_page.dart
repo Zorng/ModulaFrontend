@@ -80,7 +80,6 @@ class _InventoryStockItemsPageState
       ..sort((a, b) => a.name.compareTo(b.name));
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Stock items'), centerTitle: false),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -188,4 +187,3 @@ class _InventoryStockItemsPageState
 }
 
 enum _ActiveFilter { all, active, inactive }
-

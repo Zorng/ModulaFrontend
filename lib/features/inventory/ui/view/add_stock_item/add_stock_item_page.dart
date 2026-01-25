@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
@@ -8,11 +9,13 @@ import 'package:modular_pos/features/inventory/data/stock_item_repository.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_category.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
 import 'package:modular_pos/features/inventory/ui/components/branch_assignment.dart';
-import 'package:modular_pos/features/inventory/ui/components/branch_assignment_card.dart';
+import 'package:modular_pos/features/inventory/ui/view/add_stock_item/widgets/add_stock_item_branch_assignment_section.dart';
+import 'package:modular_pos/features/inventory/ui/view/add_stock_item/widgets/add_stock_item_details_section.dart';
+import 'package:modular_pos/features/inventory/ui/view/add_stock_item/widgets/add_stock_item_save_section.dart';
+import 'package:modular_pos/features/inventory/ui/view/add_stock_item/widgets/add_stock_item_usage_section.dart';
 import 'package:modular_pos/features/inventory/ui/view/add_stock_item/widgets/upload_image_tile.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/category_controller.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_controller.dart';
-import 'package:modular_pos/features/inventory/ui/widgets/inventory_section_card.dart';
 
 class AddStockItemPage extends ConsumerStatefulWidget {
   const AddStockItemPage({super.key});
@@ -83,169 +86,47 @@ class _AddStockItemPageState extends ConsumerState<AddStockItemPage> {
               ),
             ),
             const SizedBox(height: 24),
-            InventorySectionCard(
-              title: 'Item details',
-              children: [
-                TextFormField(
-                  controller: _nameCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Item name',
-                    hintText: 'e.g., Milk 1000ml',
-                  ),
-                  validator: (value) =>
-                      value == null || value.trim().isEmpty ? 'Required' : null,
-                ),
-                FormField<String>(
-                  key: _baseUnitFieldKey,
-                  validator: (_) =>
-                      _baseUnit == null ? 'Please select a base unit' : null,
-                  builder: (state) {
-                    final textTheme = Theme.of(context).textTheme;
-                    final hintColor = Theme.of(context).hintColor;
-                    return InkWell(
-                      borderRadius: BorderRadius.circular(12),
-                      onTap: _showBaseUnitSelector,
-                      child: InputDecorator(
-                        decoration: InputDecoration(
-                          labelText: 'Base unit',
-                          helperText:
-                              'ml for liquids, g for solids, pcs for countable items',
-                          errorText: state.errorText,
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Expanded(
-                              child: Text(
-                                _baseUnit ?? 'Select base unit',
-                                style: _baseUnit == null
-                                    ? textTheme.bodyMedium?.copyWith(
-                                        color: hintColor,
-                                      )
-                                    : textTheme.bodyMedium,
-                              ),
-                            ),
-                            const Icon(Icons.expand_more),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
-                TextFormField(
-                  controller: _pieceSizeCtrl,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Piece size',
-                    helperText: 'How many base units equal 1 piece',
-                  ),
-                  validator: (value) {
-                    final parsed = int.tryParse(value ?? '');
-                    if (parsed == null || parsed <= 0) {
-                      return 'Enter a piece size greater than 0';
-                    }
-                    return null;
-                  },
-                ),
-                TextFormField(
-                  controller: _barcodeCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Barcode (optional)',
-                  ),
-                ),
-                FormField<String>(
-                  key: _categoryFieldKey,
-                  validator: (_) => null,
-                  builder: (state) {
-                    final textTheme = Theme.of(context).textTheme;
-                    final hintColor = Theme.of(context).hintColor;
-                    return InkWell(
-                      borderRadius: BorderRadius.circular(12),
-                      onTap: _showCategorySelector,
-                      child: InputDecorator(
-                        decoration: const InputDecoration(
-                          labelText: 'Category',
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              _category ?? 'Select category',
-                              style: _category == null
-                                  ? textTheme.bodyMedium?.copyWith(
-                                      color: hintColor,
-                                    )
-                                  : textTheme.bodyMedium,
-                            ),
-                            const Icon(Icons.expand_more),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ],
+            AddStockItemDetailsSection(
+              nameController: _nameCtrl,
+              barcodeController: _barcodeCtrl,
+              pieceSizeController: _pieceSizeCtrl,
+              baseUnitFieldKey: _baseUnitFieldKey,
+              categoryFieldKey: _categoryFieldKey,
+              baseUnit: _baseUnit,
+              categoryLabel: _category,
+              onSelectBaseUnit: _showBaseUnitSelector,
+              onSelectCategory: _showCategorySelector,
             ),
             const SizedBox(height: 16),
-            InventorySectionCard(
-              title: 'Item usage',
-              children: [
-                ..._typeOptions.map(
-                  (type) => CheckboxListTile(
-                    contentPadding: EdgeInsets.zero,
-                    controlAffinity: ListTileControlAffinity.leading,
-                    title: Text(type),
-                    value: _selectedTypes.contains(type),
-                    onChanged: (value) {
-                      setState(() {
-                        if (value ?? false) {
-                          _selectedTypes.add(type);
-                        } else {
-                          _selectedTypes.remove(type);
-                        }
-                      });
-                    },
-                  ),
-                ),
-              ],
+            AddStockItemUsageSection(
+              typeOptions: _typeOptions,
+              selectedTypes: _selectedTypes,
+              onToggleType: (type, selected) {
+                setState(() {
+                  if (selected) {
+                    _selectedTypes.add(type);
+                  } else {
+                    _selectedTypes.remove(type);
+                  }
+                });
+              },
             ),
             const SizedBox(height: 16),
-            InventorySectionCard(
-              title: 'Branch assignment',
-              children: [
-                if (userBranches.isEmpty)
-                  const Text(
-                    'No branches available. Add branches to assign this item.',
-                  )
-                else ...[
-                  ..._branchAssignments.map(
-                    (assignment) => BranchAssignmentCard(
-                      assignment: assignment,
-                      branches: userBranches,
-                      usedBranchIds: _usedBranchIds(assignment),
-                      onChanged: () => setState(() {}),
-                      onRemove: () {
-                        setState(() {
-                          assignment.thresholdCtrl.dispose();
-                          _branchAssignments.remove(assignment);
-                        });
-                      },
-                    ),
-                  ),
-                  if (_branchAssignments.length < userBranches.length)
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: TextButton.icon(
-                        onPressed: () => setState(_addBranchAssignment),
-                        icon: const Icon(Icons.add),
-                        label: const Text('Assign to branch'),
-                      ),
-                    ),
-                ],
-              ],
+            AddStockItemBranchAssignmentSection(
+              userBranches: userBranches,
+              branchAssignments: _branchAssignments,
+              usedBranchIds: _usedBranchIds,
+              onAssignmentChanged: () => setState(() {}),
+              onRemoveAssignment: (assignment) {
+                setState(() {
+                  assignment.thresholdCtrl.dispose();
+                  _branchAssignments.remove(assignment);
+                });
+              },
+              onAddAssignment: () => setState(_addBranchAssignment),
             ),
             const SizedBox(height: 24),
-            FilledButton(onPressed: _submit, child: const Text('Save item')),
+            AddStockItemSaveSection(onSave: _submit),
           ],
         ),
       ),
@@ -332,7 +213,7 @@ class _AddStockItemPageState extends ConsumerState<AddStockItemPage> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text('Stock item added')));
-    Navigator.of(context).pop();
+    context.pop();
   }
 
   Future<void> _pickImage() async {
@@ -370,7 +251,7 @@ class _AddStockItemPageState extends ConsumerState<AddStockItemPage> {
             return ListTile(
               title: Text(unit),
               trailing: selected ? const Icon(Icons.check) : null,
-              onTap: () => Navigator.of(context).pop(unit),
+              onTap: () => context.pop(unit),
             );
           },
           separatorBuilder: (_, __) => const Divider(height: 1),
@@ -411,7 +292,7 @@ class _AddStockItemPageState extends ConsumerState<AddStockItemPage> {
             return ListTile(
               title: Text(category.name),
               trailing: selected ? const Icon(Icons.check) : null,
-              onTap: () => Navigator.of(context).pop(category),
+              onTap: () => context.pop(category),
             );
           },
           separatorBuilder: (_, __) => const Divider(height: 1),

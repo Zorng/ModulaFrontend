@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:flutter/services.dart';
 
 class VatRateBottomSheet extends StatefulWidget {
@@ -56,7 +57,7 @@ class _VatRateBottomSheetState extends State<VatRateBottomSheet> {
           SizedBox(
             width: double.infinity,
             child: FilledButton(
-              onPressed: () => Navigator.of(context).pop(_controller.text.trim()),
+              onPressed: () => context.pop(_controller.text.trim()),
               child: const Text('Done'),
             ),
           ),
@@ -65,4 +66,3 @@ class _VatRateBottomSheetState extends State<VatRateBottomSheet> {
     );
   }
 }
-

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:modular_pos/core/feedback/user_error_message.dart';
@@ -35,7 +36,6 @@ class _CategoryManagementPageState
     }).toList()..sort((a, b) => a.name.compareTo(b.name));
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Category management')),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -129,7 +129,7 @@ class _CategoryManagementPageState
                         borderRadius: BorderRadius.circular(8),
                       ),
                     ),
-                    onPressed: () => Navigator.of(context).pop(),
+                    onPressed: () => context.pop(),
                     child: const Text('Cancel'),
                   ),
                 ),
@@ -145,7 +145,7 @@ class _CategoryManagementPageState
                     onPressed: () {
                       final value = controller.text.trim();
                       if (value.isEmpty) return;
-                      Navigator.of(context).pop(value);
+                      context.pop(value);
                     },
                     child: const Text('Add'),
                   ),

@@ -45,6 +45,11 @@ class AdminHomeContent extends StatelessWidget {
         icon: Icons.percent_outlined,
         comingSoon: true,
       ),
+      FeatureEntry(
+        title: 'Account',
+        icon: Icons.person_outline,
+        onTap: () => context.push(AppRoute.account.path),
+      ),
     ];
 
     final branchFeatures = [
@@ -56,7 +61,7 @@ class AdminHomeContent extends StatelessWidget {
       FeatureEntry(
         title: 'Cash Sessions',
         icon: Icons.attach_money_outlined,
-        onTap: () => context.push(AppRoute.adminCashSession.path),
+        onTap: () => context.push(AppRoute.cashSession.path),
       ),
       FeatureEntry(
         title: 'X Report',
@@ -67,11 +72,6 @@ class AdminHomeContent extends StatelessWidget {
         title: 'Z Report',
         icon: Icons.summarize_outlined,
         onTap: () => context.push(AppRoute.zReport.path),
-      ),
-      FeatureEntry(
-        title: 'Orders',
-        icon: Icons.receipt_long_outlined,
-        onTap: () => context.push(AppRoute.orders.path),
       ),
       FeatureEntry(
         title: 'Attendance Management',
@@ -342,4 +342,3 @@ class FeatureEntry {
   final VoidCallback? onTap;
   final bool comingSoon;
 }
-

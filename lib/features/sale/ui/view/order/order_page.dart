@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
-import 'package:modular_pos/core/routing/app_router.dart';
+import 'package:modular_pos/core/widgets/navigation/responsive_detail_modal.dart';
 import 'package:modular_pos/features/sale/ui/view/order/widgets/order_card.dart';
 import 'package:modular_pos/features/sale/ui/view/order/widgets/order_filters_bar.dart';
 import 'package:modular_pos/features/sale/ui/view/order/widgets/order_status_bottom_sheet.dart';
+import 'package:modular_pos/features/sale/ui/view/order_detail/order_detail_page.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/order_viewmodel.dart';
 
 class OrderPage extends ConsumerStatefulWidget {
@@ -61,7 +61,6 @@ class _OrderPageState extends ConsumerState<OrderPage> {
     final filtered = orders.where((o) => o.status == _selectedStatus).toList();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Orders'), centerTitle: false),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -83,9 +82,12 @@ class _OrderPageState extends ConsumerState<OrderPage> {
                       return OrderCard(
                         order: order,
                         onTap: () {
-                          context.push(
-                            AppRoute.orderDetail.path,
-                            extra: order.number,
+                          showResponsiveDetailModal<void>(
+                            context: context,
+                            builder: (modalContext) => OrderDetailPage(
+                              orderNumber: order.number,
+                              showBack: false,
+                            ),
                           );
                         },
                         onStatusTap: () => _openStatusSheet(order),

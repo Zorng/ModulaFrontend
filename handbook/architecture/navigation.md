@@ -1,42 +1,68 @@
 # Navigation & Routing
 
+This document defines the **canonical navigation model** for the app. It replaces older rules and is the source of truth.
+
 ## Source of truth
 - Routes are defined centrally in `lib/app.dart` (`appRouterProvider`) and enumerated in `lib/core/routing/app_router.dart` (`AppRoute`).
+- Route builders live under `lib/core/routing/routes/`.
 
-## Page navigation (non-negotiable)
-- Use `go_router` (`context.go(...)` / `context.push(...)`) for **pages**.
-- Do not use `Navigator.of(context).push(...)` for pages.
+## Non‑negotiables (page navigation)
+- Use `go_router` for **pages**:
+  - `context.go(...)` for switching destinations.
+  - `context.push(...)` for details/sub-pages.
+- Do **not** use `Navigator.of(context).push(...)` for pages.
 - `Navigator.pop(...)` is allowed for dialogs/modals and returning selection results.
 
-## Route authoring guidelines
-- New pages must be reachable via a route (deep-linkable).
-- Prefer route params/query over global “selection” singletons.
-- Prefer IDs:
-  - Good: `/menu/items/:id`
-  - Avoid: passing a full `MenuItem` in `extra` for long-lived navigation
-- `extra` is allowed only for short-lived flows where the data is already in memory and re-fetching would be wasteful (e.g., a form step in the same flow).
+## Canonical paths (no role‑scoped URLs)
+- **All feature roots are role‑agnostic** (example: `/sale`, `/menu`, `/inventory`, `/cash/session`).
+- Do not create role‑scoped routes like `/portal/admin/...` or `/portal/cashier/...`.
+- Authorization happens in the router redirect + page gating, **not** by duplicating routes per role.
 
-## Path conventions (non-negotiable)
-- Role-scoped pages live under: `/portal/<role>/...` (example: `/portal/admin/inventory`).
-- Cross-role pages live under: `/portal/...` (example: `/portal/x-report`).
-- Do not introduce mixed prefixes like `/admin/portal/...` or `/portal/admin/...` for the same module.
-- Keep “module root” paths stable and nest sub-pages beneath them (example: `/portal/admin/menu/...`).
+### Examples
+- Good: `/sale`, `/reports/x`, `/attendance/manage`
+- Avoid: `/portal/admin/sale`, `/cashier/cash-session`
 
-## Stack guidance
-- Use `context.go(...)` for switching destinations (portal/home/tab) to avoid confusing back behavior.
-- Use `context.push(...)` for details/sub-pages.
+## Mobile navigation model (feature portal + tabs)
+Mobile uses a **two‑layer** model:
 
-## Route parameters
-- Prefer passing **IDs** (path/query) over passing full objects via `extra` (exceptions only for short-lived flows).
+1) **Portal** (feature hub)
+   - `AppRoute.portal` is the entry for choosing features.
+   - Portal pages exist **only for mobile**.
 
-## Responsive navigation
-See `docs/responsive_breakpoints.md` for breakpoint behavior requirements.
+2) **Feature root + internal tabs**
+   - Feature root pages (e.g. `/sale`, `/menu`, `/inventory`) use a bottom‑nav shell *only inside that feature*.
+   - Bottom nav is for **feature tabs** (not global app navigation).
+   - Use `IndexedStack` to preserve tab state.
+   - On mobile web, bottom nav can auto‑hide while scrolling (UX rule).
 
-At a high level:
-- **Mobile**: bottom navigation to replace current kebab-driven primary navigation.
-  - On mobile web, the bottom nav may auto-hide while scrolling (UX decision).
-- **Wide screens**: left navigation rail is always visible; no auto-hide.
+### Mobile app bar rule
+- Feature root pages show a **Home** icon that returns to the portal.
+- Detail pages use the standard back affordance.
 
-Implementation notes:
-- Keep the navigation “shell” in one place (e.g., `PortalShell` / router shell route).
-- Pages should not implement their own “global” navigation UI.
+## Wide screen navigation model (rail + content)
+Wide screens use a **single shell**:
+
+- Left **NavigationRail** is always visible.
+- Content switches inside the rail shell (no scaffold replacement).
+- **No back button** on wide‑screen feature roots (rail is primary navigation).
+- Profile header is **display only**; Account/Settings are rail destinations.
+- Branch selector lives **under the Branch section** in the rail.
+
+## Destination switching rules
+- Use `context.go(...)` when switching **features** or **rail destinations**.
+- Use `context.push(...)` for **detail pages** within a feature.
+
+## Detail pages & modals
+- Detail pages are normal routes and should be reachable via deep links.
+- Use modals/bottom sheets only for short flows or transient input.
+
+## Router authorization
+Authorization checks live in the router redirect (role + policy + session).
+Do not create duplicate routes per role; use a single route and **gate the content**.
+
+## Implementation notes
+- Navigation shells should be centralized:
+  - `AppWideNavigationRailShell` for wide screens.
+  - `AppBottomNavShellScaffold` for feature tabs on mobile.
+- Pages should not implement their own global navigation controls.
+

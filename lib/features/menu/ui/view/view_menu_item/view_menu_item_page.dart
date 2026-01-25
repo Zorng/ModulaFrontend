@@ -11,9 +11,14 @@ import 'package:modular_pos/features/menu/ui/view/view_menu_item/view_menu_item_
 
 /// A page to view the details of a menu item using only the hydrated item/modifier data.
 class ViewMenuItemPage extends ConsumerWidget {
-  const ViewMenuItemPage({super.key, required this.menuItem});
+  const ViewMenuItemPage({
+    super.key,
+    required this.menuItem,
+    this.showBack = true,
+  });
 
   final MenuItem menuItem;
+  final bool showBack;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -28,6 +33,13 @@ class ViewMenuItemPage extends ConsumerWidget {
       return Scaffold(
         appBar: AppBar(
           centerTitle: false,
+          automaticallyImplyLeading: showBack,
+          leading: showBack
+              ? null
+              : IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.of(context).maybePop(),
+                ),
           title: Text(
             menuItem.name.isNotEmpty ? menuItem.name : 'Menu Item',
           ),
@@ -56,6 +68,13 @@ class ViewMenuItemPage extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         centerTitle: false,
+        automaticallyImplyLeading: showBack,
+        leading: showBack
+            ? null
+            : IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: () => Navigator.of(context).maybePop(),
+              ),
         title: Text(latestItem.name),
         actions: [
           TextButton(

@@ -2,19 +2,18 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:modular_pos/core/widgets/media/product_image_picker.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/inventory/data/stock_item_repository.dart';
-import 'package:modular_pos/features/inventory/domain/models/inventory_category.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
 import 'package:modular_pos/features/inventory/ui/components/branch_assignment.dart';
-import 'package:modular_pos/features/inventory/ui/components/branch_assignment_card.dart';
 import 'package:modular_pos/features/inventory/ui/view/stock_item_detail/stock_item_detail_utils.dart';
+import 'package:modular_pos/features/inventory/ui/view/stock_item_detail/widgets/stock_item_branch_assignment_section.dart';
+import 'package:modular_pos/features/inventory/ui/view/stock_item_detail/widgets/stock_item_image_section.dart';
+import 'package:modular_pos/features/inventory/ui/view/stock_item_detail/widgets/stock_item_info_section.dart';
+import 'package:modular_pos/features/inventory/ui/view/stock_item_detail/widgets/stock_item_save_section.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/category_controller.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_controller.dart';
-import 'package:modular_pos/features/inventory/ui/widgets/inventory_dropdown.dart';
-import 'package:modular_pos/features/inventory/ui/widgets/inventory_section_card.dart';
 
 class StockItemDetailPage extends ConsumerStatefulWidget {
   const StockItemDetailPage({super.key, required this.item});
@@ -173,7 +172,6 @@ class _StockItemDetailPageState extends ConsumerState<StockItemDetailPage> {
 
   @override
   Widget build(BuildContext context) {
-    final chipColor = Theme.of(context).colorScheme.surfaceContainerHighest;
     final categoryState = ref.watch(categoryControllerProvider);
     final userBranches =
         ref.watch(loginControllerProvider).user?.branches ??
@@ -196,229 +194,71 @@ class _StockItemDetailPageState extends ConsumerState<StockItemDetailPage> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            Center(
-              child: ProductImagePicker(
-                size: const Size(160, 149),
-                imageBytes: _selectedImageBytes,
-                imageUrl: _selectedImageBytes == null
-                    ? _editableData.imageUrl
-                    : null,
-                readOnly: !_isEditing,
-                placeholderLabel: _isEditing ? 'Upload image' : 'No image',
-                onPickImage: _pickImage,
-                onClearLocalSelection: _selectedImageBytes != null
-                    ? () => setState(() {
-                        _selectedImageBytes = null;
-                        _selectedImagePath = null;
-                      })
-                    : null,
-              ),
+            StockItemImageSection(
+              isEditing: _isEditing,
+              imageBytes: _selectedImageBytes,
+              imageUrl: _editableData.imageUrl,
+              onPickImage: _pickImage,
+              onClearImage: _selectedImageBytes != null
+                  ? () => setState(() {
+                      _selectedImageBytes = null;
+                      _selectedImagePath = null;
+                    })
+                  : null,
             ),
             const SizedBox(height: 24),
-            InventorySectionCard(
-              title: 'Item information',
-              backgroundColor: Colors.white,
-              children: [
-                _isEditing
-                    ? TextFormField(
-                        controller: _nameCtrl,
-                        decoration: const InputDecoration(labelText: 'Name'),
-                        textCapitalization: TextCapitalization.words,
-                        validator: (value) =>
-                            value == null || value.trim().isEmpty
-                            ? 'Name is required'
-                            : null,
-                      )
-                    : InventoryDetailField(
-                        label: 'Name',
-                        value: _editableData.name,
-                      ),
-                _isEditing
-                    ? SizedBox(
-                        width: double.infinity,
-                        child: InventoryDropdown<String>(
-                          initialValue: _categoryCtrl.text,
-                          label: const Text('Category'),
-                          entries: categoryOptions
-                              .map(
-                                (category) => DropdownMenuEntry(
-                                  value: category.id,
-                                  label: category.name,
-                                ),
-                              )
-                              .toList(),
-                          onSelected: (value) {
-                            if (value == null) return;
-                            final selected = categoryOptions.firstWhere(
-                              (c) => c.id == value,
-                              orElse: () => InventoryCategory(
-                                id: value,
-                                name: value,
-                                isActive: true,
-                              ),
-                            );
-                            setState(() {
-                              _categoryId = selected.id;
-                              _categoryCtrl.text = selected.name;
-                            });
-                          },
-                        ),
-                      )
-                    : InventoryDetailField(
-                        label: 'Category',
-                        value: _categoryCtrl.text,
-                      ),
-                _isEditing
-                    ? TextFormField(
-                        controller: _pieceSizeCtrl,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'Piece size',
-                          helperText: 'Number of base units per piece',
-                        ),
-                        onChanged: (_) => setState(() {}),
-                      )
-                    : InventoryDetailField(
-                        label: 'Piece size',
-                        value: _pieceDescription(),
-                      ),
-                _isEditing
-                    ? TextFormField(
-                        controller: _barcodeCtrl,
-                        decoration: const InputDecoration(labelText: 'Barcode'),
-                      )
-                    : InventoryDetailField(
-                        label: 'Barcode',
-                        value: _editableData.barcode ?? '—',
-                      ),
-                _isEditing
-                    ? Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: _typeOptions
-                            .map(
-                              (type) => CheckboxListTile(
-                                contentPadding: EdgeInsets.zero,
-                                controlAffinity:
-                                    ListTileControlAffinity.leading,
-                                title: Text(type),
-                                value: _selectedTypes.contains(type),
-                                onChanged: (value) {
-                                  if (!_isEditing) return;
-                                  setState(() {
-                                    if (value ?? false) {
-                                      _selectedTypes.add(type);
-                                    } else {
-                                      _selectedTypes.remove(type);
-                                    }
-                                  });
-                                },
-                              ),
-                            )
-                            .toList(),
-                      )
-                    : Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: _editableData.usageTags
-                            .map(
-                              (tag) => Chip(
-                                label: Text(tag),
-                                backgroundColor: chipColor,
-                              ),
-                            )
-                            .toList(),
-                      ),
-                _isEditing
-                    ? SwitchListTile.adaptive(
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text('Item is active'),
-                        value: _isActive,
-                        onChanged: (value) => setState(() => _isActive = value),
-                      )
-                    : InventoryDetailField(
-                        label: 'Status',
-                        value: _isActive ? 'Active' : 'Inactive',
-                      ),
-              ],
+            StockItemInfoSection(
+              isEditing: _isEditing,
+              nameController: _nameCtrl,
+              categoryController: _categoryCtrl,
+              categoryOptions: categoryOptions,
+              selectedTypes: _selectedTypes,
+              typeOptions: _typeOptions,
+              pieceSizeController: _pieceSizeCtrl,
+              barcodeController: _barcodeCtrl,
+              isActive: _isActive,
+              pieceDescription: _pieceDescription(),
+              usageTags: _editableData.usageTags,
+              categoryLabel: _categoryCtrl.text,
+              barcodeLabel: _editableData.barcode ?? '—',
+              onCategoryChanged: (categoryId, categoryName) {
+                setState(() {
+                  _categoryId = categoryId;
+                  _categoryCtrl.text = categoryName;
+                });
+              },
+              onToggleUsageTag: (tag, selected) {
+                setState(() {
+                  if (selected) {
+                    _selectedTypes.add(tag);
+                  } else {
+                    _selectedTypes.remove(tag);
+                  }
+                });
+              },
+              onActiveChanged: (value) => setState(() => _isActive = value),
+              onPieceSizeChanged: () => setState(() {}),
             ),
             const SizedBox(height: 16),
-            InventorySectionCard(
-              title: 'Branch assignment',
-              backgroundColor: Colors.white,
-              children: [
-                if (userBranches.isEmpty)
-                  const Text('No branches available.')
-                else if (_isEditing) ...[
-                  ..._branchAssignments.map(
-                    (assignment) => BranchAssignmentCard(
-                      assignment: assignment,
-                      branches: userBranches,
-                      usedBranchIds: _usedBranchIds(assignment),
-                      onChanged: () => setState(() {}),
-                      onRemove: () {
-                        setState(() {
-                          assignment.thresholdCtrl.dispose();
-                          _branchAssignments.remove(assignment);
-                        });
-                      },
-                    ),
-                  ),
-                  if (_branchAssignments.length < userBranches.length)
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: TextButton.icon(
-                        onPressed: () => setState(_addBranchAssignment),
-                        icon: const Icon(Icons.add),
-                        label: const Text('Assign to branch'),
-                      ),
-                    ),
-                ] else ...[
-                  if (_branchAssignments.isEmpty)
-                    const Text('Not assigned to any branch.')
-                  else
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: _branchAssignments
-                          .map(
-                            (assignment) => Padding(
-                              padding: const EdgeInsets.only(bottom: 8),
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      branchName(
-                                        assignment.branchId,
-                                        userBranches,
-                                      ),
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.bodyLarge,
-                                    ),
-                                  ),
-                                  Text(
-                                    'Min ${assignment.thresholdCtrl.text}',
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.bodyMedium,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          )
-                          .toList(),
-                    ),
-                ],
-              ],
+            StockItemBranchAssignmentSection(
+              isEditing: _isEditing,
+              userBranches: userBranches,
+              branchAssignments: _branchAssignments,
+              branchNameResolver: (branchId) =>
+                  branchName(branchId, userBranches),
+              usedBranchIds: _usedBranchIds,
+              onAddAssignment: () => setState(_addBranchAssignment),
+              onAssignmentChanged: () => setState(() {}),
+              onRemoveAssignment: (assignment) {
+                setState(() {
+                  assignment.thresholdCtrl.dispose();
+                  _branchAssignments.remove(assignment);
+                });
+              },
             ),
             const SizedBox(height: 16),
             if (_isEditing)
-              Padding(
-                padding: const EdgeInsets.only(top: 16),
-                child: FilledButton(
-                  onPressed: _saveChanges,
-                  child: const Text('Save changes'),
-                ),
-              ),
+              StockItemSaveSection(onSave: _saveChanges),
           ],
         ),
       ),

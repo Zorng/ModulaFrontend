@@ -5,21 +5,21 @@ import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/widgets/navigation/portal_action.dart';
 import 'package:modular_pos/core/widgets/navigation/portal_feature_card.dart';
 import 'package:modular_pos/core/widgets/navigation/portal_shell.dart';
+import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
-import 'package:modular_pos/features/sale/ui/view/order/order_page.dart';
-import 'package:modular_pos/features/cash_session/ui/view/cashier_cash_session.dart';
-import 'package:modular_pos/features/cash_session/ui/view/x_report/x_report_page.dart';
-import 'package:modular_pos/features/staff/ui/view/staff_list_view.dart';
-import 'package:modular_pos/features/policy/ui/view/policy/policy_page.dart';
-import 'package:modular_pos/features/staff_attendance/ui/view/attendance/attendance_page.dart';
+import 'package:modular_pos/features/auth/domain/models/auth_session.dart';
+import 'package:modular_pos/features/auth/domain/models/user.dart';
 
 class CashierPortal extends ConsumerWidget {
   const CashierPortal({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final user = ref.watch(loginControllerProvider).user;
-    void openSale() => context.push(AppRoute.sale.path);
+    final session = ref.watch(loginControllerProvider).session;
+    final user = session?.user;
+    final activeBranch = ref.watch(authActiveBranchProvider);
+    final tenantName = _resolveTenantName(session);
+    final branchName = _resolveBranchName(activeBranch, user?.branches ?? const []);
     final actions = <PortalAction>[
       PortalAction(
         id: 'home',
@@ -27,65 +27,43 @@ class CashierPortal extends ConsumerWidget {
         icon: Icons.home_outlined,
         builder: (context) => const _CashierHomeContent(),
       ),
-      PortalAction(
-        id: 'pos',
-        label: 'POS',
-        icon: Icons.point_of_sale,
-        onSelected: (_) => openSale(),
-        builder: (context) => _SaleShortcutCard(onOpenSale: openSale),
-      ),
-      PortalAction(
-        id: 'cash_sessions',
-        label: 'Cash Sessions',
-        icon: Icons.attach_money_outlined,
-        builder: (context) => const CashSessionScreen(),
-      ),
-      PortalAction(
-        id: 'orders',
-        label: 'Orders',
-        icon: Icons.receipt_long_outlined,
-        builder: (context) => const OrderPage(),
-      ),
-      PortalAction(
-        id: 'staff',
-        label: 'Staff',
-        icon: Icons.group_outlined,
-        builder: (context) => const StaffListView(readOnly: true),
-      ),
-      PortalAction(
-        id: 'attendance',
-        label: 'Attendance',
-        icon: Icons.access_time_outlined,
-        builder: (context) => const AttendancePage(),
-      ),
-      PortalAction(
-        id: 'x_report',
-        label: 'X Report',
-        icon: Icons.description_outlined,
-        builder: (context) => const XReportPage(),
-      ),
-      PortalAction(
-        id: 'policy',
-        label: 'Policy',
-        icon: Icons.policy_outlined,
-        builder: (context) => const PolicyPage(),
-      ),
     ];
 
     return PortalShell(
       title: 'Cashier Portal',
       subtitle: 'Cashier role',
-      userName: user?.name ?? 'Cashier',
-      userRole: user?.role ?? 'Cashier',
-      userInitial: user?.name.isNotEmpty == true
-          ? user!.name.characters.first.toUpperCase()
-          : 'C',
+      tenantName: tenantName,
+      branchName: branchName,
+      tenantInitial: tenantName.isNotEmpty
+          ? tenantName.characters.first.toUpperCase()
+          : 'T',
       actions: actions,
       initialActionId: 'home',
       onProfileTap: () => context.push(AppRoute.account.path),
       onSettingsTap: () => context.push(AppRoute.settings.path),
     );
   }
+}
+
+String _resolveTenantName(AuthSession? session) {
+  if (session == null) return 'Tenant name';
+  if (session.memberships.isEmpty) return 'Tenant name';
+  final activeId = session.activeTenantId;
+  final membership = session.memberships.firstWhere(
+    (m) => m.tenantId == activeId,
+    orElse: () => session.memberships.first,
+  );
+  if (membership.tenantName.isNotEmpty) return membership.tenantName;
+  return 'Tenant name';
+}
+
+String _resolveBranchName(UserBranch? active, List<UserBranch> branches) {
+  final branch = active ??
+      (branches.isNotEmpty
+          ? branches.first
+          : const UserBranch(id: '', name: '', role: '', active: false));
+  if (branch.name.isNotEmpty) return branch.name;
+  return 'Branch name';
 }
 
 class _CashierHomeContent extends ConsumerWidget {
@@ -104,14 +82,9 @@ class _CashierHomeContent extends ConsumerWidget {
       ),
       _FeatureEntry(
         title: 'Cash Sessions',
-        route: AppRoute.cashierCashSession,
+        route: AppRoute.cashSession,
         icon: Icons.attach_money_outlined,
-        onTap: () => context.push(AppRoute.cashierCashSession.path),
-      ),
-      _FeatureEntry(
-        title: 'Orders',
-        icon: Icons.receipt_long_outlined,
-        onTap: () => context.push(AppRoute.orders.path),
+        onTap: () => context.push(AppRoute.cashSession.path),
       ),
       _FeatureEntry(
         title: 'Attendance',
@@ -127,6 +100,11 @@ class _CashierHomeContent extends ConsumerWidget {
         title: 'Policy',
         icon: Icons.policy_outlined,
         onTap: () => context.push(AppRoute.policy.path),
+      ),
+      _FeatureEntry(
+        title: 'Account',
+        icon: Icons.person_outline,
+        onTap: () => context.push(AppRoute.account.path),
       ),
     ];
 
@@ -168,36 +146,4 @@ class _FeatureEntry {
   final IconData icon;
   final VoidCallback? onTap;
   final AppRoute? route;
-}
-
-class _SaleShortcutCard extends StatelessWidget {
-  const _SaleShortcutCard({required this.onOpenSale});
-
-  final VoidCallback onOpenSale;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('POS / Sale', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            const Text(
-              'Start a draft by adding menu items, then pre-checkout and finalize.',
-            ),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: onOpenSale,
-              icon: const Icon(Icons.point_of_sale),
-              label: const Text('Open Sale'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }

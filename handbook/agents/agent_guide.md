@@ -19,7 +19,7 @@ Scope: this guide defines what an AI agent must **read**, **respect**, and **ver
 ## Preflight checklist (before changing code)
 1) Identify the feature/module(s) touched and locate the relevant modspec + API contract.
 2) Search for existing implementations before adding new code:
-   - existing widgets (`lib/core/widgets`, `lib/features/<feature>/ui/widgets`)
+   - existing widgets (`lib/core/widgets`, `lib/features/<feature>/ui/components`, `lib/features/<feature>/ui/view/<page>/widgets`)
    - existing providers/viewmodels (`lib/features/<feature>/ui/viewmodels`)
 3) Confirm routing approach:
    - pages use `go_router` (`context.go`/`context.push`), not `Navigator.push`

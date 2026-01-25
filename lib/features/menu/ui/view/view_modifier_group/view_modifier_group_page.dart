@@ -9,9 +9,14 @@ import 'package:modular_pos/features/menu/ui/view/view_modifier_group/widgets/mo
 
 /// A page to view the details of a modifier group.
 class ViewModifierGroupPage extends ConsumerWidget {
-  const ViewModifierGroupPage({super.key, required this.group});
+  const ViewModifierGroupPage({
+    super.key,
+    required this.group,
+    this.showBack = true,
+  });
 
   final ModifierGroup group;
+  final bool showBack;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -24,6 +29,13 @@ class ViewModifierGroupPage extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         centerTitle: false,
+        automaticallyImplyLeading: showBack,
+        leading: showBack
+            ? null
+            : IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: () => Navigator.of(context).maybePop(),
+              ),
         title: Text(resolvedGroup.name),
         actions: [
           TextButton(
