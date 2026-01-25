@@ -42,7 +42,6 @@ flutter:
   uses-material-design: true
 
   assets:
-    - '.env'
     - 'assets/images/modula.svg'
 
   fonts:
