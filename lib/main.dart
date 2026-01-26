@@ -9,12 +9,8 @@ import 'package:modular_pos/features/auth/data/auth_session_store.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Load environment variables; don't crash if missing during dev.
-  try {
-    await dotenv.load(fileName: '.env');
-  } catch (_) {
-    // Safe fallback: rely on defaults in code.
-  }
+  // Load environment variables; allow missing file in dev/CI.
+  await dotenv.load(fileName: '.env', isOptional: true);
 
   final prefs = await SharedPreferences.getInstance();
   final store = AuthSessionStore(prefs);
