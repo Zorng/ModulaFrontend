@@ -17,6 +17,7 @@ class Staff {
   final String? id;
   final String? branchId;
   final String? status;
+  final String? password;
 
   Staff({
     required this.userName,
@@ -35,6 +36,7 @@ class Staff {
     this.id,
     this.branchId,
     this.status,
+    this.password,
   });
 }
 

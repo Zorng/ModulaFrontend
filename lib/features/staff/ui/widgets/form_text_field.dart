@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 // A reusable widget for a labeled text field in the form.
 class FormTextField extends StatelessWidget {
@@ -10,6 +11,9 @@ class FormTextField extends StatelessWidget {
     this.keyboardType,
     this.controller,
     this.validator,
+    this.obscureText = false,
+    this.maxLength,
+    this.inputFormatters,
   });
 
   final String label;
@@ -17,6 +21,9 @@ class FormTextField extends StatelessWidget {
   final TextInputType? keyboardType;
   final TextEditingController? controller;
   final FormFieldValidator<String>? validator;
+  final bool obscureText;
+  final int? maxLength;
+  final List<TextInputFormatter>? inputFormatters;
 
   @override
   Widget build(BuildContext context) {
@@ -29,12 +36,18 @@ class FormTextField extends StatelessWidget {
           controller: controller,
           validator: validator,
           keyboardType: keyboardType,
+          obscureText: obscureText,
+          maxLength: maxLength,
+          inputFormatters: inputFormatters,
           decoration: InputDecoration(
             filled: true,
             fillColor: Colors.grey.shade200,
             hintStyle: const TextStyle(color: CupertinoColors.placeholderText),
             hintText: placeholder,
-            contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
+            contentPadding: const EdgeInsets.symmetric(
+              vertical: 12,
+              horizontal: 10,
+            ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
               borderSide: BorderSide.none,
@@ -45,7 +58,10 @@ class FormTextField extends StatelessWidget {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: Theme.of(context).primaryColor, width: 1.5),
+              borderSide: BorderSide(
+                color: Theme.of(context).primaryColor,
+                width: 1.5,
+              ),
             ),
             errorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),

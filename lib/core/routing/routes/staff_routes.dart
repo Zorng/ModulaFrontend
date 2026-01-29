@@ -25,8 +25,16 @@ List<RouteBase> buildStaffRoutes() {
       path: AppRoute.staffForm.path,
       name: AppRoute.staffForm.name,
       builder: (context, state) {
-        final staff = state.extra is Staff ? state.extra as Staff : null;
-        return StaffFormView(staff: staff);
+        Staff? staff;
+        String? branchId;
+        if (state.extra is Staff) {
+          staff = state.extra as Staff;
+        } else if (state.extra is Map<String, dynamic>) {
+          final extra = state.extra as Map<String, dynamic>;
+          staff = extra['staff'] as Staff?;
+          branchId = extra['branchId'] as String?;
+        }
+        return StaffFormView(staff: staff, branchId: branchId);
       },
     ),
     GoRoute(

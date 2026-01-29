@@ -1,7 +1,10 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/logging/app_log.dart';
+import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/features/staff/ui/widgets/form_dropdown_field.dart';
 import 'package:modular_pos/features/staff/ui/widgets/form_text_field.dart';
 import 'package:modular_pos/features/staff/ui/widgets/custom_cupertino_list_tile.dart';
@@ -9,22 +12,38 @@ import 'package:modular_pos/features/staff/domain/models/staff_model.dart';
 import 'package:modular_pos/features/staff/ui/view/staff_form/widgets/staff_form_actions.dart';
 import 'package:modular_pos/features/staff/ui/view/staff_form/widgets/staff_profile_avatar.dart';
 import 'package:modular_pos/features/staff/ui/view/staff_form/widgets/staff_schedule_section.dart';
+import 'package:modular_pos/features/staff/ui/viewmodels/staff_management_store.dart';
+import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 
-class StaffFormView extends StatefulWidget {
-  const StaffFormView({super.key, this.staff});
+class StaffFormView extends ConsumerStatefulWidget {
+  const StaffFormView({super.key, this.staff, this.branchId});
 
   final Staff? staff;
+  final String? branchId;
 
   @override
-  State<StaffFormView> createState() => _StaffFormViewState();
+  ConsumerState<StaffFormView> createState() => _StaffFormViewState();
 }
 
-class _StaffFormViewState extends State<StaffFormView> {
+class _StaffFormViewState extends ConsumerState<StaffFormView> {
   final _formKey = GlobalKey<FormState>();
   String? _selectedRole;
   String? _selectedGender;
-  String? _selectedBranch;
+  String? _selectedBranchId;
   String? _selectedScheduleOption;
+  String? get _selectedBranch {
+    if (_selectedBranchId == null) return null;
+    final branches = ref.read(loginControllerProvider).user?.branches ?? [];
+    final matchingBranches = branches.where(
+      (b) => (b.branchId.isNotEmpty ? b.branchId : b.id) == _selectedBranchId,
+    );
+    if (matchingBranches.isNotEmpty) {
+      return matchingBranches.first.name;
+    } else {
+      return null;
+    }
+  }
+
   // State for the multi-select working days
   final List<String> _allDays = const [
     'Monday',
@@ -56,12 +75,24 @@ class _StaffFormViewState extends State<StaffFormView> {
         const TimeOfDay(hour: 17, minute: 0),
       ),
   };
+  bool _isSubmitting = false;
   bool _isActive = true;
 
   // Controllers for text fields
   final TextEditingController _userNameController = TextEditingController();
   final TextEditingController _phoneNumberController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+
+  bool get _isFormValid {
+    return _userNameController.text.isNotEmpty &&
+        _selectedGender != null &&
+        _phoneNumberController.text.isNotEmpty &&
+        _emailController.text.isNotEmpty &&
+        (_isEditing || _passwordController.text.isNotEmpty) &&
+        _selectedRole != null &&
+        _selectedBranchId != null;
+  }
 
   bool get _isEditing => widget.staff != null;
 
@@ -75,12 +106,15 @@ class _StaffFormViewState extends State<StaffFormView> {
       _emailController.text = staff.email;
       _selectedGender = staff.gender;
       _selectedRole = staff.role;
-      _selectedBranch = staff.branch;
+      _selectedBranchId = staff.branchId;
       _selectedScheduleOption = staff.scheduleOption ?? 'same_hours';
       _isActive = staff.isActive;
       _selectedWorkingDays = staff.workingDays ?? {};
       _startTime = staff.startTime ?? const TimeOfDay(hour: 9, minute: 0);
       _endTime = staff.endTime ?? const TimeOfDay(hour: 17, minute: 0);
+    } else {
+      // For creation, set branch from passed branchId
+      _selectedBranchId = widget.branchId;
     }
   }
 
@@ -89,6 +123,7 @@ class _StaffFormViewState extends State<StaffFormView> {
     _userNameController.dispose();
     _phoneNumberController.dispose();
     _emailController.dispose();
+    _passwordController.dispose();
     super.dispose();
   }
 
@@ -127,8 +162,22 @@ class _StaffFormViewState extends State<StaffFormView> {
                 label: 'User Name',
                 placeholder: 'e.g., Preap Sovath',
                 controller: _userNameController,
-                validator: (value) =>
-                    value!.isEmpty ? 'Please enter user name' : null,
+                maxLength: 50,
+                validator: (value) {
+                  if (value!.isEmpty) {
+                    return 'Please enter user name';
+                  }
+                  if (value.length > 50) {
+                    return 'Name must be 50 characters or less';
+                  }
+                  if (!value.contains(' ')) {
+                    return 'Please enter both first and last name';
+                  }
+                  if (value.contains('\n')) {
+                    return 'Name must be on one line only';
+                  }
+                  return null;
+                },
               ),
               const SizedBox(height: 12),
               FormDropdownField(
@@ -150,9 +199,16 @@ class _StaffFormViewState extends State<StaffFormView> {
                 placeholder: 'e.g., 012345678',
                 keyboardType: TextInputType.phone,
                 controller: _phoneNumberController,
+                maxLength: 15,
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[\d\+]')),
+                ],
                 validator: (value) {
                   if (value!.isEmpty) {
                     return 'Please enter phone number';
+                  }
+                  if (value.length > 15) {
+                    return 'Phone number must be 15 characters or less';
                   }
                   if (!_isValidPhoneNumber(value)) {
                     return 'Enter a valid phone number';
@@ -166,9 +222,13 @@ class _StaffFormViewState extends State<StaffFormView> {
                 placeholder: 'e.g., user@gmail.com',
                 keyboardType: TextInputType.emailAddress,
                 controller: _emailController,
+                maxLength: 100,
                 validator: (value) {
                   if (value!.isEmpty) {
                     return 'Please enter email address';
+                  }
+                  if (value.length > 100) {
+                    return 'Email must be 100 characters or less';
                   }
                   if (!_isValidEmail(value)) {
                     return 'Enter a valid email address';
@@ -176,6 +236,21 @@ class _StaffFormViewState extends State<StaffFormView> {
                   return null;
                 },
               ),
+              if (!_isEditing) ...[
+                const SizedBox(height: 12),
+                FormTextField(
+                  label: 'Password',
+                  placeholder: 'Enter one-time password',
+                  obscureText: true,
+                  controller: _passwordController,
+                  maxLength: 50,
+                  validator: (value) => value!.isEmpty
+                      ? 'Please enter password'
+                      : value.length > 50
+                      ? 'Password must be 50 characters or less'
+                      : null,
+                ),
+              ],
               const SizedBox(height: 16),
               // Per request: Role and Branch dropdowns side-by-side
               Row(
@@ -210,9 +285,33 @@ class _StaffFormViewState extends State<StaffFormView> {
                           value: _selectedBranch,
                           validator: (value) =>
                               value == null ? 'Please select a branch' : null,
-                          items: const ['Main Branch', 'Second Branch'],
+                          items:
+                              ref
+                                  .watch(loginControllerProvider)
+                                  .user
+                                  ?.branches
+                                  .map((b) => b.name)
+                                  .toList() ??
+                              [],
                           onSelected: (value) {
-                            setState(() => _selectedBranch = value);
+                            setState(() {
+                              // Find the corresponding ID
+                              final branches =
+                                  ref
+                                      .read(loginControllerProvider)
+                                      .user
+                                      ?.branches ??
+                                  [];
+                              final matchingBranches = branches.where(
+                                (b) => b.name == value,
+                              );
+                              if (matchingBranches.isNotEmpty) {
+                                _selectedBranchId =
+                                    matchingBranches.first.branchId.isNotEmpty
+                                    ? matchingBranches.first.branchId
+                                    : matchingBranches.first.id;
+                              }
+                            });
                           },
                         ),
                       ],
@@ -233,7 +332,8 @@ class _StaffFormViewState extends State<StaffFormView> {
                 onStartTimeChanged: (newTime) =>
                     setState(() => _startTime = newTime),
                 endTime: _endTime,
-                onEndTimeChanged: (newTime) => setState(() => _endTime = newTime),
+                onEndTimeChanged: (newTime) =>
+                    setState(() => _endTime = newTime),
                 expandedDay: _expandedDay,
                 onExpandedDayChanged: (day) =>
                     setState(() => _expandedDay = day),
@@ -254,8 +354,10 @@ class _StaffFormViewState extends State<StaffFormView> {
               const SizedBox(height: 32),
               StaffFormActions(
                 isEditing: _isEditing,
-                onCancel: () => context.pop(),
+                onCancel: () async => context.pop(),
                 onSubmit: _submit,
+                isSubmitting: _isSubmitting,
+                isFormValid: _isFormValid,
               ),
               const SizedBox(
                 height: 150,
@@ -267,11 +369,12 @@ class _StaffFormViewState extends State<StaffFormView> {
     );
   }
 
-  void _submit() {
-    if (!_formKey.currentState!.validate()) {
-      AppLog.d('Staff form validation failed');
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate() || _isSubmitting) {
       return;
     }
+
+    setState(() => _isSubmitting = true);
 
     final newStaff = Staff(
       userName: _userNameController.text,
@@ -280,18 +383,55 @@ class _StaffFormViewState extends State<StaffFormView> {
       email: _emailController.text,
       role: _selectedRole,
       branch: _selectedBranch,
-      scheduleOption: _selectedScheduleOption,
+      branchId: _selectedBranchId,
+      scheduleOption: _selectedScheduleOption ?? 'same_hours',
       isActive: _isActive,
-      workingDays: _selectedScheduleOption == 'same_hours'
+      workingDays: (_selectedScheduleOption ?? 'same_hours') == 'same_hours'
           ? _selectedWorkingDays
           : null,
-      startTime: _selectedScheduleOption == 'same_hours' ? _startTime : null,
-      endTime: _selectedScheduleOption == 'same_hours' ? _endTime : null,
+      startTime: (_selectedScheduleOption ?? 'same_hours') == 'same_hours'
+          ? _startTime
+          : null,
+      endTime: (_selectedScheduleOption ?? 'same_hours') == 'same_hours'
+          ? _endTime
+          : null,
       customHours:
-          _selectedScheduleOption == 'different_hours' ? _customHours : null,
+          (_selectedScheduleOption ?? 'different_hours') == 'different_hours'
+          ? _customHours
+          : null,
+      password: !_isEditing ? _passwordController.text : null,
     );
 
-    context.pop(newStaff);
+    try {
+      if (_isEditing) {
+        // TODO: Implement update API call
+        // For now, simulate success
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Staff updated successfully')),
+        );
+        context.go(AppRoute.staff.path);
+      } else {
+        // For creation, use the store
+        final store = ref.read(staffManagementStoreProvider.notifier);
+        await store.createInvite(newStaff);
+        // On success, navigate back to staff list
+        if (mounted) {
+          context.go(AppRoute.staff.path);
+        }
+      }
+    } catch (e) {
+      // Handle error
+      AppLog.e('Failed to create staff: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Failed to create staff')));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
+    }
   }
 
   bool _isValidPhoneNumber(String raw) {
