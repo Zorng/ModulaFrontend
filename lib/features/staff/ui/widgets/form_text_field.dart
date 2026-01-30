@@ -14,6 +14,7 @@ class FormTextField extends StatelessWidget {
     this.obscureText = false,
     this.maxLength,
     this.inputFormatters,
+    this.readOnly = false,
   });
 
   final String label;
@@ -24,6 +25,7 @@ class FormTextField extends StatelessWidget {
   final bool obscureText;
   final int? maxLength;
   final List<TextInputFormatter>? inputFormatters;
+  final bool readOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -39,9 +41,10 @@ class FormTextField extends StatelessWidget {
           obscureText: obscureText,
           maxLength: maxLength,
           inputFormatters: inputFormatters,
+          readOnly: readOnly,
           decoration: InputDecoration(
             filled: true,
-            fillColor: Colors.grey.shade200,
+            fillColor: readOnly ? Colors.grey.shade100 : Colors.grey.shade200,
             hintStyle: const TextStyle(color: CupertinoColors.placeholderText),
             hintText: placeholder,
             contentPadding: const EdgeInsets.symmetric(

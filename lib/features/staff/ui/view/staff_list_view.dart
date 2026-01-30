@@ -67,7 +67,11 @@ class StaffListView extends ConsumerWidget {
                           GoRouter.of(context).push(
                             AppRoute.staffForm.path,
                             extra: {'branchId': branchId},
-                          );
+                          ).then((result) {
+                             if (result == true) {
+                               notifier.reloadStaff();
+                             }
+                          });
                         },
                 ),
                 const SizedBox(height: 16),
@@ -119,12 +123,15 @@ class StaffListView extends ConsumerWidget {
                       return StaffListCard(
                         staffMember: staff,
                         onTap: () async {
-                          final result = await GoRouter.of(context).push<Staff>(
-                            AppRoute.staffDetail.path,
+                          final result = await context.pushNamed(
+                            AppRoute.staffDetail.name,
+                            pathParameters: {'id': staff.id ?? ''},
                             extra: staff,
                           );
-                          if (result != null) {
-                            notifier.updateStaff(result);
+                          // Result is true if staff was updated/edited
+                          if (result == true) {
+                            // Reload list to fetch fresh updates
+                            notifier.reloadStaff();
                           }
                         },
                       );

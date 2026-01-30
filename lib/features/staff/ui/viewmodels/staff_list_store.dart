@@ -25,16 +25,19 @@ class StaffListState {
     List<Staff>? staffList,
     List<String>? branchOptions,
     String? selectedBranch,
+    bool clearSelectedBranch = false,
     String? selectedRole,
+    bool clearSelectedRole = false,
     String? selectedStatus,
+    bool clearSelectedStatus = false,
     String? searchQuery,
   }) {
     return StaffListState(
       staffList: staffList ?? this.staffList,
       branchOptions: branchOptions ?? this.branchOptions,
-      selectedBranch: selectedBranch ?? this.selectedBranch,
-      selectedRole: selectedRole ?? this.selectedRole,
-      selectedStatus: selectedStatus ?? this.selectedStatus,
+      selectedBranch: clearSelectedBranch ? null : (selectedBranch ?? this.selectedBranch),
+      selectedRole: clearSelectedRole ? null : (selectedRole ?? this.selectedRole),
+      selectedStatus: clearSelectedStatus ? null : (selectedStatus ?? this.selectedStatus),
       searchQuery: searchQuery ?? this.searchQuery,
     );
   }
@@ -92,15 +95,33 @@ class StaffListAsyncNotifier extends AsyncNotifier<StaffListState> {
   }
 
   void updateSelectedBranch(String? value) {
-    state = AsyncData(state.value!.copyWith(selectedBranch: value));
+    print('DEBUG: updateSelectedBranch called with value: $value');
+    print('DEBUG: Current selectedBranch: ${state.value?.selectedBranch}');
+    state = AsyncData(
+      state.value!.copyWith(
+        selectedBranch: value,
+        clearSelectedBranch: value == null,
+      ),
+    );
+    print('DEBUG: New selectedBranch: ${state.value?.selectedBranch}');
   }
 
   void updateSelectedRole(String? value) {
-    state = AsyncData(state.value!.copyWith(selectedRole: value));
+    state = AsyncData(
+      state.value!.copyWith(
+        selectedRole: value,
+        clearSelectedRole: value == null,
+      ),
+    );
   }
 
   void updateSelectedStatus(String? value) {
-    state = AsyncData(state.value!.copyWith(selectedStatus: value));
+    state = AsyncData(
+      state.value!.copyWith(
+        selectedStatus: value,
+        clearSelectedStatus: value == null,
+      ),
+    );
   }
 
   Future<void> reloadStaff() async {
@@ -141,8 +162,8 @@ class StaffListAsyncNotifier extends AsyncNotifier<StaffListState> {
     return validStaff.where((staff) {
       final matchesSearch =
           search.isEmpty ||
-          (staff.userName?.toLowerCase().contains(search) ?? false) ||
-          (staff.phoneNumber?.toLowerCase().contains(search) ?? false);
+          (staff.userName.toLowerCase().contains(search)) ||
+          (staff.phoneNumber.toLowerCase().contains(search));
       final matchesRole =
           data.selectedRole == null || staff.role == data.selectedRole;
       final matchesStatus =
