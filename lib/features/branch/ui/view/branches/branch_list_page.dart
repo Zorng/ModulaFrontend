@@ -7,7 +7,6 @@ import 'package:modular_pos/core/widgets/navigation/app_back_button.dart';
 import 'package:modular_pos/features/branch/ui/viewmodels/branch_store.dart';
 import 'package:modular_pos/features/branch/ui/view/branches/widgets/branch_card.dart';
 
-/// Branch list page - displays all branches for the tenant
 class BranchListPage extends ConsumerStatefulWidget {
   const BranchListPage({super.key});
 
@@ -46,7 +45,6 @@ class _BranchListPageState extends ConsumerState<BranchListPage> {
       ),
       body: Column(
         children: [
-          // Search and filter bar
           Padding(
             padding: const EdgeInsets.all(16),
             child: Row(
@@ -108,7 +106,7 @@ class _BranchListPageState extends ConsumerState<BranchListPage> {
                       child: Text('Active'),
                     ),
                     const PopupMenuItem(
-                      value: 'FROZEN',
+                      value: 'INACTIVE',
                       child: Text('Inactive'),
                     ),
                   ],
