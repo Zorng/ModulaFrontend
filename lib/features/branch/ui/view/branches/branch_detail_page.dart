@@ -233,15 +233,35 @@ class _BranchDetailPageState extends ConsumerState<BranchDetailPage> {
           orElse: () => const SizedBox.shrink(),
         ),
         actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: TextButton(
-              onPressed: _isEditMode ? null : _toggleEditMode,
-              child: Text(
-                'Edit',
-                style: TextStyle(
-                  color: _isEditMode ? Colors.grey : Colors.redAccent,
-                  fontSize: 16,
+          branchesAsync.maybeWhen(
+            data: (branches) {
+              final branch = branches.firstWhere((b) => b.id == widget.branchId);
+              final isFrozen = branch.isFrozen;
+              
+              return Padding(
+                padding: const EdgeInsets.only(right: 16),
+                child: TextButton(
+                  onPressed: (_isEditMode || isFrozen) ? null : _toggleEditMode,
+                  child: Text(
+                    'Edit',
+                    style: TextStyle(
+                      color: (_isEditMode || isFrozen) ? Colors.grey : Colors.redAccent,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+              );
+            },
+            orElse: () => Padding(
+              padding: const EdgeInsets.only(right: 16),
+              child: TextButton(
+                onPressed: null,
+                child: Text(
+                  'Edit',
+                  style: TextStyle(
+                    color: Colors.grey,
+                    fontSize: 16,
+                  ),
                 ),
               ),
             ),
@@ -374,6 +394,37 @@ class _BranchDetailPageState extends ConsumerState<BranchDetailPage> {
                           enabled: false,
                           items: const ['ACTIVE', 'FROZEN'],
                         ),
+
+                        if (branch.isFrozen) ...[
+                          const SizedBox(height: 16),
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.shade50,
+                              border: Border.all(color: Colors.orange.shade300),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.lock_outline,
+                                  size: 20,
+                                  color: Colors.orange.shade700,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'This branch is frozen and cannot be edited',
+                                    style: TextStyle(
+                                      color: Colors.orange.shade900,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
 
                         if (_isEditMode) ...[
                           const SizedBox(height: 24),
