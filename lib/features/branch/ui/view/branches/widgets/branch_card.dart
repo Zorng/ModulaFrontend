@@ -120,6 +120,8 @@ class _StatusChip extends StatelessWidget {
   });
 
   String _formatStatus(String status) {
+    if (status == 'FROZEN') return 'Inactive';
+    if (status == 'ACTIVE') return 'Active';
     final lower = status.toLowerCase().replaceAll('_', ' ');
     if (lower.isEmpty) return lower;
     return lower[0].toUpperCase() + lower.substring(1);
@@ -136,6 +138,7 @@ class _StatusChip extends StatelessWidget {
         : const Color(0xFFD32F2F); 
 
     return Container(
+      constraints: const BoxConstraints(minWidth: 90),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
         color: backgroundColor,
@@ -143,6 +146,7 @@ class _StatusChip extends StatelessWidget {
       ),
       child: Text(
         _formatStatus(status),
+        textAlign: TextAlign.center,
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
               color: textColor,
               fontWeight: FontWeight.w500,

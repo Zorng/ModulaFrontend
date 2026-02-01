@@ -100,7 +100,13 @@ class _BranchListPageState extends ConsumerState<BranchListPage> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Text(
-                                _statusFilter ?? 'Status',
+                                _statusFilter == null 
+                                    ? 'Status' 
+                                    : _statusFilter == 'FROZEN' 
+                                        ? 'Inactive' 
+                                        : _statusFilter == 'ACTIVE'
+                                            ? 'Active'
+                                            : _statusFilter!,
                                 style: textTheme.bodyMedium,
                               ),
                               const SizedBox(width: 4),
@@ -120,7 +126,7 @@ class _BranchListPageState extends ConsumerState<BranchListPage> {
                             child: Text('Active'),
                           ),
                           const PopupMenuItem(
-                            value: 'INACTIVE',
+                            value: 'FROZEN',
                             child: Text('Inactive'),
                           ),
                         ],

@@ -268,10 +268,14 @@ class _BranchDetailPageState extends ConsumerState<BranchDetailPage> {
           ),
         ],
       ),
-      body: branchesAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text(e.toString())),
-        data: (branches) {
+      body: Column(
+        children: [
+          Divider(height: 1, thickness: 1, color: Colors.grey.shade300),
+          Expanded(
+            child: branchesAsync.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (e, _) => Center(child: Text(e.toString())),
+              data: (branches) {
           final branch =
               branches.firstWhere((b) => b.id == widget.branchId);
 
@@ -414,7 +418,7 @@ class _BranchDetailPageState extends ConsumerState<BranchDetailPage> {
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
-                                    'This branch is frozen and cannot be edited',
+                                    'This branch is inactive and cannot be edited',
                                     style: TextStyle(
                                       color: Colors.orange.shade900,
                                       fontSize: 13,
@@ -425,9 +429,11 @@ class _BranchDetailPageState extends ConsumerState<BranchDetailPage> {
                             ),
                           ),
                         ],
+                        const SizedBox(height: 24),
+                        Divider(height: 1, thickness: 1, color: Colors.grey.shade300),
+                        const SizedBox(height: 24),
 
                         if (_isEditMode) ...[
-                          const SizedBox(height: 24),
                           if (isWideScreen)
                             Row(
                               mainAxisAlignment: MainAxisAlignment.end,
@@ -522,7 +528,10 @@ class _BranchDetailPageState extends ConsumerState<BranchDetailPage> {
               );
             },
           );
-        },
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -659,7 +668,7 @@ class _DropdownField extends StatelessWidget {
                     (e) => DropdownMenuItem(
                       value: e,
                       child: Text(
-                        e == 'ACTIVE' ? 'Active' : e,
+                        e == 'ACTIVE' ? 'Active' : e == 'FROZEN' ? 'Inactive' : e,
                         style: TextStyle(
                           color: e == 'ACTIVE' ? const Color(0xFF4CAF50) : const Color(0xFF6B7280),
                         ),
