@@ -163,63 +163,75 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
         Expanded(
           child: Padding(
             padding: widget.contentPadding,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (readOnly) ...[
-                  SaleCartReadOnlyBanner(
-                    message:
-                        gate.blockingMessage ??
-                        'Read-only: start a cash session to begin selling.',
-                    cashSessionPath: cashSessionPath,
-                  ),
-                  const SizedBox(height: 12),
-                ],
-                Text(
-                  'Order Type',
-                  style: Theme.of(context).textTheme.titleMedium,
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 500),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (readOnly) ...[
+                      SaleCartReadOnlyBanner(
+                        message:
+                            gate.blockingMessage ??
+                            'Read-only: start a cash session to begin selling.',
+                        cashSessionPath: cashSessionPath,
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                    Text(
+                      'Order Type',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 8),
+                    SaleOrderTypeSelector(
+                      value: _orderType,
+                      enabled: !readOnly,
+                      onChanged: (value) {
+                        setState(() => _orderType = value);
+                        ref.read(saleCartProvider.notifier).setSaleType(value);
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Summary',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 8),
+                    Expanded(
+                      child: SaleCartContent(
+                        items: items,
+                        groupLookup: groupLookup,
+                        onIncrement: (index, line) => cartNotifier
+                            .updateQuantity(index, line.quantity + 1),
+                        onDecrement: (index, line) => cartNotifier
+                            .updateQuantity(index, line.quantity - 1),
+                        paymentMethod: _paymentMethod,
+                        tenderCurrency: _tenderCurrency,
+                        onPaymentMethodChanged: (value) => setState(() {
+                          _paymentMethod = value;
+                          ref
+                              .read(saleCartProvider.notifier)
+                              .setPaymentMethod(value);
+                        }),
+                        onTenderCurrencyChanged: (value) => setState(() {
+                          _tenderCurrency = value;
+                          ref
+                              .read(saleCartProvider.notifier)
+                              .setTenderCurrency(value);
+                        }),
+                        usdController: _usdController,
+                        khrController: _khrController,
+                        subtotal: subtotal,
+                        grandTotalUsd: grandTotalUsd,
+                        grandTotalKhr: grandTotalKhr,
+                        fxRate: fxRate,
+                        readOnly: readOnly,
+                        onAmountsChanged: () => setState(() {}),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 8),
-                SaleOrderTypeSelector(
-                  value: _orderType,
-                  enabled: !readOnly,
-                  onChanged: (value) {
-                    setState(() => _orderType = value);
-                    ref.read(saleCartProvider.notifier).setSaleType(value);
-                  },
-                ),
-                const SizedBox(height: 16),
-                Text('Summary', style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 8),
-                Expanded(
-                  child: SaleCartContent(
-                    items: items,
-                    groupLookup: groupLookup,
-                    onIncrement: (index, line) =>
-                        cartNotifier.updateQuantity(index, line.quantity + 1),
-                    onDecrement: (index, line) =>
-                        cartNotifier.updateQuantity(index, line.quantity - 1),
-                    paymentMethod: _paymentMethod,
-                    tenderCurrency: _tenderCurrency,
-                    onPaymentMethodChanged: (value) => setState(() {
-                      _paymentMethod = value;
-                      ref.read(saleCartProvider.notifier).setPaymentMethod(value);
-                    }),
-                    onTenderCurrencyChanged: (value) => setState(() {
-                      _tenderCurrency = value;
-                      ref.read(saleCartProvider.notifier).setTenderCurrency(value);
-                    }),
-                    usdController: _usdController,
-                    khrController: _khrController,
-                    subtotal: subtotal,
-                    grandTotalUsd: grandTotalUsd,
-                    grandTotalKhr: grandTotalKhr,
-                    fxRate: fxRate,
-                    readOnly: readOnly,
-                    onAmountsChanged: () => setState(() {}),
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
         ),

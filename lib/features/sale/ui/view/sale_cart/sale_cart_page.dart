@@ -12,8 +12,8 @@ class SaleCartPage extends ConsumerStatefulWidget {
 class _SaleCartPageState extends ConsumerState<SaleCartPage> {
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: const SaleCartPanel(),
+    return const Scaffold(
+      body: SaleCartPanel(key: ValueKey('mobile_cart_panel')),
     );
   }
 }

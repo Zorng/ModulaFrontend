@@ -35,9 +35,15 @@ class StaffListState {
     return StaffListState(
       staffList: staffList ?? this.staffList,
       branchOptions: branchOptions ?? this.branchOptions,
-      selectedBranch: clearSelectedBranch ? null : (selectedBranch ?? this.selectedBranch),
-      selectedRole: clearSelectedRole ? null : (selectedRole ?? this.selectedRole),
-      selectedStatus: clearSelectedStatus ? null : (selectedStatus ?? this.selectedStatus),
+      selectedBranch: clearSelectedBranch
+          ? null
+          : (selectedBranch ?? this.selectedBranch),
+      selectedRole: clearSelectedRole
+          ? null
+          : (selectedRole ?? this.selectedRole),
+      selectedStatus: clearSelectedStatus
+          ? null
+          : (selectedStatus ?? this.selectedStatus),
       searchQuery: searchQuery ?? this.searchQuery,
     );
   }
@@ -68,7 +74,7 @@ class StaffListAsyncNotifier extends AsyncNotifier<StaffListState> {
     final repo = ref.read(staffManagementRepositoryProvider);
     final rawStaff = await repo.fetchStaff(branchId: branchId);
 
-    final validStaff = rawStaff?.whereType<Staff>().toList() ?? const [];
+    final validStaff = rawStaff.whereType<Staff>().toList() ?? const [];
 
     return initialState.copyWith(staffList: validStaff);
   }
@@ -125,20 +131,30 @@ class StaffListAsyncNotifier extends AsyncNotifier<StaffListState> {
   }
 
   Future<void> reloadStaff() async {
+    // Capture current state before setting to loading
+    final currentState = state.value;
     state = const AsyncLoading();
     try {
       final user = ref.read(loginControllerProvider).user;
       final isAdmin = user?.role.toLowerCase() == 'admin';
       final branchId = isAdmin
           ? null
-          : _branchIdForName(state.value!.selectedBranch);
+          : _branchIdForName(currentState?.selectedBranch);
       final repo = ref.read(staffManagementRepositoryProvider);
       final rawStaff = await repo.fetchStaff(branchId: branchId);
 
-      final validStaff = rawStaff?.whereType<Staff>().toList() ?? const [];
+      final validStaff = rawStaff.whereType<Staff>().toList();
 
-      state = AsyncData(state.value!.copyWith(staffList: validStaff));
+      // Preserve filter state when reloading
+      final newState =
+          currentState?.copyWith(staffList: validStaff) ??
+          StaffListState(staffList: validStaff);
+      state = AsyncData(newState);
     } catch (e, stack) {
+      // Restore previous state on error if available
+      if (currentState != null) {
+        state = AsyncData(currentState);
+      }
       state = AsyncError('Failed to load staff: $e', stack);
     }
   }

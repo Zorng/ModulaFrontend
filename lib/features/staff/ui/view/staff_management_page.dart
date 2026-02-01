@@ -29,7 +29,8 @@ class StaffManagementPage extends ConsumerStatefulWidget {
   final String? staffId;
 
   @override
-  ConsumerState<StaffManagementPage> createState() => _StaffManagementPageState();
+  ConsumerState<StaffManagementPage> createState() =>
+      _StaffManagementPageState();
 }
 
 class _StaffManagementPageState extends ConsumerState<StaffManagementPage> {
@@ -85,30 +86,30 @@ class _StaffManagementPageState extends ConsumerState<StaffManagementPage> {
     // Initialize controller state
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      
+
       // Strategy: Use initialStaff if provided.
       // If null (e.g. refresh/resize), try to find by staffId in the store.
       Staff? staff = widget.initialStaff;
-      
+
       if (staff == null && widget.staffId != null) {
         final listAsync = ref.read(StaffListAsyncNotifier.provider);
         // Only if we have data loaded
         if (listAsync.hasValue) {
-           final list = listAsync.value?.staffList ?? [];
-           try {
-             staff = list.firstWhere((s) => s.id == widget.staffId);
-           } catch (_) {
-             // Staff not found in local list
-           }
+          final list = listAsync.value?.staffList ?? [];
+          try {
+            staff = list.firstWhere((s) => s.id == widget.staffId);
+          } catch (_) {
+            // Staff not found in local list
+          }
         }
       }
 
       ref
           .read(staffManagementControllerProvider.notifier)
           .initialize(staff, widget.initialBranchId);
-      
+
       if (!mounted) return;
-      
+
       // Use state.initialStaff after initialization, not widget.initialStaff
       final state = ref.read(staffManagementControllerProvider);
       _populateForm(
@@ -121,7 +122,7 @@ class _StaffManagementPageState extends ConsumerState<StaffManagementPage> {
               branchId: widget.initialBranchId,
             ),
       );
-      
+
       if (mounted) {
         setState(() {
           _hasInitialized = true;
@@ -132,7 +133,7 @@ class _StaffManagementPageState extends ConsumerState<StaffManagementPage> {
 
   void _populateForm(Staff? staff) {
     if (staff == null) return; // Guard against null
-    
+
     _userNameController.text = staff.userName;
     _phoneNumberController.text = staff.phoneNumber;
     _emailController.text = staff.email;
@@ -198,133 +199,148 @@ class _StaffManagementPageState extends ConsumerState<StaffManagementPage> {
 
     final state = ref.watch(staffManagementControllerProvider);
     final isReadOnly = state.mode == StaffManagementMode.view;
-    final isMobile = AppBreakpoints.isSmall(MediaQuery.of(context).size.width);
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios),
-          onPressed: () => context.pop(),
-        ),
-        title: Text(
-          state.mode == StaffManagementMode.create
-              ? 'Add New Staff'
-              : state.mode == StaffManagementMode.edit
-              ? 'Edit Staff'
-              : 'Staff Details',
-        ),
-        actions: [
-          if (state.mode == StaffManagementMode.view)
-            TextButton(
-              onPressed:
-                  () => ref
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isMobile = AppBreakpoints.isSmall(constraints.maxWidth);
+
+        return Scaffold(
+          appBar: AppBar(
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back_ios),
+              onPressed: () => context.pop(),
+            ),
+            title: Text(
+              state.mode == StaffManagementMode.create
+                  ? 'Add New Staff'
+                  : state.mode == StaffManagementMode.edit
+                  ? 'Edit Staff'
+                  : 'Staff Details',
+            ),
+            actions: [
+              if (state.mode == StaffManagementMode.view)
+                TextButton(
+                  onPressed: () => ref
                       .read(staffManagementControllerProvider.notifier)
                       .toggleEditMode(),
-              child: const Text('Edit'),
-            ),
-        ],
-      ),
-      body:
-          state.isLoading
+                  child: const Text('Edit'),
+                ),
+            ],
+          ),
+          body: state.isLoading
               ? const Center(child: CircularProgressIndicator())
-              : SingleChildScrollView(
-                padding: const EdgeInsets.all(16.0),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      if (state.error != null) ...[
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          color: Colors.red.shade50,
-                          child: Text(
-                            state.error!,
-                            style: TextStyle(color: Colors.red.shade900),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                      ],
-
-                      // Profile Picture
-                      const Center(child: StaffProfileAvatar()),
-                      const SizedBox(height: 24),
-
-                      // Form Fields
-                      if (isMobile) ..._buildFormFields(isReadOnly, isMobile) else
-                        // Tablet/Desktop Layout
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+              : Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 1000),
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Form(
+                        key: _formKey,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisSize: MainAxisSize.min,
-                                children: _buildLeftColumnFields(
-                                  isReadOnly,
-                                  isMobile,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 24),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisSize: MainAxisSize.min,
-                                children: _buildRightColumnFields(
-                                  isReadOnly,
-                                  isMobile,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-
-                      if (isReadOnly) ...[
-                        const SizedBox(height: 24),
-                        const Divider(),
-                        const SizedBox(height: 16),
-                        if (state.initialStaff?.shiftSchedule != null)
-                          StaffScheduleTable(
-                            schedule: state.initialStaff!.shiftSchedule!,
-                          ),
-                      ],
-
-                      const SizedBox(height: 32),
-
-                      // Actions
-                      if (!isReadOnly)
-                        Row(
-                          children: [
-                            if (_isEditMode)
-                              Expanded(
-                                child: OutlinedButton(
-                                  onPressed:
-                                      () => ref
-                                          .read(
-                                            staffManagementControllerProvider
-                                                .notifier,
-                                          )
-                                          .toggleEditMode(),
-                                  child: const Text('Cancel'),
-                                ),
-                              ),
-                            if (_isEditMode) const SizedBox(width: 16),
-                            Expanded(
-                              child: ElevatedButton(
-                                onPressed: _isFormValid() ? _submit : null,
+                            if (state.error != null) ...[
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                color: Colors.red.shade50,
                                 child: Text(
-                                  _isCreateMode ? 'Create Staff' : 'Save Changes',
+                                  state.error!,
+                                  style: TextStyle(color: Colors.red.shade900),
                                 ),
                               ),
-                            ),
+                              const SizedBox(height: 16),
+                            ],
+
+                            // Profile Picture
+                            const Center(child: StaffProfileAvatar()),
+                            const SizedBox(height: 24),
+
+                            // Form Fields
+                            if (isMobile)
+                              ..._buildFormFields(isReadOnly, isMobile)
+                            else
+                              // Tablet/Desktop Layout
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: _buildLeftColumnFields(
+                                        isReadOnly,
+                                        isMobile,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 24),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: _buildRightColumnFields(
+                                        isReadOnly,
+                                        isMobile,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+
+                            if (isReadOnly) ...[
+                              const SizedBox(height: 24),
+                              const Divider(),
+                              const SizedBox(height: 16),
+                              if (state.initialStaff?.shiftSchedule != null)
+                                StaffScheduleTable(
+                                  schedule: state.initialStaff!.shiftSchedule!,
+                                ),
+                            ],
+
+                            const SizedBox(height: 32),
+
+                            // Actions
+                            if (!isReadOnly)
+                              Row(
+                                children: [
+                                  if (_isEditMode)
+                                    Expanded(
+                                      child: OutlinedButton(
+                                        onPressed: () => ref
+                                            .read(
+                                              staffManagementControllerProvider
+                                                  .notifier,
+                                            )
+                                            .toggleEditMode(),
+                                        child: const Text('Cancel'),
+                                      ),
+                                    ),
+                                  if (_isEditMode) const SizedBox(width: 16),
+                                  Expanded(
+                                    child: ElevatedButton(
+                                      onPressed: _isFormValid()
+                                          ? _submit
+                                          : null,
+                                      child: Text(
+                                        _isCreateMode
+                                            ? 'Create Staff'
+                                            : 'Save Changes',
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            const SizedBox(height: 50),
                           ],
                         ),
-                      const SizedBox(height: 50),
-                    ],
+                      ),
+                    ),
                   ),
                 ),
-              ),
+        );
+      },
     );
   }
 
@@ -343,13 +359,11 @@ class _StaffManagementPageState extends ConsumerState<StaffManagementPage> {
         controller: _userNameController,
         readOnly: isReadOnly,
         maxLength: 50,
-        validator:
-            (v) =>
-                v!.isEmpty
-                    ? 'Required'
-                    : !v.contains(' ')
-                    ? 'Enter full name'
-                    : null,
+        validator: (v) => v!.isEmpty
+            ? 'Required'
+            : !v.contains(' ')
+            ? 'Enter full name'
+            : null,
       ),
       const SizedBox(height: 12),
       FormDropdownField(
@@ -369,13 +383,11 @@ class _StaffManagementPageState extends ConsumerState<StaffManagementPage> {
         controller: _phoneNumberController,
         readOnly: isReadOnly,
         maxLength: 15,
-        validator:
-            (v) =>
-                v!.isEmpty
-                    ? 'Required'
-                    : v.length < 7
-                    ? 'Invalid phone'
-                    : null,
+        validator: (v) => v!.isEmpty
+            ? 'Required'
+            : v.length < 7
+            ? 'Invalid phone'
+            : null,
         inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[\d\+]'))],
       ),
       const SizedBox(height: 12),
@@ -386,13 +398,11 @@ class _StaffManagementPageState extends ConsumerState<StaffManagementPage> {
         controller: _emailController,
         readOnly: isReadOnly,
         maxLength: 100,
-        validator:
-            (v) =>
-                v!.isEmpty
-                    ? 'Required'
-                    : !v.contains('@')
-                    ? 'Invalid email'
-                    : null,
+        validator: (v) => v!.isEmpty
+            ? 'Required'
+            : !v.contains('@')
+            ? 'Invalid email'
+            : null,
       ),
       if (_isCreateMode) ...[
         const SizedBox(height: 12),
@@ -440,11 +450,9 @@ class _StaffManagementPageState extends ConsumerState<StaffManagementPage> {
           final match = branches.where((b) => b.name == val);
           if (match.isNotEmpty) {
             setState(
-              () =>
-                  _selectedBranchId =
-                      match.first.branchId.isNotEmpty
-                          ? match.first.branchId
-                          : match.first.id,
+              () => _selectedBranchId = match.first.branchId.isNotEmpty
+                  ? match.first.branchId
+                  : match.first.id,
             );
           }
         },
@@ -454,8 +462,8 @@ class _StaffManagementPageState extends ConsumerState<StaffManagementPage> {
       if (!isReadOnly) ...[
         StaffScheduleSection(
           selectedScheduleOption: _selectedScheduleOption,
-          onScheduleOptionChanged:
-              (v) => setState(() => _selectedScheduleOption = v),
+          onScheduleOptionChanged: (v) =>
+              setState(() => _selectedScheduleOption = v),
           allDays: _allDays,
           selectedWorkingDays: _selectedWorkingDays,
           onWorkingDaysChanged: (v) => setState(() => _selectedWorkingDays = v),
@@ -466,8 +474,8 @@ class _StaffManagementPageState extends ConsumerState<StaffManagementPage> {
           expandedDay: _expandedDay,
           onExpandedDayChanged: (v) => setState(() => _expandedDay = v),
           customHours: _customHours,
-          onCustomHoursChanged:
-              (d, s, e) => setState(() => _customHours[d] = (s, e)),
+          onCustomHoursChanged: (d, s, e) =>
+              setState(() => _customHours[d] = (s, e)),
         ),
         const SizedBox(height: 16),
         CustomCupertinoListTile(
@@ -475,13 +483,12 @@ class _StaffManagementPageState extends ConsumerState<StaffManagementPage> {
           trailing: CupertinoSwitch(
             value: _isActive,
             onChanged: (v) => setState(() => _isActive = v),
-            activeColor: Theme.of(context).primaryColor,
+            activeTrackColor: Theme.of(context).primaryColor,
           ),
         ),
       ],
     ];
   }
-
 
   bool _isFormValid() {
     // Check all required fields
@@ -500,9 +507,11 @@ class _StaffManagementPageState extends ConsumerState<StaffManagementPage> {
 
     // Get the staff ID from state instead of widget
     final state = ref.read(staffManagementControllerProvider);
-    
+
     final staff = Staff(
-      id: state.initialStaff?.id, // Use state.initialStaff instead of widget.initialStaff
+      id: state
+          .initialStaff
+          ?.id, // Use state.initialStaff instead of widget.initialStaff
       userName: _userNameController.text,
       gender: _selectedGender,
       phoneNumber: _phoneNumberController.text,
@@ -513,12 +522,14 @@ class _StaffManagementPageState extends ConsumerState<StaffManagementPage> {
       password: _isCreateMode ? _passwordController.text : null,
       // Pass schedule data
       scheduleOption: _selectedScheduleOption,
-      workingDays:
-          _selectedScheduleOption == 'same_hours' ? _selectedWorkingDays : null,
+      workingDays: _selectedScheduleOption == 'same_hours'
+          ? _selectedWorkingDays
+          : null,
       startTime: _selectedScheduleOption == 'same_hours' ? _startTime : null,
       endTime: _selectedScheduleOption == 'same_hours' ? _endTime : null,
-      customHours:
-          _selectedScheduleOption == 'different_hours' ? _customHours : null,
+      customHours: _selectedScheduleOption == 'different_hours'
+          ? _customHours
+          : null,
     );
 
     final success = await ref

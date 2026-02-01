@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
@@ -105,118 +106,161 @@ class _SaleItemDetailPageState extends ConsumerState<SaleItemDetailPage> {
             snapshot.connectionState != ConnectionState.done;
         final showError = hasError && _hasRetried && modifiers.isEmpty;
 
+        final width = MediaQuery.of(context).size.width;
+        final isLarge = AppBreakpoints.isLarge(width);
+
+        final imageSection = Center(
+          child: SizedBox(
+            width: isLarge ? double.infinity : width * 0.5,
+            child: AspectRatio(
+              aspectRatio: 1,
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  color: Theme.of(context)
+                      .colorScheme
+                      .surfaceContainerHighest
+                      .withValues(alpha: 0.3),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: SaleItemDetailImage(
+                  imageUrl: itemToUse.imageUrl,
+                ),
+              ),
+            ),
+          ),
+        );
+
+        final headerSection = Row(
+          children: [
+            Expanded(
+              child: Text(
+                itemToUse.name,
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ),
+            Text(
+              '\$${itemToUse.price.toStringAsFixed(2)}',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        );
+
+        final modifiersSection = isHydrating
+            ? const Center(child: CircularProgressIndicator())
+            : showError
+            ? const Center(child: Text('Unable to load modifiers.'))
+            : modifiers.isEmpty
+            ? const Center(child: Text('No modifiers for this item.'))
+            : ListView.separated(
+                padding: EdgeInsets.fromLTRB(16, 8, 16, isLarge ? 80 : 16),
+                itemCount: modifiers.length,
+                separatorBuilder: (_, __) => const Divider(height: 1),
+                itemBuilder: (context, index) {
+                  final group = modifiers[index];
+                  final selected = _selectedOptionIds[group.id] ?? {};
+                  return SaleItemModifierGroupSection(
+                    group: group,
+                    selectedOptionIds: selected,
+                    onSelectionChanged: (newSelection) {
+                      setState(() {
+                        _selectedOptionIds[group.id] = newSelection;
+                      });
+                    },
+                  );
+                },
+              );
+              
+        final bottomBar = SaleItemDetailBottomBar(
+          totalUsd: _computeTotal(
+            itemToUse,
+            modifiers,
+            _selectedOptionIds,
+            _quantity,
+          ),
+          quantity: _quantity,
+          onQuantityChanged: (value) => setState(() => _quantity = value),
+          canAddToCart: canAddToCart,
+          blockingMessage: gate.blockingMessage,
+          onAddItem: canAddToCart
+              ? () {
+                  final pricing = _computeSelectionPricing(
+                    itemToUse,
+                    modifiers,
+                    _selectedOptionIds,
+                    _quantity,
+                  );
+                  final result = SaleItemSelectionResult(
+                    item: itemToUse,
+                    quantity: _quantity,
+                    selectedOptionIds: {
+                      for (final entry in _selectedOptionIds.entries)
+                        entry.key: entry.value.toList(),
+                    },
+                    selectedOptions: pricing.selectedOptions,
+                    addonTotalUsd: pricing.addonTotalUsd,
+                    unitPriceUsd: pricing.unitPriceUsd,
+                    lineTotalUsd: pricing.lineTotalUsd,
+                  );
+                  context.pop(result);
+                }
+              : null,
+        );
+
         return Scaffold(
           appBar: AppBar(title: Text(itemToUse.name), centerTitle: false),
           body: SafeArea(
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                  child: Center(
-                    child: SizedBox(
-                      width: MediaQuery.of(context).size.width * 0.5,
-                      child: AspectRatio(
-                        aspectRatio: 1,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(12),
-                            color: Theme.of(context)
-                                .colorScheme
-                                .surfaceContainerHighest
-                                .withValues(alpha: 0.3),
-                          ),
-                          clipBehavior: Clip.antiAlias,
-                          child: SaleItemDetailImage(
-                            imageUrl: itemToUse.imageUrl,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                  child: Row(
+            child: isLarge
+                ? Row(
                     children: [
                       Expanded(
-                        child: Text(
-                          itemToUse.name,
-                          style: Theme.of(context).textTheme.titleMedium,
+                        flex: 4,
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              ConstrainedBox(
+                                constraints: const BoxConstraints(maxWidth: 400),
+                                child: imageSection,
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                      Text(
-                        '\$${itemToUse.price.toStringAsFixed(2)}',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
+                      const VerticalDivider(width: 1),
+                      Expanded(
+                        flex: 6,
+                        child: Column(
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+                              child: headerSection,
+                            ),
+                            Expanded(child: modifiersSection),
+                            bottomBar,
+                          ],
                         ),
                       ),
                     ],
+                  )
+                : Column(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                        child: imageSection,
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                        child: headerSection,
+                      ),
+                      Expanded(child: modifiersSection),
+                    ],
                   ),
-                ),
-                Expanded(
-                  child: isHydrating
-                      ? const Center(child: CircularProgressIndicator())
-                      : showError
-                      ? const Center(child: Text('Unable to load modifiers.'))
-                      : modifiers.isEmpty
-                      ? const Center(child: Text('No modifiers for this item.'))
-                      : ListView.separated(
-                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                          itemCount: modifiers.length,
-                          separatorBuilder: (_, __) => const Divider(height: 1),
-                          itemBuilder: (context, index) {
-                            final group = modifiers[index];
-                            final selected = _selectedOptionIds[group.id] ?? {};
-                            return SaleItemModifierGroupSection(
-                              group: group,
-                              selectedOptionIds: selected,
-                              onSelectionChanged: (newSelection) {
-                                setState(() {
-                                  _selectedOptionIds[group.id] = newSelection;
-                                });
-                              },
-                            );
-                          },
-                        ),
-                ),
-              ],
-            ),
           ),
-          bottomNavigationBar: SaleItemDetailBottomBar(
-            totalUsd: _computeTotal(
-              itemToUse,
-              modifiers,
-              _selectedOptionIds,
-              _quantity,
-            ),
-            quantity: _quantity,
-            onQuantityChanged: (value) => setState(() => _quantity = value),
-            canAddToCart: canAddToCart,
-            blockingMessage: gate.blockingMessage,
-            onAddItem: canAddToCart
-                ? () {
-                    final pricing = _computeSelectionPricing(
-                      itemToUse,
-                      modifiers,
-                      _selectedOptionIds,
-                      _quantity,
-                    );
-                    final result = SaleItemSelectionResult(
-                      item: itemToUse,
-                      quantity: _quantity,
-                      selectedOptionIds: {
-                        for (final entry in _selectedOptionIds.entries)
-                          entry.key: entry.value.toList(),
-                      },
-                      selectedOptions: pricing.selectedOptions,
-                      addonTotalUsd: pricing.addonTotalUsd,
-                      unitPriceUsd: pricing.unitPriceUsd,
-                      lineTotalUsd: pricing.lineTotalUsd,
-                    );
-                    context.pop(result);
-                  }
-                : null,
-          ),
+          bottomNavigationBar: isLarge ? null : bottomBar,
         );
       },
     );

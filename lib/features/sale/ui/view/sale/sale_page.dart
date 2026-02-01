@@ -59,23 +59,36 @@ class _SalePageState extends ConsumerState<SalePage> {
     return Scaffold(
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.all(isSmall ? 16 : 24),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (!gate.cashSessionLoading &&
-                  gate.isBlockedByCashSessionPolicy) ...[
-                SalePageAccessBanner(cashSessionPath: cashSessionPath),
-                const SizedBox(height: 12),
-              ],
-              SalePageSearchField(onChanged: menuVm.searchItems),
-              const SizedBox(height: 12),
-              SalePageCategoryStrip(
-                categories: categories,
-                selectedCategoryId: menuState.selectedCategoryId,
-                onSelected: menuVm.filterByCategory,
+              Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 800),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (!gate.cashSessionLoading &&
+                            gate.isBlockedByCashSessionPolicy) ...[
+                          SalePageAccessBanner(cashSessionPath: cashSessionPath),
+                          const SizedBox(height: 12),
+                        ],
+                        SalePageSearchField(onChanged: menuVm.searchItems),
+                        const SizedBox(height: 12),
+                        SalePageCategoryStrip(
+                          categories: categories,
+                          selectedCategoryId: menuState.selectedCategoryId,
+                          onSelected: menuVm.filterByCategory,
+                        ),
+                        const SizedBox(height: 12),
+                      ],
+                    ),
+                  ),
+                ),
               ),
-              const SizedBox(height: 12),
               Expanded(
                 child: switch ((menuState.isLoading, menuState.error)) {
                   (true, _) => const Center(child: CircularProgressIndicator()),
