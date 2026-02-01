@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/features/branch/domain/models/branch.dart';
 
 /// Branch card widget - displays branch info in a card
@@ -27,10 +28,13 @@ class BranchCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              // On very small screens, stack status below
+              final isNarrow = constraints.maxWidth < AppBreakpoints.compact;
+              
+              if (isNarrow) {
+                return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
@@ -39,6 +43,8 @@ class BranchCard extends StatelessWidget {
                         fontWeight: FontWeight.w600,
                         color: const Color(0xFF1A1A1A),
                       ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
                     if (branch.address != null) ...[
                       const SizedBox(height: 4),
@@ -47,17 +53,56 @@ class BranchCard extends StatelessWidget {
                         style: textTheme.bodySmall?.copyWith(
                           color: const Color(0xFF9E9E9E),
                         ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
+                    const SizedBox(height: 8),
+                    _StatusChip(
+                      status: branch.status,
+                      isActive: branch.isActive,
+                    ),
                   ],
-                ),
-              ),
-              const SizedBox(width: 35),
-              _StatusChip(
-                status: branch.status,
-                isActive: branch.isActive,
-              ),
-            ],
+                );
+              }
+              
+              return Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          branch.name,
+                          style: textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFF1A1A1A),
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        if (branch.address != null) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            branch.address!,
+                            style: textTheme.bodySmall?.copyWith(
+                              color: const Color(0xFF9E9E9E),
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  _StatusChip(
+                    status: branch.status,
+                    isActive: branch.isActive,
+                  ),
+                ],
+              );
+            },
           ),
         ),
       ),

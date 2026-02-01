@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/feedback/user_error_message.dart';
+import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/core/widgets/navigation/app_back_button.dart';
 import 'package:modular_pos/features/branch/data/branch_providers.dart';
 import 'package:modular_pos/features/branch/ui/viewmodels/branch_store.dart';
@@ -265,7 +266,7 @@ class _BranchDetailPageState extends ConsumerState<BranchDetailPage> {
 
           return LayoutBuilder(
             builder: (context, constraints) {
-              final isWideScreen = constraints.maxWidth > 600;
+              final isWideScreen = AppBreakpoints.isLarge(constraints.maxWidth);
               final contentPadding = isWideScreen ? 24.0 : 16.0;
               final maxContentWidth = isWideScreen ? 800.0 : double.infinity;
 
@@ -421,8 +422,10 @@ class _BranchDetailPageState extends ConsumerState<BranchDetailPage> {
                             )
                           else
                             Row(
+                              mainAxisAlignment: MainAxisAlignment.end,
                               children: [
-                                Expanded(
+                                SizedBox(
+                                  width: 150,
                                   child: FilledButton(
                                     onPressed: _toggleEditMode,
                                     style: FilledButton.styleFrom(
@@ -435,7 +438,8 @@ class _BranchDetailPageState extends ConsumerState<BranchDetailPage> {
                                   ),
                                 ),
                                 const SizedBox(width: 12),
-                                Expanded(
+                                SizedBox(
+                                  width: 150,
                                   child: FilledButton(
                                     onPressed: (_canSave && !_isSaving) ? _saveChanges : null,
                                     style: FilledButton.styleFrom(
@@ -510,6 +514,7 @@ class _FormField extends StatelessWidget {
               decoration: BoxDecoration(
                 borderRadius: _fieldBorderRadius,
                 border: _fieldBorder,
+                color: Colors.grey.shade100,
               ),
               child: Row(
                 children: [
@@ -536,6 +541,7 @@ class _FormField extends StatelessWidget {
                         disabledBorder: InputBorder.none,
                         isCollapsed: true,
                         counterText: '',
+                        filled: false,
                       ),
                     ),
                   ),
@@ -586,6 +592,7 @@ class _DropdownField extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: _fieldBorderRadius,
             border: _fieldBorder,
+            color: Colors.grey.shade100,
           ),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
@@ -631,7 +638,7 @@ class _FloatingLabel extends StatelessWidget {
       top: 0,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 4),
-        color: Colors.white,
+        color: Colors.transparent,
         child: Text(
           text,
           style: const TextStyle(fontSize: 12, color: Colors.grey),
