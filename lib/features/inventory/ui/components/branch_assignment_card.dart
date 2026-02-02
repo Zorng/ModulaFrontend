@@ -78,4 +78,3 @@ class BranchAssignmentCard extends StatelessWidget {
     );
   }
 }
-

@@ -257,8 +257,7 @@ class _StockItemDetailPageState extends ConsumerState<StockItemDetailPage> {
               },
             ),
             const SizedBox(height: 16),
-            if (_isEditing)
-              StockItemSaveSection(onSave: _saveChanges),
+            if (_isEditing) StockItemSaveSection(onSave: _saveChanges),
           ],
         ),
       ),

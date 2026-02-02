@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:modular_pos/features/inventory/domain/models/inventory_category.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/category_controller.dart';
+import 'package:modular_pos/features/menu/ui/components/menu_form_field_label.dart';
 
 class InventoryCategoryTile extends ConsumerWidget {
   const InventoryCategoryTile({
@@ -30,19 +32,30 @@ class InventoryCategoryTile extends ConsumerWidget {
           children: [
             Text(
               category.name,
-              style: Theme.of(context)
-                  .textTheme
-                  .titleMedium
-                  ?.copyWith(fontWeight: FontWeight.w600),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 2),
             Text(
               '$itemCount stock item${itemCount == 1 ? '' : 's'}',
-              style: Theme.of(context)
-                  .textTheme
-                  .bodySmall
-                  ?.copyWith(color: scheme.onSurfaceVariant),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
             ),
+            if (category.description != null &&
+                category.description!.isNotEmpty)
+              const SizedBox(height: 6),
+            if (category.description != null &&
+                category.description!.isNotEmpty)
+              Text(
+                category.description!,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+              ),
           ],
         ),
         trailing: Row(
@@ -51,9 +64,9 @@ class InventoryCategoryTile extends ConsumerWidget {
             Text(
               category.isActive ? 'Active' : 'Inactive',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: category.isActive ? scheme.primary : scheme.error,
-                    fontWeight: FontWeight.w600,
-                  ),
+                color: category.isActive ? scheme.primary : scheme.error,
+                fontWeight: FontWeight.w600,
+              ),
             ),
             const SizedBox(width: 8),
             PopupMenuButton<_CategoryAction>(
@@ -98,63 +111,134 @@ class InventoryCategoryTile extends ConsumerWidget {
   }
 
   Future<void> _showRenameDialog(BuildContext context, WidgetRef ref) async {
-    final ctrl = TextEditingController(text: category.name);
-    final result = await showDialog<String>(
+    final nameCtrl = TextEditingController(text: category.name);
+    final descCtrl = TextEditingController(text: category.description ?? '');
+    var isActive = category.isActive;
+    String? nameError;
+
+    final result = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Rename category'),
-        content: TextField(
-          controller: ctrl,
-          decoration: const InputDecoration(hintText: 'Category name'),
-          autofocus: true,
-        ),
-        actions: [
-          SizedBox(
-            width: double.infinity,
-            child: Row(
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Edit category'),
+          content: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: FilledButton(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor:
-                          Theme.of(context).textTheme.bodyLarge?.color,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    onPressed: () => context.pop(),
-                    child: const Text('Cancel'),
-                  ),
+                const MenuFormFieldLabel(
+                  text: 'Category Name',
+                  isRequired: true,
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: FilledButton(
-                    style: FilledButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    onPressed: () {
-                      final value = ctrl.text.trim();
-                      if (value.isEmpty) return;
-                      context.pop(value);
-                    },
-                    child: const Text('Save'),
+                TextField(
+                  controller: nameCtrl,
+                  decoration: InputDecoration(
+                    hintText: 'e.g., Coffee, Pastries',
+                    errorText: nameError,
+                    counterText: '',
                   ),
+                  autofocus: true,
+                ),
+                const SizedBox(height: 16),
+                const MenuFormFieldLabel(text: 'Description'),
+                TextField(
+                  controller: descCtrl,
+                  decoration: const InputDecoration(
+                    hintText: 'Enter category description',
+                  ),
+                  maxLines: 3,
+                  maxLength: 200,
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Set Active',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    CupertinoSwitch(
+                      value: isActive,
+                      activeTrackColor: Theme.of(context).primaryColor,
+                      onChanged: (value) => setState(() => isActive = value),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
-        ],
+          actions: [
+            SizedBox(
+              width: double.infinity,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: Theme.of(
+                          context,
+                        ).textTheme.bodyLarge?.color,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      onPressed: () => context.pop(false),
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      onPressed: () {
+                        final name = nameCtrl.text.trim();
+                        if (name.isEmpty) {
+                          setState(() => nameError = 'Required');
+                          return;
+                        }
+                        if (name.length < 2) {
+                          setState(
+                            () => nameError = 'Must be at least 2 characters',
+                          );
+                          return;
+                        }
+                        if (name.length > 40) {
+                          setState(
+                            () => nameError = 'Must be at most 40 characters',
+                          );
+                          return;
+                        }
+                        context.pop(true);
+                      },
+                      child: const Text('Save'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
-    if (result != null) {
+
+    if (result == true) {
       ref
           .read(categoryControllerProvider.notifier)
-          .updateCategory(category.copyWith(name: result));
+          .updateCategory(
+            category.copyWith(
+              name: nameCtrl.text.trim(),
+              description: descCtrl.text.trim().isEmpty
+                  ? null
+                  : descCtrl.text.trim(),
+              isActive: isActive,
+            ),
+          );
     }
   }
 }

@@ -20,10 +20,9 @@ class RestockStockSummary extends StatelessWidget {
         children: [
           Text(
             'Current on-hand',
-            style: Theme.of(context)
-                .textTheme
-                .labelMedium
-                ?.copyWith(fontWeight: FontWeight.w600),
+            style: Theme.of(
+              context,
+            ).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 4),
           Text(
@@ -44,4 +43,3 @@ class RestockStockSummary extends StatelessWidget {
     );
   }
 }
-

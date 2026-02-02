@@ -7,6 +7,7 @@ import 'package:modular_pos/core/widgets/forms/app_search_add_bar.dart';
 import 'package:modular_pos/features/inventory/ui/view/category_management/widgets/inventory_category_tile.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/category_controller.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_controller.dart';
+import 'package:modular_pos/core/routing/app_router.dart';
 
 class CategoryManagementPage extends ConsumerStatefulWidget {
   const CategoryManagementPage({super.key});
@@ -45,7 +46,8 @@ class _CategoryManagementPageState
               searchHint: 'Search categories',
               searchController: _searchController,
               onSearchChanged: (_) => setState(() {}),
-              onAddPressed: () => _showAddDialog(context),
+              onAddPressed: () =>
+                  context.push(AppRoute.inventoryAddCategory.path),
             ),
             const SizedBox(height: 16),
             Expanded(
@@ -99,65 +101,5 @@ class _CategoryManagementPageState
         ),
       ),
     );
-  }
-
-  Future<void> _showAddDialog(BuildContext context) async {
-    final controller = TextEditingController();
-    final result = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Add category'),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(hintText: 'Category name'),
-          autofocus: true,
-        ),
-        actions: [
-          SizedBox(
-            width: double.infinity,
-            child: Row(
-              children: [
-                Expanded(
-                  child: FilledButton(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: Theme.of(
-                        context,
-                      ).textTheme.bodyLarge?.color,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    onPressed: () => context.pop(),
-                    child: const Text('Cancel'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: FilledButton(
-                    style: FilledButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    onPressed: () {
-                      final value = controller.text.trim();
-                      if (value.isEmpty) return;
-                      context.pop(value);
-                    },
-                    child: const Text('Add'),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-    if (result != null) {
-      await ref.read(categoryControllerProvider.notifier).addCategory(result);
-    }
   }
 }

@@ -16,6 +16,7 @@ import 'package:modular_pos/features/inventory/ui/view/add_stock_item/widgets/ad
 import 'package:modular_pos/features/inventory/ui/view/add_stock_item/widgets/upload_image_tile.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/category_controller.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_controller.dart';
+import 'package:modular_pos/core/routing/app_router.dart';
 
 class AddStockItemPage extends ConsumerStatefulWidget {
   const AddStockItemPage({super.key});
@@ -271,12 +272,37 @@ class _AddStockItemPageState extends ConsumerState<AddStockItemPage> {
     final categoryState = ref.read(categoryControllerProvider);
     final categories = categoryState.categories;
     if (categories.isEmpty) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No categories available. Please create one first.'),
-        ),
+      final router = GoRouter.of(context);
+      final choice = await showDialog<bool>(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            title: Row(
+              children: [
+                const Text('No categories'),
+                const Spacer(),
+                IconButton(
+                  tooltip: 'Cancel',
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.of(context).pop(false),
+                ),
+              ],
+            ),
+            content: const Text(
+              'No categories available. Create a category now?',
+            ),
+            actions: [
+              ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Create Category'),
+              ),
+            ],
+          );
+        },
       );
+      if (choice == true && mounted) {
+        await router.push(AppRoute.inventoryAddCategory.path);
+      }
       return;
     }
     final selection = await showModalBottomSheet<InventoryCategory>(

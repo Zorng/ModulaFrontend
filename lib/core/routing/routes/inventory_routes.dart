@@ -7,6 +7,7 @@ import 'package:modular_pos/features/inventory/ui/view/category_management/categ
 import 'package:modular_pos/features/inventory/ui/view/inventory_home/inventory_home_page.dart';
 import 'package:modular_pos/features/inventory/ui/view/inventory_journal/inventory_journal_page.dart';
 import 'package:modular_pos/features/inventory/ui/view/inventory_journal_detail/inventory_journal_detail_page.dart';
+import 'package:modular_pos/features/inventory/ui/view/add_category/add_category_page.dart';
 import 'package:modular_pos/features/inventory/ui/view/inventory_shell/inventory_bottom_nav_shell_page.dart';
 import 'package:modular_pos/features/inventory/ui/view/inventory_stock_items/inventory_stock_items_page.dart';
 import 'package:modular_pos/features/inventory/ui/view/restock_stock_item/restock_stock_item_page.dart';
@@ -62,6 +63,11 @@ List<RouteBase> buildInventoryRoutes() {
       path: AppRoute.inventoryAddItem.path,
       name: AppRoute.inventoryAddItem.name,
       builder: (context, state) => const AddStockItemPage(),
+    ),
+    GoRoute(
+      path: AppRoute.inventoryAddCategory.path,
+      name: AppRoute.inventoryAddCategory.name,
+      builder: (context, state) => const AddInventoryCategoryPage(),
     ),
     GoRoute(
       path: AppRoute.inventoryStockDetail.path,
