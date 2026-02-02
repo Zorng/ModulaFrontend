@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/features/staff/domain/models/staff_model.dart';
 import 'package:modular_pos/features/staff/data/staff_management_repository.dart';
@@ -74,7 +75,7 @@ class StaffListAsyncNotifier extends AsyncNotifier<StaffListState> {
     final repo = ref.read(staffManagementRepositoryProvider);
     final rawStaff = await repo.fetchStaff(branchId: branchId);
 
-    final validStaff = rawStaff.whereType<Staff>().toList() ?? const [];
+    final validStaff = rawStaff.whereType<Staff>().toList();
 
     return initialState.copyWith(staffList: validStaff);
   }
@@ -101,15 +102,15 @@ class StaffListAsyncNotifier extends AsyncNotifier<StaffListState> {
   }
 
   void updateSelectedBranch(String? value) {
-    print('DEBUG: updateSelectedBranch called with value: $value');
-    print('DEBUG: Current selectedBranch: ${state.value?.selectedBranch}');
+    debugPrint('DEBUG: updateSelectedBranch called with value: $value');
+    debugPrint('DEBUG: Current selectedBranch: ${state.value?.selectedBranch}');
     state = AsyncData(
       state.value!.copyWith(
         selectedBranch: value,
         clearSelectedBranch: value == null,
       ),
     );
-    print('DEBUG: New selectedBranch: ${state.value?.selectedBranch}');
+    debugPrint('DEBUG: New selectedBranch: ${state.value?.selectedBranch}');
   }
 
   void updateSelectedRole(String? value) {

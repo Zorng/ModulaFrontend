@@ -1,19 +1,16 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/staff/domain/models/staff_model.dart';
+import 'package:modular_pos/features/staff/ui/view/staff_form/widgets/staff_authentication_section.dart';
+import 'package:modular_pos/features/staff/ui/view/staff_form/widgets/staff_basic_info_section.dart';
+import 'package:modular_pos/features/staff/ui/view/staff_form/widgets/staff_mobile_form_section.dart';
 import 'package:modular_pos/features/staff/ui/view/staff_form/widgets/staff_profile_avatar.dart';
 import 'package:modular_pos/features/staff/ui/view/staff_form/widgets/staff_schedule_section.dart';
-import 'package:modular_pos/features/staff/ui/viewmodels/staff_management_store.dart';
 import 'package:modular_pos/features/staff/ui/viewmodels/staff_list_store.dart';
-import 'package:modular_pos/features/staff/ui/widgets/custom_cupertino_list_tile.dart';
-import 'package:modular_pos/features/staff/ui/widgets/form_dropdown_field.dart';
-import 'package:modular_pos/features/staff/ui/widgets/form_text_field.dart';
+import 'package:modular_pos/features/staff/ui/viewmodels/staff_management_store.dart';
 import 'package:modular_pos/features/staff/ui/widgets/staff_schedule_table.dart';
 
 class StaffManagementPage extends ConsumerStatefulWidget {
@@ -37,10 +34,12 @@ class _StaffManagementPageState extends ConsumerState<StaffManagementPage> {
   final _formKey = GlobalKey<FormState>();
 
   // Controllers
-  final _userNameController = TextEditingController();
+  final _firstNameController = TextEditingController();
+  final _lastNameController = TextEditingController();
   final _phoneNumberController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
 
   // Local State for Form Data
   String? _selectedGender;
@@ -100,6 +99,17 @@ class _StaffManagementPageState extends ConsumerState<StaffManagementPage> {
             staff = list.firstWhere((s) => s.id == widget.staffId);
           } catch (_) {
             // Staff not found in local list
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Staff member not found'),
+                  backgroundColor: Colors.red,
+                  duration: Duration(seconds: 3),
+                ),
+              );
+              context.pop();
+            }
+            return;
           }
         }
       }
@@ -134,7 +144,14 @@ class _StaffManagementPageState extends ConsumerState<StaffManagementPage> {
   void _populateForm(Staff? staff) {
     if (staff == null) return; // Guard against null
 
-    _userNameController.text = staff.userName;
+    // Split userName into first and last name
+    final nameParts = staff.userName.split(' ');
+    if (nameParts.isNotEmpty) {
+      _firstNameController.text = nameParts.first;
+      if (nameParts.length > 1) {
+        _lastNameController.text = nameParts.sublist(1).join(' ');
+      }
+    }
     _phoneNumberController.text = staff.phoneNumber;
     _emailController.text = staff.email;
     _selectedGender = staff.gender;
@@ -164,19 +181,18 @@ class _StaffManagementPageState extends ConsumerState<StaffManagementPage> {
 
   @override
   void dispose() {
-    _userNameController.dispose();
+    _firstNameController.dispose();
+    _lastNameController.dispose();
     _phoneNumberController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
+    _confirmPasswordController.dispose();
     super.dispose();
   }
 
   bool get _isCreateMode =>
       ref.read(staffManagementControllerProvider).mode ==
       StaffManagementMode.create;
-  bool get _isViewMode =>
-      ref.watch(staffManagementControllerProvider).mode ==
-      StaffManagementMode.view;
   bool get _isEditMode =>
       ref.read(staffManagementControllerProvider).mode ==
       StaffManagementMode.edit;
@@ -219,11 +235,20 @@ class _StaffManagementPageState extends ConsumerState<StaffManagementPage> {
             ),
             actions: [
               if (state.mode == StaffManagementMode.view)
-                TextButton(
-                  onPressed: () => ref
-                      .read(staffManagementControllerProvider.notifier)
-                      .toggleEditMode(),
-                  child: const Text('Edit'),
+                Padding(
+                  padding: const EdgeInsets.only(right: 8.0),
+                  child: ElevatedButton.icon(
+                    onPressed: () => ref
+                        .read(staffManagementControllerProvider.notifier)
+                        .toggleEditMode(),
+                    icon: const Icon(Icons.edit, size: 18),
+                    label: const Text('Edit'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Theme.of(context).primaryColor,
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(80, 40),
+                    ),
+                  ),
                 ),
             ],
           ),
@@ -252,40 +277,132 @@ class _StaffManagementPageState extends ConsumerState<StaffManagementPage> {
                             ],
 
                             // Profile Picture
-                            const Center(child: StaffProfileAvatar()),
-                            const SizedBox(height: 24),
+                            if (!isReadOnly) ...[
+                              const Center(child: StaffProfileAvatar()),
+                              const SizedBox(height: 32),
+                            ],
 
                             // Form Fields
                             if (isMobile)
-                              ..._buildFormFields(isReadOnly, isMobile)
+                              StaffMobileFormSection(
+                                firstNameController: _firstNameController,
+                                lastNameController: _lastNameController,
+                                phoneNumberController: _phoneNumberController,
+                                emailController: _emailController,
+                                passwordController: _passwordController,
+                                confirmPasswordController:
+                                    _confirmPasswordController,
+                                selectedGender: _selectedGender,
+                                onGenderChanged: (val) =>
+                                    setState(() => _selectedGender = val),
+                                selectedRole: _selectedRole,
+                                onRoleChanged: (val) =>
+                                    setState(() => _selectedRole = val),
+                                selectedBranchName: _selectedBranchName,
+                                selectedBranchId: _selectedBranchId,
+                                onBranchChanged: (val) =>
+                                    setState(() => _selectedBranchId = val),
+                                isActive: _isActive,
+                                onActiveChanged: (v) =>
+                                    setState(() => _isActive = v),
+                                selectedScheduleOption: _selectedScheduleOption,
+                                onScheduleOptionChanged: (v) =>
+                                    setState(() => _selectedScheduleOption = v),
+                                allDays: _allDays,
+                                selectedWorkingDays: _selectedWorkingDays,
+                                onWorkingDaysChanged: (v) =>
+                                    setState(() => _selectedWorkingDays = v),
+                                startTime: _startTime,
+                                onStartTimeChanged: (v) =>
+                                    setState(() => _startTime = v),
+                                endTime: _endTime,
+                                onEndTimeChanged: (v) =>
+                                    setState(() => _endTime = v),
+                                expandedDay: _expandedDay,
+                                onExpandedDayChanged: (v) =>
+                                    setState(() => _expandedDay = v),
+                                customHours: _customHours,
+                                onCustomHoursChanged: (d, s, e) =>
+                                    setState(() => _customHours[d] = (s, e)),
+                                isReadOnly: isReadOnly,
+                                isCreateMode: _isCreateMode,
+                              )
                             else
                               // Tablet/Desktop Layout
-                              Row(
+                              Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: _buildLeftColumnFields(
-                                        isReadOnly,
-                                        isMobile,
+                                  // Basic Information Section
+                                  StaffBasicInfoSection(
+                                    firstNameController: _firstNameController,
+                                    lastNameController: _lastNameController,
+                                    phoneNumberController:
+                                        _phoneNumberController,
+                                    emailController: _emailController,
+                                    selectedGender: _selectedGender,
+                                    onGenderChanged: (val) =>
+                                        setState(() => _selectedGender = val),
+                                    selectedRole: _selectedRole,
+                                    onRoleChanged: (val) =>
+                                        setState(() => _selectedRole = val),
+                                    selectedBranchName: _selectedBranchName,
+                                    selectedBranchId: _selectedBranchId,
+                                    onBranchChanged: (val) {
+                                      final branches =
+                                          ref
+                                              .read(loginControllerProvider)
+                                              .user
+                                              ?.branches ??
+                                          [];
+                                      final match = branches.where(
+                                        (b) => b.name == val,
+                                      );
+                                      if (match.isNotEmpty) {
+                                        setState(
+                                          () => _selectedBranchId =
+                                              match.first.branchId.isNotEmpty
+                                              ? match.first.branchId
+                                              : match.first.id,
+                                        );
+                                      }
+                                    },
+                                    isActive: _isActive,
+                                    onActiveChanged: (v) =>
+                                        setState(() => _isActive = v),
+                                    isReadOnly: isReadOnly,
+                                  ),
+                                  if (!isReadOnly) ...[
+                                    const SizedBox(height: 24),
+                                    // Working Schedule Section
+                                    Container(
+                                      padding: const EdgeInsets.all(24),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(
+                                          color: Colors.grey.shade300,
+                                        ),
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: _buildScheduleSection(
+                                          isReadOnly,
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                  const SizedBox(width: 24),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: _buildRightColumnFields(
-                                        isReadOnly,
-                                        isMobile,
-                                      ),
+                                    const SizedBox(height: 24),
+                                    // Authentication Section
+                                    StaffAuthenticationSection(
+                                      phoneNumberController:
+                                          _phoneNumberController,
+                                      passwordController: _passwordController,
+                                      confirmPasswordController:
+                                          _confirmPasswordController,
+                                      isCreateMode: _isCreateMode,
+                                      isReadOnly: isReadOnly,
                                     ),
-                                  ),
+                                  ],
                                 ],
                               ),
 
@@ -304,25 +421,49 @@ class _StaffManagementPageState extends ConsumerState<StaffManagementPage> {
                             // Actions
                             if (!isReadOnly)
                               Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
                                 children: [
-                                  if (_isEditMode)
-                                    Expanded(
+                                  if (_isEditMode || _isCreateMode)
+                                    ConstrainedBox(
+                                      constraints: const BoxConstraints(
+                                        minWidth: 100,
+                                        maxWidth: 150,
+                                        minHeight: 48,
+                                        maxHeight: 48,
+                                      ),
                                       child: OutlinedButton(
-                                        onPressed: () => ref
-                                            .read(
-                                              staffManagementControllerProvider
-                                                  .notifier,
-                                            )
-                                            .toggleEditMode(),
+                                        onPressed: () {
+                                          if (_isEditMode) {
+                                            ref
+                                                .read(
+                                                  staffManagementControllerProvider
+                                                      .notifier,
+                                                )
+                                                .toggleEditMode();
+                                          } else {
+                                            context.pop();
+                                          }
+                                        },
                                         child: const Text('Cancel'),
                                       ),
                                     ),
-                                  if (_isEditMode) const SizedBox(width: 16),
-                                  Expanded(
+                                  if (_isEditMode || _isCreateMode)
+                                    const SizedBox(width: 16),
+                                  ConstrainedBox(
+                                    constraints: const BoxConstraints(
+                                      minWidth: 120,
+                                      maxWidth: 200,
+                                      minHeight: 48,
+                                      maxHeight: 48,
+                                    ),
                                     child: ElevatedButton(
                                       onPressed: _isFormValid()
                                           ? _submit
                                           : null,
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.red,
+                                        foregroundColor: Colors.white,
+                                      ),
                                       child: Text(
                                         _isCreateMode
                                             ? 'Create Staff'
@@ -344,161 +485,61 @@ class _StaffManagementPageState extends ConsumerState<StaffManagementPage> {
     );
   }
 
-  List<Widget> _buildFormFields(bool isReadOnly, bool isMobile) {
+  List<Widget> _buildScheduleSection(bool isReadOnly, {bool isMobile = false}) {
     return [
-      ..._buildLeftColumnFields(isReadOnly, isMobile),
-      ..._buildRightColumnFields(isReadOnly, isMobile),
-    ];
-  }
-
-  List<Widget> _buildLeftColumnFields(bool isReadOnly, bool isMobile) {
-    return [
-      FormTextField(
-        label: 'User Name',
-        placeholder: 'e.g., Preap Sovath',
-        controller: _userNameController,
-        readOnly: isReadOnly,
-        maxLength: 50,
-        validator: (v) => v!.isEmpty
-            ? 'Required'
-            : !v.contains(' ')
-            ? 'Enter full name'
-            : null,
-      ),
-      const SizedBox(height: 12),
-      FormDropdownField(
-        label: 'Gender',
-        placeholder: 'Select Gender',
-        value: _selectedGender,
-        items: const ['Male', 'Female'],
-        enabled: !isReadOnly,
-        onSelected: (val) => setState(() => _selectedGender = val),
-        validator: (v) => v == null ? 'Required' : null,
-      ),
-      const SizedBox(height: 12),
-      FormTextField(
-        label: 'Phone Number',
-        placeholder: 'e.g., 012345678',
-        keyboardType: TextInputType.phone,
-        controller: _phoneNumberController,
-        readOnly: isReadOnly,
-        maxLength: 15,
-        validator: (v) => v!.isEmpty
-            ? 'Required'
-            : v.length < 7
-            ? 'Invalid phone'
-            : null,
-        inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[\d\+]'))],
-      ),
-      const SizedBox(height: 12),
-      FormTextField(
-        label: 'Email',
-        placeholder: 'e.g., user@gmail.com',
-        keyboardType: TextInputType.emailAddress,
-        controller: _emailController,
-        readOnly: isReadOnly,
-        maxLength: 100,
-        validator: (v) => v!.isEmpty
-            ? 'Required'
-            : !v.contains('@')
-            ? 'Invalid email'
-            : null,
-      ),
-      if (_isCreateMode) ...[
-        const SizedBox(height: 12),
-        FormTextField(
-          label: 'Password',
-          placeholder: 'Enter one-time password',
-          obscureText: true,
-          controller: _passwordController,
-          maxLength: 50,
-          validator: (v) => v!.isEmpty ? 'Required' : null,
+      if (!isMobile) ...[
+        Text(
+          'Working Schedule',
+          style: Theme.of(
+            context,
+          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
         ),
-      ],
-      const SizedBox(height: 12),
-    ];
-  }
-
-  List<Widget> _buildRightColumnFields(bool isReadOnly, bool isMobile) {
-    return [
-      FormDropdownField(
-        label: 'Assign Role',
-        placeholder: 'Select Role',
-        value: _selectedRole,
-        items: const ['Manager', 'Cashier'],
-        enabled: !isReadOnly,
-        onSelected: (val) => setState(() => _selectedRole = val),
-        validator: (v) => v == null ? 'Required' : null,
-      ),
-      const SizedBox(height: 12),
-      FormDropdownField(
-        label: 'Assign Branch',
-        placeholder: 'Select Branch',
-        value: _selectedBranchName,
-        items:
-            ref
-                .watch(loginControllerProvider)
-                .user
-                ?.branches
-                .map((b) => b.name)
-                .toList() ??
-            [],
-        enabled: !isReadOnly,
-        onSelected: (val) {
-          final branches =
-              ref.read(loginControllerProvider).user?.branches ?? [];
-          final match = branches.where((b) => b.name == val);
-          if (match.isNotEmpty) {
-            setState(
-              () => _selectedBranchId = match.first.branchId.isNotEmpty
-                  ? match.first.branchId
-                  : match.first.id,
-            );
-          }
-        },
-        validator: (v) => v == null ? 'Required' : null,
-      ),
-      const SizedBox(height: 16),
-      if (!isReadOnly) ...[
-        StaffScheduleSection(
-          selectedScheduleOption: _selectedScheduleOption,
-          onScheduleOptionChanged: (v) =>
-              setState(() => _selectedScheduleOption = v),
-          allDays: _allDays,
-          selectedWorkingDays: _selectedWorkingDays,
-          onWorkingDaysChanged: (v) => setState(() => _selectedWorkingDays = v),
-          startTime: _startTime,
-          onStartTimeChanged: (v) => setState(() => _startTime = v),
-          endTime: _endTime,
-          onEndTimeChanged: (v) => setState(() => _endTime = v),
-          expandedDay: _expandedDay,
-          onExpandedDayChanged: (v) => setState(() => _expandedDay = v),
-          customHours: _customHours,
-          onCustomHoursChanged: (d, s, e) =>
-              setState(() => _customHours[d] = (s, e)),
+        const SizedBox(height: 8),
+        Text(
+          'Set shifts and working hours for the staff',
+          style: Theme.of(
+            context,
+          ).textTheme.bodySmall?.copyWith(color: Colors.grey.shade600),
         ),
         const SizedBox(height: 16),
-        CustomCupertinoListTile(
-          title: const Text('Set Active'),
-          trailing: CupertinoSwitch(
-            value: _isActive,
-            onChanged: (v) => setState(() => _isActive = v),
-            activeTrackColor: Theme.of(context).primaryColor,
-          ),
-        ),
       ],
+      StaffScheduleSection(
+        isMobile: isMobile,
+        selectedScheduleOption: _selectedScheduleOption,
+        onScheduleOptionChanged: (v) =>
+            setState(() => _selectedScheduleOption = v),
+        allDays: _allDays,
+        selectedWorkingDays: _selectedWorkingDays,
+        onWorkingDaysChanged: (v) => setState(() => _selectedWorkingDays = v),
+        startTime: _startTime,
+        onStartTimeChanged: (v) => setState(() => _startTime = v),
+        endTime: _endTime,
+        onEndTimeChanged: (v) => setState(() => _endTime = v),
+        expandedDay: _expandedDay,
+        onExpandedDayChanged: (v) => setState(() => _expandedDay = v),
+        customHours: _customHours,
+        onCustomHoursChanged: (d, s, e) =>
+            setState(() => _customHours[d] = (s, e)),
+      ),
     ];
   }
 
   bool _isFormValid() {
     // Check all required fields
-    if (_userNameController.text.trim().isEmpty) return false;
+    if (_firstNameController.text.trim().isEmpty) return false;
+    if (_lastNameController.text.trim().isEmpty) return false;
     if (_phoneNumberController.text.trim().isEmpty) return false;
     if (_emailController.text.trim().isEmpty) return false;
     if (_selectedGender == null) return false;
     if (_selectedRole == null) return false;
     if (_selectedBranchId == null) return false;
-    if (_isCreateMode && _passwordController.text.trim().isEmpty) return false;
+    if (_isCreateMode) {
+      if (_passwordController.text.trim().isEmpty) return false;
+      if (_confirmPasswordController.text.trim().isEmpty) return false;
+      if (_passwordController.text != _confirmPasswordController.text) {
+        return false;
+      }
+    }
     return true;
   }
 
@@ -512,7 +553,8 @@ class _StaffManagementPageState extends ConsumerState<StaffManagementPage> {
       id: state
           .initialStaff
           ?.id, // Use state.initialStaff instead of widget.initialStaff
-      userName: _userNameController.text,
+      userName: '${_firstNameController.text} ${_lastNameController.text}'
+          .trim(),
       gender: _selectedGender,
       phoneNumber: _phoneNumberController.text,
       email: _emailController.text,
