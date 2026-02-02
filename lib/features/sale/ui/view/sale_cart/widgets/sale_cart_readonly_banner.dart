@@ -50,9 +50,12 @@ class SaleCartReadOnlyBanner extends StatelessWidget {
                     const SizedBox(width: 10),
                     Expanded(child: Text(message)),
                     const SizedBox(width: 12),
-                    FilledButton(
-                      onPressed: () => context.push(cashSessionPath),
-                      child: const Text('Cash session'),
+                    Flexible(
+                      fit: FlexFit.loose,
+                      child: FilledButton(
+                        onPressed: () => context.push(cashSessionPath),
+                        child: const Text('Cash session'),
+                      ),
                     ),
                   ],
                 ),

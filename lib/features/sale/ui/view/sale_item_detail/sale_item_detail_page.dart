@@ -9,11 +9,17 @@ import 'package:modular_pos/features/sale/ui/viewmodels/sale_access_gate.dart';
 import 'package:modular_pos/features/sale/ui/view/sale_item_detail/widgets/sale_item_detail_bottom_bar.dart';
 import 'package:modular_pos/features/sale/ui/view/sale_item_detail/widgets/sale_item_detail_image.dart';
 import 'package:modular_pos/features/sale/ui/view/sale_item_detail/widgets/sale_item_modifier_group_section.dart';
+import 'package:modular_pos/features/sale/ui/viewmodels/mock_sale_data.dart';
 
 class SaleItemDetailPage extends ConsumerStatefulWidget {
-  const SaleItemDetailPage({super.key, required this.item});
+  const SaleItemDetailPage({
+    super.key,
+    required this.item,
+    this.useMockData = false,
+  });
 
   final MenuItem item;
+  final bool useMockData;
 
   @override
   ConsumerState<SaleItemDetailPage> createState() => _SaleItemDetailPageState();
@@ -59,6 +65,7 @@ class _SaleItemDetailPageState extends ConsumerState<SaleItemDetailPage> {
   @override
   Widget build(BuildContext context) {
     final menuState = ref.watch(menuViewModelProvider);
+
     return FutureBuilder<(MenuItem, List<ModifierGroup>)?>(
       future: _loadFuture,
       builder: (context, snapshot) {
@@ -66,19 +73,32 @@ class _SaleItemDetailPageState extends ConsumerState<SaleItemDetailPage> {
         final hydratedItemFromState = menuState.hydratedItems[widget.item.id];
         final itemToUse = tuple?.$1 ?? hydratedItemFromState ?? widget.item;
 
-        final fetchedMods = tuple?.$2 ?? const <ModifierGroup>[];
-        final hydratedMods = itemToUse.modifierGroupIds
-            .map((id) => menuState.hydratedModifierGroups[id])
-            .whereType<ModifierGroup>()
-            .toList();
-        var modifiers = fetchedMods.isNotEmpty ? fetchedMods : hydratedMods;
-        final gate = ref.watch(saleAccessGateProvider);
-        final canAddToCart =
-            gate.canMutateCart &&
-            gate.canAddToCart; // disables while loading too
+        // Use mock modifiers if enabled, otherwise use real data
+        List<ModifierGroup> modifiers;
+        if (widget.useMockData) {
+          modifiers = widget.item.modifierGroupIds
+              .map((id) => MockSaleData.modifierGroups[id])
+              .whereType<ModifierGroup>()
+              .toList();
+        } else {
+          final fetchedMods = tuple?.$2 ?? const <ModifierGroup>[];
+          final hydratedMods = itemToUse.modifierGroupIds
+              .map((id) => menuState.hydratedModifierGroups[id])
+              .whereType<ModifierGroup>()
+              .toList();
+          modifiers = fetchedMods.isNotEmpty ? fetchedMods : hydratedMods;
+        }
 
-        // If the first attempt returned empty, trigger one retry automatically.
+        // TODO: Temporarily disabled for testing - re-enable before production
+        // final gate = ref.watch(saleAccessGateProvider);
+        // final canAddToCart =
+        //     gate.canMutateCart &&
+        //     gate.canAddToCart; // disables while loading too
+        final canAddToCart = true; // Temporarily always enabled for testing
+
+        // If the first attempt returned empty and not using mock data, trigger one retry automatically.
         if (modifiers.isEmpty &&
+            !widget.useMockData &&
             !_hasRetried &&
             snapshot.connectionState == ConnectionState.done) {
           _hasRetried = true;
@@ -117,15 +137,12 @@ class _SaleItemDetailPageState extends ConsumerState<SaleItemDetailPage> {
               child: Container(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(12),
-                  color: Theme.of(context)
-                      .colorScheme
-                      .surfaceContainerHighest
-                      .withValues(alpha: 0.3),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
                 ),
                 clipBehavior: Clip.antiAlias,
-                child: SaleItemDetailImage(
-                  imageUrl: itemToUse.imageUrl,
-                ),
+                child: SaleItemDetailImage(imageUrl: itemToUse.imageUrl),
               ),
             ),
           ),
@@ -141,9 +158,9 @@ class _SaleItemDetailPageState extends ConsumerState<SaleItemDetailPage> {
             ),
             Text(
               '\$${itemToUse.price.toStringAsFixed(2)}',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
             ),
           ],
         );
@@ -172,26 +189,30 @@ class _SaleItemDetailPageState extends ConsumerState<SaleItemDetailPage> {
                   );
                 },
               );
-              
+
+        // Compute pricing breakdown
+        final pricing = _computeSelectionPricing(
+          itemToUse,
+          modifiers,
+          _selectedOptionIds,
+          _quantity,
+        );
+
+        // Check if we're in a dialog context (no Scaffold parent)
+        final isDialog = ModalRoute.of(context) is! PageRoute;
+
         final bottomBar = SaleItemDetailBottomBar(
-          totalUsd: _computeTotal(
-            itemToUse,
-            modifiers,
-            _selectedOptionIds,
-            _quantity,
-          ),
+          basePrice: itemToUse.price,
+          addonTotal: pricing.addonTotalUsd,
+          totalUsd: pricing.lineTotalUsd,
           quantity: _quantity,
+          selectedOptions: pricing.selectedOptions,
           onQuantityChanged: (value) => setState(() => _quantity = value),
           canAddToCart: canAddToCart,
-          blockingMessage: gate.blockingMessage,
+          blockingMessage: null, // Temporarily disabled
+          showPriceBreakdown: true, // Always show price breakdown
           onAddItem: canAddToCart
               ? () {
-                  final pricing = _computeSelectionPricing(
-                    itemToUse,
-                    modifiers,
-                    _selectedOptionIds,
-                    _quantity,
-                  );
                   final result = SaleItemSelectionResult(
                     item: itemToUse,
                     quantity: _quantity,
@@ -209,57 +230,112 @@ class _SaleItemDetailPageState extends ConsumerState<SaleItemDetailPage> {
               : null,
         );
 
-        return Scaffold(
-          appBar: AppBar(title: Text(itemToUse.name), centerTitle: false),
-          body: SafeArea(
-            child: isLarge
-                ? Row(
+        // Build the modal content for dialogs
+        if (isDialog) {
+          return Material(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              children: [
+                // Header with title, description, and close button
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 20, 16, 12),
+                  child: Row(
                     children: [
                       Expanded(
-                        flex: 4,
-                        child: Padding(
-                          padding: const EdgeInsets.all(24),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              ConstrainedBox(
-                                constraints: const BoxConstraints(maxWidth: 400),
-                                child: imageSection,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              itemToUse.name,
+                              style: Theme.of(context).textTheme.titleLarge
+                                  ?.copyWith(fontWeight: FontWeight.bold),
+                            ),
+                            if (itemToUse.description.isNotEmpty) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                itemToUse.description,
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onSurfaceVariant,
+                                    ),
                               ),
                             ],
-                          ),
-                        ),
-                      ),
-                      const VerticalDivider(width: 1),
-                      Expanded(
-                        flex: 6,
-                        child: Column(
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
-                              child: headerSection,
-                            ),
-                            Expanded(child: modifiersSection),
-                            bottomBar,
                           ],
                         ),
                       ),
-                    ],
-                  )
-                : Column(
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                        child: imageSection,
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => Navigator.of(context).pop(),
                       ),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                        child: headerSection,
-                      ),
-                      Expanded(child: modifiersSection),
                     ],
                   ),
-          ),
+                ),
+                const Divider(height: 1),
+                // Modifiers and bottom bar (no image)
+                Expanded(child: modifiersSection),
+                bottomBar,
+              ],
+            ),
+          );
+        }
+
+        // Build the content for navigation routes (Scaffold with AppBar)
+        Widget bodyContent = isLarge
+            ? Row(
+                children: [
+                  Expanded(
+                    flex: 4,
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 300),
+                            child: imageSection,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const VerticalDivider(width: 1),
+                  Expanded(
+                    flex: 6,
+                    child: Column(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+                          child: headerSection,
+                        ),
+                        Expanded(child: modifiersSection),
+                        bottomBar,
+                      ],
+                    ),
+                  ),
+                ],
+              )
+            : Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                    child: imageSection,
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                    child: headerSection,
+                  ),
+                  Expanded(child: modifiersSection),
+                ],
+              );
+
+        // For navigation, use Scaffold
+        return Scaffold(
+          appBar: AppBar(title: Text(itemToUse.name), centerTitle: false),
+          body: SafeArea(child: bodyContent),
           bottomNavigationBar: isLarge ? null : bottomBar,
         );
       },
@@ -287,40 +363,40 @@ class SaleItemSelectionResult {
   final double lineTotalUsd;
 }
 
-double _computeTotal(
-  MenuItem item,
-  List<ModifierGroup> groups,
-  Map<String, Set<String>> selections,
-  int quantity,
-) {
-  double addon = 0;
-  for (final group in groups) {
-    final selected = selections[group.id];
-    Set<String> chosen;
-    if (selected != null && selected.isNotEmpty) {
-      chosen = selected;
-    } else {
-      // Fallback to defaults
-      final defaults = group.options
-          .where((o) => o.isDefault)
-          .map((o) => o.id)
-          .toSet();
-      if (defaults.isNotEmpty) {
-        chosen = defaults;
-      } else if (group.selectionType == 'single' && group.options.isNotEmpty) {
-        chosen = {group.options.first.id};
-      } else {
-        chosen = {};
-      }
-    }
-    for (final option in group.options) {
-      if (chosen.contains(option.id)) {
-        addon += option.price;
-      }
-    }
-  }
-  return (item.price + addon) * quantity;
-}
+// double _computeTotal(
+//   MenuItem item,
+//   List<ModifierGroup> groups,
+//   Map<String, Set<String>> selections,
+//   int quantity,
+// ) {
+//   double addon = 0;
+//   for (final group in groups) {
+//     final selected = selections[group.id];
+//     Set<String> chosen;
+//     if (selected != null && selected.isNotEmpty) {
+//       chosen = selected;
+//     } else {
+//       // Fallback to defaults
+//       final defaults = group.options
+//           .where((o) => o.isDefault)
+//           .map((o) => o.id)
+//           .toSet();
+//       if (defaults.isNotEmpty) {
+//         chosen = defaults;
+//       } else if (group.selectionType == 'single' && group.options.isNotEmpty) {
+//         chosen = {group.options.first.id};
+//       } else {
+//         chosen = {};
+//       }
+//     }
+//     for (final option in group.options) {
+//       if (chosen.contains(option.id)) {
+//         addon += option.price;
+//       }
+//     }
+//   }
+//   return (item.price + addon) * quantity;
+// }
 
 class _SelectionPricing {
   const _SelectionPricing({

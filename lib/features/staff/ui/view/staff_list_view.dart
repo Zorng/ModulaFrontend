@@ -215,23 +215,25 @@ class StaffListView extends ConsumerWidget {
                                             border: Border.all(
                                               color: Colors.grey.shade300,
                                             ),
-                                            borderRadius:
-                                                BorderRadius.circular(8),
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
                                           ),
                                           child: ClipRRect(
-                                            borderRadius:
-                                                BorderRadius.circular(8),
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
                                             child: StaffDataTable(
                                               staffList: filteredStaff,
                                               onStaffTap: (staff) async {
                                                 final result = await context
                                                     .pushNamed(
-                                                  AppRoute.staffDetail.name,
-                                                  pathParameters: {
-                                                    'id': staff.id ?? '',
-                                                  },
-                                                  extra: staff,
-                                                );
+                                                      AppRoute.staffDetail.name,
+                                                      pathParameters: {
+                                                        'id': staff.id ?? '',
+                                                      },
+                                                      extra: staff,
+                                                    );
                                                 if (result == true) {
                                                   notifier.reloadStaff();
                                                 }
@@ -373,14 +375,14 @@ class StaffListView extends ConsumerWidget {
                                           return StaffListCard(
                                             staffMember: staff,
                                             onTap: () async {
-                                              final result =
-                                                  await context.pushNamed(
-                                                AppRoute.staffDetail.name,
-                                                pathParameters: {
-                                                  'id': staff.id ?? '',
-                                                },
-                                                extra: staff,
-                                              );
+                                              final result = await context
+                                                  .pushNamed(
+                                                    AppRoute.staffDetail.name,
+                                                    pathParameters: {
+                                                      'id': staff.id ?? '',
+                                                    },
+                                                    extra: staff,
+                                                  );
                                               if (result == true) {
                                                 notifier.reloadStaff();
                                               }

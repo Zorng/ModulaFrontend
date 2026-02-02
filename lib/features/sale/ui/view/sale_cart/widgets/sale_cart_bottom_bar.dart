@@ -19,9 +19,13 @@ class SaleCartBottomBar extends StatelessWidget {
     return SafeArea(
       top: false,
       child: Container(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
+          color: Colors.white,
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(12),
+            topRight: Radius.circular(12),
+          ),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.08),
@@ -37,7 +41,7 @@ class SaleCartBottomBar extends StatelessWidget {
             Row(
               children: [
                 Text(
-                  'Grand Total',
+                  'Total (VAT inclu.)',
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const Spacer(),

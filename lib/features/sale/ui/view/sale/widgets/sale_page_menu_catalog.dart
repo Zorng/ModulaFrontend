@@ -4,12 +4,14 @@ import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/feedback/user_error_message.dart';
 import 'package:modular_pos/core/logging/app_log.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
+import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/core/widgets/display/menu_item_card.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_category.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
 import 'package:modular_pos/features/sale/ui/view/sale_item_detail/sale_item_detail_page.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_access_gate.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_viewmodel.dart';
+import 'package:modular_pos/features/sale/ui/viewmodels/mock_sale_data.dart';
 
 class SalePageMenuCatalog extends ConsumerWidget {
   const SalePageMenuCatalog({
@@ -18,12 +20,14 @@ class SalePageMenuCatalog extends ConsumerWidget {
     required this.categories,
     required this.gridCount,
     required this.itemAspectRatio,
+    this.useMockData = false,
   });
 
   final List<MenuItem> items;
   final List<MenuCategory> categories;
   final int gridCount;
   final double itemAspectRatio;
+  final bool useMockData;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -34,6 +38,9 @@ class SalePageMenuCatalog extends ConsumerWidget {
     final categoryLookup = <String, String>{
       for (final category in categories) category.id: category.name,
     };
+
+    final width = MediaQuery.of(context).size.width;
+    final isLarge = AppBreakpoints.isLarge(width);
 
     return GridView.builder(
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
@@ -52,23 +59,46 @@ class SalePageMenuCatalog extends ConsumerWidget {
           price: item.price,
           imagePath: item.imageUrl,
           onTap: () async {
-            final selection = await context.push<SaleItemSelectionResult>(
-              AppRoute.saleItemDetail.path,
-              extra: item,
-            );
-            if (selection != null && context.mounted) {
-              final gate = ref.read(saleAccessGateProvider);
-              if (!gate.canMutateCart) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      gate.blockingMessage ??
-                          'Cash session required. Start one to begin selling.',
+            SaleItemSelectionResult? selection;
+
+            // Show modal dialog on wide screens, navigate on mobile
+            if (isLarge) {
+              selection = await showDialog<SaleItemSelectionResult>(
+                context: context,
+                builder: (context) => Dialog(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      maxWidth: 600,
+                      maxHeight: 700,
+                    ),
+                    child: SaleItemDetailPage(
+                      item: item,
+                      useMockData: useMockData,
                     ),
                   ),
-                );
-                return;
-              }
+                ),
+              );
+            } else {
+              selection = await context.push<SaleItemSelectionResult>(
+                AppRoute.saleItemDetail.path,
+                extra: item,
+              );
+            }
+
+            if (selection != null && context.mounted) {
+              // TODO: Temporarily commented out for testing - re-enable before production
+              // final gate = ref.read(saleAccessGateProvider);
+              // if (!gate.canMutateCart) {
+              //   ScaffoldMessenger.of(context).showSnackBar(
+              //     SnackBar(
+              //       content: Text(
+              //         gate.blockingMessage ??
+              //             'Cash session required. Start one to begin selling.',
+              //       ),
+              //     ),
+              //   );
+              //   return;
+              // }
               try {
                 await ref
                     .read(saleCartProvider.notifier)
