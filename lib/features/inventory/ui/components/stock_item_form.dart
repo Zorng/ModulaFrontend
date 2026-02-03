@@ -502,14 +502,6 @@ class _StockItemFormPageState extends ConsumerState<StockItemFormPage> {
         .toSet();
   }
 
-  String _pieceDescription() {
-    final parsed =
-        int.tryParse(_pieceSizeCtrl.text) ?? (_originalItem?.pieceSize ?? 1);
-    final base = _baseUnit ?? _originalItem?.baseUnit ?? 'pcs';
-    if (parsed <= 1) return 'Tracked in $base';
-    return '$parsed $base per piece';
-  }
-
   Future<void> _pickImage() async {
     try {
       final picked = await _picker.pickImage(source: ImageSource.gallery);

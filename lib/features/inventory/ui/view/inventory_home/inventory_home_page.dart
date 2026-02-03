@@ -713,18 +713,6 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
       );
     }).toList();
   }
-
-  String _assignedBranches(StockItem item, List<StockItem> allItems) {
-    if (item.branchId != 'all') return item.branchName;
-    final branches = <String>{};
-    for (final it in allItems) {
-      if (it.name == item.name && it.category == item.category) {
-        branches.add(it.branchName);
-      }
-    }
-    if (branches.isEmpty) return item.branchName;
-    return branches.join(', ');
-  }
 }
 
 enum _StockStatus { all, healthy, outOfStock }
