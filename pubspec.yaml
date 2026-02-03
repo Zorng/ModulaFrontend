@@ -43,7 +43,6 @@ flutter:
 
   assets:
     - 'assets/images/modula.svg'
-    - .env
 
   fonts:
     - family: DMSans

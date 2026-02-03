@@ -5,7 +5,6 @@ import 'package:modular_pos/core/hydration/app_hydration_listener.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/routing/routes/account_routes.dart';
 import 'package:modular_pos/core/routing/routes/attendance_routes.dart';
-import 'package:modular_pos/core/routing/routes/branch_routes.dart';
 import 'package:modular_pos/core/routing/routes/cash_routes.dart';
 import 'package:modular_pos/core/routing/routes/core_routes.dart';
 import 'package:modular_pos/core/routing/routes/inventory_routes.dart';
@@ -126,9 +125,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       if (path == AppRoute.attendanceManagement.path && role != 'admin') {
         return '/404';
       }
-      if (isInPathGroup(AppRoute.branches.path) && role != 'admin') {
-        return '/404';
-      }
 
       // For other paths (including unknown ones), don't redirect here.
       // If no route matches, errorBuilder will show "Page not found".
@@ -145,7 +141,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         routes: [
           buildPortalRoute(ref),
           ...buildMenuRoutes(),
-          ...buildBranchRoutes(),
           ...buildPolicyRoutes(),
           ...buildAccountRoutes(),
           ...buildAttendanceRoutes(),

@@ -28,11 +28,6 @@ List<NavSection> navSectionsForRole(String role) {
         label: 'Global',
         destinations: [
           NavDestination(
-            label: 'Branches',
-            icon: Icons.store_outlined,
-            path: AppRoute.branches.path,
-          ),
-          NavDestination(
             label: 'Menu',
             icon: Icons.fastfood_outlined,
             path: AppRoute.adminMenu.path,

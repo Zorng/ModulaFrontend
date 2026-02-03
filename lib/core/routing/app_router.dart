@@ -43,8 +43,6 @@ enum AppRoute {
   xReport,
   zReport,
   attendanceManagement,
-  branches,
-  branchDetail,
 }
 
 extension AppRoutePath on AppRoute {
@@ -93,8 +91,6 @@ extension AppRoutePath on AppRoute {
     AppRoute.xReport => '/reports/x',
     AppRoute.zReport => '/reports/z',
     AppRoute.attendanceManagement => '/attendance/manage',
-    AppRoute.branches => '/branches',
-    AppRoute.branchDetail => '/branches/detail',
   };
 
   String get name => switch (this) {
@@ -142,7 +138,5 @@ extension AppRoutePath on AppRoute {
     AppRoute.xReport => 'xReport',
     AppRoute.zReport => 'zReport',
     AppRoute.attendanceManagement => 'attendanceManagement',
-    AppRoute.branches => 'branches',
-    AppRoute.branchDetail => 'branchDetail',
   };
 }
