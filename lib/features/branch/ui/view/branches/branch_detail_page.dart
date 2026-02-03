@@ -211,6 +211,8 @@ class _BranchDetailPageState extends ConsumerState<BranchDetailPage> {
     }
   }
 
+  static final _dividerColor = Colors.grey.shade300;
+
   @override
   Widget build(BuildContext context) {
     final branchesAsync = ref.watch(branchStoreProvider);
@@ -270,7 +272,7 @@ class _BranchDetailPageState extends ConsumerState<BranchDetailPage> {
       ),
       body: Column(
         children: [
-          Divider(height: 1, thickness: 1, color: Colors.grey.shade300),
+          Divider(height: 1, thickness: 1, color: _dividerColor),
           Expanded(
             child: branchesAsync.when(
               loading: () => const Center(child: CircularProgressIndicator()),
@@ -430,7 +432,7 @@ class _BranchDetailPageState extends ConsumerState<BranchDetailPage> {
                           ),
                         ],
                         const SizedBox(height: 24),
-                        Divider(height: 1, thickness: 1, color: Colors.grey.shade300),
+                        Divider(height: 1, thickness: 1, color: _dividerColor),
                         const SizedBox(height: 24),
 
                         if (_isEditMode) ...[
