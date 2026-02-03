@@ -23,7 +23,7 @@ class AdminHomeContent extends StatelessWidget {
       FeatureEntry(
         title: 'Branches',
         icon: Icons.store_mall_directory_outlined,
-        comingSoon: true,
+        onTap: () => context.push(AppRoute.branch.path),
       ),
       FeatureEntry(
         title: 'Staff',
