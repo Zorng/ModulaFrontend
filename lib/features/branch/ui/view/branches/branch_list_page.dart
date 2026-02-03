@@ -7,6 +7,7 @@ import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/core/widgets/navigation/app_back_button.dart';
 import 'package:modular_pos/features/branch/ui/viewmodels/branch_store.dart';
 import 'package:modular_pos/features/branch/ui/view/branches/widgets/branch_card.dart';
+import 'package:modular_pos/features/branch/ui/view/branches/widgets/branch_detail_dialog.dart';
 
 class BranchListPage extends ConsumerStatefulWidget {
   const BranchListPage({super.key});
@@ -33,16 +34,26 @@ class _BranchListPageState extends ConsumerState<BranchListPage> {
     final theme = Theme.of(context);
     final textTheme = theme.textTheme;
     final branchesAsync = ref.watch(branchStoreProvider);
+    final width = MediaQuery.of(context).size.width;
+    final isWideScreen = AppBreakpoints.isLarge(width);
 
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        title: const Text('Branch'),
-        leading: AppBackButton(
-          onPressed: () => context.go(AppRoute.portal.path),
+        title: Text(
+          'All Branches',
+          style: theme.textTheme.headlineSmall?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
         ),
+        leading: isWideScreen
+            ? null
+            : AppBackButton(
+                onPressed: () => context.go(AppRoute.portal.path),
+              ),
+        automaticallyImplyLeading: !isWideScreen,
       ),
       body: LayoutBuilder(
         builder: (context, constraints) {
@@ -215,10 +226,19 @@ class _BranchListPageState extends ConsumerState<BranchListPage> {
                               return BranchCard(
                                 branch: branch,
                                 onTap: () {
-                                  context.push(
-                                    AppRoute.branchDetail.path,
-                                    extra: branch.id,
-                                  );
+                                  if (isWideScreen) {
+                                    showDialog(
+                                      context: context,
+                                      builder: (context) => BranchDetailDialog(
+                                        branchId: branch.id,
+                                      ),
+                                    );
+                                  } else {
+                                    context.push(
+                                      AppRoute.branchDetail.path,
+                                      extra: branch.id,
+                                    );
+                                  }
                                 },
                               );
                             },

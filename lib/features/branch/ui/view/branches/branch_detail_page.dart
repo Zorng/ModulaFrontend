@@ -216,14 +216,19 @@ class _BranchDetailPageState extends ConsumerState<BranchDetailPage> {
   @override
   Widget build(BuildContext context) {
     final branchesAsync = ref.watch(branchStoreProvider);
+    final width = MediaQuery.of(context).size.width;
+    final isWideScreen = AppBreakpoints.isLarge(width);
 
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.white,
-        leading: AppBackButton(onPressed: () => context.pop()),
-        titleSpacing: 0,
+        leading: isWideScreen
+            ? null
+            : AppBackButton(onPressed: () => context.pop()),
+        automaticallyImplyLeading: !isWideScreen,
+        titleSpacing: isWideScreen ? 16 : 0,
         title: branchesAsync.maybeWhen(
           data: (branches) {
             final branch = branches.firstWhere((b) => b.id == widget.branchId);
