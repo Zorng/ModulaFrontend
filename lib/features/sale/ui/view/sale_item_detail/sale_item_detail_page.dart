@@ -90,11 +90,11 @@ class _SaleItemDetailPageState extends ConsumerState<SaleItemDetailPage> {
         }
 
         // TODO: Temporarily disabled for testing - re-enable before production
-        // final gate = ref.watch(saleAccessGateProvider);
-        // final canAddToCart =
-        //     gate.canMutateCart &&
-        //     gate.canAddToCart; // disables while loading too
-        final canAddToCart = true; // Temporarily always enabled for testing
+        final gate = ref.watch(saleAccessGateProvider);
+        final canAddToCart =
+            gate.canMutateCart &&
+            gate.canAddToCart; // disables while loading too
+        // final canAddToCart = true; // Temporarily always enabled for testing
 
         // If the first attempt returned empty and not using mock data, trigger one retry automatically.
         if (modifiers.isEmpty &&
@@ -209,7 +209,7 @@ class _SaleItemDetailPageState extends ConsumerState<SaleItemDetailPage> {
           selectedOptions: pricing.selectedOptions,
           onQuantityChanged: (value) => setState(() => _quantity = value),
           canAddToCart: canAddToCart,
-          blockingMessage: null, // Temporarily disabled
+          blockingMessage: canAddToCart ? null : 'Cash session required', // Temporarily disabled
           showPriceBreakdown: true, // Always show price breakdown
           onAddItem: canAddToCart
               ? () {

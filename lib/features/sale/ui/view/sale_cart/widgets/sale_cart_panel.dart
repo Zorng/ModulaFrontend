@@ -42,8 +42,8 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
   }
 
   void _loadMockCartData() {
-    final cartNotifier = ref.read(saleCartProvider.notifier);
-    final currentState = ref.read(saleCartProvider);
+    // final cartNotifier = ref.read(saleCartProvider.notifier);
+    // final currentState = ref.read(saleCartProvider);
 
     // Create mock cart items
     final mockItems = [
@@ -71,8 +71,7 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
     ];
 
     // Update cart state with mock data
-    final newState = currentState.copyWith(lines: mockItems);
-    ref.read(saleCartProvider.notifier).state = newState;
+    ref.read(saleCartProvider.notifier).setLines(mockItems);
   }
 
   double _lineTotal(CartLine line, Map<String, ModifierGroup> groupLookup) {

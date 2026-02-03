@@ -11,7 +11,7 @@ import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
 import 'package:modular_pos/features/sale/ui/view/sale_item_detail/sale_item_detail_page.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_access_gate.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_viewmodel.dart';
-import 'package:modular_pos/features/sale/ui/viewmodels/mock_sale_data.dart';
+// import 'package:modular_pos/features/sale/ui/viewmodels/mock_sale_data.dart';
 
 class SalePageMenuCatalog extends ConsumerWidget {
   const SalePageMenuCatalog({
@@ -87,18 +87,18 @@ class SalePageMenuCatalog extends ConsumerWidget {
 
             if (selection != null && context.mounted) {
               // TODO: Temporarily commented out for testing - re-enable before production
-              // final gate = ref.read(saleAccessGateProvider);
-              // if (!gate.canMutateCart) {
-              //   ScaffoldMessenger.of(context).showSnackBar(
-              //     SnackBar(
-              //       content: Text(
-              //         gate.blockingMessage ??
-              //             'Cash session required. Start one to begin selling.',
-              //       ),
-              //     ),
-              //   );
-              //   return;
-              // }
+              final gate = ref.read(saleAccessGateProvider);
+              if (!gate.canMutateCart) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      gate.blockingMessage ??
+                          'Cash session required. Start one to begin selling.',
+                    ),
+                  ),
+                );
+                return;
+              }
               try {
                 await ref
                     .read(saleCartProvider.notifier)
