@@ -17,6 +17,18 @@ class RestockBranchSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // If there are no branch entries, show a non-interactive label instead of
+    // trying to access entries.first which would throw.
+    if (entries.isEmpty) {
+      return SizedBox(
+        width: double.infinity,
+        child: InputDecorator(
+          decoration: const InputDecoration(labelText: 'Branch'),
+          child: Text('No branches available'),
+        ),
+      );
+    }
+
     if (!enabled) {
       final label = entries
           .firstWhere(
@@ -34,14 +46,18 @@ class RestockBranchSelector extends StatelessWidget {
     }
 
     return FormField<String>(
-      validator: (_) => selectedBranchId == null ? 'Please select a branch' : null,
+      validator: (_) =>
+          selectedBranchId == null ? 'Please select a branch' : null,
       builder: (state) => SizedBox(
         width: double.infinity,
         child: InventoryDropdown<String>(
           initialValue: selectedBranchId,
           label: const Text('Branch'),
           entries: entries
-              .map((entry) => DropdownMenuEntry(value: entry.key, label: entry.value))
+              .map(
+                (entry) =>
+                    DropdownMenuEntry(value: entry.key, label: entry.value),
+              )
               .toList(),
           onSelected: (value) {
             state.didChange(value);
@@ -53,4 +69,3 @@ class RestockBranchSelector extends StatelessWidget {
     );
   }
 }
-

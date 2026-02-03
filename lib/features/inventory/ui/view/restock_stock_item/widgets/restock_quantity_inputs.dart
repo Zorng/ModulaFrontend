@@ -65,4 +65,3 @@ class RestockQuantityInputs extends StatelessWidget {
     );
   }
 }
-

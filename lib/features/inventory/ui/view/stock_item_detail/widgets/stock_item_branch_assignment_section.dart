@@ -15,6 +15,7 @@ class StockItemBranchAssignmentSection extends StatelessWidget {
     required this.onAddAssignment,
     required this.onAssignmentChanged,
     required this.onRemoveAssignment,
+    this.showCard = true,
   });
 
   final bool isEditing;
@@ -25,64 +26,48 @@ class StockItemBranchAssignmentSection extends StatelessWidget {
   final VoidCallback onAddAssignment;
   final VoidCallback onAssignmentChanged;
   final void Function(BranchAssignment assignment) onRemoveAssignment;
+  final bool showCard;
 
   @override
   Widget build(BuildContext context) {
+    final content = <Widget>[
+      if (userBranches.isEmpty)
+        const Text('No branches available.')
+      else if (branchAssignments.isEmpty)
+        const Text('Not assigned to any branch.')
+      else
+        ...branchAssignments.map(
+          (assignment) => BranchAssignmentCard(
+            assignment: assignment,
+            branches: userBranches,
+            usedBranchIds: usedBranchIds(assignment),
+            onChanged: onAssignmentChanged,
+            onRemove: () => onRemoveAssignment(assignment),
+            enabled: isEditing,
+          ),
+        ),
+      if (isEditing && branchAssignments.length < userBranches.length)
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            onPressed: onAddAssignment,
+            icon: const Icon(Icons.add),
+            label: const Text('Assign to branch'),
+          ),
+        ),
+    ];
+
+    if (!showCard) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: content,
+      );
+    }
+
     return InventorySectionCard(
       title: 'Branch assignment',
       backgroundColor: Colors.white,
-      children: [
-        if (userBranches.isEmpty)
-          const Text('No branches available.')
-        else if (isEditing) ...[
-          ...branchAssignments.map(
-            (assignment) => BranchAssignmentCard(
-              assignment: assignment,
-              branches: userBranches,
-              usedBranchIds: usedBranchIds(assignment),
-              onChanged: onAssignmentChanged,
-              onRemove: () => onRemoveAssignment(assignment),
-            ),
-          ),
-          if (branchAssignments.length < userBranches.length)
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton.icon(
-                onPressed: onAddAssignment,
-                icon: const Icon(Icons.add),
-                label: const Text('Assign to branch'),
-              ),
-            ),
-        ] else ...[
-          if (branchAssignments.isEmpty)
-            const Text('Not assigned to any branch.')
-          else
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: branchAssignments
-                  .map(
-                    (assignment) => Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              branchNameResolver(assignment.branchId),
-                              style: Theme.of(context).textTheme.bodyLarge,
-                            ),
-                          ),
-                          Text(
-                            'Min ${assignment.thresholdCtrl.text}',
-                            style: Theme.of(context).textTheme.bodyMedium,
-                          ),
-                        ],
-                      ),
-                    ),
-                  )
-                  .toList(),
-            ),
-        ],
-      ],
+      children: content,
     );
   }
 }

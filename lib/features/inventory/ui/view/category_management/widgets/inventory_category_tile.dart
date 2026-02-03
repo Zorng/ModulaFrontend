@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:modular_pos/features/inventory/domain/models/inventory_category.dart';
-import 'package:modular_pos/features/inventory/ui/viewmodels/category_controller.dart';
+import 'package:modular_pos/features/inventory/ui/view/category_management/widgets/inventory_category_actions.dart';
 
 class InventoryCategoryTile extends ConsumerWidget {
   const InventoryCategoryTile({
@@ -30,19 +29,30 @@ class InventoryCategoryTile extends ConsumerWidget {
           children: [
             Text(
               category.name,
-              style: Theme.of(context)
-                  .textTheme
-                  .titleMedium
-                  ?.copyWith(fontWeight: FontWeight.w600),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 2),
             Text(
               '$itemCount stock item${itemCount == 1 ? '' : 's'}',
-              style: Theme.of(context)
-                  .textTheme
-                  .bodySmall
-                  ?.copyWith(color: scheme.onSurfaceVariant),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
             ),
+            if (category.description != null &&
+                category.description!.isNotEmpty)
+              const SizedBox(height: 6),
+            if (category.description != null &&
+                category.description!.isNotEmpty)
+              Text(
+                category.description!,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+              ),
           ],
         ),
         trailing: Row(
@@ -51,112 +61,18 @@ class InventoryCategoryTile extends ConsumerWidget {
             Text(
               category.isActive ? 'Active' : 'Inactive',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: category.isActive ? scheme.primary : scheme.error,
-                    fontWeight: FontWeight.w600,
-                  ),
+                color: category.isActive ? scheme.primary : scheme.error,
+                fontWeight: FontWeight.w600,
+              ),
             ),
             const SizedBox(width: 8),
-            PopupMenuButton<_CategoryAction>(
-              onSelected: (action) {
-                switch (action) {
-                  case _CategoryAction.rename:
-                    _showRenameDialog(context, ref);
-                    break;
-                  case _CategoryAction.toggle:
-                    ref
-                        .read(categoryControllerProvider.notifier)
-                        .updateCategory(
-                          category.copyWith(isActive: !category.isActive),
-                        );
-                    break;
-                  case _CategoryAction.delete:
-                    ref
-                        .read(categoryControllerProvider.notifier)
-                        .deleteCategory(category.id);
-                    break;
-                }
-              },
-              itemBuilder: (context) => [
-                const PopupMenuItem(
-                  value: _CategoryAction.rename,
-                  child: Text('Rename'),
-                ),
-                PopupMenuItem(
-                  value: _CategoryAction.toggle,
-                  child: Text(category.isActive ? 'Deactivate' : 'Activate'),
-                ),
-                const PopupMenuItem(
-                  value: _CategoryAction.delete,
-                  child: Text('Delete'),
-                ),
-              ],
+            InventoryCategoryActionMenu(
+              category: category,
+              compact: true,
             ),
           ],
         ),
       ),
     );
   }
-
-  Future<void> _showRenameDialog(BuildContext context, WidgetRef ref) async {
-    final ctrl = TextEditingController(text: category.name);
-    final result = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Rename category'),
-        content: TextField(
-          controller: ctrl,
-          decoration: const InputDecoration(hintText: 'Category name'),
-          autofocus: true,
-        ),
-        actions: [
-          SizedBox(
-            width: double.infinity,
-            child: Row(
-              children: [
-                Expanded(
-                  child: FilledButton(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor:
-                          Theme.of(context).textTheme.bodyLarge?.color,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    onPressed: () => context.pop(),
-                    child: const Text('Cancel'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: FilledButton(
-                    style: FilledButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    onPressed: () {
-                      final value = ctrl.text.trim();
-                      if (value.isEmpty) return;
-                      context.pop(value);
-                    },
-                    child: const Text('Save'),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-    if (result != null) {
-      ref
-          .read(categoryControllerProvider.notifier)
-          .updateCategory(category.copyWith(name: result));
-    }
-  }
 }
-
-enum _CategoryAction { rename, toggle, delete }

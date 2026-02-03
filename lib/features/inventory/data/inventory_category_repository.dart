@@ -5,9 +5,9 @@ import 'package:modular_pos/features/inventory/domain/models/inventory_category.
 
 final inventoryCategoryRepositoryProvider =
     Provider<InventoryCategoryRepository>((ref) {
-  final api = ref.watch(inventoryApiProvider);
-  return InventoryCategoryRepository(api);
-});
+      final api = ref.watch(inventoryApiProvider);
+      return InventoryCategoryRepository(api);
+    });
 
 class InventoryCategoryRepository {
   const InventoryCategoryRepository(this._api);
@@ -20,18 +20,24 @@ class InventoryCategoryRepository {
   }
 
   Future<InventoryCategory> createCategory(InventoryCategory category) async {
-    final dto = await _api.createCategory({
+    final body = {
       'name': category.name,
       'isActive': category.isActive,
-    });
+      if (category.description != null && category.description!.isNotEmpty)
+        'description': category.description,
+    };
+    final dto = await _api.createCategory(body);
     return _toDomain(dto);
   }
 
   Future<InventoryCategory> updateCategory(InventoryCategory category) async {
-    final dto = await _api.updateCategory(category.id, {
+    final body = {
       'name': category.name,
       'isActive': category.isActive,
-    });
+      if (category.description != null && category.description!.isNotEmpty)
+        'description': category.description,
+    };
+    final dto = await _api.updateCategory(category.id, body);
     return _toDomain(dto);
   }
 
@@ -40,5 +46,10 @@ class InventoryCategoryRepository {
 }
 
 InventoryCategory _toDomain(InventoryCategoryDto dto) {
-  return InventoryCategory(id: dto.id, name: dto.name, isActive: dto.isActive);
+  return InventoryCategory(
+    id: dto.id,
+    name: dto.name,
+    isActive: dto.isActive,
+    description: dto.description,
+  );
 }

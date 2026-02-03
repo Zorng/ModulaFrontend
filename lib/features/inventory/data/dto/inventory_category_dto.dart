@@ -3,17 +3,20 @@ class InventoryCategoryDto {
     required this.id,
     required this.name,
     required this.isActive,
+    this.description,
   });
 
   final String id;
   final String name;
   final bool isActive;
+  final String? description;
 
   factory InventoryCategoryDto.fromJson(Map<String, dynamic> json) {
     return InventoryCategoryDto(
       id: json['id']?.toString() ?? '',
       name: json['name']?.toString() ?? 'Category',
       isActive: _asBool(json['isActive'], fallback: true),
+      description: json['description']?.toString(),
     );
   }
 }
@@ -28,4 +31,3 @@ bool _asBool(dynamic value, {required bool fallback}) {
   }
   return fallback;
 }
-

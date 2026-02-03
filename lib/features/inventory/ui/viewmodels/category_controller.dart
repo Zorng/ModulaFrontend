@@ -28,10 +28,19 @@ class CategoryController extends Notifier<CategoryState> {
     }
   }
 
-  Future<void> addCategory(String name) async {
+  Future<void> addCategory(
+    String name, {
+    String? description,
+    bool isActive = true,
+  }) async {
     try {
       final created = await _repository.createCategory(
-        InventoryCategory(id: '', name: name, isActive: true),
+        InventoryCategory(
+          id: '',
+          name: name,
+          isActive: isActive,
+          description: description,
+        ),
       );
       state = state.copyWith(categories: [...state.categories, created]);
     } catch (e) {
