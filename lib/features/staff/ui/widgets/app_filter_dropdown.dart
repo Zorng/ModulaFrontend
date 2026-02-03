@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+// Sentinel value to represent "All" option
+const String _kAllOptionSentinel = '__ALL__';
+
 class AppFilterDropdown<T> extends StatelessWidget {
   const AppFilterDropdown({
     super.key,
@@ -20,32 +23,34 @@ class AppFilterDropdown<T> extends StatelessWidget {
   Widget build(BuildContext context) {
     final textStyle = Theme.of(context).textTheme.labelMedium;
 
-    // Create a combined list with "All" at the beginning
-    final menuItems = [allText, ...items.map((i) => i.toString())];
-
     // Use PopupMenuButton for a dropdown that opens below the widget.
     return PopupMenuButton<String>(
-      offset: const Offset(0, 40), // Pushes the menu down to open below
+      offset: const Offset(0, 40),
       onSelected: (selectedValue) {
-        // If the selected value is the "All" text, pass null. Otherwise, find the original item.
-        if (selectedValue == allText) {
+        if (selectedValue == _kAllOptionSentinel) {
           onChanged(null);
         } else {
-          onChanged(items.firstWhere((item) => item.toString() == selectedValue));
+          // Find the original item from the string representation
+          final item = items.firstWhere((i) => i.toString() == selectedValue);
+          onChanged(item);
         }
       },
-      // Style the menu to look like an iOS popover
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.0)),
-      color: Colors.white, // A white menu background
+      color: Colors.white,
       itemBuilder: (BuildContext context) {
-        return menuItems.map((item) {
-          return PopupMenuItem<String>(
-            value: item,
-            child: Text(item, style: const TextStyle(color: Colors.black)),
-          );
-        }).toList();
+        return [
+          PopupMenuItem<String>(
+            value: _kAllOptionSentinel,
+            child: Text(allText, style: const TextStyle(color: Colors.black)),
+          ),
+          ...items.map((item) {
+            return PopupMenuItem<String>(
+              value: item.toString(),
+              child: Text(item.toString(), style: const TextStyle(color: Colors.black)),
+            );
+          }),
+        ];
       },
-      // This is the visible part of the button (the filter chip).
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(

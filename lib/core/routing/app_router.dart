@@ -82,7 +82,7 @@ extension AppRoutePath on AppRoute {
     AppRoute.inventoryJournal => '/inventory/journal',
     AppRoute.inventoryJournalDetail => '/inventory/journal/detail',
     AppRoute.staff => '/staff',
-    AppRoute.staffDetail => '/staff/detail',
+    AppRoute.staffDetail => '/staff/detail/:id',
     AppRoute.staffForm => '/staff/form',
     AppRoute.staffAdd => '/staff/add',
     AppRoute.orders => '/sale/orders',

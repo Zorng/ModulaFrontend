@@ -2,11 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:modular_pos/features/staff/domain/models/staff_model.dart';
 
 class StaffListCard extends StatelessWidget {
-  const StaffListCard({
-    super.key,
-    required this.staffMember,
-    this.onTap,
-  });
+  const StaffListCard({super.key, required this.staffMember, this.onTap});
 
   final Staff staffMember;
   final VoidCallback? onTap;
@@ -14,12 +10,13 @@ class StaffListCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final subtitleStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
-          color: Theme.of(context).colorScheme.onSurfaceVariant,
-        );
+      color: Theme.of(context).colorScheme.onSurfaceVariant,
+    );
 
     final String name = staffMember.userName;
     final String firstLetter = name.isNotEmpty ? name[0].toUpperCase() : '?';
-    final statusLabel = staffMember.status ?? (staffMember.isActive ? 'Active' : 'Inactive');
+    final statusLabel =
+        staffMember.status ?? (staffMember.isActive ? 'Active' : 'Inactive');
     final statusColor = _statusColor(statusLabel, context);
     final statusTextColor = _statusTextColor(statusLabel, context);
 
@@ -27,9 +24,7 @@ class StaffListCard extends StatelessWidget {
       color: Colors.white,
       elevation: 2.0,
       shadowColor: Colors.grey.withValues(alpha: 0.3),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12.0),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         leading: CircleAvatar(
@@ -42,18 +37,14 @@ class StaffListCard extends StatelessWidget {
         title: Text(
           name,
           style: Theme.of(context).textTheme.titleMedium,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
         subtitle: Row(
           children: [
-            Text(
-              staffMember.role ?? 'No Role',
-              style: subtitleStyle,
-            ),
+            Text(staffMember.role ?? 'No Role', style: subtitleStyle),
             const SizedBox(width: 8),
-            Text(
-              staffMember.branch ?? 'No Branch',
-              style: subtitleStyle,
-            ),
+            Text(staffMember.branch ?? 'No Branch', style: subtitleStyle),
           ],
         ),
         trailing: Container(
@@ -64,9 +55,9 @@ class StaffListCard extends StatelessWidget {
           ),
           child: Text(
             statusLabel,
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: statusTextColor,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.labelMedium?.copyWith(color: statusTextColor),
           ),
         ),
         onTap: onTap,

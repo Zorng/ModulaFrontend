@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/core/network/dio_client.dart';
 import 'package:modular_pos/features/staff/data/dto/shift_schedule_entry_dto.dart';
 import 'package:modular_pos/features/staff/data/dto/staff_dto.dart';
+import 'package:modular_pos/features/staff/data/dto/create_staff_request_dto.dart';
 
 final staffManagementApiProvider = Provider<StaffManagementApi>((ref) {
   final dio = ref.watch(dioProvider);
@@ -12,7 +13,7 @@ final staffManagementApiProvider = Provider<StaffManagementApi>((ref) {
 
 class StaffManagementApi {
   StaffManagementApi(this._dio)
-      : _prefix = dotenv.env['AUTH_API_PREFIX'] ?? '/v1/auth';
+    : _prefix = dotenv.env['AUTH_API_PREFIX'] ?? '/v1/auth';
 
   final Dio _dio;
   final String _prefix;
@@ -46,7 +47,20 @@ class StaffManagementApi {
     if (raw is! List) return const [];
     return raw
         .whereType<Map>()
-        .map((e) => ShiftScheduleEntryDto.fromJson(Map<String, dynamic>.from(e)))
+        .map(
+          (e) => ShiftScheduleEntryDto.fromJson(Map<String, dynamic>.from(e)),
+        )
         .toList();
+  }
+
+  Future<StaffDto> createInvite(InviteStaffRequestDto request) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '$_prefix/invites',
+      data: request.toJson(),
+    );
+    final root = response.data ?? const <String, dynamic>{};
+    final invite = root['invite'] as Map<String, dynamic>;
+    // The invite response has the same shape as staff for mapping
+    return StaffDto.fromJson(invite);
   }
 }

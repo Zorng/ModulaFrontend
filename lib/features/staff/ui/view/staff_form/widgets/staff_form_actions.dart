@@ -7,11 +7,15 @@ class StaffFormActions extends StatelessWidget {
     required this.isEditing,
     required this.onCancel,
     required this.onSubmit,
+    this.isSubmitting = false,
+    this.isFormValid = true,
   });
 
   final bool isEditing;
-  final VoidCallback onCancel;
-  final VoidCallback onSubmit;
+  final Future<void> Function() onCancel;
+  final Future<void> Function() onSubmit;
+  final bool isSubmitting;
+  final bool isFormValid;
 
   @override
   Widget build(BuildContext context) {
@@ -21,20 +25,22 @@ class StaffFormActions extends StatelessWidget {
         CupertinoButton(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
           color: Colors.grey.shade200,
-          onPressed: onCancel,
-          child: const Text(
-            'Cancel',
-            style: TextStyle(color: Colors.black87),
-          ),
+          onPressed: isSubmitting ? null : onCancel,
+          child: const Text('Cancel', style: TextStyle(color: Colors.black87)),
         ),
         const SizedBox(width: 16),
         CupertinoButton.filled(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-          onPressed: onSubmit,
-          child: Text(isEditing ? 'Save Changes' : 'Add New Staff'),
+          onPressed: (isSubmitting || !isFormValid) ? null : onSubmit,
+          child: isSubmitting
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : Text(isEditing ? 'Save Changes' : 'Add New Staff'),
         ),
       ],
     );
   }
 }
-

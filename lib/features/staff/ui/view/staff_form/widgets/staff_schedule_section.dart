@@ -20,6 +20,7 @@ class StaffScheduleSection extends StatelessWidget {
     required this.onExpandedDayChanged,
     required this.customHours,
     required this.onCustomHoursChanged,
+    this.isMobile = false,
   });
 
   final String? selectedScheduleOption;
@@ -39,12 +40,299 @@ class StaffScheduleSection extends StatelessWidget {
 
   final Map<String, (TimeOfDay, TimeOfDay)> customHours;
   final void Function(String day, TimeOfDay start, TimeOfDay end)
-      onCustomHoursChanged;
+  onCustomHoursChanged;
+  final bool isMobile;
 
   @override
   Widget build(BuildContext context) {
     final option = selectedScheduleOption ?? 'same_hours';
 
+    if (isMobile) {
+      return _buildMobileLayout(context, option);
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Schedule Type Toggle Buttons
+        Row(
+          children: [
+            Expanded(
+              child: _buildScheduleTypeButton(
+                context,
+                label: 'Apply same hours to selected days',
+                isSelected: option == 'same_hours',
+                onTap: () => onScheduleOptionChanged('same_hours'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildScheduleTypeButton(
+                context,
+                label: 'Set different hours per day',
+                isSelected: option == 'different_hours',
+                onTap: () => onScheduleOptionChanged('different_hours'),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 24),
+        if (option == 'same_hours') _buildSameHours(context),
+        if (option == 'different_hours') _buildDifferentHours(context),
+      ],
+    );
+  }
+
+  Widget _buildScheduleTypeButton(
+    BuildContext context, {
+    required String label,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        decoration: BoxDecoration(
+          color: isSelected ? Theme.of(context).primaryColor : Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSelected
+                ? Theme.of(context).primaryColor
+                : Colors.grey.shade300,
+          ),
+        ),
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: isSelected ? Colors.white : Colors.black87,
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+            fontSize: 13,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSameHours(BuildContext context) {
+    // Map full names to abbreviations
+    final dayMap = {
+      'Monday': 'Mon',
+      'Tuesday': 'Tue',
+      'Wednesday': 'Wed',
+      'Thursday': 'Thu',
+      'Friday': 'Fri',
+      'Saturday': 'Sat',
+      'Sunday': 'Sun',
+    };
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Apply to Days',
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
+        ),
+        const SizedBox(height: 12),
+        // Day buttons in a row
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: allDays.map((day) {
+            final isSelected = selectedWorkingDays.contains(day);
+            return GestureDetector(
+              onTap: () {
+                final newSelection = Set<String>.from(selectedWorkingDays);
+                if (isSelected) {
+                  newSelection.remove(day);
+                } else {
+                  newSelection.add(day);
+                }
+                onWorkingDaysChanged(newSelection);
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? Theme.of(context).primaryColor
+                      : Colors.white,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(
+                    color: isSelected
+                        ? Theme.of(context).primaryColor
+                        : Colors.grey.shade300,
+                  ),
+                ),
+                child: Text(
+                  dayMap[day] ?? day.substring(0, 3),
+                  style: TextStyle(
+                    color: isSelected ? Colors.white : Colors.black87,
+                    fontWeight: isSelected
+                        ? FontWeight.w500
+                        : FontWeight.normal,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 20),
+        Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Start Time',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TimePickerDropdown(
+                    initialTime: startTime,
+                    onTimeChanged: onStartTimeChanged,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'End Time',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TimePickerDropdown(
+                    initialTime: endTime,
+                    onTimeChanged: onEndTimeChanged,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDifferentHours(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [for (final day in allDays) _buildDayCheckboxRow(context, day)],
+    );
+  }
+
+  Widget _buildDayCheckboxRow(BuildContext context, String day) {
+    final isSelected = selectedWorkingDays.contains(day);
+    final times =
+        customHours[day] ??
+        (
+          const TimeOfDay(hour: 9, minute: 0),
+          const TimeOfDay(hour: 17, minute: 0),
+        );
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Row(
+        children: [
+          // Checkbox and day name
+          SizedBox(
+            width: 120,
+            child: Row(
+              children: [
+                Checkbox(
+                  value: isSelected,
+                  onChanged: (value) {
+                    final newSelection = Set<String>.from(selectedWorkingDays);
+                    if (value == true) {
+                      newSelection.add(day);
+                    } else {
+                      newSelection.remove(day);
+                    }
+                    onWorkingDaysChanged(newSelection);
+                  },
+                  activeColor: Theme.of(context).primaryColor,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    day,
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 16),
+          // Start Time
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (allDays.indexOf(day) == 0)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text(
+                      'Start Time',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        fontWeight: FontWeight.w500,
+                        color: Colors.grey.shade700,
+                      ),
+                    ),
+                  ),
+                TimePickerDropdown(
+                  initialTime: times.$1,
+                  onTimeChanged: (newTime) =>
+                      onCustomHoursChanged(day, newTime, times.$2),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 16),
+          // End Time
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (allDays.indexOf(day) == 0)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text(
+                      'End Time',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        fontWeight: FontWeight.w500,
+                        color: Colors.grey.shade700,
+                      ),
+                    ),
+                  ),
+                TimePickerDropdown(
+                  initialTime: times.$2,
+                  onTimeChanged: (newTime) =>
+                      onCustomHoursChanged(day, times.$1, newTime),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMobileLayout(BuildContext context, String option) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -74,13 +362,13 @@ class StaffScheduleSection extends StatelessWidget {
           ),
           onTap: () => onScheduleOptionChanged('different_hours'),
         ),
-        if (option == 'same_hours') _buildSameHours(context),
-        if (option == 'different_hours') _buildDifferentHours(context),
+        if (option == 'same_hours') _buildMobileSameHours(context),
+        if (option == 'different_hours') _buildMobileDifferentHours(context),
       ],
     );
   }
 
-  Widget _buildSameHours(BuildContext context) {
+  Widget _buildMobileSameHours(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -129,7 +417,7 @@ class StaffScheduleSection extends StatelessWidget {
     );
   }
 
-  Widget _buildDifferentHours(BuildContext context) {
+  Widget _buildMobileDifferentHours(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -148,15 +436,19 @@ class StaffScheduleSection extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 8),
-        for (final day in allDays) _buildDayRow(context, day),
+        for (final day in allDays) _buildMobileDayRow(context, day),
       ],
     );
   }
 
-  Widget _buildDayRow(BuildContext context, String day) {
+  Widget _buildMobileDayRow(BuildContext context, String day) {
     final isExpanded = expandedDay == day;
-    final times = customHours[day] ??
-        (const TimeOfDay(hour: 9, minute: 0), const TimeOfDay(hour: 17, minute: 0));
+    final times =
+        customHours[day] ??
+        (
+          const TimeOfDay(hour: 9, minute: 0),
+          const TimeOfDay(hour: 17, minute: 0),
+        );
 
     return Column(
       children: [
@@ -192,8 +484,10 @@ class StaffScheduleSection extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('from',
-                          style: TextStyle(color: Colors.grey.shade600)),
+                      Text(
+                        'from',
+                        style: TextStyle(color: Colors.grey.shade600),
+                      ),
                       const SizedBox(height: 4),
                       TimePickerDropdown(
                         initialTime: times.$1,
@@ -208,8 +502,7 @@ class StaffScheduleSection extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('to',
-                          style: TextStyle(color: Colors.grey.shade600)),
+                      Text('to', style: TextStyle(color: Colors.grey.shade600)),
                       const SizedBox(height: 4),
                       TimePickerDropdown(
                         initialTime: times.$2,
@@ -227,4 +520,3 @@ class StaffScheduleSection extends StatelessWidget {
     );
   }
 }
-

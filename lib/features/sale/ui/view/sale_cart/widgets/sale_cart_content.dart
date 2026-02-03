@@ -73,7 +73,8 @@ class SaleCartContent extends StatelessWidget {
     final changeKhr = (tenderKhr - grandTotalKhr);
     final changeKhrDisplay = changeKhr > 0 ? changeKhr : 0;
 
-    return ListView(
+    return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
         ...List.generate(items.length, (index) {
           final line = items[index];

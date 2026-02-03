@@ -6,228 +6,400 @@ import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/core/widgets/navigation/app_back_button.dart';
 import 'package:modular_pos/features/staff/ui/widgets/app_filter_dropdown.dart';
 import 'package:modular_pos/core/widgets/forms/app_search_add_bar.dart';
-import 'package:modular_pos/features/staff/domain/models/staff_model.dart';
 import 'package:modular_pos/features/staff/ui/widgets/staff_list_card.dart';
-import 'package:modular_pos/features/staff/data/staff_management_repository.dart';
-import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
-import 'package:modular_pos/features/auth/domain/models/user.dart';
+import 'package:modular_pos/features/staff/ui/view/staff_form/widgets/staff_data_table.dart';
+import 'package:modular_pos/features/staff/ui/viewmodels/staff_list_store.dart';
 
-class StaffListView extends ConsumerStatefulWidget {
+class StaffListView extends ConsumerWidget {
+  // Change to ConsumerWidget
   const StaffListView({super.key, this.readOnly = false});
 
   final bool readOnly;
 
   @override
-  ConsumerState<StaffListView> createState() => _StaffListViewState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final asyncState = ref.watch(StaffListAsyncNotifier.provider);
+    final notifier = ref.read(StaffListAsyncNotifier.provider.notifier);
 
-class _StaffListViewState extends ConsumerState<StaffListView> {
-  String? _selectedBranch;
-  String? _selectedRole;
-  String? _selectedStatus;
-  String _searchQuery = '';
-  bool _loading = false;
-  String? _errorMessage;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = AppBreakpoints.isLarge(constraints.maxWidth);
+        final isMediumOrLarge =
+            AppBreakpoints.isMedium(constraints.maxWidth) ||
+            AppBreakpoints.isLarge(constraints.maxWidth);
 
-  List<Staff> _staffList = [];
-
-  List<String> _branchOptions = const [];
-  final _roleOptions = const ['Manager', 'Cashier', 'Admin'];
-  final _statusOptions = const ['Active', 'Invited', 'Disabled', 'Archived'];
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _bootstrap();
-    });
-  }
-
-  Future<void> _bootstrap() async {
-    final user = ref.read(loginControllerProvider).user;
-    final branches = user?.branches ?? const [];
-    final options = branches
-        .map((b) => b.name)
-        .where((name) => name.isNotEmpty)
-        .toList();
-    setState(() {
-      _branchOptions = options;
-      if (user?.role.toLowerCase() != 'admin' && options.isNotEmpty) {
-        _selectedBranch = options.first;
-      }
-    });
-    await _loadStaff();
-  }
-
-  String? _branchIdForName(String? name) {
-    if (name == null) return null;
-    final branches =
-        ref.read(loginControllerProvider).user?.branches ?? const [];
-    final match = branches.firstWhere(
-      (b) => b.name == name,
-      orElse: () => const UserBranch(id: '', name: '', role: '', active: false),
-    );
-    if (match.id.isEmpty && match.branchId.isEmpty) return null;
-    return match.branchId.isNotEmpty ? match.branchId : match.id;
-  }
-
-  Future<void> _loadStaff() async {
-    setState(() {
-      _loading = true;
-      _errorMessage = null;
-    });
-    try {
-      final user = ref.read(loginControllerProvider).user;
-      final isAdmin = user?.role.toLowerCase() == 'admin';
-      final branchId = isAdmin
-          ? _branchIdForName(_selectedBranch)
-          : _branchIdForName(_selectedBranch);
-      final repo = ref.read(staffManagementRepositoryProvider);
-      final staff = await repo.fetchStaff(branchId: branchId);
-      if (!mounted) return;
-      setState(() {
-        _staffList = staff;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _errorMessage = 'Failed to load staff';
-      });
-    } finally {
-      if (mounted) {
-        setState(() => _loading = false);
-      }
-    }
-  }
-
-  List<Staff> _filteredStaff() {
-    return _staffList.where((staff) {
-      final search = _searchQuery.trim().toLowerCase();
-      final matchesSearch =
-          search.isEmpty ||
-          staff.userName.toLowerCase().contains(search) ||
-          staff.phoneNumber.toLowerCase().contains(search);
-      final matchesRole = _selectedRole == null || staff.role == _selectedRole;
-      final matchesStatus =
-          _selectedStatus == null || staff.status == _selectedStatus;
-      return matchesSearch && matchesRole && matchesStatus;
-    }).toList();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isSmall = AppBreakpoints.isSmall(
-      MediaQuery.of(context).size.width,
-    );
-    return Scaffold(
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        leading: isSmall
-            ? AppBackButton(
-                icon: Icons.home_outlined,
-                tooltip: 'Home',
-                onPressed: () => context.go(AppRoute.portal.path),
-              )
-            : null,
-        title: const Text('Staff'),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            AppSearchAddBar(
-              // Use phone number as per modula_capstone_1_scope.md
-              searchHint: 'Search',
-              onSearchChanged: (value) {
-                setState(() => _searchQuery = value);
-              },
-              onAddPressed: widget.readOnly
-                  ? null
-                  : () {
-                      context.push(AppRoute.staffAdd.path);
-                    },
-            ),
-            const SizedBox(height: 16),
-            // Per request: Place dropdowns next to each other
-            // Use Wrap to prevent overflow on smaller screens
-            Wrap(
-              spacing: 12.0, // Horizontal space between children
-              runSpacing: 12.0, // Vertical space between lines
-              children: [
-                AppFilterDropdown<String>(
-                  hintText: 'Branch',
-                  allText: 'All Branches',
-                  items: _branchOptions,
-                  value: _selectedBranch,
-                  onChanged: (value) {
-                    setState(() => _selectedBranch = value);
-                    _loadStaff();
-                  },
-                ),
-                AppFilterDropdown<String>(
-                  hintText: 'Role',
-                  allText: 'All Roles',
-                  items: _roleOptions,
-                  value: _selectedRole,
-                  onChanged: (value) {
-                    setState(() => _selectedRole = value);
-                  },
-                ),
-                AppFilterDropdown<String>(
-                  hintText: 'Status',
-                  allText: 'All Status',
-                  items: _statusOptions,
-                  value: _selectedStatus,
-                  onChanged: (value) {
-                    setState(() => _selectedStatus = value);
-                  },
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            // Per Figma: Add staff count text
-            Text(
-              '${_filteredStaff().length} Staff Members (limit 3)',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            const SizedBox(height: 8),
-            Expanded(
-              child: _loading
-                  ? const Center(child: CircularProgressIndicator())
-                  : _errorMessage != null
-                  ? Center(child: Text(_errorMessage!))
-                  : ListView.separated(
-                      itemCount: _filteredStaff().length,
-                      separatorBuilder: (context, index) =>
-                          const SizedBox(height: 10),
-                      itemBuilder: (context, index) {
-                        final staff = _filteredStaff()[index];
-                        return StaffListCard(
-                          staffMember: staff,
-                          onTap: () async {
-                            final result = await context.push<Staff>(
-                              AppRoute.staffDetail.path,
-                              extra: staff,
-                            );
-
-                            if (result != null) {
-                              final existingIndex = _staffList.indexWhere(
-                                (item) => item.id == result.id,
-                              );
-                              if (existingIndex == -1) return;
-                              setState(() {
-                                _staffList[existingIndex] = result;
-                              });
-                            }
-                          },
-                        );
-                      },
+        return Scaffold(
+          appBar: AppBar(
+            automaticallyImplyLeading: false,
+            leading: isWide
+                ? null
+                : AppBackButton(
+                    icon: Icons.home_outlined,
+                    tooltip: 'Home',
+                    onPressed: () => context.go(AppRoute.portal.path),
+                  ),
+            title: const Text('Staff'),
+          ),
+          body: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: asyncState.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (error, stack) => Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(error.toString()),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: notifier.reloadStaff,
+                      child: const Text('Retry'),
                     ),
+                  ],
+                ),
+              ),
+              data: (data) {
+                final filteredStaff = notifier.getFilteredStaff();
+                return isMediumOrLarge
+                    ? Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: Align(
+                          alignment: Alignment.topCenter,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.all(16.0),
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        flex: 2,
+                                        child: TextField(
+                                          onChanged: notifier.updateSearchQuery,
+                                          decoration: InputDecoration(
+                                            hintText: 'Search',
+                                            prefixIcon: const Icon(
+                                              Icons.search,
+                                            ),
+                                            border: OutlineInputBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                            ),
+                                            contentPadding:
+                                                const EdgeInsets.symmetric(
+                                                  horizontal: 16,
+                                                  vertical: 12,
+                                                ),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      AppFilterDropdown<String>(
+                                        hintText: 'Branch',
+                                        allText: 'All Branches',
+                                        items: data.branchOptions,
+                                        value: data.selectedBranch,
+                                        onChanged:
+                                            notifier.updateSelectedBranch,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      AppFilterDropdown<String>(
+                                        hintText: 'Role',
+                                        allText: 'All Roles',
+                                        items: const [
+                                          'Manager',
+                                          'Cashier',
+                                          'Admin',
+                                        ],
+                                        value: data.selectedRole,
+                                        onChanged: notifier.updateSelectedRole,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      AppFilterDropdown<String>(
+                                        hintText: 'Status',
+                                        allText: 'All Status',
+                                        items: const [
+                                          'Active',
+                                          'Invited',
+                                          'Disabled',
+                                          'Archived',
+                                        ],
+                                        value: data.selectedStatus,
+                                        onChanged:
+                                            notifier.updateSelectedStatus,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      ConstrainedBox(
+                                        constraints: const BoxConstraints(
+                                          minWidth: 150,
+                                          maxWidth: 200,
+                                          minHeight: 48,
+                                          maxHeight: 48,
+                                        ),
+                                        child: ElevatedButton.icon(
+                                          onPressed: readOnly
+                                              ? null
+                                              : () {
+                                                  final branchId = notifier
+                                                      .getBranchIdForAdd();
+                                                  GoRouter.of(context)
+                                                      .push(
+                                                        AppRoute.staffForm.path,
+                                                        extra: {
+                                                          'branchId': branchId,
+                                                        },
+                                                      )
+                                                      .then((result) {
+                                                        if (result == true) {
+                                                          notifier
+                                                              .reloadStaff();
+                                                        }
+                                                      });
+                                                },
+                                          icon: const Icon(Icons.add, size: 20),
+                                          label: const Text('Add New Staff'),
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.red,
+                                            foregroundColor: Colors.white,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const Divider(height: 1),
+                                Expanded(
+                                  child: filteredStaff.isEmpty
+                                      ? Center(
+                                          child: Column(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
+                                            children: [
+                                              Icon(
+                                                Icons.search_off,
+                                                size: 64,
+                                                color: Colors.grey.shade400,
+                                              ),
+                                              const SizedBox(height: 16),
+                                              Text(
+                                                'No staff members found',
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .titleMedium
+                                                    ?.copyWith(
+                                                      color:
+                                                          Colors.grey.shade600,
+                                                    ),
+                                              ),
+                                              const SizedBox(height: 8),
+                                              Text(
+                                                'Try adjusting your search or filters',
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .bodySmall
+                                                    ?.copyWith(
+                                                      color:
+                                                          Colors.grey.shade500,
+                                                    ),
+                                              ),
+                                            ],
+                                          ),
+                                        )
+                                      : Container(
+                                          margin: const EdgeInsets.all(16.0),
+                                          decoration: BoxDecoration(
+                                            border: Border.all(
+                                              color: Colors.grey.shade300,
+                                            ),
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                          ),
+                                          child: ClipRRect(
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                            child: StaffDataTable(
+                                              staffList: filteredStaff,
+                                              onStaffTap: (staff) async {
+                                                final result = await context
+                                                    .pushNamed(
+                                                      AppRoute.staffDetail.name,
+                                                      pathParameters: {
+                                                        'id': staff.id ?? '',
+                                                      },
+                                                      extra: staff,
+                                                    );
+                                                if (result == true) {
+                                                  notifier.reloadStaff();
+                                                }
+                                              },
+                                            ),
+                                          ),
+                                        ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      )
+                    : Column(
+                        children: [
+                          Center(
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 1000),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  AppSearchAddBar(
+                                    searchHint: 'Search',
+                                    onSearchChanged: notifier.updateSearchQuery,
+                                    onAddPressed: readOnly
+                                        ? null
+                                        : () {
+                                            final branchId = notifier
+                                                .getBranchIdForAdd();
+                                            GoRouter.of(context)
+                                                .push(
+                                                  AppRoute.staffForm.path,
+                                                  extra: {'branchId': branchId},
+                                                )
+                                                .then((result) {
+                                                  if (result == true) {
+                                                    notifier.reloadStaff();
+                                                  }
+                                                });
+                                          },
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Wrap(
+                                    spacing: 12.0,
+                                    runSpacing: 12.0,
+                                    children: [
+                                      AppFilterDropdown<String>(
+                                        hintText: 'Branch',
+                                        allText: 'All Branches',
+                                        items: data.branchOptions,
+                                        value: data.selectedBranch,
+                                        onChanged:
+                                            notifier.updateSelectedBranch,
+                                      ),
+                                      AppFilterDropdown<String>(
+                                        hintText: 'Role',
+                                        allText: 'All Roles',
+                                        items: const [
+                                          'Manager',
+                                          'Cashier',
+                                          'Admin',
+                                        ],
+                                        value: data.selectedRole,
+                                        onChanged: notifier.updateSelectedRole,
+                                      ),
+                                      AppFilterDropdown<String>(
+                                        hintText: 'Status',
+                                        allText: 'All Status',
+                                        items: const [
+                                          'Active',
+                                          'Invited',
+                                          'Disabled',
+                                          'Archived',
+                                        ],
+                                        value: data.selectedStatus,
+                                        onChanged:
+                                            notifier.updateSelectedStatus,
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 24),
+                                  Text(
+                                    '${filteredStaff.length} Staff Members (limit 3)',
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodySmall,
+                                  ),
+                                  const SizedBox(height: 8),
+                                ],
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            child: filteredStaff.isEmpty
+                                ? Center(
+                                    child: Column(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Icon(
+                                          Icons.search_off,
+                                          size: 64,
+                                          color: Colors.grey.shade400,
+                                        ),
+                                        const SizedBox(height: 16),
+                                        Text(
+                                          'No staff members found',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .titleMedium
+                                              ?.copyWith(
+                                                color: Colors.grey.shade600,
+                                              ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          'Try adjusting your search or filters',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall
+                                              ?.copyWith(
+                                                color: Colors.grey.shade500,
+                                              ),
+                                        ),
+                                      ],
+                                    ),
+                                  )
+                                : Center(
+                                    child: ConstrainedBox(
+                                      constraints: const BoxConstraints(
+                                        maxWidth: 1000,
+                                      ),
+                                      child: ListView.separated(
+                                        itemCount: filteredStaff.length,
+                                        separatorBuilder: (context, index) =>
+                                            const SizedBox(height: 10),
+                                        itemBuilder: (context, index) {
+                                          final staff = filteredStaff[index];
+                                          return StaffListCard(
+                                            staffMember: staff,
+                                            onTap: () async {
+                                              final result = await context
+                                                  .pushNamed(
+                                                    AppRoute.staffDetail.name,
+                                                    pathParameters: {
+                                                      'id': staff.id ?? '',
+                                                    },
+                                                    extra: staff,
+                                                  );
+                                              if (result == true) {
+                                                notifier.reloadStaff();
+                                              }
+                                            },
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                          ),
+                        ],
+                      );
+              },
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }

@@ -2,13 +2,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/features/staff/data/staff_management_api.dart';
 import 'package:modular_pos/features/staff/data/dto/shift_schedule_entry_dto.dart';
 import 'package:modular_pos/features/staff/data/dto/staff_dto.dart';
+import 'package:modular_pos/features/staff/data/dto/create_staff_request_dto.dart';
 import 'package:modular_pos/features/staff/domain/models/staff_model.dart';
 
-final staffManagementRepositoryProvider =
-    Provider<StaffManagementRepository>((ref) {
-      final api = ref.watch(staffManagementApiProvider);
-      return StaffManagementRepository(api);
-    });
+final staffManagementRepositoryProvider = Provider<StaffManagementRepository>((
+  ref,
+) {
+  final api = ref.watch(staffManagementApiProvider);
+  return StaffManagementRepository(api);
+});
 
 class StaffManagementRepository {
   StaffManagementRepository(this._api);
@@ -24,10 +26,38 @@ class StaffManagementRepository {
     required String userId,
     required String branchId,
   }) async {
-    final schedule =
-        await _api.fetchShiftSchedule(userId: userId, branchId: branchId);
+    final schedule = await _api.fetchShiftSchedule(
+      userId: userId,
+      branchId: branchId,
+    );
     return schedule.map(_mapScheduleEntry).toList();
   }
+
+  Future<Staff> createInvite(Staff staff) async {
+    final names = staff.userName.split(' ');
+    final firstName = names.isNotEmpty ? names.first : '';
+    final lastName = names.length > 1 ? names.sublist(1).join(' ') : '';
+    final phone = staff.phoneNumber.startsWith('+')
+        ? staff.phoneNumber
+        : staff.phoneNumber.startsWith('0')
+        ? '+855${staff.phoneNumber.substring(1)}'
+        : '+855${staff.phoneNumber}';
+    final request = InviteStaffRequestDto(
+      firstName: firstName,
+      lastName: lastName,
+      phone: phone,
+      role: (staff.role ?? 'CASHIER').toUpperCase(),
+      branchId: staff.branchId ?? '',
+      note: 'Created via admin portal',
+    );
+    final dto = await _api.createInvite(request);
+    return _mapStaff(dto);
+  }
+
+  // String _formatTime(TimeOfDay? time) {
+  //   if (time == null) return '';
+  //   return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+  // }
 
   Staff _mapStaff(StaffDto dto) {
     final first = dto.firstName;
@@ -35,8 +65,9 @@ class StaffManagementRepository {
     final fullName = [first, last].where((e) => e.isNotEmpty).join(' ').trim();
     final recordType = dto.recordType.toUpperCase();
     final statusRaw = dto.status.toUpperCase();
-    final status =
-        statusRaw.isNotEmpty ? statusRaw : (recordType == 'INVITE' ? 'INVITED' : '');
+    final status = statusRaw.isNotEmpty
+        ? statusRaw
+        : (recordType == 'INVITE' ? 'INVITED' : '');
     final roleRaw = dto.role;
     final branchName = dto.branchName;
     final phone = dto.phone;

@@ -17,6 +17,7 @@ class Staff {
   final String? id;
   final String? branchId;
   final String? status;
+  final String? password;
 
   Staff({
     required this.userName,
@@ -35,7 +36,48 @@ class Staff {
     this.id,
     this.branchId,
     this.status,
+    this.password,
   });
+
+  Staff copyWith({
+    String? userName,
+    String? gender,
+    String? phoneNumber,
+    String? email,
+    String? role,
+    String? branch,
+    String? scheduleOption,
+    bool? isActive,
+    Set<String>? workingDays,
+    TimeOfDay? startTime,
+    TimeOfDay? endTime,
+    Map<String, (TimeOfDay, TimeOfDay)>? customHours,
+    List<ShiftScheduleEntry>? shiftSchedule,
+    String? id,
+    String? branchId,
+    String? status,
+    String? password,
+  }) {
+    return Staff(
+      userName: userName ?? this.userName,
+      gender: gender ?? this.gender,
+      phoneNumber: phoneNumber ?? this.phoneNumber,
+      email: email ?? this.email,
+      role: role ?? this.role,
+      branch: branch ?? this.branch,
+      scheduleOption: scheduleOption ?? this.scheduleOption,
+      isActive: isActive ?? this.isActive,
+      workingDays: workingDays ?? this.workingDays,
+      startTime: startTime ?? this.startTime,
+      endTime: endTime ?? this.endTime,
+      customHours: customHours ?? this.customHours,
+      shiftSchedule: shiftSchedule ?? this.shiftSchedule,
+      id: id ?? this.id,
+      branchId: branchId ?? this.branchId,
+      status: status ?? this.status,
+      password: password ?? this.password,
+    );
+  }
 }
 
 class ShiftScheduleEntry {

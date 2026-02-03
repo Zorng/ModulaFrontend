@@ -11,6 +11,7 @@ class FormDropdownField extends StatelessWidget {
     required this.items,
     required this.onSelected,
     this.validator,
+    this.enabled = true,
   });
 
   final String label;
@@ -19,6 +20,7 @@ class FormDropdownField extends StatelessWidget {
   final List<String> items;
   final ValueChanged<String?> onSelected;
   final FormFieldValidator<String>? validator;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
@@ -31,55 +33,62 @@ class FormDropdownField extends StatelessWidget {
         FormField<String>(
           initialValue: value,
           validator: validator,
+          enabled: enabled,
           builder: (FormFieldState<String> field) {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                PopupMenuButton<String>(
-                  key: key,
-                  color: Colors.white,
-                  offset: const Offset(0, 50),
-                  onSelected: (String? newValue) {
-                    field.didChange(newValue);
-                    onSelected(newValue);
-                  },
-                  itemBuilder: (BuildContext context) {
-                    final RenderBox? button = key.currentContext?.findRenderObject() as RenderBox?;
-                    final double width = button?.size.width ?? 150;
-                    const double horizontalPadding = 32.0;
-                    return items.map((String choice) {
-                      return PopupMenuItem<String>(
-                        value: choice,
-                        child: SizedBox(
-                          width: width - horizontalPadding,
-                          child: Text(choice),
-                        ),
-                      );
-                    }).toList();
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade200,
-                      borderRadius: BorderRadius.circular(8),
-                      border: field.hasError ? Border.all(color: Colors.red, width: 1.0) : null,
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Flexible(
-                          child: Text(
-                            field.value ?? placeholder,
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: field.value == null ? CupertinoColors.placeholderText : CupertinoColors.black,
-                            ),
-                            overflow: TextOverflow.ellipsis,
+                AbsorbPointer(
+                  absorbing: !enabled,
+                  child: PopupMenuButton<String>(
+                    key: key,
+                    color: Colors.white,
+                    offset: const Offset(0, 50),
+                    onSelected: (String? newValue) {
+                      field.didChange(newValue);
+                      onSelected(newValue);
+                    },
+                    itemBuilder: (BuildContext context) {
+                      final RenderBox? button = key.currentContext?.findRenderObject() as RenderBox?;
+                      final double width = button?.size.width ?? 150;
+                      const double horizontalPadding = 32.0;
+                      return items.map((String choice) {
+                        return PopupMenuItem<String>(
+                          value: choice,
+                          child: SizedBox(
+                            width: width - horizontalPadding,
+                            child: Text(choice),
                           ),
-                        ),
-                        const SizedBox(width: 4),
-                        const Icon(CupertinoIcons.chevron_down, color: CupertinoColors.placeholderText),
-                      ],
+                        );
+                      }).toList();
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
+                      decoration: BoxDecoration(
+                        color: enabled ? Colors.grey.shade200 : Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(8),
+                        border: field.hasError ? Border.all(color: Colors.red, width: 1.0) : null,
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              field.value ?? placeholder,
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: (field.value == null || !enabled)
+                                    ? CupertinoColors.placeholderText
+                                    : CupertinoColors.black,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          if (enabled)
+                            const Icon(CupertinoIcons.chevron_down, color: CupertinoColors.placeholderText),
+                        ],
+                      ),
                     ),
                   ),
                 ),
