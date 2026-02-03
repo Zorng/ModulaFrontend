@@ -1,0 +1,258 @@
+import 'package:dio/dio.dart';
+import 'package:flutter_riverpod/misc.dart';
+import 'package:modular_pos/features/auth/domain/models/auth_session.dart';
+import 'package:modular_pos/features/auth/domain/models/tenant_membership.dart';
+import 'package:modular_pos/features/auth/domain/models/user.dart';
+import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
+import 'package:modular_pos/features/inventory/data/inventory_api.dart';
+import 'package:modular_pos/features/inventory/data/stock_item_repository.dart';
+import 'package:modular_pos/features/inventory/domain/models/inventory_category.dart';
+import 'package:modular_pos/features/inventory/domain/models/inventory_journal_entry.dart';
+import 'package:modular_pos/features/inventory/domain/models/stock_batch.dart';
+import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
+import 'package:modular_pos/features/inventory/ui/viewmodels/category_controller.dart';
+import 'package:modular_pos/features/inventory/ui/viewmodels/category_state.dart';
+import 'package:modular_pos/features/inventory/ui/viewmodels/inventory_journal_controller.dart';
+import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_controller.dart';
+import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_state.dart';
+
+const _branch = UserBranch(
+  id: 'assignment-1',
+  name: 'Main Branch',
+  role: 'manager',
+  active: true,
+  branchId: 'branch-1',
+);
+
+final testUser = User(
+  id: 'user-1',
+  name: 'Alex Manager',
+  role: 'manager',
+  tenantId: 'tenant-1',
+  branches: const [_branch],
+);
+
+final testSession = AuthSession(
+  user: testUser,
+  memberships: const <TenantMembership>[],
+  activeTenantId: 'tenant-1',
+  accessToken: 'token',
+  refreshToken: 'refresh',
+  accessTokenExpiresAt: DateTime.utc(2030, 1, 1),
+  refreshTokenExpiresAt: DateTime.utc(2030, 1, 1),
+);
+
+final testCategories = <InventoryCategory>[
+  const InventoryCategory(
+    id: 'cat-1',
+    name: 'Beverages',
+    isActive: true,
+    description: 'Cold drinks',
+  ),
+  const InventoryCategory(
+    id: 'cat-2',
+    name: 'Bakery',
+    isActive: false,
+    description: 'Fresh pastries',
+  ),
+];
+
+final testStockItems = <StockItem>[
+  const StockItem(
+    id: 'item-1',
+    name: 'Iced Coffee',
+    category: 'Beverages',
+    categoryId: 'cat-1',
+    baseUnit: 'ml',
+    pieceSize: 1,
+    branchId: 'branch-1',
+    branchName: 'Main Branch',
+    onHand: 12,
+    minThreshold: 3,
+    isActive: true,
+    barcode: '123',
+    lastRestockDate: '2025-12-20',
+    expiryDate: '2026-01-20',
+    usageTags: ['Ingredient'],
+  ),
+  const StockItem(
+    id: 'item-2',
+    name: 'Croissant',
+    category: 'Bakery',
+    categoryId: 'cat-2',
+    baseUnit: 'pcs',
+    pieceSize: 1,
+    branchId: 'branch-1',
+    branchName: 'Main Branch',
+    onHand: 0,
+    minThreshold: 5,
+    isActive: false,
+    lastRestockDate: '2025-12-18',
+    expiryDate: '2025-12-25',
+    usageTags: ['Sellable'],
+  ),
+];
+
+final testBatches = <StockBatch>[
+  const StockBatch(
+    id: 'batch-1',
+    stockItemId: 'item-1',
+    branchId: 'branch-1',
+    onHand: 12,
+    receivedDate: '2025-12-20',
+  ),
+];
+
+final testJournalEntries = <InventoryJournalEntry>[
+  InventoryJournalEntry(
+    id: 'entry-1',
+    itemId: 'item-1',
+    itemName: 'Iced Coffee',
+    branchId: 'branch-1',
+    branchName: 'Main Branch',
+    reason: InventoryJournalReason.restock,
+    delta: 10,
+    note: 'Restock recorded',
+    actor: 'Alex',
+    createdAt: DateTime(2025, 12, 20),
+    occurredAt: DateTime(2025, 12, 20),
+  ),
+];
+
+class FakeLoginController extends LoginController {
+  FakeLoginController(this._state);
+
+  final LoginState _state;
+
+  @override
+  LoginState build() => _state;
+}
+
+class FakeCategoryController extends CategoryController {
+  FakeCategoryController(this._state);
+
+  final CategoryState _state;
+
+  @override
+  CategoryState build() => _state;
+
+  @override
+  Future<void> loadCategories() async {}
+
+  @override
+  Future<void> addCategory(
+    String name, {
+    String? description,
+    bool isActive = true,
+  }) async {}
+
+  @override
+  Future<void> updateCategory(InventoryCategory category) async {}
+
+  @override
+  Future<void> deleteCategory(String id) async {}
+}
+
+class FakeStockInventoryController extends StockInventoryController {
+  FakeStockInventoryController(this._state);
+
+  final StockInventoryState _state;
+
+  @override
+  StockInventoryState build() => _state;
+
+  @override
+  Future<void> loadStockItems({String? branchId}) async {}
+
+  @override
+  Future<StockItem> addStockItem(
+    StockItem draft, {
+    String? imagePath,
+    List<int>? imageBytes,
+  }) async {
+    return draft;
+  }
+
+  @override
+  Future<void> updateStockItem(
+    StockItem item, {
+    String? imagePath,
+    List<int>? imageBytes,
+  }) async {}
+
+  @override
+  Future<void> restockItem({
+    required String itemId,
+    required int baseQty,
+    String? restockDate,
+    String? expiryDate,
+    String? note,
+    String? branchId,
+  }) async {}
+
+  @override
+  Future<void> deleteStockItem(String id) async {}
+
+  @override
+  Future<void> adjustBatch({
+    required String batchId,
+    required int delta,
+  }) async {}
+}
+
+class FakeInventoryJournalController extends InventoryJournalController {
+  FakeInventoryJournalController(this._entries);
+
+  final List<InventoryJournalEntry> _entries;
+
+  @override
+  List<InventoryJournalEntry> build() => _entries;
+
+  @override
+  Future<void> load({String? branchId, String? stockItemId}) async {}
+}
+
+class FakeStockItemRepository extends StockItemRepository {
+  FakeStockItemRepository(this._items) : super(InventoryApi(Dio()));
+
+  final List<StockItem> _items;
+
+  @override
+  Future<List<StockItem>> fetchMasterStockItems({int pageSize = 200}) async {
+    return _items;
+  }
+}
+
+List<Override> inventoryOverrides({
+  LoginState? loginState,
+  CategoryState? categoryState,
+  StockInventoryState? stockInventoryState,
+  List<InventoryJournalEntry>? journalEntries,
+  StockItemRepository? stockItemRepository,
+}) {
+  return [
+    loginControllerProvider.overrideWith(
+      () => FakeLoginController(
+        loginState ?? LoginState(session: testSession),
+      ),
+    ),
+    categoryControllerProvider.overrideWith(
+      () => FakeCategoryController(
+        categoryState ?? CategoryState(categories: testCategories),
+      ),
+    ),
+    stockInventoryControllerProvider.overrideWith(
+      () => FakeStockInventoryController(
+        stockInventoryState ??
+            StockInventoryState(items: testStockItems, batches: testBatches),
+      ),
+    ),
+    inventoryJournalControllerProvider.overrideWith(
+      () => FakeInventoryJournalController(
+        journalEntries ?? testJournalEntries,
+      ),
+    ),
+    if (stockItemRepository != null)
+      stockItemRepositoryProvider.overrideWithValue(stockItemRepository),
+  ];
+}

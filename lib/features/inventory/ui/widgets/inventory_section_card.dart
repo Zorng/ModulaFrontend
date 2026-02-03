@@ -6,11 +6,13 @@ class InventorySectionCard extends StatelessWidget {
     required this.title,
     required this.children,
     this.backgroundColor,
+    this.description,
   });
 
   final String title;
   final List<Widget> children;
   final Color? backgroundColor;
+  final String? description;
 
   @override
   Widget build(BuildContext context) {
@@ -26,6 +28,15 @@ class InventorySectionCard extends StatelessWidget {
               title,
               style: Theme.of(context).textTheme.titleMedium,
             ),
+            if (description != null && description!.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(
+                description!,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).hintColor,
+                ),
+              ),
+            ],
             const SizedBox(height: 12),
             ..._withSpacing(children),
           ],

@@ -6,6 +6,31 @@ class AppTheme {
   static const _surfaceColor = Color(0xFFF5F7FA);
   static const _fontFamily = 'DMSans';
   static const _bodyColor = Color(0xFF1E1F20);
+  static const editActionColor = Color(0xFFED533C);
+  static const ButtonStyle editActionButtonStyle = ButtonStyle(
+    backgroundColor: WidgetStatePropertyAll(editActionColor),
+    foregroundColor: WidgetStatePropertyAll(Colors.white),
+    padding: WidgetStatePropertyAll(
+      EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+    ),
+    shape: WidgetStatePropertyAll(
+      RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(Radius.circular(8)),
+      ),
+    ),
+  );
+  static const ButtonStyle cancelActionButtonStyle = ButtonStyle(
+    backgroundColor: WidgetStatePropertyAll(Color(0xFFF7F7F7)),
+    foregroundColor: WidgetStatePropertyAll(Color(0xFF696969)),
+    padding: WidgetStatePropertyAll(
+      EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+    ),
+    shape: WidgetStatePropertyAll(
+      RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(Radius.circular(8)),
+      ),
+    ),
+  );
 
   
   static ThemeData get light { // use color scheme from seed for now. defined whole custome color scheme later
@@ -61,6 +86,10 @@ class AppTheme {
             letterSpacing: 0.2,
           ),
         ),
+      ),
+      appBarTheme: const AppBarTheme(
+        backgroundColor: _surfaceColor,
+        foregroundColor: _bodyColor,
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
@@ -124,7 +153,7 @@ class AppTheme {
       titleMedium: TextStyle(
         fontFamily: _fontFamily,
         fontWeight: FontWeight.w500,
-        fontSize: 18,
+        fontSize: 22,
         color: _bodyColor,
       ),
       titleSmall: TextStyle(
