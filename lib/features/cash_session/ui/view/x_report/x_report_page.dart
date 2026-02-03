@@ -11,7 +11,9 @@ import 'package:modular_pos/features/cash_session/ui/view/x_report/widgets/x_rep
 import 'package:modular_pos/features/cash_session/ui/view/x_report/widgets/x_report_card.dart';
 
 class XReportPage extends ConsumerWidget {
-  const XReportPage({super.key});
+  const XReportPage({super.key, this.showAppBar = true});
+
+  final bool showAppBar;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -26,20 +28,22 @@ class XReportPage extends ConsumerWidget {
     );
 
     return Scaffold(
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        leading: isSmall
-            ? AppBackButton(
-                icon: Icons.home_outlined,
-                tooltip: 'Home',
-                onPressed: () => context.go(AppRoute.portal.path),
-              )
-            : null,
-        title: const Align(
-          alignment: Alignment.centerLeft,
-          child: Text('X Report'),
-        ),
-      ),
+      appBar: showAppBar
+          ? AppBar(
+              automaticallyImplyLeading: false,
+              leading: isSmall
+                  ? AppBackButton(
+                      icon: Icons.home_outlined,
+                      tooltip: 'Home',
+                      onPressed: () => context.go(AppRoute.portal.path),
+                    )
+                  : null,
+              title: const Align(
+                alignment: Alignment.centerLeft,
+                child: Text('X Report'),
+              ),
+            )
+          : null,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(16),
