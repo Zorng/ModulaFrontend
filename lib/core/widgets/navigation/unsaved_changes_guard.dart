@@ -33,33 +33,36 @@ class _UnsavedChangesGuardState extends State<UnsavedChangesGuard> {
     final shouldDiscard = await showDialog<bool>(
       context: context,
       builder:
-          (dialogContext) => AlertDialog(
-            title: Text(widget.title),
-            content: Text(widget.message),
-            actions: [
-              Row(
-                children: [
-                  Expanded(
-                    child: FilledButton(
-                      onPressed: () => Navigator.of(dialogContext).pop(false),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: const Color(0xFFED533C),
+          (dialogContext) {
+            final scheme = Theme.of(dialogContext).colorScheme;
+            return AlertDialog(
+              title: Text(widget.title),
+              content: Text(widget.message),
+              actions: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: FilledButton(
+                        onPressed: () => Navigator.of(dialogContext).pop(false),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: scheme.surface,
+                          foregroundColor: scheme.primary,
+                        ),
+                        child: Text(widget.stayLabel),
                       ),
-                      child: Text(widget.stayLabel),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: FilledButton(
-                      onPressed: () => Navigator.of(dialogContext).pop(true),
-                      child: Text(widget.discardLabel),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: FilledButton(
+                        onPressed: () => Navigator.of(dialogContext).pop(true),
+                        child: Text(widget.discardLabel),
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            ],
-          ),
+                  ],
+                ),
+              ],
+            );
+          },
     );
     _handlingPop = false;
     if (shouldDiscard == true && mounted) {
