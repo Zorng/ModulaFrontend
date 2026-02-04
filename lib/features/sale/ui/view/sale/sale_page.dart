@@ -5,6 +5,7 @@ import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_category.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
+import 'package:modular_pos/features/sale/data/sale_repository.dart';
 import 'package:modular_pos/features/sale/ui/view/sale/widgets/sale_page_access_banner.dart';
 import 'package:modular_pos/features/sale/ui/view/sale/widgets/sale_page_category_strip.dart';
 import 'package:modular_pos/features/sale/ui/view/sale/widgets/sale_page_menu_catalog.dart';
@@ -21,8 +22,6 @@ class SalePage extends ConsumerStatefulWidget {
 }
 
 class _SalePageState extends ConsumerState<SalePage> {
-  bool _useMockData = false;
-
   @override
   void initState() {
     super.initState();
@@ -37,6 +36,7 @@ class _SalePageState extends ConsumerState<SalePage> {
     final menuVm = ref.read(menuViewModelProvider.notifier);
     final gate = ref.watch(saleAccessGateProvider);
     final cashSessionPath = AppRoute.cashSession.path;
+    final useMockData = ref.watch(useMockSaleRepositoryProvider);
 
     final width = MediaQuery.of(context).size.width;
     final isSmall = AppBreakpoints.isSmall(width);
@@ -49,13 +49,13 @@ class _SalePageState extends ConsumerState<SalePage> {
     final itemAspectRatio = isSmall ? 0.72 : 0.85;
 
     // Use mock data if enabled, otherwise use real data
-    final categories = _useMockData
+    final categories = useMockData
         ? [
             const MenuCategory(id: 'all', name: 'All'),
             ...MockSaleData.categories,
           ]
         : [const MenuCategory(id: 'all', name: 'All'), ...menuState.categories];
-    final filteredItems = _useMockData
+    final filteredItems = useMockData
         ? MockSaleData.menuItems
         : menuState.filteredItems;
 
@@ -77,21 +77,15 @@ class _SalePageState extends ConsumerState<SalePage> {
               children: [
                 Row(
                   children: [
-                    Expanded(
-                      child: Text(
-                        'Sale',
-                        style: Theme.of(context).textTheme.headlineSmall
-                            ?.copyWith(fontWeight: FontWeight.bold),
-                      ),
-                    ),
                     // Mock data toggle for testing
                     TextButton.icon(
-                      onPressed: () =>
-                          setState(() => _useMockData = !_useMockData),
-                      icon: Icon(
-                        _useMockData ? Icons.storage : Icons.cloud_off,
-                      ),
-                      label: Text(_useMockData ? 'Mock Data' : 'Real Data'),
+                      onPressed: () {
+                        ref
+                            .read(useMockSaleRepositoryProvider.notifier)
+                            .toggle();
+                      },
+                      icon: Icon(useMockData ? Icons.storage : Icons.cloud_off),
+                      label: Text(useMockData ? 'Mock Data' : 'Real Data'),
                     ),
                   ],
                 ),
@@ -118,14 +112,14 @@ class _SalePageState extends ConsumerState<SalePage> {
                 const SizedBox(height: 12),
                 Expanded(
                   child: switch ((
-                    menuState.isLoading && !_useMockData,
+                    menuState.isLoading && !useMockData,
                     menuState.error,
                   )) {
                     (true, _) => const Center(
                       child: CircularProgressIndicator(),
                     ),
                     (false, final String? error)
-                        when error != null && !_useMockData =>
+                        when error != null && !useMockData =>
                       SalePageStateMessage(
                         message: UserErrorMessage.build(
                           context: 'Failed to load menu',
@@ -141,12 +135,12 @@ class _SalePageState extends ConsumerState<SalePage> {
                       onRefresh: () async => retry()(),
                       child: SalePageMenuCatalog(
                         items: filteredItems,
-                        categories: _useMockData
+                        categories: useMockData
                             ? MockSaleData.categories
                             : menuState.categories,
                         gridCount: gridCount,
                         itemAspectRatio: itemAspectRatio,
-                        useMockData: _useMockData,
+                        useMockData: useMockData,
                       ),
                     ),
                   },
@@ -195,9 +189,13 @@ class _SalePageState extends ConsumerState<SalePage> {
                 ),
               ),
               Expanded(
-                child: switch ((menuState.isLoading, menuState.error)) {
+                child: switch ((
+                  menuState.isLoading && !useMockData,
+                  menuState.error,
+                )) {
                   (true, _) => const Center(child: CircularProgressIndicator()),
-                  (false, final String? error) when error != null =>
+                  (false, final String? error)
+                      when error != null && !useMockData =>
                     SalePageStateMessage(
                       message: UserErrorMessage.build(
                         context: 'Failed to load menu',
@@ -213,9 +211,12 @@ class _SalePageState extends ConsumerState<SalePage> {
                     onRefresh: () async => retry()(),
                     child: SalePageMenuCatalog(
                       items: filteredItems,
-                      categories: menuState.categories,
+                      categories: useMockData
+                          ? MockSaleData.categories
+                          : menuState.categories,
                       gridCount: gridCount,
                       itemAspectRatio: itemAspectRatio,
+                      useMockData: useMockData,
                     ),
                   ),
                 },

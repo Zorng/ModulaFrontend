@@ -122,7 +122,9 @@ class _BranchDetailDialogState extends ConsumerState<BranchDetailDialog> {
     if (_nameError != null ||
         _addressError != null ||
         _phoneError != null ||
-        _emailError != null) return false;
+        _emailError != null) {
+      return false;
+    }
     return true;
   }
 
