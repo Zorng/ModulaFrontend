@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:modular_pos/core/theme/app_theme.dart';
 import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/staff/domain/models/staff_model.dart';
 import 'package:modular_pos/features/staff/ui/view/staff_form/widgets/staff_authentication_section.dart';
 import 'package:modular_pos/features/staff/ui/view/staff_form/widgets/staff_basic_info_section.dart';
 import 'package:modular_pos/features/staff/ui/view/staff_form/widgets/staff_mobile_form_section.dart';
-import 'package:modular_pos/features/staff/ui/view/staff_form/widgets/staff_profile_avatar.dart';
 import 'package:modular_pos/features/staff/ui/view/staff_form/widgets/staff_schedule_section.dart';
 import 'package:modular_pos/features/staff/ui/viewmodels/staff_list_store.dart';
 import 'package:modular_pos/features/staff/ui/viewmodels/staff_management_store.dart';
@@ -48,6 +48,8 @@ class _StaffManagementPageState extends ConsumerState<StaffManagementPage> {
   String? _selectedScheduleOption;
   bool _isActive = true;
   bool _hasInitialized = false;
+  bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
 
   // Schedule State
   final List<String> _allDays = const [
@@ -122,22 +124,46 @@ class _StaffManagementPageState extends ConsumerState<StaffManagementPage> {
 
       // Use state.initialStaff after initialization, not widget.initialStaff
       final state = ref.read(staffManagementControllerProvider);
-      _populateForm(
-        state.initialStaff ??
-            Staff(
-              userName: '',
-              phoneNumber: '',
-              email: '',
-              isActive: true,
-              branchId: widget.initialBranchId,
-            ),
-      );
+
+      // Only populate form if we have existing staff (view/edit mode)
+      // For create mode, ensure form is clean
+      if (state.mode == StaffManagementMode.create) {
+        _clearForm();
+        // Set default branch if provided
+        if (widget.initialBranchId != null) {
+          _selectedBranchId = widget.initialBranchId;
+        }
+      } else if (state.initialStaff != null) {
+        _populateForm(state.initialStaff!);
+      }
 
       if (mounted) {
         setState(() {
           _hasInitialized = true;
         });
       }
+    });
+  }
+
+  void _clearForm() {
+    _firstNameController.clear();
+    _lastNameController.clear();
+    _phoneNumberController.clear();
+    _emailController.clear();
+    _passwordController.clear();
+    _confirmPasswordController.clear();
+    setState(() {
+      _selectedGender = null;
+      _selectedRole = null;
+      _selectedBranchId = null;
+      _selectedScheduleOption = 'same_hours';
+      _isActive = true; // New staff start as Active
+      _selectedWorkingDays = {};
+      _startTime = const TimeOfDay(hour: 9, minute: 0);
+      _endTime = const TimeOfDay(hour: 17, minute: 0);
+      _expandedDay = null;
+      _obscurePassword = true;
+      _obscureConfirmPassword = true;
     });
   }
 
@@ -236,17 +262,16 @@ class _StaffManagementPageState extends ConsumerState<StaffManagementPage> {
             actions: [
               if (state.mode == StaffManagementMode.view)
                 Padding(
-                  padding: const EdgeInsets.only(right: 8.0),
-                  child: ElevatedButton.icon(
-                    onPressed: () => ref
-                        .read(staffManagementControllerProvider.notifier)
-                        .toggleEditMode(),
-                    icon: const Icon(Icons.edit, size: 18),
-                    label: const Text('Edit'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Theme.of(context).primaryColor,
-                      foregroundColor: Colors.white,
-                      minimumSize: const Size(80, 40),
+                  padding: const EdgeInsets.only(right: 12.0),
+                  child: SizedBox(
+                    width: 120,
+                    child: FilledButton.icon(
+                      style: AppTheme.editActionButtonStyle,
+                      onPressed: () => ref
+                          .read(staffManagementControllerProvider.notifier)
+                          .toggleEditMode(),
+                      icon: const Icon(Icons.edit_outlined, size: 18),
+                      label: const Text('Edit'),
                     ),
                   ),
                 ),
@@ -274,12 +299,6 @@ class _StaffManagementPageState extends ConsumerState<StaffManagementPage> {
                                 ),
                               ),
                               const SizedBox(height: 16),
-                            ],
-
-                            // Profile Picture
-                            if (!isReadOnly) ...[
-                              const Center(child: StaffProfileAvatar()),
-                              const SizedBox(height: 32),
                             ],
 
                             // Form Fields
@@ -326,6 +345,19 @@ class _StaffManagementPageState extends ConsumerState<StaffManagementPage> {
                                     setState(() => _customHours[d] = (s, e)),
                                 isReadOnly: isReadOnly,
                                 isCreateMode: _isCreateMode,
+                                obscurePassword: _obscurePassword,
+                                obscureConfirmPassword: _obscureConfirmPassword,
+                                onTogglePasswordVisibility: () {
+                                  setState(() {
+                                    _obscurePassword = !_obscurePassword;
+                                  });
+                                },
+                                onToggleConfirmPasswordVisibility: () {
+                                  setState(() {
+                                    _obscureConfirmPassword =
+                                        !_obscureConfirmPassword;
+                                  });
+                                },
                               )
                             else
                               // Tablet/Desktop Layout
@@ -371,9 +403,9 @@ class _StaffManagementPageState extends ConsumerState<StaffManagementPage> {
                                         setState(() => _isActive = v),
                                     isReadOnly: isReadOnly,
                                   ),
-                                  if (!isReadOnly) ...[
-                                    const SizedBox(height: 24),
-                                    // Working Schedule Section
+                                  const SizedBox(height: 24),
+                                  // Working Schedule Section
+                                  if (!isReadOnly)
                                     Container(
                                       padding: const EdgeInsets.all(24),
                                       decoration: BoxDecoration(
@@ -391,8 +423,9 @@ class _StaffManagementPageState extends ConsumerState<StaffManagementPage> {
                                         ),
                                       ),
                                     ),
-                                    const SizedBox(height: 24),
-                                    // Authentication Section
+                                  if (!isReadOnly) const SizedBox(height: 24),
+                                  // Authentication Section (only in edit/create mode)
+                                  if (!isReadOnly)
                                     StaffAuthenticationSection(
                                       phoneNumberController:
                                           _phoneNumberController,
@@ -401,12 +434,67 @@ class _StaffManagementPageState extends ConsumerState<StaffManagementPage> {
                                           _confirmPasswordController,
                                       isCreateMode: _isCreateMode,
                                       isReadOnly: isReadOnly,
+                                      obscurePassword: _obscurePassword,
+                                      obscureConfirmPassword:
+                                          _obscureConfirmPassword,
+                                      onTogglePasswordVisibility: () {
+                                        setState(() {
+                                          _obscurePassword = !_obscurePassword;
+                                        });
+                                      },
+                                      onToggleConfirmPasswordVisibility: () {
+                                        setState(() {
+                                          _obscureConfirmPassword =
+                                              !_obscureConfirmPassword;
+                                        });
+                                      },
                                     ),
-                                  ],
                                 ],
                               ),
 
-                            if (isReadOnly) ...[
+                            if (isReadOnly && !isMobile) ...[
+                              const SizedBox(height: 24),
+                              // Working Schedule Section in view mode (wide screen only)
+                              Container(
+                                padding: const EdgeInsets.all(24),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: Colors.grey.shade300,
+                                  ),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: _buildScheduleSection(isReadOnly),
+                                ),
+                              ),
+                              const SizedBox(height: 24),
+                              // Authentication Section in view mode
+                              StaffAuthenticationSection(
+                                phoneNumberController: _phoneNumberController,
+                                passwordController: _passwordController,
+                                confirmPasswordController:
+                                    _confirmPasswordController,
+                                isCreateMode: _isCreateMode,
+                                isReadOnly: isReadOnly,
+                                obscurePassword: _obscurePassword,
+                                obscureConfirmPassword: _obscureConfirmPassword,
+                                onTogglePasswordVisibility: () {
+                                  setState(() {
+                                    _obscurePassword = !_obscurePassword;
+                                  });
+                                },
+                                onToggleConfirmPasswordVisibility: () {
+                                  setState(() {
+                                    _obscureConfirmPassword =
+                                        !_obscureConfirmPassword;
+                                  });
+                                },
+                              ),
+                            ],
+
+                            if (isReadOnly && isMobile) ...[
                               const SizedBox(height: 24),
                               const Divider(),
                               const SizedBox(height: 16),
@@ -424,14 +512,10 @@ class _StaffManagementPageState extends ConsumerState<StaffManagementPage> {
                                 mainAxisAlignment: MainAxisAlignment.end,
                                 children: [
                                   if (_isEditMode || _isCreateMode)
-                                    ConstrainedBox(
-                                      constraints: const BoxConstraints(
-                                        minWidth: 100,
-                                        maxWidth: 150,
-                                        minHeight: 48,
-                                        maxHeight: 48,
-                                      ),
-                                      child: OutlinedButton(
+                                    SizedBox(
+                                      width: 120,
+                                      child: FilledButton(
+                                        style: AppTheme.cancelActionButtonStyle,
                                         onPressed: () {
                                           if (_isEditMode) {
                                             ref
@@ -449,21 +533,13 @@ class _StaffManagementPageState extends ConsumerState<StaffManagementPage> {
                                     ),
                                   if (_isEditMode || _isCreateMode)
                                     const SizedBox(width: 16),
-                                  ConstrainedBox(
-                                    constraints: const BoxConstraints(
-                                      minWidth: 120,
-                                      maxWidth: 200,
-                                      minHeight: 48,
-                                      maxHeight: 48,
-                                    ),
-                                    child: ElevatedButton(
+                                  SizedBox(
+                                    width: 150,
+                                    child: FilledButton(
+                                      style: AppTheme.editActionButtonStyle,
                                       onPressed: _isFormValid()
                                           ? _submit
                                           : null,
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.red,
-                                        foregroundColor: Colors.white,
-                                      ),
                                       child: Text(
                                         _isCreateMode
                                             ? 'Create Staff'
@@ -505,6 +581,7 @@ class _StaffManagementPageState extends ConsumerState<StaffManagementPage> {
       ],
       StaffScheduleSection(
         isMobile: isMobile,
+        isReadOnly: isReadOnly,
         selectedScheduleOption: _selectedScheduleOption,
         onScheduleOptionChanged: (v) =>
             setState(() => _selectedScheduleOption = v),

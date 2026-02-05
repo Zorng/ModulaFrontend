@@ -21,6 +21,7 @@ class StaffScheduleSection extends StatelessWidget {
     required this.customHours,
     required this.onCustomHoursChanged,
     this.isMobile = false,
+    this.isReadOnly = false,
   });
 
   final String? selectedScheduleOption;
@@ -42,6 +43,7 @@ class StaffScheduleSection extends StatelessWidget {
   final void Function(String day, TimeOfDay start, TimeOfDay end)
   onCustomHoursChanged;
   final bool isMobile;
+  final bool isReadOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -54,29 +56,30 @@ class StaffScheduleSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Schedule Type Toggle Buttons
-        Row(
-          children: [
-            Expanded(
-              child: _buildScheduleTypeButton(
-                context,
-                label: 'Apply same hours to selected days',
-                isSelected: option == 'same_hours',
-                onTap: () => onScheduleOptionChanged('same_hours'),
+        // Schedule Type Toggle Buttons (hide in read-only mode)
+        if (!isReadOnly)
+          Row(
+            children: [
+              Expanded(
+                child: _buildScheduleTypeButton(
+                  context,
+                  label: 'Apply same hours to selected days',
+                  isSelected: option == 'same_hours',
+                  onTap: () => onScheduleOptionChanged('same_hours'),
+                ),
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildScheduleTypeButton(
-                context,
-                label: 'Set different hours per day',
-                isSelected: option == 'different_hours',
-                onTap: () => onScheduleOptionChanged('different_hours'),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildScheduleTypeButton(
+                  context,
+                  label: 'Set different hours per day',
+                  isSelected: option == 'different_hours',
+                  onTap: () => onScheduleOptionChanged('different_hours'),
+                ),
               ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 24),
+            ],
+          ),
+        if (!isReadOnly) const SizedBox(height: 24),
         if (option == 'same_hours') _buildSameHours(context),
         if (option == 'different_hours') _buildDifferentHours(context),
       ],
@@ -144,15 +147,19 @@ class StaffScheduleSection extends StatelessWidget {
           children: allDays.map((day) {
             final isSelected = selectedWorkingDays.contains(day);
             return GestureDetector(
-              onTap: () {
-                final newSelection = Set<String>.from(selectedWorkingDays);
-                if (isSelected) {
-                  newSelection.remove(day);
-                } else {
-                  newSelection.add(day);
-                }
-                onWorkingDaysChanged(newSelection);
-              },
+              onTap: isReadOnly
+                  ? null
+                  : () {
+                      final newSelection = Set<String>.from(
+                        selectedWorkingDays,
+                      );
+                      if (isSelected) {
+                        newSelection.remove(day);
+                      } else {
+                        newSelection.add(day);
+                      }
+                      onWorkingDaysChanged(newSelection);
+                    },
               child: Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16,
@@ -160,19 +167,25 @@ class StaffScheduleSection extends StatelessWidget {
                 ),
                 decoration: BoxDecoration(
                   color: isSelected
-                      ? Theme.of(context).primaryColor
-                      : Colors.white,
+                      ? (isReadOnly
+                            ? Colors.grey.shade300
+                            : Theme.of(context).primaryColor)
+                      : (isReadOnly ? const Color(0xFFF5F7FA) : Colors.white),
                   borderRadius: BorderRadius.circular(6),
                   border: Border.all(
                     color: isSelected
-                        ? Theme.of(context).primaryColor
+                        ? (isReadOnly
+                              ? Colors.grey.shade300
+                              : Theme.of(context).primaryColor)
                         : Colors.grey.shade300,
                   ),
                 ),
                 child: Text(
                   dayMap[day] ?? day.substring(0, 3),
                   style: TextStyle(
-                    color: isSelected ? Colors.white : Colors.black87,
+                    color: isSelected
+                        ? (isReadOnly ? Colors.grey.shade700 : Colors.white)
+                        : Colors.black87,
                     fontWeight: isSelected
                         ? FontWeight.w500
                         : FontWeight.normal,
@@ -200,6 +213,7 @@ class StaffScheduleSection extends StatelessWidget {
                   TimePickerDropdown(
                     initialTime: startTime,
                     onTimeChanged: onStartTimeChanged,
+                    isReadOnly: isReadOnly,
                   ),
                 ],
               ),
@@ -219,6 +233,7 @@ class StaffScheduleSection extends StatelessWidget {
                   TimePickerDropdown(
                     initialTime: endTime,
                     onTimeChanged: onEndTimeChanged,
+                    isReadOnly: isReadOnly,
                   ),
                 ],
               ),
@@ -298,6 +313,7 @@ class StaffScheduleSection extends StatelessWidget {
                   initialTime: times.$1,
                   onTimeChanged: (newTime) =>
                       onCustomHoursChanged(day, newTime, times.$2),
+                  isReadOnly: isReadOnly,
                 ),
               ],
             ),
@@ -323,6 +339,7 @@ class StaffScheduleSection extends StatelessWidget {
                   initialTime: times.$2,
                   onTimeChanged: (newTime) =>
                       onCustomHoursChanged(day, times.$1, newTime),
+                  isReadOnly: isReadOnly,
                 ),
               ],
             ),
@@ -393,6 +410,7 @@ class StaffScheduleSection extends StatelessWidget {
                   TimePickerDropdown(
                     initialTime: startTime,
                     onTimeChanged: onStartTimeChanged,
+                    isReadOnly: isReadOnly,
                   ),
                 ],
               ),
@@ -407,6 +425,7 @@ class StaffScheduleSection extends StatelessWidget {
                   TimePickerDropdown(
                     initialTime: endTime,
                     onTimeChanged: onEndTimeChanged,
+                    isReadOnly: isReadOnly,
                   ),
                 ],
               ),
@@ -493,6 +512,7 @@ class StaffScheduleSection extends StatelessWidget {
                         initialTime: times.$1,
                         onTimeChanged: (newTime) =>
                             onCustomHoursChanged(day, newTime, times.$2),
+                        isReadOnly: isReadOnly,
                       ),
                     ],
                   ),
@@ -508,6 +528,7 @@ class StaffScheduleSection extends StatelessWidget {
                         initialTime: times.$2,
                         onTimeChanged: (newTime) =>
                             onCustomHoursChanged(day, times.$1, newTime),
+                        isReadOnly: isReadOnly,
                       ),
                     ],
                   ),

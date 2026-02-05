@@ -1,9 +1,9 @@
 import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/features/staff/domain/models/staff_model.dart';
-import 'package:modular_pos/features/staff/ui/view/staff_add_placeholder_page.dart';
-import 'package:modular_pos/features/staff/ui/view/staff_list_view.dart';
-import 'package:modular_pos/features/staff/ui/view/staff_management_page.dart';
+import 'package:modular_pos/features/staff/ui/view/staff_add_placeholder/staff_add_placeholder_page.dart';
+import 'package:modular_pos/features/staff/ui/view/staff_list/staff_list_view.dart';
+import 'package:modular_pos/features/staff/ui/view/staff_form/staff_management_page.dart';
 
 List<RouteBase> buildStaffRoutes() {
   return [
