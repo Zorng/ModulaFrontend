@@ -266,27 +266,34 @@ class StaffScheduleSection extends StatelessWidget {
         children: [
           // Checkbox and day name
           SizedBox(
-            width: 120,
+            width: 140,
             child: Row(
               children: [
                 Checkbox(
                   value: isSelected,
-                  onChanged: (value) {
-                    final newSelection = Set<String>.from(selectedWorkingDays);
-                    if (value == true) {
-                      newSelection.add(day);
-                    } else {
-                      newSelection.remove(day);
-                    }
-                    onWorkingDaysChanged(newSelection);
-                  },
+                  onChanged: isReadOnly
+                      ? null
+                      : (value) {
+                          final newSelection = Set<String>.from(
+                            selectedWorkingDays,
+                          );
+                          if (value == true) {
+                            newSelection.add(day);
+                          } else {
+                            newSelection.remove(day);
+                          }
+                          onWorkingDaysChanged(newSelection);
+                        },
                   activeColor: Theme.of(context).primaryColor,
                 ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     day,
-                    style: Theme.of(context).textTheme.bodyMedium,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: isReadOnly ? Colors.grey.shade700 : Colors.black87,
+                    ),
+                    overflow: TextOverflow.visible,
                   ),
                 ),
               ],

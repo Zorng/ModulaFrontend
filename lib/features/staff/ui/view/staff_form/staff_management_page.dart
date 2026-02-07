@@ -242,6 +242,12 @@ class _StaffManagementPageState extends ConsumerState<StaffManagementPage> {
     final state = ref.watch(staffManagementControllerProvider);
     final isReadOnly = state.mode == StaffManagementMode.view;
 
+    // For view mode on wide screens, use different_hours schedule option
+    final effectiveScheduleOption =
+        isReadOnly && !AppBreakpoints.isSmall(MediaQuery.of(context).size.width)
+        ? 'different_hours'
+        : _selectedScheduleOption;
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final isMobile = AppBreakpoints.isSmall(constraints.maxWidth);
@@ -279,38 +285,94 @@ class _StaffManagementPageState extends ConsumerState<StaffManagementPage> {
           ),
           body: state.isLoading
               ? const Center(child: CircularProgressIndicator())
-              : Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 1000),
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Form(
-                        key: _formKey,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            if (state.error != null) ...[
-                              Container(
-                                padding: const EdgeInsets.all(8),
-                                color: Colors.red.shade50,
-                                child: Text(
-                                  state.error!,
-                                  style: TextStyle(color: Colors.red.shade900),
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                            ],
+              : SingleChildScrollView(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (state.error != null) ...[
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            color: Colors.red.shade50,
+                            child: Text(
+                              state.error!,
+                              style: TextStyle(color: Colors.red.shade900),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                        ],
 
-                            // Form Fields
-                            if (isMobile)
-                              StaffMobileFormSection(
+                        // Form Fields
+                        if (isMobile)
+                          StaffMobileFormSection(
+                            firstNameController: _firstNameController,
+                            lastNameController: _lastNameController,
+                            phoneNumberController: _phoneNumberController,
+                            emailController: _emailController,
+                            passwordController: _passwordController,
+                            confirmPasswordController:
+                                _confirmPasswordController,
+                            selectedGender: _selectedGender,
+                            onGenderChanged: (val) =>
+                                setState(() => _selectedGender = val),
+                            selectedRole: _selectedRole,
+                            onRoleChanged: (val) =>
+                                setState(() => _selectedRole = val),
+                            selectedBranchName: _selectedBranchName,
+                            selectedBranchId: _selectedBranchId,
+                            onBranchChanged: (val) =>
+                                setState(() => _selectedBranchId = val),
+                            isActive: _isActive,
+                            onActiveChanged: (v) =>
+                                setState(() => _isActive = v),
+                            selectedScheduleOption: _selectedScheduleOption,
+                            onScheduleOptionChanged: (v) =>
+                                setState(() => _selectedScheduleOption = v),
+                            allDays: _allDays,
+                            selectedWorkingDays: _selectedWorkingDays,
+                            onWorkingDaysChanged: (v) =>
+                                setState(() => _selectedWorkingDays = v),
+                            startTime: _startTime,
+                            onStartTimeChanged: (v) =>
+                                setState(() => _startTime = v),
+                            endTime: _endTime,
+                            onEndTimeChanged: (v) =>
+                                setState(() => _endTime = v),
+                            expandedDay: _expandedDay,
+                            onExpandedDayChanged: (v) =>
+                                setState(() => _expandedDay = v),
+                            customHours: _customHours,
+                            onCustomHoursChanged: (d, s, e) =>
+                                setState(() => _customHours[d] = (s, e)),
+                            isReadOnly: isReadOnly,
+                            isCreateMode: _isCreateMode,
+                            obscurePassword: _obscurePassword,
+                            obscureConfirmPassword: _obscureConfirmPassword,
+                            onTogglePasswordVisibility: () {
+                              setState(() {
+                                _obscurePassword = !_obscurePassword;
+                              });
+                            },
+                            onToggleConfirmPasswordVisibility: () {
+                              setState(() {
+                                _obscureConfirmPassword =
+                                    !_obscureConfirmPassword;
+                              });
+                            },
+                          )
+                        else
+                          // Tablet/Desktop Layout
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Basic Information Section
+                              StaffBasicInfoSection(
                                 firstNameController: _firstNameController,
                                 lastNameController: _lastNameController,
                                 phoneNumberController: _phoneNumberController,
                                 emailController: _emailController,
-                                passwordController: _passwordController,
-                                confirmPasswordController:
-                                    _confirmPasswordController,
                                 selectedGender: _selectedGender,
                                 onGenderChanged: (val) =>
                                     setState(() => _selectedGender = val),
@@ -319,240 +381,174 @@ class _StaffManagementPageState extends ConsumerState<StaffManagementPage> {
                                     setState(() => _selectedRole = val),
                                 selectedBranchName: _selectedBranchName,
                                 selectedBranchId: _selectedBranchId,
-                                onBranchChanged: (val) =>
-                                    setState(() => _selectedBranchId = val),
+                                onBranchChanged: (val) {
+                                  final branches =
+                                      ref
+                                          .read(loginControllerProvider)
+                                          .user
+                                          ?.branches ??
+                                      [];
+                                  final match = branches.where(
+                                    (b) => b.name == val,
+                                  );
+                                  if (match.isNotEmpty) {
+                                    setState(
+                                      () => _selectedBranchId =
+                                          match.first.branchId.isNotEmpty
+                                          ? match.first.branchId
+                                          : match.first.id,
+                                    );
+                                  }
+                                },
                                 isActive: _isActive,
                                 onActiveChanged: (v) =>
                                     setState(() => _isActive = v),
-                                selectedScheduleOption: _selectedScheduleOption,
-                                onScheduleOptionChanged: (v) =>
-                                    setState(() => _selectedScheduleOption = v),
-                                allDays: _allDays,
-                                selectedWorkingDays: _selectedWorkingDays,
-                                onWorkingDaysChanged: (v) =>
-                                    setState(() => _selectedWorkingDays = v),
-                                startTime: _startTime,
-                                onStartTimeChanged: (v) =>
-                                    setState(() => _startTime = v),
-                                endTime: _endTime,
-                                onEndTimeChanged: (v) =>
-                                    setState(() => _endTime = v),
-                                expandedDay: _expandedDay,
-                                onExpandedDayChanged: (v) =>
-                                    setState(() => _expandedDay = v),
-                                customHours: _customHours,
-                                onCustomHoursChanged: (d, s, e) =>
-                                    setState(() => _customHours[d] = (s, e)),
                                 isReadOnly: isReadOnly,
-                                isCreateMode: _isCreateMode,
-                                obscurePassword: _obscurePassword,
-                                obscureConfirmPassword: _obscureConfirmPassword,
-                                onTogglePasswordVisibility: () {
-                                  setState(() {
-                                    _obscurePassword = !_obscurePassword;
-                                  });
-                                },
-                                onToggleConfirmPasswordVisibility: () {
-                                  setState(() {
-                                    _obscureConfirmPassword =
-                                        !_obscureConfirmPassword;
-                                  });
-                                },
-                              )
-                            else
-                              // Tablet/Desktop Layout
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  // Basic Information Section
-                                  StaffBasicInfoSection(
-                                    firstNameController: _firstNameController,
-                                    lastNameController: _lastNameController,
-                                    phoneNumberController:
-                                        _phoneNumberController,
-                                    emailController: _emailController,
-                                    selectedGender: _selectedGender,
-                                    onGenderChanged: (val) =>
-                                        setState(() => _selectedGender = val),
-                                    selectedRole: _selectedRole,
-                                    onRoleChanged: (val) =>
-                                        setState(() => _selectedRole = val),
-                                    selectedBranchName: _selectedBranchName,
-                                    selectedBranchId: _selectedBranchId,
-                                    onBranchChanged: (val) {
-                                      final branches =
-                                          ref
-                                              .read(loginControllerProvider)
-                                              .user
-                                              ?.branches ??
-                                          [];
-                                      final match = branches.where(
-                                        (b) => b.name == val,
-                                      );
-                                      if (match.isNotEmpty) {
-                                        setState(
-                                          () => _selectedBranchId =
-                                              match.first.branchId.isNotEmpty
-                                              ? match.first.branchId
-                                              : match.first.id,
-                                        );
+                              ),
+                              const SizedBox(height: 24),
+                              // Working Schedule Section
+                              if (!isReadOnly)
+                                Container(
+                                  padding: const EdgeInsets.all(24),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color: Colors.grey.shade300,
+                                    ),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: _buildScheduleSection(isReadOnly),
+                                  ),
+                                ),
+                              if (!isReadOnly) const SizedBox(height: 24),
+                              // Authentication Section (only in edit/create mode)
+                              if (!isReadOnly)
+                                StaffAuthenticationSection(
+                                  phoneNumberController: _phoneNumberController,
+                                  passwordController: _passwordController,
+                                  confirmPasswordController:
+                                      _confirmPasswordController,
+                                  isCreateMode: _isCreateMode,
+                                  isReadOnly: isReadOnly,
+                                  obscurePassword: _obscurePassword,
+                                  obscureConfirmPassword:
+                                      _obscureConfirmPassword,
+                                  onTogglePasswordVisibility: () {
+                                    setState(() {
+                                      _obscurePassword = !_obscurePassword;
+                                    });
+                                  },
+                                  onToggleConfirmPasswordVisibility: () {
+                                    setState(() {
+                                      _obscureConfirmPassword =
+                                          !_obscureConfirmPassword;
+                                    });
+                                  },
+                                ),
+                            ],
+                          ),
+
+                        if (isReadOnly && !isMobile) ...[
+                          const SizedBox(height: 24),
+                          // Working Schedule Section in view mode (wide screen only)
+                          Container(
+                            padding: const EdgeInsets.all(24),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.grey.shade300),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: _buildScheduleSection(
+                                isReadOnly,
+                                scheduleOption: effectiveScheduleOption,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          // Authentication Section in view mode
+                          StaffAuthenticationSection(
+                            phoneNumberController: _phoneNumberController,
+                            passwordController: _passwordController,
+                            confirmPasswordController:
+                                _confirmPasswordController,
+                            isCreateMode: _isCreateMode,
+                            isReadOnly: isReadOnly,
+                            obscurePassword: _obscurePassword,
+                            obscureConfirmPassword: _obscureConfirmPassword,
+                            onTogglePasswordVisibility: () {
+                              setState(() {
+                                _obscurePassword = !_obscurePassword;
+                              });
+                            },
+                            onToggleConfirmPasswordVisibility: () {
+                              setState(() {
+                                _obscureConfirmPassword =
+                                    !_obscureConfirmPassword;
+                              });
+                            },
+                          ),
+                        ],
+
+                        if (isReadOnly && isMobile) ...[
+                          const SizedBox(height: 24),
+                          const Divider(),
+                          const SizedBox(height: 16),
+                          if (state.initialStaff?.shiftSchedule != null)
+                            StaffScheduleTable(
+                              schedule: state.initialStaff!.shiftSchedule!,
+                            ),
+                        ],
+
+                        const SizedBox(height: 32),
+
+                        // Actions
+                        if (!isReadOnly)
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              if (_isEditMode || _isCreateMode)
+                                SizedBox(
+                                  width: 120,
+                                  child: FilledButton(
+                                    style: AppTheme.cancelActionButtonStyle,
+                                    onPressed: () {
+                                      if (_isEditMode) {
+                                        ref
+                                            .read(
+                                              staffManagementControllerProvider
+                                                  .notifier,
+                                            )
+                                            .toggleEditMode();
+                                      } else {
+                                        context.pop();
                                       }
                                     },
-                                    isActive: _isActive,
-                                    onActiveChanged: (v) =>
-                                        setState(() => _isActive = v),
-                                    isReadOnly: isReadOnly,
-                                  ),
-                                  const SizedBox(height: 24),
-                                  // Working Schedule Section
-                                  if (!isReadOnly)
-                                    Container(
-                                      padding: const EdgeInsets.all(24),
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        borderRadius: BorderRadius.circular(8),
-                                        border: Border.all(
-                                          color: Colors.grey.shade300,
-                                        ),
-                                      ),
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: _buildScheduleSection(
-                                          isReadOnly,
-                                        ),
-                                      ),
-                                    ),
-                                  if (!isReadOnly) const SizedBox(height: 24),
-                                  // Authentication Section (only in edit/create mode)
-                                  if (!isReadOnly)
-                                    StaffAuthenticationSection(
-                                      phoneNumberController:
-                                          _phoneNumberController,
-                                      passwordController: _passwordController,
-                                      confirmPasswordController:
-                                          _confirmPasswordController,
-                                      isCreateMode: _isCreateMode,
-                                      isReadOnly: isReadOnly,
-                                      obscurePassword: _obscurePassword,
-                                      obscureConfirmPassword:
-                                          _obscureConfirmPassword,
-                                      onTogglePasswordVisibility: () {
-                                        setState(() {
-                                          _obscurePassword = !_obscurePassword;
-                                        });
-                                      },
-                                      onToggleConfirmPasswordVisibility: () {
-                                        setState(() {
-                                          _obscureConfirmPassword =
-                                              !_obscureConfirmPassword;
-                                        });
-                                      },
-                                    ),
-                                ],
-                              ),
-
-                            if (isReadOnly && !isMobile) ...[
-                              const SizedBox(height: 24),
-                              // Working Schedule Section in view mode (wide screen only)
-                              Container(
-                                padding: const EdgeInsets.all(24),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(
-                                    color: Colors.grey.shade300,
+                                    child: const Text('Cancel'),
                                   ),
                                 ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: _buildScheduleSection(isReadOnly),
+                              if (_isEditMode || _isCreateMode)
+                                const SizedBox(width: 16),
+                              SizedBox(
+                                width: 150,
+                                child: FilledButton(
+                                  style: AppTheme.editActionButtonStyle,
+                                  onPressed: _isFormValid() ? _submit : null,
+                                  child: Text(
+                                    _isCreateMode
+                                        ? 'Create Staff'
+                                        : 'Save Changes',
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: 24),
-                              // Authentication Section in view mode
-                              StaffAuthenticationSection(
-                                phoneNumberController: _phoneNumberController,
-                                passwordController: _passwordController,
-                                confirmPasswordController:
-                                    _confirmPasswordController,
-                                isCreateMode: _isCreateMode,
-                                isReadOnly: isReadOnly,
-                                obscurePassword: _obscurePassword,
-                                obscureConfirmPassword: _obscureConfirmPassword,
-                                onTogglePasswordVisibility: () {
-                                  setState(() {
-                                    _obscurePassword = !_obscurePassword;
-                                  });
-                                },
-                                onToggleConfirmPasswordVisibility: () {
-                                  setState(() {
-                                    _obscureConfirmPassword =
-                                        !_obscureConfirmPassword;
-                                  });
-                                },
                               ),
                             ],
-
-                            if (isReadOnly && isMobile) ...[
-                              const SizedBox(height: 24),
-                              const Divider(),
-                              const SizedBox(height: 16),
-                              if (state.initialStaff?.shiftSchedule != null)
-                                StaffScheduleTable(
-                                  schedule: state.initialStaff!.shiftSchedule!,
-                                ),
-                            ],
-
-                            const SizedBox(height: 32),
-
-                            // Actions
-                            if (!isReadOnly)
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.end,
-                                children: [
-                                  if (_isEditMode || _isCreateMode)
-                                    SizedBox(
-                                      width: 120,
-                                      child: FilledButton(
-                                        style: AppTheme.cancelActionButtonStyle,
-                                        onPressed: () {
-                                          if (_isEditMode) {
-                                            ref
-                                                .read(
-                                                  staffManagementControllerProvider
-                                                      .notifier,
-                                                )
-                                                .toggleEditMode();
-                                          } else {
-                                            context.pop();
-                                          }
-                                        },
-                                        child: const Text('Cancel'),
-                                      ),
-                                    ),
-                                  if (_isEditMode || _isCreateMode)
-                                    const SizedBox(width: 16),
-                                  SizedBox(
-                                    width: 150,
-                                    child: FilledButton(
-                                      style: AppTheme.editActionButtonStyle,
-                                      onPressed: _isFormValid()
-                                          ? _submit
-                                          : null,
-                                      child: Text(
-                                        _isCreateMode
-                                            ? 'Create Staff'
-                                            : 'Save Changes',
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            const SizedBox(height: 50),
-                          ],
-                        ),
-                      ),
+                          ),
+                        const SizedBox(height: 50),
+                      ],
                     ),
                   ),
                 ),
@@ -561,7 +557,14 @@ class _StaffManagementPageState extends ConsumerState<StaffManagementPage> {
     );
   }
 
-  List<Widget> _buildScheduleSection(bool isReadOnly, {bool isMobile = false}) {
+  List<Widget> _buildScheduleSection(
+    bool isReadOnly, {
+    bool isMobile = false,
+    String? scheduleOption,
+  }) {
+    // Use provided scheduleOption or fall back to _selectedScheduleOption
+    final option = scheduleOption ?? _selectedScheduleOption;
+
     return [
       if (!isMobile) ...[
         Text(
@@ -582,7 +585,7 @@ class _StaffManagementPageState extends ConsumerState<StaffManagementPage> {
       StaffScheduleSection(
         isMobile: isMobile,
         isReadOnly: isReadOnly,
-        selectedScheduleOption: _selectedScheduleOption,
+        selectedScheduleOption: option,
         onScheduleOptionChanged: (v) =>
             setState(() => _selectedScheduleOption = v),
         allDays: _allDays,
