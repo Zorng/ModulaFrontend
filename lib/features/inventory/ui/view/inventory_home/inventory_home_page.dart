@@ -197,7 +197,7 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
                                               : _selectedBranchId,
                                         );
                                   },
-                                  label: '+ Restock',
+                                  label: 'Restock',
                                 ),
                               ),
                             ],
@@ -380,181 +380,196 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
                                 minWidth: constraints.maxWidth,
                               ),
                               child: Container(
-                                color: AppTableTheme.background,
+                                decoration: BoxDecoration(
+                                  color: AppTableTheme.background,
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
                                 padding: const EdgeInsets.all(24),
-                                child: DataTable(
-                                  dataRowMinHeight: 60,
-                                  dataRowMaxHeight: 70,
-                                  headingRowColor: WidgetStateProperty.all(
-                                    AppTableTheme.headerBackground,
-                                  ),
-                                  dividerThickness: 1,
-                                  border: const TableBorder(
-                                    horizontalInside: BorderSide(
-                                      color: AppTableTheme.divider,
+                                child: SingleChildScrollView(
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadiusGeometry.circular(
+                                      12,
                                     ),
-                                  ),
-                                  columns: const [
-                                    DataColumn(
-                                      label: Text(
-                                        'No.',
-                                        style: AppTableTheme.headerText,
+                                    child: DataTable(
+                                      dataRowMinHeight: 60,
+                                      dataRowMaxHeight: 70,
+                                      headingRowColor: WidgetStateProperty.all(
+                                        AppTableTheme.headerBackground,
                                       ),
-                                    ),
-                                    DataColumn(
-                                      label: Text(
-                                        'Item Name',
-                                        style: AppTableTheme.headerText,
+                                      dividerThickness: 1,
+                                      border: const TableBorder(
+                                        horizontalInside: BorderSide(
+                                          color: AppTableTheme.divider,
+                                        ),
                                       ),
-                                    ),
-                                    DataColumn(
-                                      label: Text(
-                                        'Category',
-                                        style: AppTableTheme.headerText,
-                                      ),
-                                    ),
-                                    DataColumn(
-                                      label: Text(
-                                        'Current Piece',
-                                        style: AppTableTheme.headerText,
-                                      ),
-                                    ),
-                                    DataColumn(
-                                      label: Text(
-                                        'Piece Size',
-                                        style: AppTableTheme.headerText,
-                                      ),
-                                    ),
-                                    DataColumn(
-                                      label: Text(
-                                        'Assigned Branch(es)',
-                                        style: AppTableTheme.headerText,
-                                      ),
-                                    ),
-                                    DataColumn(
-                                      label: Text(
-                                        'Status',
-                                        style: AppTableTheme.headerText,
-                                      ),
-                                    ),
-                                    DataColumn(
-                                      label: Text(
-                                        'Action',
-                                        style: AppTableTheme.headerText,
-                                      ),
-                                    ),
-                                  ],
-                                  rows: List<DataRow>.generate(
-                                    displayed.length,
-                                    (index) {
-                                      final item = displayed[index];
-                                      final isHealthy = item.onHand > 0;
-
-                                      return DataRow(
-                                        cells: [
-                                          DataCell(
-                                            Text(
-                                              '${index + 1}',
-                                              style: AppTableTheme.cellText,
-                                            ),
+                                      columns: const [
+                                        DataColumn(
+                                          label: Text(
+                                            'No.',
+                                            style: AppTableTheme.headerText,
                                           ),
-
-                                          DataCell(
-                                            Row(
-                                              children: [
-                                                StockItemImage(imageUrl: item.imageUrl),
-                                                const SizedBox(width: 12,),
-                                                Flexible(
-                                                    child: Text(
-                                                      item.name,
-                                                      style: Theme.of(
-                                                        context,
-                                                      ).textTheme.bodyMedium,
-                                                      overflow:
-                                                          TextOverflow.ellipsis,
-                                                    ),
-                                                  ),
-                                              ],
-                                            )
+                                        ),
+                                        DataColumn(
+                                          label: Text(
+                                            'Item Name',
+                                            style: AppTableTheme.headerText,
                                           ),
-
-                                          DataCell(
-                                            Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 12,
-                                                    vertical: 6,
-                                                  ),
-                                              decoration: AppTableTheme
-                                                  .categoryPillDecoration,
-                                              child: Text(
-                                                item.category,
-                                                style: AppTableTheme
-                                                    .categoryPillText,
+                                        ),
+                                        DataColumn(
+                                          label: Text(
+                                            'Category',
+                                            style: AppTableTheme.headerText,
+                                          ),
+                                        ),
+                                        DataColumn(
+                                          label: Text(
+                                            'Current Piece',
+                                            style: AppTableTheme.headerText,
+                                          ),
+                                        ),
+                                        DataColumn(
+                                          label: Text(
+                                            'Piece Size',
+                                            style: AppTableTheme.headerText,
+                                          ),
+                                        ),
+                                        DataColumn(
+                                          label: Text(
+                                            'Assigned Branch(es)',
+                                            style: AppTableTheme.headerText,
+                                          ),
+                                        ),
+                                        DataColumn(
+                                          label: Text(
+                                            'Status',
+                                            style: AppTableTheme.headerText,
+                                          ),
+                                        ),
+                                        DataColumn(
+                                          label: Text(
+                                            'Action',
+                                            style: AppTableTheme.headerText,
+                                          ),
+                                        ),
+                                      ],
+                                      rows: List<DataRow>.generate(
+                                        displayed.length,
+                                        (index) {
+                                          final item = displayed[index];
+                                          final isHealthy = item.onHand > 0;
+                                          final assigned = _assignedBranches(
+                                            item,
+                                            items,
+                                          );
+                                            
+                                    
+                                          return DataRow(
+                                            cells: [
+                                              DataCell(
+                                                Text(
+                                                  '${index + 1}',
+                                                  style: AppTableTheme.cellText,
+                                                ),
                                               ),
-                                            ),
-                                          ),
-
-                                          DataCell(
-                                            Text(
-                                              item.onHand.toString(),
-                                              style: AppTableTheme.cellText,
-                                            ),
-                                          ),
-
-                                          DataCell(
-                                            Text(
-                                              item.pieceSize.toString(),
-                                              style: AppTableTheme.cellText,
-                                            ),
-                                          ),
-
-                                          DataCell(
-                                            Text(
-                                              item.branchName,
-                                              style: AppTableTheme.cellText,
-                                            ),
-                                          ),
-
-                                          DataCell(
-                                            Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 12,
-                                                    vertical: 6,
-                                                  ),
-                                              decoration: isHealthy
-                                                  ? AppTableTheme
-                                                        .healthyDecoration
-                                                  : AppTableTheme
-                                                        .dangerDecoration,
-                                              child: Text(
-                                                isHealthy
-                                                    ? 'Healthy'
-                                                    : 'Out of stock',
-                                                style: isHealthy
-                                                    ? AppTableTheme.healthyText
-                                                    : AppTableTheme.dangerText,
+                                    
+                                              DataCell(
+                                                Row(
+                                                  children: [
+                                                    StockItemImage(imageUrl: item.imageUrl),
+                                                    const SizedBox(width: 12,),
+                                                    Flexible(
+                                                        child: Text(
+                                                          item.name,
+                                                          style: Theme.of(
+                                                            context,
+                                                          ).textTheme.bodyMedium,
+                                                          overflow:
+                                                              TextOverflow.ellipsis,
+                                                        ),
+                                                      ),
+                                                  ],
+                                                )
                                               ),
-                                            ),
-                                          ),
-
-                                          DataCell(
-                                            ElevatedButton(
-                                              style: AppTableTheme
-                                                  .actionButtonStyle,
-                                              onPressed: () {
-                                                context.push(
-                                                  '/inventory/adjust',
-                                                  extra: item,
-                                                );
-                                              },
-                                              child: const Text('Adjust'),
-                                            ),
-                                          ),
-                                        ],
-                                      );
-                                    },
+                                    
+                                              DataCell(
+                                                Container(
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 12,
+                                                        vertical: 6,
+                                                      ),
+                                                  decoration: AppTableTheme
+                                                      .categoryPillDecoration,
+                                                  child: Text(
+                                                    item.category,
+                                                    style: AppTableTheme
+                                                        .categoryPillText,
+                                                  ),
+                                                ),
+                                              ),
+                                    
+                                              DataCell(
+                                                Text(
+                                                  item.onHand.toString(),
+                                                  style: AppTableTheme.cellText,
+                                                ),
+                                              ),
+                                    
+                                              DataCell(
+                                                Text(
+                                                  item.pieceSize.toString(),
+                                                  style: AppTableTheme.cellText,
+                                                ),
+                                              ),
+                                    
+                                              DataCell(
+                                                Text(
+                                                  assigned,
+                                                  style: AppTableTheme.cellText,
+                                                ),
+                                              ),
+                                    
+                                              DataCell(
+                                                Container(
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 12,
+                                                        vertical: 6,
+                                                      ),
+                                                  decoration: isHealthy
+                                                      ? AppTableTheme
+                                                            .healthyDecoration
+                                                      : AppTableTheme
+                                                            .dangerDecoration,
+                                                  child: Text(
+                                                    isHealthy
+                                                        ? 'Healthy'
+                                                        : 'Out of stock',
+                                                    style: isHealthy
+                                                        ? AppTableTheme.healthyText
+                                                        : AppTableTheme.dangerText,
+                                                  ),
+                                                ),
+                                              ),
+                                    
+                                              DataCell(
+                                                ElevatedButton(
+                                                  style: AppTableTheme
+                                                      .actionButtonStyle,
+                                                  onPressed: () {
+                                                    context.push(
+                                                      '/inventory/adjust',
+                                                      extra: item,
+                                                    );
+                                                  },
+                                                  child: const Text('Adjust'),
+                                                ),
+                                              ),
+                                            ],
+                                          );
+                                        },
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ),
@@ -712,6 +727,22 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
         usageTags: mergedTags.toList(),
       );
     }).toList();
+  }
+
+    String _assignedBranches(StockItem item, List<StockItem> allItems) {
+    final branches = <String>{};
+
+    for (final it in allItems) {
+      if (it.name == item.name && it.category == item.category) {
+        branches.add(it.branchName);
+      }
+    }
+
+    if (branches.length <= 1) {
+      return item.branchName;
+    }
+
+    return '${branches.length} branches assigned';
   }
 }
 

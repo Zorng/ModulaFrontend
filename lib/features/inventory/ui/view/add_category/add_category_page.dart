@@ -14,14 +14,11 @@ class AddInventoryCategoryPage extends StatelessWidget {
 }
 
 class CategoryFormPage extends StatelessWidget {
-  const CategoryFormPage({
-    super.key,
-    required this.mode,
-    this.category,
-  }) : assert(
-         mode == CategoryFormMode.create || category != null,
-         'category is required for view/edit',
-       );
+  const CategoryFormPage({super.key, required this.mode, this.category})
+    : assert(
+        mode == CategoryFormMode.create || category != null,
+        'category is required for view/edit',
+      );
 
   final CategoryFormMode mode;
   final InventoryCategory? category;
@@ -29,7 +26,11 @@ class CategoryFormPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(_title()), centerTitle: false),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        title: Text(_title()),
+        centerTitle: false,
+      ),
       body: SingleChildScrollView(
         child: CategoryFormBody(
           mode: mode,

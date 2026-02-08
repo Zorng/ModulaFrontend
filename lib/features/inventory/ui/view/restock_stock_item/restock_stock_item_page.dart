@@ -87,6 +87,7 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
     if (inventoryState.isLoading && items.isEmpty) {
       return Scaffold(
         appBar: AppBar(
+          backgroundColor: Colors.white,
           title: const Text('Restock inventory'),
           centerTitle: false,
         ),
@@ -98,6 +99,7 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
       // Dialog is scheduled above; show an empty scaffold so only the dialog is visible.
       return Scaffold(
         appBar: AppBar(
+          backgroundColor: Colors.white,
           title: const Text('Restock inventory'),
           centerTitle: false,
         ),
@@ -107,6 +109,7 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
 
     return Scaffold(
       appBar: AppBar(
+        backgroundColor: Colors.white,
         title: const Text('Restock inventory'),
         centerTitle: false,
       ),

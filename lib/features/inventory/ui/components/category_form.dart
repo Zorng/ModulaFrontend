@@ -82,22 +82,22 @@ class _CategoryFormBodyState extends ConsumerState<CategoryFormBody> {
               ],
             ),
           if (widget.showHeader) const SizedBox(height: 16),
-          const MenuFormFieldLabel(text: 'Category Name', isRequired: true),
           TextField(
             controller: _nameCtrl,
             enabled: !isView,
             decoration: InputDecoration(
+              labelText: 'Category Name',
               hintText: 'e.g., Coffee, Pastries',
               errorText: _nameError,
               counterText: '',
             ),
           ),
           const SizedBox(height: 24),
-          const MenuFormFieldLabel(text: 'Description'),
           TextField(
             controller: _descriptionCtrl,
             enabled: !isView,
             decoration: InputDecoration(
+              labelText: 'Description',
               hintText: 'Enter category description',
               errorText: _descriptionError,
             ),
