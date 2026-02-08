@@ -250,7 +250,9 @@ class _StaffManagementPageState extends ConsumerState<StaffManagementPage> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isMobile = AppBreakpoints.isSmall(constraints.maxWidth);
+        // Use isLarge to match staff list view responsive breakpoint
+        // Mobile layout when width < 1024px, wide layout when >= 1024px
+        final isMobile = !AppBreakpoints.isLarge(constraints.maxWidth);
 
         return Scaffold(
           appBar: AppBar(

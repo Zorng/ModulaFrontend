@@ -3,8 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/theme/app_table_theme.dart';
-import 'package:modular_pos/core/theme/app_theme.dart';
 import 'package:modular_pos/core/theme/responsive.dart';
+import 'package:modular_pos/core/widgets/buttons/app_add_new_button.dart';
 import 'package:modular_pos/core/widgets/navigation/app_back_button.dart';
 import 'package:modular_pos/features/staff/ui/widgets/app_filter_dropdown.dart';
 import 'package:modular_pos/core/widgets/forms/app_search_add_bar.dart';
@@ -25,17 +25,18 @@ class StaffListView extends ConsumerWidget {
     final notifier = ref.read(StaffListAsyncNotifier.provider.notifier);
     final useMock = ref.watch(useMockStaffRepositoryProvider);
 
+    // Use screen width instead of layout constraints to determine navigation rail presence
+    final screenWidth = MediaQuery.of(context).size.width;
+    final hasNavigationRail = AppBreakpoints.isLarge(screenWidth);
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final isWide = AppBreakpoints.isLarge(constraints.maxWidth);
-        final isMediumOrLarge =
-            AppBreakpoints.isMedium(constraints.maxWidth) ||
-            AppBreakpoints.isLarge(constraints.maxWidth);
 
         return Scaffold(
           appBar: AppBar(
             automaticallyImplyLeading: false,
-            leading: isWide
+            leading: hasNavigationRail
                 ? null
                 : AppBackButton(
                     icon: Icons.home_outlined,
@@ -119,7 +120,7 @@ class StaffListView extends ConsumerWidget {
               ),
               data: (data) {
                 final filteredStaff = notifier.getFilteredStaff();
-                return isMediumOrLarge
+                return isWide
                     ? Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 8),
                         child: Align(
@@ -136,37 +137,37 @@ class StaffListView extends ConsumerWidget {
                                   padding: const EdgeInsets.all(16.0),
                                   child: Row(
                                     children: [
-                                      Expanded(
-                                        flex: 2,
-                                        child: SizedBox(
-                                          height: 48,
-                                          child: TextField(
-                                            onChanged:
-                                                notifier.updateSearchQuery,
-                                            decoration: InputDecoration(
-                                              hintText: 'Search',
-                                              prefixIcon: const Icon(
-                                                Icons.search,
-                                              ),
-                                              border: OutlineInputBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(8),
-                                              ),
-                                              contentPadding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 16,
-                                                    vertical: 12,
-                                                  ),
+                                      SizedBox(
+                                        width: 300,
+                                        height: 48,
+                                        child: TextField(
+                                          onChanged: notifier.updateSearchQuery,
+                                          decoration: InputDecoration(
+                                            hintText: 'Search',
+                                            prefixIcon: const Icon(
+                                              Icons.search,
                                             ),
+                                            border: OutlineInputBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                            ),
+                                            contentPadding:
+                                                const EdgeInsets.symmetric(
+                                                  horizontal: 16,
+                                                  vertical: 12,
+                                                ),
                                           ),
                                         ),
                                       ),
-                                      const SizedBox(width: 12),
+                                      const Spacer(),
                                       SizedBox(
                                         width: 160,
-                                        height: 48,
+                                        height: 56,
                                         child: DropdownMenu<String>(
                                           hintText: 'All Branches',
+                                          textStyle: const TextStyle(
+                                            fontSize: 14,
+                                          ),
                                           initialSelection: data.selectedBranch,
                                           onSelected:
                                               notifier.updateSelectedBranch,
@@ -186,10 +187,13 @@ class StaffListView extends ConsumerWidget {
                                       ),
                                       const SizedBox(width: 12),
                                       SizedBox(
-                                        width: 140,
-                                        height: 48,
+                                        width: 130,
+                                        height: 56,
                                         child: DropdownMenu<String>(
                                           hintText: 'All Roles',
+                                          textStyle: const TextStyle(
+                                            fontSize: 14,
+                                          ),
                                           initialSelection: data.selectedRole,
                                           onSelected:
                                               notifier.updateSelectedRole,
@@ -215,10 +219,13 @@ class StaffListView extends ConsumerWidget {
                                       ),
                                       const SizedBox(width: 12),
                                       SizedBox(
-                                        width: 140,
-                                        height: 48,
+                                        width: 130,
+                                        height: 56,
                                         child: DropdownMenu<String>(
                                           hintText: 'All Status',
+                                          textStyle: const TextStyle(
+                                            fontSize: 14,
+                                          ),
                                           initialSelection: data.selectedStatus,
                                           onSelected:
                                               notifier.updateSelectedStatus,
@@ -246,17 +253,15 @@ class StaffListView extends ConsumerWidget {
                                           ],
                                         ),
                                       ),
-                                      const SizedBox(width: 12),
+                                      const SizedBox(width: 16),
                                       Tooltip(
                                         message: notifier.isStaffLimitReached()
                                             ? 'Staff limit reached (${notifier.getActiveStaffCount()}/${data.maxStaffLimit}). Upgrade your plan to add more staff.'
                                             : 'Add a new staff member',
                                         child: SizedBox(
-                                          width: 160,
-                                          height: 48,
-                                          child: FilledButton.icon(
-                                            style:
-                                                AppTheme.editActionButtonStyle,
+                                          height: 56,
+                                          child: AppAddNewButton(
+                                            label: '+ Add New Staff',
                                             onPressed:
                                                 readOnly ||
                                                     notifier
@@ -282,11 +287,6 @@ class StaffListView extends ConsumerWidget {
                                                           }
                                                         });
                                                   },
-                                            icon: const Icon(
-                                              Icons.add,
-                                              size: 20,
-                                            ),
-                                            label: const Text('Add New Staff'),
                                           ),
                                         ),
                                       ),
@@ -468,6 +468,7 @@ class StaffListView extends ConsumerWidget {
                                 children: [
                                   AppSearchAddBar(
                                     searchHint: 'Search',
+                                    addButtonLabel: '+ Add Staff',
                                     onSearchChanged: notifier.updateSearchQuery,
                                     onAddPressed:
                                         readOnly ||
