@@ -7,6 +7,7 @@ class BranchDto {
   final String? address;
   final String? contactPhone;
   final String? contactEmail;
+  final String? managedBy;
   final String createdAt;
   final String? updatedAt;
 
@@ -18,6 +19,7 @@ class BranchDto {
     this.address,
     this.contactPhone,
     this.contactEmail,
+    this.managedBy,
     required this.createdAt,
     this.updatedAt,
   });
@@ -31,6 +33,7 @@ class BranchDto {
       address: json['address'] as String?,
       contactPhone: json['contact_phone'] as String?,
       contactEmail: json['contact_email'] as String?,
+      managedBy: json['managed_by'] as String?,
       createdAt: json['created_at'] as String,
       updatedAt: json['updated_at'] as String?,
     );
@@ -45,6 +48,7 @@ class BranchDto {
       'address': address,
       'contact_phone': contactPhone,
       'contact_email': contactEmail,
+      'managed_by': managedBy,
       'created_at': createdAt,
       'updated_at': updatedAt,
     };

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/core/feedback/user_error_message.dart';
+import 'package:modular_pos/core/theme/app_buttons.dart';
 import 'package:modular_pos/features/branch/data/branch_providers.dart';
 import 'package:modular_pos/features/branch/domain/models/branch.dart';
 import 'package:modular_pos/features/branch/ui/viewmodels/branch_store.dart';
@@ -17,6 +18,7 @@ class BranchDetailDialog extends ConsumerStatefulWidget {
 class _BranchDetailDialogState extends ConsumerState<BranchDetailDialog> {
   bool _isEditMode = false;
   bool _isSaving = false;
+  bool _isInitialized = false;
 
   late final TextEditingController _nameController;
   late final TextEditingController _addressController;
@@ -27,6 +29,12 @@ class _BranchDetailDialogState extends ConsumerState<BranchDetailDialog> {
   String? _addressError;
   String? _phoneError;
   String? _emailError;
+
+  // Track if fields have been touched (user has entered text)
+  bool _nameTouched = false;
+  bool _addressTouched = false;
+  bool _phoneTouched = false;
+  bool _emailTouched = false;
 
   @override
   void initState() {
@@ -56,10 +64,11 @@ class _BranchDetailDialogState extends ConsumerState<BranchDetailDialog> {
   }
 
   void _validateName() {
-    if (!_isEditMode) return;
+    if (!_isEditMode || !_nameTouched) return;
     setState(() {
       if (_nameController.text.trim().isEmpty) {
-        _nameError = 'Branch name is required';
+        // Don't show error for empty field until save attempt
+        _nameError = null;
       } else if (_nameController.text.trim().length > 50) {
         _nameError = 'Branch name must not exceed 50 characters';
       } else {
@@ -69,23 +78,22 @@ class _BranchDetailDialogState extends ConsumerState<BranchDetailDialog> {
   }
 
   void _validateAddress() {
-    if (!_isEditMode) return;
+    if (!_isEditMode || !_addressTouched) return;
     setState(() {
-      if (_addressController.text.trim().isEmpty) {
-        _addressError = 'Address is required';
-      } else {
-        _addressError = null;
-      }
+      // Address has no format restrictions, only required check
+      // Don't show error until save attempt
+      _addressError = null;
     });
   }
 
   void _validatePhone() {
-    if (!_isEditMode) return;
+    if (!_isEditMode || !_phoneTouched) return;
     final phone = _phoneController.text.trim();
 
     setState(() {
       if (phone.isEmpty) {
-        _phoneError = 'Contact is required';
+        // Don't show error for empty field until save attempt
+        _phoneError = null;
         return;
       }
 
@@ -101,7 +109,7 @@ class _BranchDetailDialogState extends ConsumerState<BranchDetailDialog> {
   }
 
   void _validateEmail() {
-    if (!_isEditMode) return;
+    if (!_isEditMode || !_emailTouched) return;
     final email = _emailController.text.trim();
     if (email.isEmpty) {
       setState(() => _emailError = null);
@@ -127,11 +135,12 @@ class _BranchDetailDialogState extends ConsumerState<BranchDetailDialog> {
   }
 
   void _initializeControllers(Branch branch) {
-    if (_nameController.text.isEmpty) {
+    if (!_isInitialized) {
       _nameController.text = branch.name;
       _addressController.text = branch.address ?? '';
       _phoneController.text = branch.contactPhone ?? '';
       _emailController.text = branch.contactEmail ?? '';
+      _isInitialized = true;
     }
   }
 
@@ -148,6 +157,10 @@ class _BranchDetailDialogState extends ConsumerState<BranchDetailDialog> {
         _addressError = null;
         _phoneError = null;
         _emailError = null;
+        _nameTouched = false;
+        _addressTouched = false;
+        _phoneTouched = false;
+        _emailTouched = false;
       });
     }
     setState(() => _isEditMode = !_isEditMode);
@@ -204,9 +217,14 @@ class _BranchDetailDialogState extends ConsumerState<BranchDetailDialog> {
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      backgroundColor: Colors.white,
       child: Container(
-        width: 600,
+        width: 750,
         constraints: const BoxConstraints(maxHeight: 700),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.all(Radius.circular(16)),
+        ),
         child: branchesAsync.when(
           loading: () => const Center(
             child: Padding(
@@ -264,6 +282,7 @@ class _BranchDetailDialogState extends ConsumerState<BranchDetailDialog> {
                           enabled: _isEditMode,
                           errorText: _nameError,
                           maxLength: 50,
+                          onChanged: () => setState(() => _nameTouched = true),
                         ),
                         const SizedBox(height: 16),
                         _DialogField(
@@ -272,20 +291,20 @@ class _BranchDetailDialogState extends ConsumerState<BranchDetailDialog> {
                           controller: _addressController,
                           enabled: _isEditMode,
                           errorText: _addressError,
+                          onChanged: () => setState(() => _addressTouched = true),
                         ),
                         const SizedBox(height: 16),
                         Row(
                           children: [
                             Expanded(
-                              child: _DialogField(
+                              child: _DialogDropdownField(
                                 label: 'Managed By',
-                                controller: TextEditingController(
-                                  text: branch.name,
-                                ),
+                                value: branch.managedBy ?? 'Not assigned',
                                 enabled: false,
+                                withAvatar: false,
                               ),
                             ),
-                            const SizedBox(width: 12),
+                            const SizedBox(width: 16),
                             Expanded(
                               child: _DialogField(
                                 label: 'Role',
@@ -305,20 +324,14 @@ class _BranchDetailDialogState extends ConsumerState<BranchDetailDialog> {
                           enabled: _isEditMode,
                           keyboardType: TextInputType.phone,
                           errorText: _phoneError,
-                        ),
-                        const SizedBox(height: 16),
-                        _DialogField(
-                          label: 'Email',
-                          controller: _emailController,
-                          enabled: _isEditMode,
-                          keyboardType: TextInputType.emailAddress,
-                          errorText: _emailError,
+                          onChanged: () => setState(() => _phoneTouched = true),
                         ),
                         const SizedBox(height: 16),
                         _DialogDropdownField(
                           label: 'Status',
                           value: branch.status == 'FROZEN' ? 'Inactive' : 'Active',
                           enabled: false,
+                          withAvatar: false,
                         ),
                         if (branch.isFrozen) ...[
                           const SizedBox(height: 16),
@@ -370,20 +383,18 @@ class _BranchDetailDialogState extends ConsumerState<BranchDetailDialog> {
                             onPressed: branch.isFrozen
                                 ? null
                                 : () => _toggleEditMode(branch),
-                            style: FilledButton.styleFrom(
-                              backgroundColor: Colors.red,
-                              disabledBackgroundColor: Colors.grey.shade300,
-                            ),
+                            style: AppButtons.primary(context),
                             child: const Text('Edit Branch'),
                           ),
                         )
                       else ...[
                         SizedBox(
                           width: 120,
-                          child: OutlinedButton(
+                          child: FilledButton(
                             onPressed: _isSaving
                                 ? null
                                 : () => _toggleEditMode(branch),
+                            style: AppButtons.secondary(context),
                             child: const Text('Cancel'),
                           ),
                         ),
@@ -394,10 +405,7 @@ class _BranchDetailDialogState extends ConsumerState<BranchDetailDialog> {
                             onPressed: _isSaving || !_canSave
                                 ? null
                                 : _saveChanges,
-                            style: FilledButton.styleFrom(
-                              backgroundColor: Colors.red,
-                              disabledBackgroundColor: Colors.grey.shade300,
-                            ),
+                            style: AppButtons.primary(context),
                             child: _isSaving
                                 ? const SizedBox(
                                     height: 16,
@@ -433,6 +441,7 @@ class _DialogField extends StatelessWidget {
   final TextInputType? keyboardType;
   final String? errorText;
   final int? maxLength;
+  final VoidCallback? onChanged;
 
   const _DialogField({
     required this.label,
@@ -442,42 +451,82 @@ class _DialogField extends StatelessWidget {
     this.keyboardType,
     this.errorText,
     this.maxLength,
+    this.onChanged,
   });
 
   @override
   Widget build(BuildContext context) {
+    final fieldBorder = Border.all(color: Colors.grey.shade300, width: 2);
+    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 12,
-            color: Colors.grey,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        const SizedBox(height: 6),
-        TextField(
-          controller: controller,
-          enabled: enabled,
-          keyboardType: keyboardType,
-          maxLength: maxLength,
-          decoration: InputDecoration(
-            prefixIcon: icon != null ? Icon(icon, size: 20) : null,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
+        Stack(
+          children: [
+            Container(
+              height: 48,
+              margin: const EdgeInsets.only(top: 8),
+              decoration: BoxDecoration(
+                borderRadius: const BorderRadius.all(Radius.circular(8)),
+                border: fieldBorder,
+                color: Colors.grey.shade100,
+              ),
+              child: Row(
+                children: [
+                  if (icon != null)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 16),
+                      child: Icon(icon, size: 20, color: Colors.grey),
+                    ),
+                  Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.only(
+                        left: icon != null ? 8 : 16,
+                        top: 14,
+                        bottom: 14,
+                      ),
+                      child: TextField(
+                        controller: controller,
+                        enabled: enabled,
+                        keyboardType: keyboardType,
+                        maxLines: 1,
+                        maxLength: maxLength,
+                        onChanged: onChanged != null ? (_) => onChanged!() : null,
+                        style: const TextStyle(
+                          color: Colors.black,
+                          fontSize: 15,
+                        ),
+                        decoration: const InputDecoration(
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          disabledBorder: InputBorder.none,
+                          isCollapsed: true,
+                          counterText: '',
+                          filled: false,
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                ],
+              ),
             ),
-            filled: true,
-            fillColor: enabled ? Colors.white : Colors.grey.shade50,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 12,
-              vertical: 12,
-            ),
-            counterText: '',
-            errorText: errorText,
-          ),
+            _DialogFloatingLabel(label),
+          ],
         ),
+        if (errorText != null && errorText!.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(left: 12, top: 4),
+            child: Text(
+              errorText!,
+              style: const TextStyle(
+                color: Colors.red,
+                fontSize: 12,
+              ),
+            ),
+          ),
       ],
     );
   }
@@ -487,53 +536,96 @@ class _DialogDropdownField extends StatelessWidget {
   final String label;
   final String value;
   final bool enabled;
+  final bool withAvatar;
 
   const _DialogDropdownField({
     required this.label,
     required this.value,
     required this.enabled,
+    this.withAvatar = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final fieldBorder = Border.all(color: Colors.grey.shade300, width: 2);
+    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 12,
-            color: Colors.grey,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        const SizedBox(height: 6),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-          decoration: BoxDecoration(
-            color: Colors.grey.shade50,
-            border: Border.all(color: Colors.grey.shade300),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  value,
-                  style: TextStyle(
-                    color: Colors.grey.shade700,
-                    fontSize: 15,
+        Stack(
+          children: [
+            Container(
+              height: 48,
+              margin: const EdgeInsets.only(top: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                borderRadius: const BorderRadius.all(Radius.circular(8)),
+                border: fieldBorder,
+                color: Colors.grey.shade100,
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  if (withAvatar) ...[
+                    CircleAvatar(
+                      radius: 12,
+                      backgroundColor: Colors.orange.shade100,
+                      child: Text(
+                        'A',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.orange.shade900,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        value,
+                        style: const TextStyle(
+                          color: Color(0xFF6B7280),
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
                   ),
-                ),
+                  const Icon(
+                    Icons.keyboard_arrow_down,
+                    color: Color(0xFF6B7280),
+                  ),
+                ],
               ),
-              Icon(
-                Icons.keyboard_arrow_down,
-                color: Colors.grey.shade500,
-              ),
-            ],
-          ),
+            ),
+            _DialogFloatingLabel(label),
+          ],
         ),
       ],
+    );
+  }
+}
+
+class _DialogFloatingLabel extends StatelessWidget {
+  final String text;
+
+  const _DialogFloatingLabel(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      left: 12,
+      top: 0,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        color: Colors.transparent,
+        child: Text(
+          text,
+          style: const TextStyle(fontSize: 12, color: Colors.grey),
+        ),
+      ),
     );
   }
 }

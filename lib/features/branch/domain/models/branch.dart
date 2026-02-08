@@ -7,6 +7,7 @@ class Branch {
   final String? address;
   final String? contactPhone;
   final String? contactEmail;
+  final String? managedBy;
   final DateTime createdAt;
   final DateTime? updatedAt;
 
@@ -18,6 +19,7 @@ class Branch {
     this.address,
     this.contactPhone,
     this.contactEmail,
+    this.managedBy,
     required this.createdAt,
     this.updatedAt,
   });
@@ -33,6 +35,7 @@ class Branch {
     String? address,
     String? contactPhone,
     String? contactEmail,
+    String? managedBy,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -44,6 +47,7 @@ class Branch {
       address: address ?? this.address,
       contactPhone: contactPhone ?? this.contactPhone,
       contactEmail: contactEmail ?? this.contactEmail,
+      managedBy: managedBy ?? this.managedBy,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );

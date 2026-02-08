@@ -352,51 +352,31 @@ class _BranchDetailPageState extends ConsumerState<BranchDetailPage> {
                         ),
                         const SizedBox(height: 16),
 
-                        if (isWideScreen)
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _FormField(
-                                  label: 'Contact',
-                                  icon: Icons.phone_outlined,
-                                  controller: _phoneController,
-                                  enabled: _isEditMode,
-                                  keyboardType: TextInputType.phone,
-                                  errorText: _phoneError,
-                                ),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _FormField(
+                                label: 'Contact',
+                                icon: Icons.phone_outlined,
+                                controller: _phoneController,
+                                enabled: _isEditMode,
+                                keyboardType: TextInputType.phone,
+                                errorText: _phoneError,
                               ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: _FormField(
-                                  label: 'Email',
-                                  icon: Icons.email_outlined,
-                                  controller: _emailController,
-                                  enabled: _isEditMode,
-                                  keyboardType: TextInputType.emailAddress,
-                                  errorText: _emailError,
-                                ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _FormField(
+                                label: 'Email',
+                                icon: Icons.email_outlined,
+                                controller: _emailController,
+                                enabled: _isEditMode,
+                                keyboardType: TextInputType.emailAddress,
+                                errorText: _emailError,
                               ),
-                            ],
-                          )
-                        else ...[
-                          _FormField(
-                            label: 'Contact',
-                            icon: Icons.phone_outlined,
-                            controller: _phoneController,
-                            enabled: _isEditMode,
-                            keyboardType: TextInputType.phone,
-                            errorText: _phoneError,
-                          ),
-                          const SizedBox(height: 16),
-                          _FormField(
-                            label: 'Email',
-                            icon: Icons.email_outlined,
-                            controller: _emailController,
-                            enabled: _isEditMode,
-                            keyboardType: TextInputType.emailAddress,
-                            errorText: _emailError,
-                          ),
-                        ],
+                            ),
+                          ],
+                        ),
                         const SizedBox(height: 16),
 
                         _DropdownField(
@@ -650,45 +630,40 @@ class _DropdownField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        Container(
-          height: 48,
-          margin: const EdgeInsets.only(top: 8),
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          decoration: BoxDecoration(
-            borderRadius: _fieldBorderRadius,
-            border: _fieldBorder,
-            color: Colors.grey.shade100,
-          ),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
-              value: value,
-              isExpanded: true,
-              icon: const Icon(Icons.keyboard_arrow_down, color: Color(0xFF6B7280)),
-              style: const TextStyle(
-                color: Color(0xFF6B7280),
-                fontSize: 15,
-              ),
-              items: items
-                  .map(
-                    (e) => DropdownMenuItem(
-                      value: e,
-                      child: Text(
-                        e == 'ACTIVE' ? 'Active' : e == 'FROZEN' ? 'Inactive' : e,
-                        style: TextStyle(
-                          color: e == 'ACTIVE' ? const Color(0xFF4CAF50) : const Color(0xFF6B7280),
-                        ),
-                      ),
-                    ),
-                  )
-                  .toList(),
-              onChanged: enabled ? (_) {} : null,
-            ),
-          ),
+    return DropdownMenu<String>(
+      initialSelection: value,
+      enabled: enabled,
+      label: Text(label),
+      expandedInsets: EdgeInsets.zero,
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: Colors.grey.shade100,
+        border: OutlineInputBorder(
+          borderRadius: _fieldBorderRadius,
+          borderSide: BorderSide(color: Colors.grey.shade300, width: 2),
         ),
-        _FloatingLabel(label),
-      ],
+        enabledBorder: OutlineInputBorder(
+          borderRadius: _fieldBorderRadius,
+          borderSide: BorderSide(color: Colors.grey.shade300, width: 2),
+        ),
+        disabledBorder: OutlineInputBorder(
+          borderRadius: _fieldBorderRadius,
+          borderSide: BorderSide(color: Colors.grey.shade300, width: 2),
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      ),
+      dropdownMenuEntries: items
+          .map(
+            (e) => DropdownMenuEntry<String>(
+              value: e,
+              label: e == 'ACTIVE' ? 'Active' : e == 'FROZEN' ? 'Inactive' : e,
+              style: MenuItemButton.styleFrom(
+                foregroundColor: e == 'ACTIVE' ? const Color(0xFF4CAF50) : const Color(0xFF6B7280),
+              ),
+            ),
+          )
+          .toList(),
+      onSelected: enabled ? (_) {} : null,
     );
   }
 }
@@ -705,7 +680,7 @@ class _FloatingLabel extends StatelessWidget {
       top: 0,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 4),
-        color: Colors.transparent,
+        color: Colors.white,
         child: Text(
           text,
           style: const TextStyle(fontSize: 12, color: Colors.grey),

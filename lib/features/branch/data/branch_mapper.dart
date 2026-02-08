@@ -12,6 +12,7 @@ class BranchMapper {
       address: dto.address,
       contactPhone: dto.contactPhone,
       contactEmail: dto.contactEmail,
+      managedBy: dto.managedBy,
       createdAt: DateTime.parse(dto.createdAt),
       updatedAt: dto.updatedAt != null ? DateTime.parse(dto.updatedAt!) : null,
     );

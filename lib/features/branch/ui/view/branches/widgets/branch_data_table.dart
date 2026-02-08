@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:modular_pos/core/theme/app_table_theme.dart';
 import 'package:modular_pos/features/branch/domain/models/branch.dart';
 
 class BranchDataTable extends StatelessWidget {
@@ -20,7 +21,7 @@ class BranchDataTable extends StatelessWidget {
           child: ConstrainedBox(
             constraints: BoxConstraints(minWidth: constraints.maxWidth),
             child: DataTable(
-              headingRowColor: WidgetStateProperty.all(Colors.grey.shade50),
+              headingRowColor: WidgetStateProperty.all(AppTableTheme.headerBackground),
               columnSpacing: 8,
               horizontalMargin: 0,
               dataRowMinHeight: 56,
@@ -29,14 +30,30 @@ class BranchDataTable extends StatelessWidget {
                 DataColumn(
                   label: Padding(
                     padding: const EdgeInsets.only(left: 12),
-                    child: const SizedBox(width: 30, child: Text('No.')),
+                    child: SizedBox(
+                      width: 30,
+                      child: Text('No.', style: AppTableTheme.headerText),
+                    ),
                   ),
                 ),
-                const DataColumn(label: Text('Branch Name')),
-                const DataColumn(label: Text('Address')),
-                const DataColumn(label: Text('Branch Contact')),
-                const DataColumn(label: Text('Status')),
-                const DataColumn(label: Text('Action')),
+                DataColumn(
+                  label: Text('Branch Name', style: AppTableTheme.headerText),
+                ),
+                DataColumn(
+                  label: Text('Address', style: AppTableTheme.headerText),
+                ),
+                DataColumn(
+                  label: Text('Managed By', style: AppTableTheme.headerText),
+                ),
+                DataColumn(
+                  label: Text('Branch Contact', style: AppTableTheme.headerText),
+                ),
+                DataColumn(
+                  label: Text('Status', style: AppTableTheme.headerText),
+                ),
+                DataColumn(
+                  label: Text('Action', style: AppTableTheme.headerText),
+                ),
               ],
               rows: List.generate(branchList.length, (index) {
                 final branch = branchList[index];
@@ -50,8 +67,8 @@ class BranchDataTable extends StatelessWidget {
   }
 
   DataRow _buildDataRow(BuildContext context, int number, Branch branch) {
-    final statusLabel = branch.isActive ? 'Active' : 'Frozen';
-    final statusTextColor = _statusTextColor(statusLabel);
+    final statusLabel = branch.isActive ? 'Active' : 'Inactive';
+    final isActive = branch.isActive;
 
     return DataRow(
       cells: [
@@ -59,7 +76,10 @@ class BranchDataTable extends StatelessWidget {
         DataCell(
           Padding(
             padding: const EdgeInsets.only(left: 12),
-            child: Text(number.toString()),
+            child: Text(
+              number.toString(),
+              style: AppTableTheme.cellText,
+            ),
           ),
         ),
 
@@ -70,6 +90,7 @@ class BranchDataTable extends StatelessWidget {
             child: Text(
               branch.name,
               overflow: TextOverflow.ellipsis,
+              style: AppTableTheme.cellText,
             ),
           ),
         ),
@@ -81,7 +102,16 @@ class BranchDataTable extends StatelessWidget {
             child: Text(
               branch.address ?? '-',
               overflow: TextOverflow.ellipsis,
+              style: AppTableTheme.cellText,
             ),
+          ),
+        ),
+
+        // Managed By
+        DataCell(
+          Text(
+            branch.managedBy ?? 'Not assigned',
+            style: AppTableTheme.cellText,
           ),
         ),
 
@@ -92,6 +122,7 @@ class BranchDataTable extends StatelessWidget {
             child: Text(
               branch.contactPhone ?? '-',
               overflow: TextOverflow.ellipsis,
+              style: AppTableTheme.cellText,
             ),
           ),
         ),
@@ -99,54 +130,36 @@ class BranchDataTable extends StatelessWidget {
         // Status
         DataCell(
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              border: Border.all(color: statusTextColor, width: 1),
-              borderRadius: BorderRadius.circular(16),
-            ),
+            width: 80,
+            height: 28,
+            alignment: Alignment.center,
+            decoration: isActive
+                ? AppTableTheme.healthyDecoration
+                : AppTableTheme.dangerDecoration,
             child: Text(
               statusLabel,
-              style: TextStyle(
-                color: statusTextColor,
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-              ),
+              style: isActive
+                  ? AppTableTheme.healthyText
+                  : AppTableTheme.dangerText,
             ),
           ),
         ),
 
         // Action
         DataCell(
-          OutlinedButton(
+          ElevatedButton(
             onPressed: () => onBranchTap(branch),
-            style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              minimumSize: const Size(60, 32),
-              side: BorderSide(color: Colors.grey.shade400),
+            style: AppTableTheme.actionButtonStyle.copyWith(
+              padding: const WidgetStatePropertyAll(
+                EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              ),
+              minimumSize: const WidgetStatePropertyAll(Size(60, 32)),
             ),
-            child: const Text('View'),
+            child: const Text('View', style: TextStyle(fontSize: 13)),
           ),
         ),
       ],
     );
   }
 
-  Color _statusColor(String status) {
-    switch (status.toLowerCase()) {
-      case 'active':
-        return Colors.green;
-      case 'frozen':
-        return Colors.red;
-      default:
-        return Colors.grey;
-    }
-  }
-
-  Color _statusTextColor(String status) {
-    final base = _statusColor(status);
-    if (base == Colors.grey) return Colors.grey.shade700;
-    if (base == Colors.green) return Colors.green.shade700;
-    if (base == Colors.red) return Colors.red.shade700;
-    return base;
-  }
 }
