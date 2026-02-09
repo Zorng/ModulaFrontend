@@ -39,6 +39,7 @@ class AppBottomNavShellScaffold extends StatelessWidget {
     final showBackButton = onBackPressed != null && !isWide;
     return Scaffold(
       appBar: AppBar(
+        backgroundColor: Colors.white,
         centerTitle: centerTitle,
         leading: showBackButton
             ? AppBackButton(

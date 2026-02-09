@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
 import 'package:modular_pos/features/inventory/domain/utils/stock_quantity_formatter.dart';
+import 'package:modular_pos/features/inventory/ui/view/inventory_stock_items/widgets/stock_item_image.dart';
 
 class InventoryItemCard extends StatelessWidget {
   const InventoryItemCard({
@@ -42,7 +43,7 @@ class InventoryItemCard extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              InventoryItemImage(label: item.name, imageUrl: item.imageUrl),
+              StockItemImage(imageUrl: item.imageUrl),
               const SizedBox(width: 16),
               Expanded(
                 child: Column(
@@ -219,58 +220,4 @@ class InventoryStatePill extends StatelessWidget {
   };
 }
 
-class InventoryItemImage extends StatelessWidget {
-  const InventoryItemImage({super.key, required this.label, this.imageUrl});
-
-  final String label;
-  final String? imageUrl;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final trimmed = label.trim();
-    final initials = trimmed.isNotEmpty
-        ? trimmed.substring(0, 1).toUpperCase()
-        : '?';
-
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
-      child: SizedBox(
-        width: 56,
-        height: 56,
-        child: imageUrl != null
-            ? Image.network(
-                imageUrl!,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) =>
-                    _InitialsPlaceholder(initials: initials, scheme: scheme),
-              )
-            : _InitialsPlaceholder(initials: initials, scheme: scheme),
-      ),
-    );
-  }
-}
-
 enum InventoryStockState { healthy, lowStock, outOfStock }
-
-class _InitialsPlaceholder extends StatelessWidget {
-  const _InitialsPlaceholder({required this.initials, required this.scheme});
-
-  final String initials;
-  final ColorScheme scheme;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      color: scheme.secondaryContainer,
-      alignment: Alignment.center,
-      child: Text(
-        initials,
-        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-          color: scheme.onSecondaryContainer,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
-  }
-}

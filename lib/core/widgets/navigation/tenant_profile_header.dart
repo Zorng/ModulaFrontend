@@ -25,15 +25,19 @@ class TenantProfileHeader extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 12),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(tenantName),
-            Text(
-              branchName,
-              style: Theme.of(context).textTheme.labelMedium,
-            ),
-          ],
+        Flexible(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(tenantName, overflow: TextOverflow.ellipsis, maxLines: 1),
+              Text(
+                branchName,
+                style: Theme.of(context).textTheme.labelMedium,
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+              ),
+            ],
+          ),
         ),
       ],
     );

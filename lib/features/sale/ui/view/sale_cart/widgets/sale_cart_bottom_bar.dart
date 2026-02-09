@@ -19,9 +19,13 @@ class SaleCartBottomBar extends StatelessWidget {
     return SafeArea(
       top: false,
       child: Container(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
+          color: Colors.white,
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(12),
+            topRight: Radius.circular(12),
+          ),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.08),
@@ -35,17 +39,25 @@ class SaleCartBottomBar extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'Grand Total',
-                  style: Theme.of(context).textTheme.titleMedium,
+                Flexible(
+                  child: Text(
+                    'Total (VAT inclu.)',
+                    style: Theme.of(context).textTheme.titleSmall,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-                const Spacer(),
-                Text(
-                  '\$${grandTotalUsd.toStringAsFixed(2)}',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    '\$${grandTotalUsd.toStringAsFixed(2)}',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.right,
+                  ),
                 ),
               ],
             ),
@@ -53,10 +65,12 @@ class SaleCartBottomBar extends StatelessWidget {
             Align(
               alignment: Alignment.centerRight,
               child: Text(
-                '៛ ${grandTotalKhr.toStringAsFixed(0)}',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                'KHR ${grandTotalKhr.toStringAsFixed(0)}',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
                   fontWeight: FontWeight.bold,
+                  color: Colors.grey[700],
                 ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
             const SizedBox(height: 12),

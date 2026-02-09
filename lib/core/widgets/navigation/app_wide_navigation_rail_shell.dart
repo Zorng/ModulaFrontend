@@ -22,70 +22,74 @@ class AppScaffoldShell extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final width = MediaQuery.of(context).size.width;
-    final isWide = AppBreakpoints.isLarge(width);
-    if (!isWide) return child;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = AppBreakpoints.isLarge(constraints.maxWidth);
+        if (!isWide) return child;
 
-    final session = ref.watch(loginControllerProvider).session;
-    final role = (session?.user.role ?? 'cashier').trim().toLowerCase();
-    final tenantName = _resolveTenantName(session);
-    final branchName = _resolveBranchName(
-      ref.watch(authActiveBranchProvider),
-      session?.user.branches ?? const <UserBranch>[],
-    );
-    final tenantInitial = tenantName.isNotEmpty
-        ? tenantName.characters.first.toUpperCase()
-        : '?';
-    final branches = session?.user.branches ?? const <UserBranch>[];
-    final activeBranch = ref.watch(authActiveBranchProvider);
-    final selectedBranchId = _branchKey(activeBranch) ??
-        (branches.isNotEmpty ? _branchKey(branches.first) : null);
+        final session = ref.watch(loginControllerProvider).session;
+        final role = (session?.user.role ?? 'cashier').trim().toLowerCase();
+        final tenantName = _resolveTenantName(session);
+        final branchName = _resolveBranchName(
+          ref.watch(authActiveBranchProvider),
+          session?.user.branches ?? const <UserBranch>[],
+        );
+        final tenantInitial = tenantName.isNotEmpty
+            ? tenantName.characters.first.toUpperCase()
+            : '?';
+        final branches = session?.user.branches ?? const <UserBranch>[];
+        final activeBranch = ref.watch(authActiveBranchProvider);
+        final selectedBranchId =
+            _branchKey(activeBranch) ??
+            (branches.isNotEmpty ? _branchKey(branches.first) : null);
 
-    final sections = navSectionsForRole(role);
-    final hasMatch = _hasMatch(currentPath, sections);
+        final sections = navSectionsForRole(role);
+        final hasMatch = _hasMatch(currentPath, sections);
 
-    return SafeArea(
-      child: Row(
-        children: [
-          Material(
-            color: Theme.of(context).colorScheme.surface,
-            child: SizedBox(
-              width: 260,
-              child: ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                _RailHeader(
-                  tenantName: tenantName,
-                  branchName: branchName,
-                  tenantInitial: tenantInitial,
+        return SafeArea(
+          child: Row(
+            children: [
+              Material(
+                color: Theme.of(context).colorScheme.surface,
+                child: SizedBox(
+                  width: 260,
+                  child: ListView(
+                    padding: const EdgeInsets.all(16),
+                    children: [
+                      _RailHeader(
+                        tenantName: tenantName,
+                        branchName: branchName,
+                        tenantInitial: tenantInitial,
+                      ),
+                      const SizedBox(height: 16),
+                      for (final section in sections) ...[
+                        if (section.destinations.isNotEmpty)
+                          _RailSectionHeader(label: section.label),
+                        if (section.label == 'Branch')
+                          _RailBranchSelector(
+                            branches: branches,
+                            selectedBranchId: selectedBranchId,
+                          ),
+                        for (final destination in section.destinations)
+                          _RailDestinationTile(
+                            destination: destination,
+                            selected:
+                                _matchesDestination(currentPath, destination) ||
+                                (!hasMatch &&
+                                    destination.path == AppRoute.sale.path),
+                          ),
+                        const SizedBox(height: 8),
+                      ],
+                    ],
+                  ),
                 ),
-                  const SizedBox(height: 16),
-                  for (final section in sections) ...[
-                    if (section.destinations.isNotEmpty)
-                      _RailSectionHeader(label: section.label),
-                    if (section.label == 'Branch')
-                      _RailBranchSelector(
-                        branches: branches,
-                        selectedBranchId: selectedBranchId,
-                      ),
-                    for (final destination in section.destinations)
-                      _RailDestinationTile(
-                        destination: destination,
-                        selected:
-                            _matchesDestination(currentPath, destination) ||
-                            (!hasMatch &&
-                                destination.path == AppRoute.sale.path),
-                      ),
-                    const SizedBox(height: 8),
-                  ],
-                ],
               ),
-            ),
+              const VerticalDivider(width: 1),
+              Expanded(child: child),
+            ],
           ),
-          const VerticalDivider(width: 1),
-          Expanded(child: child),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -123,8 +127,11 @@ String _resolveTenantName(AuthSession? session) {
 }
 
 String _resolveBranchName(UserBranch? active, List<UserBranch> branches) {
-  final branch = active ??
-      (branches.isNotEmpty ? branches.first : const UserBranch(id: '', name: '', role: '', active: false));
+  final branch =
+      active ??
+      (branches.isNotEmpty
+          ? branches.first
+          : const UserBranch(id: '', name: '', role: '', active: false));
   if (branch.name.isNotEmpty) return branch.name;
   return 'Branch name';
 }
@@ -167,10 +174,10 @@ class _RailSectionHeader extends StatelessWidget {
       child: Text(
         label.toUpperCase(),
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: Theme.of(context).colorScheme.primary,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.0,
-            ),
+          color: Theme.of(context).colorScheme.primary,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 1.0,
+        ),
       ),
     );
   }

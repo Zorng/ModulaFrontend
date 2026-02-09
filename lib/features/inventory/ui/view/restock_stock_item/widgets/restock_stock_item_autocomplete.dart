@@ -27,9 +27,11 @@ class RestockStockItemAutocomplete extends StatefulWidget {
 class _RestockStockItemAutocompleteState
     extends State<RestockStockItemAutocomplete> {
   final FocusNode _focusNode = FocusNode();
-  late final TextEditingController _fallbackController = TextEditingController();
+  late final TextEditingController _fallbackController =
+      TextEditingController();
 
-  TextEditingController get _controller => widget.controller ?? _fallbackController;
+  TextEditingController get _controller =>
+      widget.controller ?? _fallbackController;
 
   @override
   void dispose() {
@@ -60,43 +62,44 @@ class _RestockStockItemAutocompleteState
           },
           fieldViewBuilder:
               (context, textController, focusNode, onFieldSubmitted) {
-            return TextFormField(
-              controller: textController,
-              focusNode: focusNode,
-              decoration: InputDecoration(
-                labelText: 'Stock item',
-                hintText: widget.items.isEmpty
-                    ? 'Select a branch first'
-                    : 'Search stock item',
-                errorText: state.errorText,
-                suffixIcon: textController.text.isEmpty
-                    ? null
-                    : IconButton(
-                        icon: const Icon(Icons.clear),
-                        tooltip: 'Clear',
-                        onPressed: () {
-                          _controller.clear();
-                          widget.onCleared();
-                          state.didChange(null);
-                        },
+                return TextFormField(
+                  controller: textController,
+                  focusNode: focusNode,
+                  decoration: InputDecoration(
+                    labelText: 'Stock item',
+                    hintText: widget.items.isEmpty
+                        ? 'Select a branch first'
+                        : 'Search stock item',
+                    errorText: state.errorText,
+                    suffixIcon: textController.text.isEmpty
+                        ? null
+                        : IconButton(
+                            icon: const Icon(Icons.clear),
+                            tooltip: 'Clear',
+                            onPressed: () {
+                              _controller.clear();
+                              widget.onCleared();
+                              state.didChange(null);
+                            },
+                          ),
+                  ),
+                  onTap: () {
+                    if (widget.items.isEmpty) widget.onTapEmpty();
+                    textController.value = TextEditingValue(
+                      text: textController.text,
+                      selection: TextSelection.collapsed(
+                        offset: textController.text.length,
                       ),
-              ),
-              onTap: () {
-                if (widget.items.isEmpty) widget.onTapEmpty();
-                textController.value = TextEditingValue(
-                  text: textController.text,
-                  selection:
-                      TextSelection.collapsed(offset: textController.text.length),
+                    );
+                  },
+                  onChanged: (_) {
+                    if (widget.selectedItemId != null) {
+                      widget.onCleared();
+                      state.didChange(null);
+                    }
+                  },
                 );
               },
-              onChanged: (_) {
-                if (widget.selectedItemId != null) {
-                  widget.onCleared();
-                  state.didChange(null);
-                }
-              },
-            );
-          },
           optionsViewBuilder: (context, onSelected, options) {
             final optionList = options.toList();
             if (optionList.isEmpty) return const SizedBox.shrink();
@@ -116,7 +119,9 @@ class _RestockStockItemAutocompleteState
                       final option = optionList[index];
                       return ListTile(
                         title: Text(option.name),
-                        subtitle: Text('${option.category} • ${option.branchName}'),
+                        subtitle: Text(
+                          '${option.category} • ${option.branchName}',
+                        ),
                         onTap: () {
                           onSelected(option);
                           state.didChange(option.id);
@@ -137,4 +142,3 @@ class _RestockStockItemAutocompleteState
     );
   }
 }
-

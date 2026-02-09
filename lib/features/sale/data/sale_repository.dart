@@ -3,9 +3,28 @@ import 'dart:math';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/features/sale/data/sale_api.dart';
 import 'package:modular_pos/features/sale/data/dto/sale_dto.dart';
+import 'package:modular_pos/features/sale/data/mock_sale_repository.dart';
 import 'package:modular_pos/features/sale/domain/models/sale.dart';
 
+/// Provider to control whether to use mock or real repository
+/// Set to true for testing without backend
+final useMockSaleRepositoryProvider = NotifierProvider<_UseMockNotifier, bool>(
+  _UseMockNotifier.new,
+);
+
+class _UseMockNotifier extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  void toggle() => state = !state;
+  void set(bool value) => state = value;
+}
+
 final saleRepositoryProvider = Provider<SaleRepository>((ref) {
+  final useMock = ref.watch(useMockSaleRepositoryProvider);
+  if (useMock) {
+    return MockSaleRepository();
+  }
   final api = ref.watch(saleApiProvider);
   return SaleRepository(api);
 });
@@ -74,7 +93,10 @@ class SaleRepository {
     await _api.updateItemQuantity(saleId, itemId, quantity);
   }
 
-  Future<void> removeItem({required String saleId, required String itemId}) async {
+  Future<void> removeItem({
+    required String saleId,
+    required String itemId,
+  }) async {
     await _api.removeItem(saleId, itemId);
   }
 
@@ -88,7 +110,8 @@ class SaleRepository {
       // API expects uppercase currency codes (see docs/apiSchema/saleSchema.ts).
       'tenderCurrency': tenderCurrency.toUpperCase(),
       'paymentMethod': paymentMethod,
-      if (cashReceived != null && cashReceived.isNotEmpty) 'cashReceived': cashReceived,
+      if (cashReceived != null && cashReceived.isNotEmpty)
+        'cashReceived': cashReceived,
     };
     final sale = await _api.preCheckout(saleId, body);
     return _toCheckoutSummary(sale);

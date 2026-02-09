@@ -7,6 +7,7 @@ void main() {
       branchId: 'branch-1',
       cashSessionOpen: false,
       cashSessionLoading: false,
+      useMockRepository: false,
     );
 
     expect(gate.canCreateDraftSale, isFalse);
@@ -21,6 +22,7 @@ void main() {
       branchId: 'branch-1',
       cashSessionOpen: true,
       cashSessionLoading: false,
+      useMockRepository: false,
     );
 
     expect(gate.canCreateDraftSale, isTrue);
@@ -35,6 +37,7 @@ void main() {
       branchId: 'branch-1',
       cashSessionOpen: true,
       cashSessionLoading: true,
+      useMockRepository: false,
     );
 
     expect(gate.canMutateCart, isFalse);

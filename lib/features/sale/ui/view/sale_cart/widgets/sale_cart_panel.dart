@@ -13,6 +13,7 @@ import 'package:modular_pos/features/sale/ui/view/sale_cart/widgets/sale_cart_bo
 import 'package:modular_pos/features/sale/ui/view/sale_cart/widgets/sale_cart_content.dart';
 import 'package:modular_pos/features/sale/ui/view/sale_cart/widgets/sale_cart_readonly_banner.dart';
 import 'package:modular_pos/features/sale/ui/view/sale_cart/widgets/sale_order_type_selector.dart';
+import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
 
 class SaleCartPanel extends ConsumerStatefulWidget {
   const SaleCartPanel({
@@ -38,6 +39,39 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
     super.initState();
     _usdController.addListener(() => setState(() {}));
     _khrController.addListener(() => setState(() {}));
+  }
+
+  void _loadMockCartData() {
+    // final cartNotifier = ref.read(saleCartProvider.notifier);
+    // final currentState = ref.read(saleCartProvider);
+
+    // Create mock cart items
+    final mockItems = [
+      CartLine(
+        item: const MenuItem(
+          id: 'mock_1',
+          name: 'Lemon Tea',
+          categoryId: 'refreshing',
+          price: 7.0,
+        ),
+        quantity: 1,
+        selectedOptionIds: {
+          'cup_size': ['medium'],
+          'sugar_level': ['50'],
+        },
+        selectedOptions: {
+          'cup_size': [
+            const ModifierOption(id: 'medium', name: 'Medium', price: 2.0),
+          ],
+          'sugar_level': [
+            const ModifierOption(id: '50', name: '50%', price: 0),
+          ],
+        },
+      ),
+    ];
+
+    // Update cart state with mock data
+    ref.read(saleCartProvider.notifier).setLines(mockItems);
   }
 
   double _lineTotal(CartLine line, Map<String, ModifierGroup> groupLookup) {
@@ -128,6 +162,7 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
     final menuState = ref.watch(menuViewModelProvider);
     final cartNotifier = ref.read(saleCartProvider.notifier);
     final gate = ref.watch(saleAccessGateProvider);
+    // Cash session check - comment out the next 2 lines and set readOnly = false for testing
     final readOnly =
         !gate.cashSessionLoading && gate.isBlockedByCashSessionPolicy;
     final cashSessionPath = AppRoute.cashSession.path;
@@ -158,13 +193,43 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
         (_paymentMethod != 'cash' || tenderUsd >= grandTotalUsd);
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // Cart Header
+        Padding(
+          padding: const EdgeInsets.all(20),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Cart',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              // Mock data button for testing
+              if (items.isEmpty)
+                TextButton.icon(
+                  onPressed: _loadMockCartData,
+                  icon: const Icon(Icons.add_shopping_cart, size: 18),
+                  label: const Text('Test Data'),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        const Divider(height: 1),
         Expanded(
-          child: Padding(
+          child: SingleChildScrollView(
             padding: widget.contentPadding,
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 if (readOnly) ...[
                   SaleCartReadOnlyBanner(
@@ -173,13 +238,16 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
                         'Read-only: start a cash session to begin selling.',
                     cashSessionPath: cashSessionPath,
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 16),
                 ],
+                // Order Type Section
                 Text(
                   'Order Type',
-                  style: Theme.of(context).textTheme.titleMedium,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 12),
                 SaleOrderTypeSelector(
                   value: _orderType,
                   enabled: !readOnly,
@@ -188,36 +256,43 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
                     ref.read(saleCartProvider.notifier).setSaleType(value);
                   },
                 ),
-                const SizedBox(height: 16),
-                Text('Summary', style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 8),
-                Expanded(
-                  child: SaleCartContent(
-                    items: items,
-                    groupLookup: groupLookup,
-                    onIncrement: (index, line) =>
-                        cartNotifier.updateQuantity(index, line.quantity + 1),
-                    onDecrement: (index, line) =>
-                        cartNotifier.updateQuantity(index, line.quantity - 1),
-                    paymentMethod: _paymentMethod,
-                    tenderCurrency: _tenderCurrency,
-                    onPaymentMethodChanged: (value) => setState(() {
-                      _paymentMethod = value;
-                      ref.read(saleCartProvider.notifier).setPaymentMethod(value);
-                    }),
-                    onTenderCurrencyChanged: (value) => setState(() {
-                      _tenderCurrency = value;
-                      ref.read(saleCartProvider.notifier).setTenderCurrency(value);
-                    }),
-                    usdController: _usdController,
-                    khrController: _khrController,
-                    subtotal: subtotal,
-                    grandTotalUsd: grandTotalUsd,
-                    grandTotalKhr: grandTotalKhr,
-                    fxRate: fxRate,
-                    readOnly: readOnly,
-                    onAmountsChanged: () => setState(() {}),
-                  ),
+                const SizedBox(height: 20),
+                // Summary Section
+                Text(
+                  'Summary',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 12),
+                // Cart Items
+                SaleCartContent(
+                  items: items,
+                  groupLookup: groupLookup,
+                  onIncrement: (index, line) =>
+                      cartNotifier.updateQuantity(index, line.quantity + 1),
+                  onDecrement: (index, line) =>
+                      cartNotifier.updateQuantity(index, line.quantity - 1),
+                  paymentMethod: _paymentMethod,
+                  tenderCurrency: _tenderCurrency,
+                  onPaymentMethodChanged: (value) => setState(() {
+                    _paymentMethod = value;
+                    ref.read(saleCartProvider.notifier).setPaymentMethod(value);
+                  }),
+                  onTenderCurrencyChanged: (value) => setState(() {
+                    _tenderCurrency = value;
+                    ref
+                        .read(saleCartProvider.notifier)
+                        .setTenderCurrency(value);
+                  }),
+                  usdController: _usdController,
+                  khrController: _khrController,
+                  subtotal: subtotal,
+                  grandTotalUsd: grandTotalUsd,
+                  grandTotalKhr: grandTotalKhr,
+                  fxRate: fxRate,
+                  readOnly: readOnly,
+                  onAmountsChanged: () => setState(() {}),
                 ),
               ],
             ),

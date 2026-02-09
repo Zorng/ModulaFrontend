@@ -1,5 +1,5 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 // A reusable widget for a labeled text field in the form.
 class FormTextField extends StatelessWidget {
@@ -10,6 +10,13 @@ class FormTextField extends StatelessWidget {
     this.keyboardType,
     this.controller,
     this.validator,
+    this.obscureText = false,
+    this.maxLength,
+    this.inputFormatters,
+    this.readOnly = false,
+    this.showVisibilityToggle = false,
+    this.onToggleVisibility,
+    this.helperText,
   });
 
   final String label;
@@ -17,6 +24,13 @@ class FormTextField extends StatelessWidget {
   final TextInputType? keyboardType;
   final TextEditingController? controller;
   final FormFieldValidator<String>? validator;
+  final bool obscureText;
+  final int? maxLength;
+  final List<TextInputFormatter>? inputFormatters;
+  final bool readOnly;
+  final bool showVisibilityToggle;
+  final VoidCallback? onToggleVisibility;
+  final String? helperText;
 
   @override
   Widget build(BuildContext context) {
@@ -29,23 +43,49 @@ class FormTextField extends StatelessWidget {
           controller: controller,
           validator: validator,
           keyboardType: keyboardType,
+          obscureText: obscureText,
+          maxLength: maxLength,
+          inputFormatters: inputFormatters,
+          readOnly: readOnly,
           decoration: InputDecoration(
             filled: true,
-            fillColor: Colors.grey.shade200,
-            hintStyle: const TextStyle(color: CupertinoColors.placeholderText),
+            fillColor: readOnly ? const Color(0xFFF5F7FA) : Colors.white,
+            hintStyle: TextStyle(color: Colors.grey.shade400),
             hintText: placeholder,
-            contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
+            helperText: helperText,
+            helperMaxLines: 2,
+            helperStyle: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+            suffixIcon: showVisibilityToggle
+                ? IconButton(
+                    icon: Icon(
+                      obscureText ? Icons.visibility_off : Icons.visibility,
+                      color: Colors.grey.shade600,
+                    ),
+                    onPressed: onToggleVisibility,
+                  )
+                : null,
+            contentPadding: const EdgeInsets.symmetric(
+              vertical: 14,
+              horizontal: 12,
+            ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide.none,
+              borderSide: BorderSide(color: Colors.grey.shade300),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide.none,
+              borderSide: readOnly
+                  ? BorderSide.none
+                  : BorderSide(color: Colors.grey.shade300),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: Theme.of(context).primaryColor, width: 1.5),
+              borderSide: readOnly
+                  ? BorderSide.none
+                  : BorderSide(
+                      color: Theme.of(context).primaryColor,
+                      width: 1.5,
+                    ),
             ),
             errorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),

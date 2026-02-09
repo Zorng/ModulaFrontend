@@ -75,6 +75,7 @@ void main() {
               branchId: 'branch-1',
               cashSessionOpen: false,
               cashSessionLoading: false,
+              useMockRepository: false,
             ),
           ),
         ],
@@ -84,7 +85,7 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    final addButton = find.widgetWithText(FilledButton, 'Add Item');
+    final addButton = find.widgetWithText(FilledButton, 'Add to Cart');
     expect(addButton, findsOneWidget);
     expect(tester.widget<FilledButton>(addButton).onPressed, isNull);
     expect(find.textContaining('Cash session required'), findsOneWidget);

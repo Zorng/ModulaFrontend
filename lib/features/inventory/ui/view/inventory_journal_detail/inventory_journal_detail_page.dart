@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/features/inventory/data/stock_item_repository.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_journal_entry.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_journal_summary.dart';
+import 'package:modular_pos/core/widgets/navigation/app_back_button.dart';
 import 'package:modular_pos/features/inventory/ui/view/inventory_journal_detail/widgets/inventory_journal_entry_card.dart';
 import 'package:modular_pos/features/inventory/ui/view/inventory_journal_detail/widgets/inventory_journal_search_autocomplete.dart';
 
@@ -43,10 +44,7 @@ class _InventoryJournalDetailPageState
         automaticallyImplyLeading: widget.showBack,
         leading: widget.showBack
             ? null
-            : IconButton(
-                icon: const Icon(Icons.close),
-                onPressed: () => Navigator.of(context).maybePop(),
-              ),
+            : const AppBackButton(icon: Icons.close, tooltip: 'Close'),
         title: Text('Journal on ${_summaryDate(widget.summary.date)}'),
         centerTitle: false,
       ),
@@ -60,8 +58,8 @@ class _InventoryJournalDetailPageState
                   ? 'Branch: ${widget.summary.entries.first.branchName}'
                   : 'Branch',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).hintColor,
-                  ),
+                color: Theme.of(context).hintColor,
+              ),
             ),
             const SizedBox(height: 8),
             InventoryJournalSearchAutocomplete(
@@ -129,11 +127,18 @@ class _InventoryJournalDetailPageState
       _entries.map((entry) => entry.itemName).toSet().toList()..sort();
 
   Future<void> _hydrateNames() async {
-    // Only hydrate if any entry has a placeholder name.
-    final needsHydrate = _entries.any((e) {
-      final name = e.itemName.trim();
-      return name.isEmpty || name.toLowerCase() == 'item';
-    });
+    // Detect if names look like placeholders or IDs and hydrate from repository.
+    bool looksLikeId(String name, String id) {
+      final n = name.trim();
+      if (n.isEmpty) return true;
+      if (n.toLowerCase() == 'item') return true;
+      if (n == id) return true;
+      // Heuristic: no spaces and contains a hyphen or long alphanumeric (likely an id)
+      if (!n.contains(' ') && (n.contains('-') || n.length > 12)) return true;
+      return false;
+    }
+
+    final needsHydrate = _entries.any((e) => looksLikeId(e.itemName, e.itemId));
     if (!needsHydrate) return;
 
     final repo = ref.read(stockItemRepositoryProvider);
@@ -142,8 +147,7 @@ class _InventoryJournalDetailPageState
     setState(() {
       _entries = _entries
           .map(
-            (e) => (e.itemName.trim().isEmpty ||
-                    e.itemName.trim().toLowerCase() == 'item')
+            (e) => looksLikeId(e.itemName, e.itemId)
                 ? e.copyWith(itemName: lookup[e.itemId] ?? e.itemName)
                 : e,
           )

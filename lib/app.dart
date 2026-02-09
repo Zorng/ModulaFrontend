@@ -5,6 +5,7 @@ import 'package:modular_pos/core/hydration/app_hydration_listener.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/routing/routes/account_routes.dart';
 import 'package:modular_pos/core/routing/routes/attendance_routes.dart';
+import 'package:modular_pos/core/routing/routes/branch_routes.dart';
 import 'package:modular_pos/core/routing/routes/cash_routes.dart';
 import 'package:modular_pos/core/routing/routes/core_routes.dart';
 import 'package:modular_pos/core/routing/routes/inventory_routes.dart';
@@ -144,6 +145,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ...buildPolicyRoutes(),
           ...buildAccountRoutes(),
           ...buildAttendanceRoutes(),
+          ...buildBranchRoutes(),
           ...buildInventoryRoutes(),
           ...buildSaleRoutes(),
           ...buildCashRoutes(),

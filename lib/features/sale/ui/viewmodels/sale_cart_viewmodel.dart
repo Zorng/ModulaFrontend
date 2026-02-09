@@ -117,6 +117,10 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
     state = state.copyWith(paymentMethod: method);
   }
 
+  void setLines(List<CartLine> lines) {
+    state = state.copyWith(lines: lines);
+  }
+
   Future<void> setSaleType(String saleType) async {
     // If no draft or no lines yet, just update the sale type for future drafts.
     if (state.saleId == null || state.saleId!.isEmpty || state.lines.isEmpty) {

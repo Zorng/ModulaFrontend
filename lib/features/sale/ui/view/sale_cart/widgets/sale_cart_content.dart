@@ -73,7 +73,9 @@ class SaleCartContent extends StatelessWidget {
     final changeKhr = (tenderKhr - grandTotalKhr);
     final changeKhrDisplay = changeKhr > 0 ? changeKhr : 0;
 
-    return ListView(
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         ...List.generate(items.length, (index) {
           final line = items[index];
@@ -92,10 +94,28 @@ class SaleCartContent extends StatelessWidget {
         const Divider(height: 16),
         SaleCartSummaryRow(label: 'Subtotal', value: subtotal),
         const SizedBox(height: 4),
-        const SaleCartSummaryRow(label: 'VAT', value: 0),
+        Row(
+          children: [
+            Text('VAT', style: Theme.of(context).textTheme.bodyMedium),
+            const Spacer(),
+            Text(
+              '\$0.00',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFF696969),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+        Text(
+          'Payment Methods',
+          style: Theme.of(
+            context,
+          ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+          textAlign: TextAlign.start,
+        ),
         const SizedBox(height: 12),
-        Text('Payment Methods', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 8),
         SaleCartPaymentCard(
           title: 'Cash',
           selected: paymentMethod == 'cash',
@@ -206,15 +226,17 @@ class SaleCartContent extends StatelessWidget {
                       const Divider(),
                       const SizedBox(height: 8),
                       Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
                             'Change (៛)',
                             style: Theme.of(context).textTheme.bodyMedium,
                           ),
-                          const Spacer(),
                           Text(
                             'KHR ${changeKhrDisplay.toStringAsFixed(0)}',
-                            style: Theme.of(context).textTheme.titleMedium,
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(fontWeight: FontWeight.w600),
+                            textAlign: TextAlign.right,
                           ),
                         ],
                       ),
@@ -225,7 +247,7 @@ class SaleCartContent extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         SaleCartPaymentCard(
-          title: 'QR / Transfer',
+          title: 'QR Code',
           selected: paymentMethod == 'qr',
           onSelected: readOnly ? null : () => onPaymentMethodChanged('qr'),
         ),

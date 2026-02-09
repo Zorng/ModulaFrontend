@@ -12,7 +12,9 @@ import 'package:modular_pos/features/cash_session/ui/widgets/cash_session_detail
 import 'package:modular_pos/features/cash_session/ui/widgets/close_session_modal.dart';
 
 class CashSessionScreen extends ConsumerWidget {
-  const CashSessionScreen({super.key});
+  const CashSessionScreen({super.key, this.showAppBar = true});
+
+  final bool showAppBar;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -21,18 +23,20 @@ class CashSessionScreen extends ConsumerWidget {
       MediaQuery.of(context).size.width,
     );
     return Scaffold(
-      appBar: AppBar(
-        centerTitle: false,
-        title: const Text('Cash Session'),
-        automaticallyImplyLeading: false,
-        leading: isSmall
-            ? AppBackButton(
-                icon: Icons.home_outlined,
-                tooltip: 'Home',
-                onPressed: () => context.go(AppRoute.portal.path),
-              )
-            : null,
-      ),
+      appBar: showAppBar
+          ? AppBar(
+              centerTitle: false,
+              title: const Text('Cash Session'),
+              automaticallyImplyLeading: false,
+              leading: isSmall
+                  ? AppBackButton(
+                      icon: Icons.home_outlined,
+                      tooltip: 'Home',
+                      onPressed: () => context.go(AppRoute.portal.path),
+                    )
+                  : null,
+            )
+          : null,
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

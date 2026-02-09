@@ -6,10 +6,12 @@ class TimePickerDropdown extends StatefulWidget {
     super.key,
     required this.initialTime,
     required this.onTimeChanged,
+    this.isReadOnly = false,
   });
 
   final TimeOfDay initialTime;
   final ValueChanged<TimeOfDay> onTimeChanged;
+  final bool isReadOnly;
 
   @override
   State<TimePickerDropdown> createState() => _TimePickerDropdownState();
@@ -31,7 +33,8 @@ class _TimePickerDropdownState extends State<TimePickerDropdown> {
       return;
     }
 
-    final RenderBox renderBox = _key.currentContext!.findRenderObject() as RenderBox;
+    final RenderBox renderBox =
+        _key.currentContext!.findRenderObject() as RenderBox;
     final size = renderBox.size;
 
     _overlayEntry = OverlayEntry(
@@ -52,7 +55,13 @@ class _TimePickerDropdownState extends State<TimePickerDropdown> {
                   width: size.width,
                   color: Colors.white,
                   child: CupertinoDatePicker(
-                    initialDateTime: DateTime(2023, 1, 1, widget.initialTime.hour, widget.initialTime.minute),
+                    initialDateTime: DateTime(
+                      2023,
+                      1,
+                      1,
+                      widget.initialTime.hour,
+                      widget.initialTime.minute,
+                    ),
                     mode: CupertinoDatePickerMode.time,
                     use24hFormat: false,
                     onDateTimeChanged: (DateTime newDateTime) {
@@ -77,11 +86,13 @@ class _TimePickerDropdownState extends State<TimePickerDropdown> {
       link: _layerLink,
       child: GestureDetector(
         key: _key,
-        onTap: _showOverlay,
+        onTap: widget.isReadOnly ? null : _showOverlay,
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
           decoration: BoxDecoration(
-            color: Colors.grey.shade200,
+            color: widget.isReadOnly
+                ? const Color(0xFFF5F7FA)
+                : Colors.grey.shade200,
             borderRadius: BorderRadius.circular(8),
           ),
           child: Row(
@@ -89,9 +100,18 @@ class _TimePickerDropdownState extends State<TimePickerDropdown> {
             children: [
               Text(
                 widget.initialTime.format(context),
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                  color: widget.isReadOnly
+                      ? Colors.grey.shade700
+                      : Colors.black87,
+                ),
               ),
-              const Icon(CupertinoIcons.clock, color: Colors.grey),
+              Icon(
+                CupertinoIcons.clock,
+                color: widget.isReadOnly ? Colors.grey.shade400 : Colors.grey,
+              ),
             ],
           ),
         ),
