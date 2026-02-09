@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:modular_pos/features/inventory/domain/models/inventory_category.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/category_controller.dart';
-import 'package:modular_pos/features/menu/ui/components/menu_form_field_label.dart';
 
 enum CategoryFormMode { create, view, edit }
 
@@ -82,22 +81,22 @@ class _CategoryFormBodyState extends ConsumerState<CategoryFormBody> {
               ],
             ),
           if (widget.showHeader) const SizedBox(height: 16),
-          const MenuFormFieldLabel(text: 'Category Name', isRequired: true),
           TextField(
             controller: _nameCtrl,
             enabled: !isView,
             decoration: InputDecoration(
+              labelText: 'Category Name',
               hintText: 'e.g., Coffee, Pastries',
               errorText: _nameError,
               counterText: '',
             ),
           ),
           const SizedBox(height: 24),
-          const MenuFormFieldLabel(text: 'Description'),
           TextField(
             controller: _descriptionCtrl,
             enabled: !isView,
             decoration: InputDecoration(
+              labelText: 'Description',
               hintText: 'Enter category description',
               errorText: _descriptionError,
             ),

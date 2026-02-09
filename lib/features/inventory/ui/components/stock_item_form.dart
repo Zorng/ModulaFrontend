@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -99,6 +100,7 @@ class _StockItemFormPageState extends ConsumerState<StockItemFormPage> {
 
     return Scaffold(
       appBar: AppBar(
+        backgroundColor: Colors.white,
         title: Text(_title()),
         centerTitle: false,
         actions: [
@@ -132,48 +134,116 @@ class _StockItemFormPageState extends ConsumerState<StockItemFormPage> {
             final content = <Widget>[
               _SectionSpacer(
                 spacing: sectionSpacing,
-                child: InventorySectionCard(
-                  title: 'Item image',
-                  backgroundColor: Colors.white,
-                  children: [
-                    Center(
-                      child: ProductImagePicker(
-                        size: const Size(220, 220),
-                        borderRadius: 16,
-                        imageBytes: _selectedImageBytes,
-                        imageUrl: _selectedImageBytes == null
-                            ? _originalItem?.imageUrl
-                            : null,
-                        readOnly: !isEditing,
-                        placeholderLabel: isEditing
-                            ? 'Upload image'
-                            : 'No image',
-                        showTapToChangeHint: isEditing,
-                        onPickImage: _pickImage,
-                        onClearLocalSelection: isEditing
-                            ? () => setState(() {
-                                _selectedImageBytes = null;
-                                _selectedImagePath = null;
-                              })
-                            : null,
-                      ),
-                    ),
-                  ],
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final isWide = constraints.maxWidth >= 900;
+
+                    if (isWide) {
+                      // WIDESCREEN → ONE SECTION, SIDE BY SIDE
+                      return InventorySectionCard(
+                        title: 'Item',
+                        description: 'Image and basic information',
+                        backgroundColor: Colors.white,
+                        children: [
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // LEFT: Image
+                              Expanded(
+                                flex: 1,
+                                child: Center(
+                                  child: ProductImagePicker(
+                                    size: const Size(220, 220),
+                                    borderRadius: 16,
+                                    imageBytes: _selectedImageBytes,
+                                    imageUrl: _selectedImageBytes == null
+                                        ? _originalItem?.imageUrl
+                                        : null,
+                                    readOnly: !isEditing,
+                                    placeholderLabel: isEditing
+                                        ? 'Upload image'
+                                        : 'No image',
+                                    showTapToChangeHint: isEditing,
+                                    onPickImage: _pickImage,
+                                    onClearLocalSelection: isEditing
+                                        ? () => setState(() {
+                                            _selectedImageBytes = null;
+                                            _selectedImagePath = null;
+                                          })
+                                        : null,
+                                  ),
+                                ),
+                              ),
+
+                              const SizedBox(width: 24),
+
+                              // RIGHT: Details
+                              Expanded(
+                                flex: 4,
+                                child: Column(
+                                  children: _buildItemDetails(
+                                    isWide: true,
+                                    isEditing: isEditing,
+                                    categoryOptions: categoryOptions,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      );
+                    }
+
+                    // MOBILE → STACKED (UNCHANGED)
+                    return Column(
+                      children: [
+                        InventorySectionCard(
+                          title: 'Item image',
+                          backgroundColor: Colors.white,
+                          children: [
+                            Center(
+                              child: ProductImagePicker(
+                                size: const Size(220, 220),
+                                borderRadius: 16,
+                                imageBytes: _selectedImageBytes,
+                                imageUrl: _selectedImageBytes == null
+                                    ? _originalItem?.imageUrl
+                                    : null,
+                                readOnly: !isEditing,
+                                placeholderLabel: isEditing
+                                    ? 'Upload image'
+                                    : 'No image',
+                                showTapToChangeHint: isEditing,
+                                onPickImage: _pickImage,
+                                onClearLocalSelection: isEditing
+                                    ? () => setState(() {
+                                        _selectedImageBytes = null;
+                                        _selectedImagePath = null;
+                                      })
+                                    : null,
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        SizedBox(height: sectionSpacing),
+
+                        InventorySectionCard(
+                          title: 'Item details',
+                          description: 'Basic information about the item.',
+                          backgroundColor: Colors.white,
+                          children: _buildItemDetails(
+                            isWide: false,
+                            isEditing: isEditing,
+                            categoryOptions: categoryOptions,
+                          ),
+                        ),
+                      ],
+                    );
+                  },
                 ),
               ),
-              _SectionSpacer(
-                spacing: sectionSpacing,
-                child: InventorySectionCard(
-                  title: 'Item details',
-                  description: 'Basic information about the item.',
-                  backgroundColor: Colors.white,
-                  children: _buildItemDetails(
-                    isWide: isWide,
-                    isEditing: isEditing,
-                    categoryOptions: categoryOptions,
-                  ),
-                ),
-              ),
+
               _SectionSpacer(
                 spacing: sectionSpacing,
                 child: InventorySectionCard(
@@ -271,16 +341,18 @@ class _StockItemFormPageState extends ConsumerState<StockItemFormPage> {
     required List<InventoryCategory> categoryOptions,
   }) {
     final statusField = Row(
-      mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Checkbox(
+        Text('Set Active', style: Theme.of(context).textTheme.titleSmall),
+        CupertinoSwitch(
           value: _isActive,
+          activeTrackColor: Theme.of(context).primaryColor,
           onChanged: isEditing
-              ? (value) => setState(() => _isActive = value ?? true)
+              ? (value) => setState(() {
+                  _isActive = value;
+                })
               : null,
         ),
-        const SizedBox(width: 4),
-        Text('Status', style: Theme.of(context).textTheme.bodyMedium),
       ],
     );
 
@@ -288,6 +360,7 @@ class _StockItemFormPageState extends ConsumerState<StockItemFormPage> {
       TextFormField(
         controller: _nameCtrl,
         maxLength: 20,
+        enabled: isEditing,
         readOnly: !isEditing,
         decoration: const InputDecoration(
           labelText: 'Item name',
@@ -295,58 +368,63 @@ class _StockItemFormPageState extends ConsumerState<StockItemFormPage> {
         ),
         validator: isEditing
             ? (value) =>
-                value == null || value.trim().isEmpty ? 'Required' : null
+                  value == null || value.trim().isEmpty ? 'Required' : null
             : null,
       ),
-      InventoryDropdown<String>(
-        initialValue: _categoryId,
-        label: const Text('Category'),
-        enabled: isEditing,
-        entries: categoryOptions
-            .map(
-              (category) => DropdownMenuEntry(
-                value: category.id,
-                label: category.name,
-              ),
-            )
-            .toList(),
-        onSelected: isEditing
-            ? (value) {
-                if (value == null) return;
-                final selected = categoryOptions.firstWhere(
-                  (c) => c.id == value,
-                  orElse: () =>
-                      InventoryCategory(id: value, name: value, isActive: true),
-                );
-                setState(() {
-                  _categoryId = selected.id;
-                  _categoryLabel = selected.name;
-                  _categoryError = null;
-                });
-              }
-            : null,
-        errorText: isEditing ? _categoryError : null,
+      AbsorbPointer(
+        absorbing: !isEditing,
+        child: InventoryDropdown<String>(
+          initialValue: _categoryId,
+          label: const Text('Category'),
+          enabled: true,
+          entries: categoryOptions
+              .map(
+                (category) =>
+                    DropdownMenuEntry(value: category.id, label: category.name),
+              )
+              .toList(),
+          onSelected: isEditing
+              ? (value) {
+                  if (value == null) return;
+                  final selected = categoryOptions.firstWhere(
+                    (c) => c.id == value,
+                    orElse: () =>
+                        InventoryCategory(id: value, name: value, isActive: true),
+                  );
+                  setState(() {
+                    _categoryId = selected.id;
+                    _categoryLabel = selected.name;
+                    _categoryError = null;
+                  });
+                }
+              : null,
+          errorText: isEditing ? _categoryError : null,
+        ),
       ),
-      InventoryDropdown<String>(
-        initialValue: _baseUnit,
-        label: const Text('Base unit'),
-        helperText: 'ml for liquids, g for solids, pcs for countable items',
-        enabled: isEditing,
-        entries: _baseUnitOptions
-            .map((unit) => DropdownMenuEntry(value: unit, label: unit))
-            .toList(),
-        onSelected: isEditing
-            ? (value) => setState(() {
-                _baseUnit = value;
-                _baseUnitError = null;
-              })
-            : null,
-        errorText: isEditing ? _baseUnitError : null,
+      AbsorbPointer(
+        absorbing: !isEditing,
+        child: InventoryDropdown<String>(
+          initialValue: _baseUnit,
+          label: const Text('Base unit'),
+          helperText: 'ml for liquids, g for solids, pcs for countable items',
+          enabled: true,
+          entries: _baseUnitOptions
+              .map((unit) => DropdownMenuEntry(value: unit, label: unit))
+              .toList(),
+          onSelected: isEditing
+              ? (value) => setState(() {
+                  _baseUnit = value;
+                  _baseUnitError = null;
+                })
+              : null,
+          errorText: isEditing ? _baseUnitError : null,
+        ),
       ),
       TextFormField(
         controller: _pieceSizeCtrl,
         keyboardType: TextInputType.number,
         readOnly: !isEditing,
+        enabled: isEditing,
         decoration: const InputDecoration(
           labelText: 'Piece size',
           helperText:
@@ -370,9 +448,8 @@ class _StockItemFormPageState extends ConsumerState<StockItemFormPage> {
       TextFormField(
         controller: _barcodeCtrl,
         readOnly: !isEditing,
-        decoration: const InputDecoration(
-          labelText: 'Barcode (optional)',
-        ),
+        enabled: isEditing,
+        decoration: const InputDecoration(labelText: 'Barcode (optional)'),
       ),
     ];
 
@@ -393,7 +470,7 @@ class _StockItemFormPageState extends ConsumerState<StockItemFormPage> {
             const SizedBox(width: 16),
             Expanded(flex: 2, child: second ?? const SizedBox.shrink()),
             const SizedBox(width: 16),
-            Expanded(flex: 1, child: third ?? const SizedBox.shrink()),
+            Expanded(flex: 2, child: third ?? const SizedBox.shrink()),
           ],
         ),
       );
@@ -697,8 +774,9 @@ class _UsageRow extends StatelessWidget {
                   controlAffinity: ListTileControlAffinity.leading,
                   title: Text(type),
                   value: selected.contains(type),
-                  onChanged:
-                      isEditing ? (value) => onToggle(type, value ?? false) : null,
+                  onChanged: isEditing
+                      ? (value) => onToggle(type, value ?? false)
+                      : null,
                 ),
               ),
             )
@@ -714,8 +792,9 @@ class _UsageRow extends StatelessWidget {
               controlAffinity: ListTileControlAffinity.leading,
               title: Text(type),
               value: selected.contains(type),
-              onChanged:
-                  isEditing ? (value) => onToggle(type, value ?? false) : null,
+              onChanged: isEditing
+                  ? (value) => onToggle(type, value ?? false)
+                  : null,
             ),
           )
           .toList(),
