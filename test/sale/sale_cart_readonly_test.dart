@@ -61,6 +61,7 @@ class _TestSaleAccessGateNotifier extends Notifier<SaleAccessGate> {
       branchId: 'branch-1',
       cashSessionOpen: true,
       cashSessionLoading: false,
+      useMockRepository: false,
     );
   }
 
@@ -132,6 +133,7 @@ void main() {
       branchId: 'branch-1',
       cashSessionOpen: false,
       cashSessionLoading: false,
+      useMockRepository: false,
     );
     await tester.pumpAndSettle();
 

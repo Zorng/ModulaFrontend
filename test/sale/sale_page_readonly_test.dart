@@ -48,6 +48,7 @@ void main() {
               branchId: 'branch-1',
               cashSessionOpen: false,
               cashSessionLoading: false,
+              useMockRepository: false,
             ),
           ),
         ],
