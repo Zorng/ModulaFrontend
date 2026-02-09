@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:modular_pos/features/inventory/domain/models/inventory_category.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/category_controller.dart';
-import 'package:modular_pos/features/menu/ui/components/menu_form_field_label.dart';
 
 enum CategoryFormMode { create, view, edit }
 

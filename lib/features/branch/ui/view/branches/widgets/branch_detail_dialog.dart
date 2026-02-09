@@ -122,7 +122,9 @@ class _BranchDetailDialogState extends ConsumerState<BranchDetailDialog> {
     if (_nameError != null ||
         _addressError != null ||
         _phoneError != null ||
-        _emailError != null) return false;
+        _emailError != null) {
+      return false;
+    }
     return true;
   }
 
@@ -159,7 +161,9 @@ class _BranchDetailDialogState extends ConsumerState<BranchDetailDialog> {
     setState(() => _isSaving = true);
 
     try {
-      await ref.read(branchRepositoryProvider).updateBranch(
+      await ref
+          .read(branchRepositoryProvider)
+          .updateBranch(
             branchId: widget.branchId,
             name: _nameController.text.trim(),
             address: _addressController.text.trim(),
@@ -234,8 +238,8 @@ class _BranchDetailDialogState extends ConsumerState<BranchDetailDialog> {
                       Text(
                         'Branch Detail',
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                       const Spacer(),
                       IconButton(
@@ -317,7 +321,9 @@ class _BranchDetailDialogState extends ConsumerState<BranchDetailDialog> {
                         const SizedBox(height: 16),
                         _DialogDropdownField(
                           label: 'Status',
-                          value: branch.status == 'FROZEN' ? 'Inactive' : 'Active',
+                          value: branch.status == 'FROZEN'
+                              ? 'Inactive'
+                              : 'Active',
                           enabled: false,
                         ),
                         if (branch.isFrozen) ...[
@@ -465,9 +471,7 @@ class _DialogField extends StatelessWidget {
           maxLength: maxLength,
           decoration: InputDecoration(
             prefixIcon: icon != null ? Icon(icon, size: 20) : null,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
             filled: true,
             fillColor: enabled ? Colors.white : Colors.grey.shade50,
             contentPadding: const EdgeInsets.symmetric(
@@ -520,16 +524,10 @@ class _DialogDropdownField extends StatelessWidget {
               Expanded(
                 child: Text(
                   value,
-                  style: TextStyle(
-                    color: Colors.grey.shade700,
-                    fontSize: 15,
-                  ),
+                  style: TextStyle(color: Colors.grey.shade700, fontSize: 15),
                 ),
               ),
-              Icon(
-                Icons.keyboard_arrow_down,
-                color: Colors.grey.shade500,
-              ),
+              Icon(Icons.keyboard_arrow_down, color: Colors.grey.shade500),
             ],
           ),
         ),
