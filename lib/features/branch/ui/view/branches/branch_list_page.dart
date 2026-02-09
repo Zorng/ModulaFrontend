@@ -96,51 +96,31 @@ class _BranchListPageState extends ConsumerState<BranchListPage> {
                         ),
                       ),
                       const SizedBox(width: 12),
-                      PopupMenuButton<String>(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
+                      DropdownMenu<String>(
+                        width: 150,
+                        initialSelection: _statusFilter ?? 'All',
+                        hintText: 'All Status',
+                        requestFocusOnTap: false,
+                        textStyle: textTheme.bodyMedium,
+                        inputDecorationTheme: InputDecorationTheme(
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
                             horizontal: 16,
                             vertical: 12,
                           ),
-                          decoration: BoxDecoration(
-                            border: Border.all(
-                              color: theme.colorScheme.outline,
-                            ),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                _statusFilter == null 
-                                    ? 'Status' 
-                                    : _statusFilter == 'FROZEN' 
-                                        ? 'Inactive' 
-                                        : _statusFilter == 'ACTIVE'
-                                            ? 'Active'
-                                            : _statusFilter!,
-                                style: textTheme.bodyMedium,
-                              ),
-                              const SizedBox(width: 4),
-                              const Icon(Icons.arrow_drop_down, size: 20),
-                            ],
-                          ),
+                          isDense: true,
                         ),
                         onSelected: (value) {
                           setState(() {
                             _statusFilter = value == 'All' ? null : value;
                           });
                         },
-                        itemBuilder: (context) => [
-                          const PopupMenuItem(value: 'All', child: Text('All')),
-                          const PopupMenuItem(
-                            value: 'ACTIVE',
-                            child: Text('Active'),
-                          ),
-                          const PopupMenuItem(
-                            value: 'FROZEN',
-                            child: Text('Inactive'),
-                          ),
+                        dropdownMenuEntries: const [
+                          DropdownMenuEntry(value: 'All', label: 'All Status'),
+                          DropdownMenuEntry(value: 'ACTIVE', label: 'Active'),
+                          DropdownMenuEntry(value: 'FROZEN', label: 'Inactive'),
                         ],
                       ),
                     ],
