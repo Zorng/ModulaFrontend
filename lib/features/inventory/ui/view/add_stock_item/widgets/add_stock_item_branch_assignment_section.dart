@@ -13,6 +13,7 @@ class AddStockItemBranchAssignmentSection extends StatelessWidget {
     required this.onAssignmentChanged,
     required this.onRemoveAssignment,
     required this.onAddAssignment,
+    required this.isEditing,
   });
 
   final List<UserBranch> userBranches;
@@ -21,6 +22,8 @@ class AddStockItemBranchAssignmentSection extends StatelessWidget {
   final VoidCallback onAssignmentChanged;
   final void Function(BranchAssignment assignment) onRemoveAssignment;
   final VoidCallback onAddAssignment;
+  final bool isEditing;
+
 
   @override
   Widget build(BuildContext context) {
@@ -32,6 +35,7 @@ class AddStockItemBranchAssignmentSection extends StatelessWidget {
         else ...[
           ...branchAssignments.map(
             (assignment) => BranchAssignmentCard(
+              isEditing: isEditing,
               assignment: assignment,
               branches: userBranches,
               usedBranchIds: usedBranchIds(assignment),

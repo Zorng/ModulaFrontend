@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:modular_pos/core/theme/app_table_theme.dart';
 import 'package:modular_pos/features/staff/domain/models/staff_model.dart';
 
 class StaffDataTable extends StatelessWidget {
@@ -20,11 +21,15 @@ class StaffDataTable extends StatelessWidget {
           child: ConstrainedBox(
             constraints: BoxConstraints(minWidth: constraints.maxWidth),
             child: DataTable(
-              headingRowColor: WidgetStateProperty.all(Colors.grey.shade50),
+              headingRowColor: WidgetStateProperty.all(
+                AppTableTheme.headerBackground,
+              ),
               columnSpacing: 8,
               horizontalMargin: 0,
               dataRowMinHeight: 56,
               dataRowMaxHeight: 56,
+              headingTextStyle: AppTableTheme.headerText,
+              dataTextStyle: AppTableTheme.cellText,
               columns: [
                 DataColumn(
                   label: Padding(

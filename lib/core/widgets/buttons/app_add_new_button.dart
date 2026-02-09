@@ -12,7 +12,7 @@ class AppAddNewButton extends StatelessWidget {
   const AppAddNewButton({
     super.key,
     required this.onPressed,
-    this.label = '+ Add new',
+    this.label = 'Add new',
   });
 
   final VoidCallback? onPressed;
@@ -22,6 +22,8 @@ class AppAddNewButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
     final scheme = Theme.of(context).colorScheme;
+
+    final iconSize = AppBreakpoints.isSmall(width) ? 16.0 : 16.0;
 
     // Use slightly larger text on roomier layouts.
     final textStyle = (AppBreakpoints.isSmall(width)
@@ -36,7 +38,17 @@ class AppAddNewButton extends StatelessWidget {
         compact: true,
         textStyle: textStyle,
       ),
-      child: Text(label, style: textStyle),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          Icon(
+            Icons.add,
+            size: iconSize,
+            color: scheme.onPrimary,
+          ),
+          Text(label)
+        ],
+      ),
     );
   }
 }

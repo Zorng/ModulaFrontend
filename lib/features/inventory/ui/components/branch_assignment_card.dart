@@ -13,6 +13,7 @@ class BranchAssignmentCard extends StatelessWidget {
     required this.onChanged,
     required this.onRemove,
     this.enabled = true,
+    required this.isEditing 
   });
 
   final BranchAssignment assignment;
@@ -21,6 +22,7 @@ class BranchAssignmentCard extends StatelessWidget {
   final VoidCallback onChanged;
   final VoidCallback onRemove;
   final bool enabled;
+  final bool isEditing;
 
   @override
   Widget build(BuildContext context) {
@@ -45,24 +47,27 @@ class BranchAssignmentCard extends StatelessWidget {
                 children: [
                   Expanded(
                     flex: 2,
-                    child: InventoryDropdown<String>(
-                      initialValue: assignment.branchId,
-                      label: const Text('Branch'),
-                      enabled: enabled,
-                      entries: availableBranches
-                          .map(
-                            (b) => DropdownMenuEntry(
-                              value: b.branchId.isNotEmpty ? b.branchId : b.id,
-                              label: b.name,
-                            ),
-                          )
-                          .toList(),
-                      onSelected: enabled
-                          ? (value) {
-                              assignment.branchId = value;
-                              onChanged();
-                            }
-                          : null,
+                    child: AbsorbPointer(
+                      absorbing: !isEditing,
+                      child: InventoryDropdown<String>(
+                        initialValue: assignment.branchId,
+                        label: const Text('Branch'),
+                        enabled: true,
+                        entries: availableBranches
+                            .map(
+                              (b) => DropdownMenuEntry(
+                                value: b.branchId.isNotEmpty ? b.branchId : b.id,
+                                label: b.name,
+                              ),
+                            )
+                            .toList(),
+                        onSelected: enabled
+                            ? (value) {
+                                assignment.branchId = value;
+                                onChanged();
+                              }
+                            : null,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),

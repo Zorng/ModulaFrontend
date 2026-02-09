@@ -9,6 +9,10 @@ class StaffAuthenticationSection extends StatelessWidget {
     required this.confirmPasswordController,
     required this.isCreateMode,
     required this.isReadOnly,
+    required this.obscurePassword,
+    required this.obscureConfirmPassword,
+    required this.onTogglePasswordVisibility,
+    required this.onToggleConfirmPasswordVisibility,
   });
 
   final TextEditingController phoneNumberController;
@@ -16,6 +20,10 @@ class StaffAuthenticationSection extends StatelessWidget {
   final TextEditingController confirmPasswordController;
   final bool isCreateMode;
   final bool isReadOnly;
+  final bool obscurePassword;
+  final bool obscureConfirmPassword;
+  final VoidCallback onTogglePasswordVisibility;
+  final VoidCallback onToggleConfirmPasswordVisibility;
 
   @override
   Widget build(BuildContext context) {
@@ -46,7 +54,8 @@ class StaffAuthenticationSection extends StatelessWidget {
             label: 'Phone Number',
             placeholder: '+123456789',
             controller: phoneNumberController,
-            readOnly: false,
+            readOnly: true,
+            helperText: 'Phone number is set from Contact Information section',
           ),
           const SizedBox(height: 16),
           if (isCreateMode)
@@ -56,7 +65,9 @@ class StaffAuthenticationSection extends StatelessWidget {
                   child: FormTextField(
                     label: 'Password',
                     placeholder: 'Enter password',
-                    obscureText: true,
+                    obscureText: obscurePassword,
+                    showVisibilityToggle: true,
+                    onToggleVisibility: onTogglePasswordVisibility,
                     controller: passwordController,
                     readOnly: isReadOnly,
                     maxLength: 50,
@@ -68,7 +79,9 @@ class StaffAuthenticationSection extends StatelessWidget {
                   child: FormTextField(
                     label: 'Confirm Password',
                     placeholder: 'Re-enter password',
-                    obscureText: true,
+                    obscureText: obscureConfirmPassword,
+                    showVisibilityToggle: true,
+                    onToggleVisibility: onToggleConfirmPasswordVisibility,
                     controller: confirmPasswordController,
                     readOnly: isReadOnly,
                     maxLength: 50,

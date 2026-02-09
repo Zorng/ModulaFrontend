@@ -12,6 +12,7 @@ class StaffListState {
   final String? selectedRole;
   final String? selectedStatus;
   final String searchQuery;
+  final int maxStaffLimit;
 
   const StaffListState({
     this.staffList = const [],
@@ -20,6 +21,7 @@ class StaffListState {
     this.selectedRole,
     this.selectedStatus,
     this.searchQuery = '',
+    this.maxStaffLimit = 100,
   });
 
   StaffListState copyWith({
@@ -32,6 +34,7 @@ class StaffListState {
     String? selectedStatus,
     bool clearSelectedStatus = false,
     String? searchQuery,
+    int? maxStaffLimit,
   }) {
     return StaffListState(
       staffList: staffList ?? this.staffList,
@@ -46,6 +49,7 @@ class StaffListState {
           ? null
           : (selectedStatus ?? this.selectedStatus),
       searchQuery: searchQuery ?? this.searchQuery,
+      maxStaffLimit: maxStaffLimit ?? this.maxStaffLimit,
     );
   }
 }
@@ -104,29 +108,35 @@ class StaffListAsyncNotifier extends AsyncNotifier<StaffListState> {
   void updateSelectedBranch(String? value) {
     debugPrint('DEBUG: updateSelectedBranch called with value: $value');
     debugPrint('DEBUG: Current selectedBranch: ${state.value?.selectedBranch}');
+    // Handle the '__all__' sentinel value from DropdownMenu
+    final actualValue = value == '__all__' ? null : value;
     state = AsyncData(
       state.value!.copyWith(
-        selectedBranch: value,
-        clearSelectedBranch: value == null,
+        selectedBranch: actualValue,
+        clearSelectedBranch: actualValue == null,
       ),
     );
     debugPrint('DEBUG: New selectedBranch: ${state.value?.selectedBranch}');
   }
 
   void updateSelectedRole(String? value) {
+    // Handle the '__all__' sentinel value from DropdownMenu
+    final actualValue = value == '__all__' ? null : value;
     state = AsyncData(
       state.value!.copyWith(
-        selectedRole: value,
-        clearSelectedRole: value == null,
+        selectedRole: actualValue,
+        clearSelectedRole: actualValue == null,
       ),
     );
   }
 
   void updateSelectedStatus(String? value) {
+    // Handle the '__all__' sentinel value from DropdownMenu
+    final actualValue = value == '__all__' ? null : value;
     state = AsyncData(
       state.value!.copyWith(
-        selectedStatus: value,
-        clearSelectedStatus: value == null,
+        selectedStatus: actualValue,
+        clearSelectedStatus: actualValue == null,
       ),
     );
   }
@@ -192,4 +202,19 @@ class StaffListAsyncNotifier extends AsyncNotifier<StaffListState> {
   }
 
   String? getBranchIdForAdd() => _branchIdForName(state.value!.selectedBranch);
+
+  /// Get active staff count (for limit checking)
+  int getActiveStaffCount() {
+    final data = state.value;
+    if (data == null) return 0;
+    return data.staffList.where((s) => s.isActive).length;
+  }
+
+  /// Check if staff limit is reached
+  bool isStaffLimitReached() {
+    final data = state.value;
+    if (data == null) return false;
+    final activeCount = getActiveStaffCount();
+    return activeCount >= data.maxStaffLimit;
+  }
 }

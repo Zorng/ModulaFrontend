@@ -38,6 +38,7 @@ class StockItemBranchAssignmentSection extends StatelessWidget {
       else
         ...branchAssignments.map(
           (assignment) => BranchAssignmentCard(
+            isEditing: isEditing,
             assignment: assignment,
             branches: userBranches,
             usedBranchIds: usedBranchIds(assignment),

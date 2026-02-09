@@ -66,12 +66,9 @@ class InventoryCategoryTile extends ConsumerWidget {
               ),
             ),
             const SizedBox(width: 8),
-            InventoryCategoryActionMenu(
-              category: category,
-              compact: true,
-            ),
           ],
         ),
+        onTap: () => InventoryCategoryActionMenu.openView(context, category),
       ),
     );
   }
