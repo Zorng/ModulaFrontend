@@ -130,7 +130,9 @@ class _BranchDetailDialogState extends ConsumerState<BranchDetailDialog> {
     if (_nameError != null ||
         _addressError != null ||
         _phoneError != null ||
-        _emailError != null) return false;
+        _emailError != null) {
+      return false;
+    }
     return true;
   }
 
@@ -172,7 +174,9 @@ class _BranchDetailDialogState extends ConsumerState<BranchDetailDialog> {
     setState(() => _isSaving = true);
 
     try {
-      await ref.read(branchRepositoryProvider).updateBranch(
+      await ref
+          .read(branchRepositoryProvider)
+          .updateBranch(
             branchId: widget.branchId,
             name: _nameController.text.trim(),
             address: _addressController.text.trim(),
@@ -252,8 +256,8 @@ class _BranchDetailDialogState extends ConsumerState<BranchDetailDialog> {
                       Text(
                         'Branch Detail',
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                       const Spacer(),
                       IconButton(
@@ -291,7 +295,8 @@ class _BranchDetailDialogState extends ConsumerState<BranchDetailDialog> {
                           controller: _addressController,
                           enabled: _isEditMode,
                           errorText: _addressError,
-                          onChanged: () => setState(() => _addressTouched = true),
+                          onChanged: () =>
+                              setState(() => _addressTouched = true),
                         ),
                         const SizedBox(height: 16),
                         Row(
@@ -329,7 +334,9 @@ class _BranchDetailDialogState extends ConsumerState<BranchDetailDialog> {
                         const SizedBox(height: 16),
                         _DialogDropdownField(
                           label: 'Status',
-                          value: branch.status == 'FROZEN' ? 'Inactive' : 'Active',
+                          value: branch.status == 'FROZEN'
+                              ? 'Inactive'
+                              : 'Active',
                           enabled: false,
                           withAvatar: false,
                         ),
@@ -457,7 +464,7 @@ class _DialogField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final fieldBorder = Border.all(color: Colors.grey.shade300, width: 2);
-    
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -491,7 +498,9 @@ class _DialogField extends StatelessWidget {
                         keyboardType: keyboardType,
                         maxLines: 1,
                         maxLength: maxLength,
-                        onChanged: onChanged != null ? (_) => onChanged!() : null,
+                        onChanged: onChanged != null
+                            ? (_) => onChanged!()
+                            : null,
                         style: const TextStyle(
                           color: Colors.black,
                           fontSize: 15,
@@ -521,10 +530,7 @@ class _DialogField extends StatelessWidget {
             padding: const EdgeInsets.only(left: 12, top: 4),
             child: Text(
               errorText!,
-              style: const TextStyle(
-                color: Colors.red,
-                fontSize: 12,
-              ),
+              style: const TextStyle(color: Colors.red, fontSize: 12),
             ),
           ),
       ],
@@ -548,7 +554,7 @@ class _DialogDropdownField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final fieldBorder = Border.all(color: Colors.grey.shade300, width: 2);
-    
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
