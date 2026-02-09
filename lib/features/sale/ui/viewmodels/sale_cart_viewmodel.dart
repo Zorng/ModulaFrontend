@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/core/logging/app_log.dart';
 import 'package:modular_pos/features/policy/ui/viewmodels/policy_viewmodel.dart';
@@ -8,6 +9,7 @@ import 'package:modular_pos/features/sale/ui/view/sale_item_detail/sale_item_det
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_access_gate.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_payload_builder.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_state.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 final saleCartProvider = NotifierProvider<SaleCartNotifier, SaleCartState>(
   SaleCartNotifier.new,
@@ -17,6 +19,7 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
   SaleCartNotifier();
 
   late final SaleRepository _repo = ref.read(saleRepositoryProvider);
+  static const String _cartStorageKey = 'sale_cart_state';
 
   void _logIgnoredError(String context, Object error, StackTrace stackTrace) {
     AppLog.e(
@@ -27,7 +30,52 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
   }
 
   @override
-  SaleCartState build() => const SaleCartState();
+  SaleCartState build() {
+    // Try to restore persisted cart on initialization
+    _loadPersistedCart();
+    return const SaleCartState();
+  }
+
+  Future<void> _loadPersistedCart() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cartJson = prefs.getString(_cartStorageKey);
+      if (cartJson != null && cartJson.isNotEmpty) {
+        final json = jsonDecode(cartJson) as Map<String, dynamic>;
+        final restoredState = SaleCartState.fromJson(json);
+        // Only restore if cart has items
+        if (restoredState.lines.isNotEmpty) {
+          state = restoredState;
+          AppLog.d(
+            '[SaleCartNotifier] Cart restored with ${restoredState.lines.length} items',
+          );
+        }
+      }
+    } catch (e, st) {
+      _logIgnoredError('_loadPersistedCart', e, st);
+      // If restoration fails, start with empty cart
+      state = const SaleCartState();
+    }
+  }
+
+  Future<void> _persistCart(SaleCartState cartState) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cartJson = jsonEncode(cartState.toJson());
+      await prefs.setString(_cartStorageKey, cartJson);
+    } catch (e, st) {
+      _logIgnoredError('_persistCart', e, st);
+    }
+  }
+
+  Future<void> _clearPersistedCart() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_cartStorageKey);
+    } catch (e, st) {
+      _logIgnoredError('_clearPersistedCart', e, st);
+    }
+  }
 
   double _fxRate() {
     final policies = ref.read(policyNotifierProvider);
@@ -54,7 +102,9 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
       saleType: state.saleType,
       fxRateUsed: _fxRate(),
     );
-    state = state.copyWith(saleId: id);
+    final newState = state.copyWith(saleId: id);
+    state = newState;
+    await _persistCart(newState);
   }
 
   Future<void> addSelection(SaleItemSelectionResult selection) async {
@@ -91,11 +141,13 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
               ? line.selectedOptions
               : selection.selectedOptions,
         );
-        state = state.copyWith(lines: lines);
+        final newState = state.copyWith(lines: lines);
+        state = newState;
+        await _persistCart(newState);
         return;
       }
     }
-    state = state.copyWith(
+    final newState = state.copyWith(
       lines: [
         ...lines,
         CartLine(
@@ -107,24 +159,34 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
         ),
       ],
     );
+    state = newState;
+    await _persistCart(newState);
   }
 
   void setTenderCurrency(String currency) {
-    state = state.copyWith(tenderCurrency: currency);
+    final newState = state.copyWith(tenderCurrency: currency);
+    state = newState;
+    _persistCart(newState);
   }
 
   void setPaymentMethod(String method) {
-    state = state.copyWith(paymentMethod: method);
+    final newState = state.copyWith(paymentMethod: method);
+    state = newState;
+    _persistCart(newState);
   }
 
   void setLines(List<CartLine> lines) {
-    state = state.copyWith(lines: lines);
+    final newState = state.copyWith(lines: lines);
+    state = newState;
+    _persistCart(newState);
   }
 
   Future<void> setSaleType(String saleType) async {
     // If no draft or no lines yet, just update the sale type for future drafts.
     if (state.saleId == null || state.saleId!.isEmpty || state.lines.isEmpty) {
-      state = state.copyWith(saleType: saleType);
+      final newState = state.copyWith(saleType: saleType);
+      state = newState;
+      await _persistCart(newState);
       return;
     }
 
@@ -143,18 +205,22 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
       rebuiltLines.add(await rebuilt);
     }
 
-    state = state.copyWith(
+    final newState = state.copyWith(
       saleType: saleType,
       saleId: newSaleId,
       lines: rebuiltLines,
     );
+    state = newState;
+    await _persistCart(newState);
   }
 
   void setCashReceived({double? usd, double? khr}) {
-    state = state.copyWith(
+    final newState = state.copyWith(
       cashUsd: usd ?? state.cashUsd,
       cashKhr: khr ?? state.cashKhr,
     );
+    state = newState;
+    _persistCart(newState);
   }
 
   Future<void> updateQuantity(int index, int quantity) async {
@@ -164,12 +230,16 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
     final target = lines[index];
     if (quantity <= 0) {
       lines.removeAt(index);
-      state = state.copyWith(lines: lines);
+      final newState = state.copyWith(lines: lines);
+      state = newState;
+      await _persistCart(newState);
       await _removeRemote(target);
       return;
     }
     lines[index] = target.copyWith(quantity: quantity);
-    state = state.copyWith(lines: lines);
+    final newState = state.copyWith(lines: lines);
+    state = newState;
+    await _persistCart(newState);
     await _updateRemoteQuantity(target, quantity);
   }
 
@@ -204,6 +274,7 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
 
   void clear() {
     state = const SaleCartState();
+    _clearPersistedCart();
   }
 
   Future<SaleCheckoutSummary> checkout() async {
@@ -227,7 +298,7 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
     ref.invalidate(xReportEntriesProvider);
     ref.invalidate(xReportDetailProvider);
     // Reset state so subsequent carts start with a fresh draft.
-    clear();
+    clear(); // This now also clears persisted cart
     return finalized;
   }
 

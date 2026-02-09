@@ -1,6 +1,6 @@
 import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
-import 'package:modular_pos/features/cash_session/ui/view/cashier_cash_session.dart';
+import 'package:modular_pos/features/cash_session/ui/view/cash_session/cashier_cash_session.dart';
 import 'package:modular_pos/features/cash_session/ui/view/cash_movement/cash_movement_page.dart';
 import 'package:modular_pos/features/cash_session/ui/view/cash_shell/cash_bottom_nav_shell_page.dart';
 import 'package:modular_pos/features/cash_session/ui/view/x_report/x_report_page.dart';
