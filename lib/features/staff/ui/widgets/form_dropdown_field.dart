@@ -49,7 +49,8 @@ class FormDropdownField extends StatelessWidget {
                       onSelected(newValue);
                     },
                     itemBuilder: (BuildContext context) {
-                      final RenderBox? button = key.currentContext?.findRenderObject() as RenderBox?;
+                      final RenderBox? button =
+                          key.currentContext?.findRenderObject() as RenderBox?;
                       final double width = button?.size.width ?? 150;
                       const double horizontalPadding = 32.0;
                       return items.map((String choice) {
@@ -63,11 +64,18 @@ class FormDropdownField extends StatelessWidget {
                       }).toList();
                     },
                     child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 14,
+                        horizontal: 12,
+                      ),
                       decoration: BoxDecoration(
-                        color: enabled ? Colors.grey.shade200 : Colors.grey.shade100,
+                        color: enabled ? Colors.white : const Color(0xFFF5F7FA),
                         borderRadius: BorderRadius.circular(8),
-                        border: field.hasError ? Border.all(color: Colors.red, width: 1.0) : null,
+                        border: field.hasError
+                            ? Border.all(color: Colors.red, width: 1.0)
+                            : enabled
+                            ? Border.all(color: Colors.grey.shade300)
+                            : null,
                       ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -86,7 +94,10 @@ class FormDropdownField extends StatelessWidget {
                           ),
                           const SizedBox(width: 4),
                           if (enabled)
-                            const Icon(CupertinoIcons.chevron_down, color: CupertinoColors.placeholderText),
+                            const Icon(
+                              CupertinoIcons.chevron_down,
+                              color: CupertinoColors.placeholderText,
+                            ),
                         ],
                       ),
                     ),
@@ -95,7 +106,10 @@ class FormDropdownField extends StatelessWidget {
                 if (field.hasError)
                   Padding(
                     padding: const EdgeInsets.only(left: 10.0, top: 5.0),
-                    child: Text(field.errorText!, style: const TextStyle(color: Colors.red, fontSize: 12)),
+                    child: Text(
+                      field.errorText!,
+                      style: const TextStyle(color: Colors.red, fontSize: 12),
+                    ),
                   ),
               ],
             );

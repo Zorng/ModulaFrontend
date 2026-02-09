@@ -41,6 +41,10 @@ class StaffMobileFormSection extends ConsumerWidget {
     required this.onCustomHoursChanged,
     required this.isReadOnly,
     required this.isCreateMode,
+    required this.obscurePassword,
+    required this.obscureConfirmPassword,
+    required this.onTogglePasswordVisibility,
+    required this.onToggleConfirmPasswordVisibility,
   });
 
   final TextEditingController firstNameController;
@@ -74,6 +78,10 @@ class StaffMobileFormSection extends ConsumerWidget {
   onCustomHoursChanged;
   final bool isReadOnly;
   final bool isCreateMode;
+  final bool obscurePassword;
+  final bool obscureConfirmPassword;
+  final VoidCallback onTogglePasswordVisibility;
+  final VoidCallback onToggleConfirmPasswordVisibility;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -196,7 +204,9 @@ class StaffMobileFormSection extends ConsumerWidget {
             FormTextField(
               label: 'Password',
               placeholder: 'Enter password',
-              obscureText: true,
+              obscureText: obscurePassword,
+              showVisibilityToggle: true,
+              onToggleVisibility: onTogglePasswordVisibility,
               controller: passwordController,
               readOnly: isReadOnly,
               maxLength: 50,
@@ -206,7 +216,9 @@ class StaffMobileFormSection extends ConsumerWidget {
             FormTextField(
               label: 'Confirm Password',
               placeholder: 'Re-enter password',
-              obscureText: true,
+              obscureText: obscureConfirmPassword,
+              showVisibilityToggle: true,
+              onToggleVisibility: onToggleConfirmPasswordVisibility,
               controller: confirmPasswordController,
               readOnly: isReadOnly,
               maxLength: 50,

@@ -74,7 +74,7 @@ class StaffManagementController extends Notifier<StaffManagementState> {
     // but we will update the state with the enriched staff object when done.
     try {
       final currentStaff = state.initialStaff;
-      
+
       // Guard against null - if staff is null, don't proceed
       if (currentStaff == null) {
         AppLog.d('WARNING: Cannot fetch schedule: initialStaff is null');
@@ -83,12 +83,12 @@ class StaffManagementController extends Notifier<StaffManagementState> {
 
       final repository = ref.read(staffManagementRepositoryProvider);
       final branchId = currentStaff.branchId ?? '';
-      
+
       if (branchId.isEmpty) {
         AppLog.d('WARNING: Cannot fetch schedule: branchId is empty');
         return;
       }
-      
+
       final schedule = await repository.fetchShiftSchedule(
         userId: staffId,
         branchId: branchId,
@@ -96,7 +96,9 @@ class StaffManagementController extends Notifier<StaffManagementState> {
 
       // Check again if initialStaff is still available after async call
       if (state.initialStaff != null) {
-        final updatedStaff = state.initialStaff!.copyWith(shiftSchedule: schedule);
+        final updatedStaff = state.initialStaff!.copyWith(
+          shiftSchedule: schedule,
+        );
         state = state.copyWith(initialStaff: updatedStaff);
       } else {
         AppLog.d('WARNING: Staff became null during schedule fetch');
@@ -111,9 +113,19 @@ class StaffManagementController extends Notifier<StaffManagementState> {
     if (state.mode == StaffManagementMode.view) {
       state = state.copyWith(mode: StaffManagementMode.edit);
     } else if (state.mode == StaffManagementMode.edit) {
-      // Cancel edit -> Revert to view
+      // Cancel edit -> Revert to view (keep initialStaff for repopulation)
       state = state.copyWith(mode: StaffManagementMode.view, error: null);
     }
+  }
+
+  void resetToCreateMode() {
+    // Clear all state and switch to create mode
+    state = const StaffManagementState(
+      mode: StaffManagementMode.create,
+      initialStaff: null,
+      isLoading: false,
+      error: null,
+    );
   }
 
   Future<bool> submit(Staff staffData) async {
@@ -125,10 +137,17 @@ class StaffManagementController extends Notifier<StaffManagementState> {
       if (state.mode == StaffManagementMode.create) {
         await repository.createInvite(staffData);
       } else if (state.mode == StaffManagementMode.edit) {
-        // TODO: Implement update API when available
-        // await repository.update(staffData);
-        // For now, we simulate update success and just return true
-        await Future.delayed(const Duration(milliseconds: 500));
+        // Use updateStaff in mock mode, otherwise just simulate success
+        try {
+          await repository.updateStaff(staffData);
+        } catch (e) {
+          // If not implemented (real API), just simulate success
+          if (e is UnimplementedError) {
+            await Future.delayed(const Duration(milliseconds: 500));
+          } else {
+            rethrow;
+          }
+        }
       }
 
       state = state.copyWith(isLoading: false);

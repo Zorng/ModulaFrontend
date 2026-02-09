@@ -209,7 +209,9 @@ class _SaleItemDetailPageState extends ConsumerState<SaleItemDetailPage> {
           selectedOptions: pricing.selectedOptions,
           onQuantityChanged: (value) => setState(() => _quantity = value),
           canAddToCart: canAddToCart,
-          blockingMessage: canAddToCart ? null : 'Cash session required', // Temporarily disabled
+          blockingMessage: canAddToCart
+              ? null
+              : 'Cash session required', // Temporarily disabled
           showPriceBreakdown: true, // Always show price breakdown
           onAddItem: canAddToCart
               ? () {

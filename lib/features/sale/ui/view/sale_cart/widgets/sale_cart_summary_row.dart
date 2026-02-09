@@ -18,7 +18,9 @@ class SaleCartSummaryRow extends StatelessWidget {
         const Spacer(),
         Text(
           '\$${value.toStringAsFixed(2)}',
-          style: Theme.of(context).textTheme.titleMedium,
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
         ),
       ],
     );
