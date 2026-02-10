@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:modular_pos/core/widgets/navigation/unsaved_changes_guard.dart';
 import 'package:modular_pos/features/policy/ui/widgets/policy_detail_controls.dart';
 import 'package:modular_pos/features/policy/ui/view/vat_policy_detail/widgets/vat_rate_bottom_sheet.dart';
 import 'package:modular_pos/features/policy/ui/view/policy/policy_route_args.dart';
@@ -71,14 +72,22 @@ class _VatPolicyDetailPageState extends State<VatPolicyDetailPage> {
     );
   }
 
+  bool get _isDirty {
+    if (!_isEditing) return false;
+    final currentRate = _rateController.text.trim();
+    return _enabled != _initialEnabled || currentRate != _initialRate;
+  }
+
   @override
   Widget build(BuildContext context) {
-    return PolicyDetailScaffold(
-      title: 'Apply VAT',
-      isEditing: _isEditing,
-      onEditToggle: _isEditing ? _cancelEdit : _startEdit,
-      onSave: _saveChanges,
-      child: Column(
+    return UnsavedChangesGuard(
+      isDirty: _isDirty,
+      child: PolicyDetailScaffold(
+        title: 'Apply VAT',
+        isEditing: _isEditing,
+        onEditToggle: _isEditing ? _cancelEdit : _startEdit,
+        onSave: _saveChanges,
+        child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           PolicySettingGroup(
@@ -113,6 +122,7 @@ class _VatPolicyDetailPageState extends State<VatPolicyDetailPage> {
               ),
             ),
         ],
+        ),
       ),
     );
   }

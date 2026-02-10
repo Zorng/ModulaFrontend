@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:modular_pos/core/widgets/navigation/unsaved_changes_guard.dart';
 import 'package:modular_pos/features/policy/ui/widgets/policy_detail_controls.dart';
 
 class InventoryPolicyDetailPage extends StatefulWidget {
@@ -48,14 +49,21 @@ class _InventoryPolicyDetailPageState extends State<InventoryPolicyDetailPage> {
     setState(() => _isEditing = false);
   }
 
+  bool get _isDirty {
+    if (!_isEditing) return false;
+    return _subtractStock != widget.subtractStock || _useRecipes != widget.useRecipes;
+  }
+
   @override
   Widget build(BuildContext context) {
-    return PolicyDetailScaffold(
-      title: 'Subtract stock on sale',
-      isEditing: _isEditing,
-      onEditToggle: _isEditing ? _cancelEdit : _startEdit,
-      onSave: _saveChanges,
-      child: Column(
+    return UnsavedChangesGuard(
+      isDirty: _isDirty,
+      child: PolicyDetailScaffold(
+        title: 'Subtract stock on sale',
+        isEditing: _isEditing,
+        onEditToggle: _isEditing ? _cancelEdit : _startEdit,
+        onSave: _saveChanges,
+        child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           PolicySettingGroup(
@@ -89,6 +97,7 @@ class _InventoryPolicyDetailPageState extends State<InventoryPolicyDetailPage> {
             style: Theme.of(context).textTheme.bodyMedium,
           ),
         ],
+        ),
       ),
     );
   }

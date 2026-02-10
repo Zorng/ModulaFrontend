@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:modular_pos/core/widgets/navigation/unsaved_changes_guard.dart';
 import 'package:modular_pos/features/policy/ui/widgets/policy_detail_controls.dart';
 
 class EarlyCheckInDetailPage extends StatefulWidget {
@@ -47,14 +48,21 @@ class _EarlyCheckInDetailPageState extends State<EarlyCheckInDetailPage> {
     setState(() => _isEditing = false);
   }
 
+  bool get _isDirty {
+    if (!_isEditing) return false;
+    return _enabled != widget.enabled || _duration != widget.duration;
+  }
+
   @override
   Widget build(BuildContext context) {
-    return PolicyDetailScaffold(
-      title: 'Early check-in buffer',
-      isEditing: _isEditing,
-      onEditToggle: _isEditing ? _cancelEdit : _startEdit,
-      onSave: _saveChanges,
-      child: Column(
+    return UnsavedChangesGuard(
+      isDirty: _isDirty,
+      child: PolicyDetailScaffold(
+        title: 'Early check-in buffer',
+        isEditing: _isEditing,
+        onEditToggle: _isEditing ? _cancelEdit : _startEdit,
+        onSave: _saveChanges,
+        child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           PolicySettingGroup(
@@ -84,6 +92,7 @@ class _EarlyCheckInDetailPageState extends State<EarlyCheckInDetailPage> {
                 .toList(),
           ),
         ],
+        ),
       ),
     );
   }
