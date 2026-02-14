@@ -17,12 +17,16 @@ final branchMockRepositoryProvider = Provider<BranchMockRepository>((ref) {
 });
 
 /// Branch repository provider - uses mock repository for phone +1234567890, real API for others
-final branchRepositoryProvider = Provider<BranchRepository>((ref) {
-  // Check if logged-in user is +1234567890
+/// Provider to check if mock data is being used
+final useMockBranchRepositoryProvider = Provider<bool>((ref) {
   final loginState = ref.watch(loginControllerProvider);
   final userPhone = loginState.session?.user.phone ?? '';
-  
-  final useMock = userPhone == '+1234567890';
+  return userPhone == '+1234567890';
+});
+
+final branchRepositoryProvider = Provider<BranchRepository>((ref) {
+  // Check if logged-in user is +1234567890
+  final useMock = ref.watch(useMockBranchRepositoryProvider);
   
   if (useMock) {
     final mockRepo = ref.watch(branchMockRepositoryProvider);
