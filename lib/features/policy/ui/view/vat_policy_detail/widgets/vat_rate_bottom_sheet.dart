@@ -21,12 +21,31 @@ class _VatRateBottomSheetState extends State<VatRateBottomSheet> {
   void initState() {
     super.initState();
     _controller = TextEditingController(text: widget.initialValue);
+    _controller.addListener(_onChanged);
   }
 
   @override
   void dispose() {
+    _controller.removeListener(_onChanged);
     _controller.dispose();
     super.dispose();
+  }
+
+  void _onChanged() => setState(() {});
+
+  bool get _isValid {
+    final parsed = int.tryParse(_controller.text.trim());
+    return parsed != null && parsed >= 1 && parsed <= 10;
+  }
+
+  String? get _errorText {
+    final text = _controller.text.trim();
+    if (text.isEmpty) return null;
+    final parsed = int.tryParse(text);
+    if (parsed == null || parsed < 1 || parsed > 10) {
+      return 'Only 1 to 10% VAT is allowed';
+    }
+    return null;
   }
 
   @override
@@ -47,17 +66,22 @@ class _VatRateBottomSheetState extends State<VatRateBottomSheet> {
           TextField(
             controller: _controller,
             keyboardType: TextInputType.number,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-            decoration: const InputDecoration(
-              hintText: 'Enter rate',
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly,
+              LengthLimitingTextInputFormatter(2),
+            ],
+            decoration: InputDecoration(
+              hintText: '1 – 10',
               suffixText: '%',
+              errorText: _errorText,
             ),
           ),
           const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
             child: FilledButton(
-              onPressed: () => context.pop(_controller.text.trim()),
+              onPressed:
+                  _isValid ? () => context.pop(_controller.text.trim()) : null,
               child: const Text('Done'),
             ),
           ),

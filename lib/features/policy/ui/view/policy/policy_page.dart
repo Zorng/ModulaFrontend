@@ -26,7 +26,7 @@ class _PolicyPageState extends ConsumerState<PolicyPage> {
   String _search = '';
 
   // Local-only settings not yet backed by the API.
-  final Map<String, bool> _localToggleValues = {'use_recipes': false};
+  final Map<String, bool> _localToggleValues = {};
 
   final Map<String, String> _localSelectorValues = {};
 
@@ -38,14 +38,16 @@ class _PolicyPageState extends ConsumerState<PolicyPage> {
           id: 'apply_vat',
           title: 'Apply VAT',
           icon: Icons.receipt_long_outlined,
-          subtitle: 'Show VAT line on sales and receipts',
+          subtitle:
+              'Vat is a tax added to the prices. When enabled, VAT is calculated and shown as a separate line on every sale and printed receipt.',
           type: PolicyItemType.toggle,
         ),
         PolicyItem(
           id: 'usd_to_khr',
           title: 'Currency Exchange Rate',
           icon: Icons.attach_money_outlined,
-          subtitle: 'KHR per USD exchange rate',
+          subtitle:
+              'Sets the exchange rate used to convert US Dollar amounts into Cambodian Riel.',
           type: PolicyItemType.selector,
           options: ['4000', '4100', '4150', '4200'],
           defaultValue: '4100',
@@ -54,7 +56,8 @@ class _PolicyPageState extends ConsumerState<PolicyPage> {
           id: 'rounding_mode',
           title: 'KHR Rounding Mode',
           icon: Icons.swap_vert,
-          subtitle: 'How to round KHR amounts',
+          subtitle:
+              'Controls how Cambodian Riel amounts are rounded when calculating totals. Ex: 4160 to 4200',
           type: PolicyItemType.selector,
           options: ['Nearest', 'Up', 'Down'],
           defaultValue: 'Nearest',
@@ -293,18 +296,6 @@ class _PolicyPageState extends ConsumerState<PolicyPage> {
     return {
       ..._localToggleValues,
       'apply_vat': state.salesPolicy.saleVatEnabled,
-      'subtract_stock': state.inventoryPolicy.inventoryAutoSubtractOnSale,
-      'expiry_tracking': state.inventoryPolicy.inventoryExpiryTrackingEnabled,
-      'cash_session_attendance':
-          state.attendancePolicy.attendanceAutoFromCashSession,
-      'out_of_shift_approval':
-          state.attendancePolicy.attendanceRequireOutOfShiftApproval,
-      'early_check_in_buffer':
-          state.attendancePolicy.attendanceEarlyCheckinBufferEnabled,
-      'allow_paid_out': state.cashSessionPolicy.cashAllowPaidOut,
-      'cash_refund_approval': state.cashSessionPolicy.cashRequireRefundApproval,
-      'manual_cash_adjustment':
-          state.cashSessionPolicy.cashAllowManualAdjustment,
     };
   }
 
@@ -314,9 +305,6 @@ class _PolicyPageState extends ConsumerState<PolicyPage> {
       'vat_rate': _formatPercent(state.salesPolicy.saleVatRatePercent),
       'usd_to_khr': state.salesPolicy.saleFxRateKhrPerUsd.toStringAsFixed(0),
       'rounding_mode': _roundingLabel(state.salesPolicy.saleKhrRoundingMode),
-      'early_check_in_duration': _durationLabel(
-        state.attendancePolicy.attendanceCheckinBufferMinutes,
-      ),
     };
   }
 
@@ -341,17 +329,6 @@ class _PolicyPageState extends ConsumerState<PolicyPage> {
         return 'DOWN';
       default:
         return 'NEAREST';
-    }
-  }
-
-  String _durationLabel(int minutes) {
-    switch (minutes) {
-      case 30:
-        return '30 min';
-      case 60:
-        return '1 hour';
-      default:
-        return '15 min';
     }
   }
 }

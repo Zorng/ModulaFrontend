@@ -155,7 +155,29 @@ class PolicyTile extends StatelessWidget {
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                   const SizedBox(width: 12),
-                  Expanded(child: Text(item.title, style: titleStyle)),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(item.title, style: titleStyle),
+                        if (item.subtitle != null &&
+                            item.type != PolicyItemType.info) ...[                          const SizedBox(height: 2),
+                          Text(
+                            item.subtitle!,
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant,
+                                  height: 1.3,
+                                ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
                   const SizedBox(width: 12),
                   if (item.type == PolicyItemType.toggle)
                     Text(
