@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-class AttendanceManagementKeyValueRow extends StatelessWidget {
-  const AttendanceManagementKeyValueRow({
+class StaffAttendanceKeyValueRow extends StatelessWidget {
+  const StaffAttendanceKeyValueRow({
     super.key,
     required this.label,
     required this.value,
@@ -22,4 +22,3 @@ class AttendanceManagementKeyValueRow extends StatelessWidget {
     );
   }
 }
-

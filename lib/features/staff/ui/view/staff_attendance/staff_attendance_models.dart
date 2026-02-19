@@ -1,5 +1,5 @@
-class AttendanceManagementDateRange {
-  const AttendanceManagementDateRange({
+class StaffAttendanceDateRange {
+  const StaffAttendanceDateRange({
     required this.fromIsoUtc,
     required this.toIsoUtc,
   });
@@ -7,4 +7,3 @@ class AttendanceManagementDateRange {
   final String fromIsoUtc;
   final String toIsoUtc;
 }
-

@@ -1,15 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:modular_pos/features/staff_attendance/domain/models/attendance_record.dart';
-import 'package:modular_pos/features/staff_attendance/ui/view/attendance_management/attendance_management_utils.dart';
-import 'package:modular_pos/features/staff_attendance/ui/view/attendance_management/widgets/attendance_management_key_value_row.dart';
+import 'package:modular_pos/features/staff/domain/models/staff_attendance_record.dart';
+import 'package:modular_pos/features/staff/ui/view/staff_attendance/staff_attendance_utils.dart';
+import 'package:modular_pos/features/staff/ui/view/staff_attendance/widgets/staff_attendance_key_value_row.dart';
 
-class AttendanceManagementRecordCard extends StatelessWidget {
-  const AttendanceManagementRecordCard({
-    super.key,
-    required this.record,
-  });
+class StaffAttendanceRecordCard extends StatelessWidget {
+  const StaffAttendanceRecordCard({super.key, required this.record});
 
-  final AttendanceRecord record;
+  final StaffAttendanceRecord record;
 
   @override
   Widget build(BuildContext context) {
@@ -21,23 +18,25 @@ class AttendanceManagementRecordCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            AttendanceManagementKeyValueRow(
+            StaffAttendanceKeyValueRow(
               label: 'Status',
               value: titleCaseSnake(record.type),
             ),
             const SizedBox(height: 8),
-            AttendanceManagementKeyValueRow(
+            StaffAttendanceKeyValueRow(label: 'Branch', value: record.branchId),
+            const SizedBox(height: 8),
+            StaffAttendanceKeyValueRow(
               label: 'Staff',
               value: record.employeeId,
             ),
             const SizedBox(height: 8),
-            AttendanceManagementKeyValueRow(
+            StaffAttendanceKeyValueRow(
               label: 'Occurred at',
               value:
                   '${formatDateYyyyMmDd(record.occurredAt)} ${formatTimeHmAmPm(record.occurredAt)}',
             ),
             const SizedBox(height: 8),
-            AttendanceManagementKeyValueRow(
+            StaffAttendanceKeyValueRow(
               label: 'Created at',
               value:
                   '${formatDateYyyyMmDd(record.createdAt)} ${formatTimeHmAmPm(record.createdAt)}',
@@ -48,4 +47,3 @@ class AttendanceManagementRecordCard extends StatelessWidget {
     );
   }
 }
-

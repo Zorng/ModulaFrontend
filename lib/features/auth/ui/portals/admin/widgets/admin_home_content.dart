@@ -74,11 +74,6 @@ class AdminHomeContent extends StatelessWidget {
         onTap: () => context.push(AppRoute.zReport.path),
       ),
       FeatureEntry(
-        title: 'Attendance Management',
-        icon: Icons.access_time_outlined,
-        onTap: () => context.push(AppRoute.attendanceManagement.path),
-      ),
-      FeatureEntry(
         title: 'Policy',
         icon: Icons.policy_outlined,
         onTap: openPolicy,
@@ -155,7 +150,12 @@ class _AdminBranchSectionState extends ConsumerState<AdminBranchSection> {
       (b) => _branchKey(b) == _selectedBranchId,
       orElse: () => widget.branches.isNotEmpty
           ? widget.branches.first
-          : const UserBranch(id: '', name: 'No branch', role: '', active: false),
+          : const UserBranch(
+              id: '',
+              name: 'No branch',
+              role: '',
+              active: false,
+            ),
     );
 
     final branchSelector = widget.isWide
@@ -173,9 +173,9 @@ class _AdminBranchSectionState extends ConsumerState<AdminBranchSection> {
               setState(() {
                 _selectedBranchId = value;
               });
-              ref.read(authActiveBranchOverrideProvider.notifier).setOverride(
-                    value,
-                  );
+              ref
+                  .read(authActiveBranchOverrideProvider.notifier)
+                  .setOverride(value);
             },
           )
         : InkWell(

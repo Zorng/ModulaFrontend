@@ -53,3 +53,6 @@ app.*.map.json
 
 # Environment
 .env
+
+# documents
+/flow-docs
