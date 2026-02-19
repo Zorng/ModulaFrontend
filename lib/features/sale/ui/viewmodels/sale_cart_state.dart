@@ -31,6 +31,27 @@ class CartLine {
       selectedOptions: selectedOptions ?? this.selectedOptions,
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'item': item.toJson(),
+      'quantity': quantity,
+      'selectedOptionIds': selectedOptionIds,
+      'saleItemId': saleItemId,
+      // Note: selectedOptions is not persisted as it can be rebuilt from selectedOptionIds
+    };
+  }
+
+  factory CartLine.fromJson(Map<String, dynamic> json) {
+    return CartLine(
+      item: MenuItem.fromJson(json['item'] as Map<String, dynamic>),
+      quantity: json['quantity'] as int,
+      selectedOptionIds: (json['selectedOptionIds'] as Map<String, dynamic>)
+          .map((key, value) => MapEntry(key, List<String>.from(value as List))),
+      saleItemId: json['saleItemId'] as String?,
+      selectedOptions: const {}, // Will be rebuilt when needed
+    );
+  }
 }
 
 class SaleCartState {
@@ -69,6 +90,34 @@ class SaleCartState {
       paymentMethod: paymentMethod ?? this.paymentMethod,
       cashUsd: cashUsd ?? this.cashUsd,
       cashKhr: cashKhr ?? this.cashKhr,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'saleId': saleId,
+      'saleType': saleType,
+      'lines': lines.map((line) => line.toJson()).toList(),
+      'tenderCurrency': tenderCurrency,
+      'paymentMethod': paymentMethod,
+      'cashUsd': cashUsd,
+      'cashKhr': cashKhr,
+    };
+  }
+
+  factory SaleCartState.fromJson(Map<String, dynamic> json) {
+    return SaleCartState(
+      saleId: json['saleId'] as String?,
+      saleType: json['saleType'] as String? ?? 'take_away',
+      lines:
+          (json['lines'] as List<dynamic>?)
+              ?.map((e) => CartLine.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          const [],
+      tenderCurrency: json['tenderCurrency'] as String? ?? 'USD',
+      paymentMethod: json['paymentMethod'] as String? ?? 'cash',
+      cashUsd: (json['cashUsd'] as num?)?.toDouble() ?? 0,
+      cashKhr: (json['cashKhr'] as num?)?.toDouble() ?? 0,
     );
   }
 }

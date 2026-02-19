@@ -7,6 +7,7 @@ import 'package:modular_pos/features/sale/data/sale_repository.dart';
 import 'package:modular_pos/features/sale/ui/view/sale_item_detail/sale_item_detail_page.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_access_gate.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_viewmodel.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../test_utils/riverpod_test_utils.dart';
 
@@ -25,10 +26,16 @@ class _StaticPolicyNotifier extends PolicyNotifier {
 }
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   setUpAll(() {
     // Used by mocktail when matching non-primitive arguments via `any(...)`.
     registerFallbackValue(<Map<String, dynamic>>[]);
     registerFallbackValue(<String, dynamic>{});
+  });
+
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
   });
 
   test(

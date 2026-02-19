@@ -41,6 +41,60 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
     _khrController.addListener(() => setState(() {}));
   }
 
+  Future<void> _showClearCartConfirmation(SaleCartNotifier cartNotifier) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        final scheme = Theme.of(dialogContext).colorScheme;
+        return AlertDialog(
+          title: const Text('Clear Cart'),
+          content: const Text(
+            'Are you sure you want to clear the current cart? '
+            'All items will be removed and this action cannot be undone.',
+          ),
+          actions: [
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(false),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: scheme.surface,
+                      foregroundColor: scheme.onSurface,
+                    ),
+                    child: const Text('Cancel'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(true),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Colors.red,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text('Clear Cart'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed == true && mounted) {
+      cartNotifier.clear();
+      // Show confirmation snackbar
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Cart cleared'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
   void _loadMockCartData() {
     // final cartNotifier = ref.read(saleCartProvider.notifier);
     // final currentState = ref.read(saleCartProvider);
@@ -208,6 +262,14 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
                   ),
                 ),
               ),
+              // Clear Cart button (shown when cart has items)
+              if (items.isNotEmpty && !readOnly)
+                IconButton(
+                  onPressed: () => _showClearCartConfirmation(cartNotifier),
+                  icon: const Icon(Icons.delete_outline),
+                  tooltip: 'Clear Cart',
+                  color: Colors.red.shade700,
+                ),
               // Mock data button for testing
               if (items.isEmpty)
                 TextButton.icon(
