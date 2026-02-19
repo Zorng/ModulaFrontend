@@ -190,7 +190,7 @@ class _CashMovementCardState extends ConsumerState<CashMovementCard> {
                   color: const Color(0xFFFFF5F2),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                    color: const Color(0xFFED533C).withOpacity(0.2),
+                    color: const Color(0xFFED533C),
                     width: 1,
                   ),
                 ),
@@ -218,7 +218,7 @@ class _CashMovementCardState extends ConsumerState<CashMovementCard> {
                     Text(
                       'Open a cash session before adding a cash movement.',
                       style: textTheme.bodySmall?.copyWith(
-                        color: const Color(0xFFED533C).withOpacity(0.8),
+                        color: const Color(0xFFED533C),
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -334,7 +334,7 @@ class _CashMovementCardState extends ConsumerState<CashMovementCard> {
               decoration: InputDecoration(
                 hintText: 'Enter amount',
                 hintStyle: textTheme.bodyMedium?.copyWith(
-                  color: colorScheme.onSurfaceVariant.withOpacity(0.6),
+                  color: colorScheme.onSurfaceVariant,
                 ),
                 filled: true,
                 fillColor: Colors.white,
@@ -355,7 +355,7 @@ class _CashMovementCardState extends ConsumerState<CashMovementCard> {
                 disabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
                   borderSide: BorderSide(
-                    color: colorScheme.outlineVariant.withOpacity(0.38),
+                    color: colorScheme.outlineVariant,
                     width: 1,
                   ),
                 ),
@@ -385,7 +385,7 @@ class _CashMovementCardState extends ConsumerState<CashMovementCard> {
               decoration: InputDecoration(
                 hintText: 'Enter reason (required)',
                 hintStyle: textTheme.bodyMedium?.copyWith(
-                  color: colorScheme.onSurfaceVariant.withOpacity(0.6),
+                  color: colorScheme.onSurfaceVariant,
                 ),
                 filled: true,
                 fillColor: Colors.white,
@@ -406,7 +406,7 @@ class _CashMovementCardState extends ConsumerState<CashMovementCard> {
                 disabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
                   borderSide: BorderSide(
-                    color: colorScheme.outlineVariant.withOpacity(0.38),
+                    color: colorScheme.outlineVariant,
                     width: 1,
                   ),
                 ),
@@ -469,15 +469,15 @@ class _CashMovementCardState extends ConsumerState<CashMovementCard> {
           : null,
       style: OutlinedButton.styleFrom(
         backgroundColor: isSelected && enabled
-            ? colorScheme.primary.withOpacity(0.1)
+            ? colorScheme.primary
             : Colors.transparent,
         foregroundColor: enabled
             ? (isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant)
-            : colorScheme.onSurfaceVariant.withOpacity(0.38),
+            : colorScheme.onSurfaceVariant,
         side: BorderSide(
           color: enabled
               ? (isSelected ? colorScheme.primary : colorScheme.outlineVariant)
-              : colorScheme.outlineVariant.withOpacity(0.38),
+              : colorScheme.outlineVariant,
           width: isSelected && enabled ? 2 : 1,
         ),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -506,15 +506,15 @@ class _CashMovementCardState extends ConsumerState<CashMovementCard> {
           : null,
       style: OutlinedButton.styleFrom(
         backgroundColor: isSelected && enabled
-            ? colorScheme.primary.withOpacity(0.1)
+            ? colorScheme.primary
             : Colors.transparent,
         foregroundColor: enabled
             ? (isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant)
-            : colorScheme.onSurfaceVariant.withOpacity(0.38),
+            : colorScheme.onSurfaceVariant,
         side: BorderSide(
           color: enabled
               ? (isSelected ? colorScheme.primary : colorScheme.outlineVariant)
-              : colorScheme.outlineVariant.withOpacity(0.38),
+              : colorScheme.outlineVariant,
           width: isSelected && enabled ? 2 : 1,
         ),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),

@@ -315,7 +315,7 @@ class _CloseSessionModalState extends ConsumerState<CloseSessionModal> {
           decoration: BoxDecoration(
             color: Colors.blue.shade50,
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.blue.withOpacity(0.3)),
+            border: Border.all(color: Colors.blue),
           ),
           child: const Row(
             children: [
@@ -373,10 +373,10 @@ class _CloseSessionModalState extends ConsumerState<CloseSessionModal> {
             TableRow(
               children: [
                 _buildTableCell('KHR', isBold: true),
-                _buildTableCell('${expectedKhr.toStringAsFixed(0)}', align: TextAlign.right),
-                _buildTableCell('${countedKhr.toStringAsFixed(0)}', align: TextAlign.right),
+                _buildTableCell('$expectedKhr.toStringAsFixed(0)', align: TextAlign.right),
+                _buildTableCell('$countedKhr.toStringAsFixed(0)', align: TextAlign.right),
                 _buildTableCell(
-                  '${varianceKhr.toStringAsFixed(0)}',
+                  '$varianceKhr.toStringAsFixed(0)',
                    align: TextAlign.right,
                   color: _getVarianceColor(varianceKhr),
                   isBold: true,

@@ -199,7 +199,7 @@ class _AddCashMovementModalState extends ConsumerState<AddCashMovementModal> {
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
           key: ValueKey(_selectedType),
-          value: _selectedType,
+          initialValue: _selectedType,
           decoration: decoration,
           items: ['Paid In', 'Paid Out']
               .map((label) => DropdownMenuItem(

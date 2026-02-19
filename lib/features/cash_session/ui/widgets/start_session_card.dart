@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:modular_pos/core/theme/app_buttons.dart';
 import 'package:modular_pos/features/cash_session/ui/viewmodels/modal_form_state_provider.dart';
 import 'package:modular_pos/features/cash_session/ui/viewmodels/unsaved_input_provider.dart';
 
@@ -33,7 +32,7 @@ class _StartSessionCardState extends ConsumerState<StartSessionCard> {
   @override
   void initState() {
     super.initState();
-    
+
     // Restore saved form state
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final formState = ref.read(startSessionFormProvider);
@@ -49,22 +48,29 @@ class _StartSessionCardState extends ConsumerState<StartSessionCard> {
   }
 
   void _onUsdChanged() {
-    ref.read(startSessionFormProvider.notifier).updateUsdAmount(_usdController.text);
+    ref
+        .read(startSessionFormProvider.notifier)
+        .updateUsdAmount(_usdController.text);
     _updateUnsavedStatus();
   }
 
   void _onKhrChanged() {
-    ref.read(startSessionFormProvider.notifier).updateKhrAmount(_khrController.text);
+    ref
+        .read(startSessionFormProvider.notifier)
+        .updateKhrAmount(_khrController.text);
     _updateUnsavedStatus();
   }
 
   void _onNoteChanged() {
-    ref.read(startSessionFormProvider.notifier).updateNote(_noteController.text);
+    ref
+        .read(startSessionFormProvider.notifier)
+        .updateNote(_noteController.text);
     _updateUnsavedStatus();
   }
 
   void _updateUnsavedStatus() {
-    final hasData = _usdController.text.isNotEmpty ||
+    final hasData =
+        _usdController.text.isNotEmpty ||
         _khrController.text.isNotEmpty ||
         _noteController.text.isNotEmpty;
     ref.read(unsavedInputProvider.notifier).markStartSessionUnsaved(hasData);
@@ -97,9 +103,7 @@ class _StartSessionCardState extends ConsumerState<StartSessionCard> {
     return Card(
       color: Colors.white,
       elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -135,7 +139,7 @@ class _StartSessionCardState extends ConsumerState<StartSessionCard> {
               decoration: InputDecoration(
                 hintText: '0.00',
                 hintStyle: textTheme.bodyMedium?.copyWith(
-                  color: colorScheme.onSurfaceVariant.withOpacity(0.6),
+                  color: colorScheme.outline,
                 ),
                 filled: true,
                 fillColor: isApproved ? Colors.white : const Color(0xFFF7F7F7),
@@ -156,7 +160,7 @@ class _StartSessionCardState extends ConsumerState<StartSessionCard> {
                 disabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
                   borderSide: BorderSide(
-                    color: colorScheme.outlineVariant.withOpacity(0.38),
+                    color: colorScheme.outlineVariant,
                     width: 1,
                   ),
                 ),
@@ -189,7 +193,7 @@ class _StartSessionCardState extends ConsumerState<StartSessionCard> {
               decoration: InputDecoration(
                 hintText: '0.00',
                 hintStyle: textTheme.bodyMedium?.copyWith(
-                  color: colorScheme.onSurfaceVariant.withOpacity(0.6),
+                  color: colorScheme.outline,
                 ),
                 filled: true,
                 fillColor: isApproved ? Colors.white : const Color(0xFFF7F7F7),
@@ -210,7 +214,7 @@ class _StartSessionCardState extends ConsumerState<StartSessionCard> {
                 disabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
                   borderSide: BorderSide(
-                    color: colorScheme.outlineVariant.withOpacity(0.38),
+                    color: colorScheme.outlineVariant,
                     width: 1,
                   ),
                 ),
@@ -241,7 +245,7 @@ class _StartSessionCardState extends ConsumerState<StartSessionCard> {
               decoration: InputDecoration(
                 hintText: 'Enter note',
                 hintStyle: textTheme.bodyMedium?.copyWith(
-                  color: colorScheme.onSurfaceVariant.withOpacity(0.6),
+                  color: colorScheme.outline,
                 ),
                 filled: true,
                 fillColor: isApproved ? Colors.white : const Color(0xFFF7F7F7),
@@ -262,7 +266,7 @@ class _StartSessionCardState extends ConsumerState<StartSessionCard> {
                 disabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
                   borderSide: BorderSide(
-                    color: colorScheme.outlineVariant.withOpacity(0.38),
+                    color: colorScheme.outlineVariant,
                     width: 1,
                   ),
                 ),
@@ -278,7 +282,6 @@ class _StartSessionCardState extends ConsumerState<StartSessionCard> {
             ),
             const SizedBox(height: 16),
 
-
             // Start Cash Session Button
             SizedBox(
               width: double.infinity,
@@ -287,43 +290,47 @@ class _StartSessionCardState extends ConsumerState<StartSessionCard> {
                     ? () {
                         final usdText = _usdController.text.trim();
                         final khrText = _khrController.text.trim();
-                        
+
                         // Validate: at least one field must have a valid value
                         final usd = double.tryParse(usdText);
                         final khr = double.tryParse(khrText);
-                        
+
                         if (usd == null && khr == null) {
                           // Both fields are empty or invalid
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text('Please enter a valid opening float for at least one currency (USD or KHR)'),
+                              content: Text(
+                                'Please enter a valid opening float for at least one currency (USD or KHR)',
+                              ),
                               backgroundColor: Color(0xFFED533C),
                             ),
                           );
                           return;
                         }
-                        
+
                         // Use 0.0 as default for empty fields
                         final finalUsd = usd ?? 0.0;
                         final finalKhr = khr ?? 0.0;
                         final note = _noteController.text;
-                        
+
                         // Clear form state and unsaved status
                         ref.read(startSessionFormProvider.notifier).clear();
-                        ref.read(unsavedInputProvider.notifier).markStartSessionUnsaved(false);
-                        
+                        ref
+                            .read(unsavedInputProvider.notifier)
+                            .markStartSessionUnsaved(false);
+
                         widget.onSessionStarted(finalUsd, finalKhr, note);
                       }
                     : null,
                 style: FilledButton.styleFrom(
                   backgroundColor: isApproved
                       ? Theme.of(context).colorScheme.primary
-                      : const Color(0xFFED533C).withOpacity(0.1),
+                      : const Color(0xFFFFECE8),
                   foregroundColor: isApproved
                       ? Theme.of(context).colorScheme.onPrimary
-                      : const Color(0xFFED533C).withOpacity(0.4),
-                  disabledBackgroundColor: const Color(0xFFED533C).withOpacity(0.1),
-                  disabledForegroundColor: const Color(0xFFED533C).withOpacity(0.4),
+                      : const Color(0xFFB33F2E),
+                  disabledBackgroundColor: const Color(0xFFFFECE8),
+                  disabledForegroundColor: const Color(0xFFB33F2E),
                   minimumSize: const Size.fromHeight(48),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -348,11 +355,11 @@ class _StartSessionCardState extends ConsumerState<StartSessionCard> {
                   onPressed: isNoShift ? widget.onRequestSession : null,
                   style: OutlinedButton.styleFrom(
                     foregroundColor: isPending
-                        ? colorScheme.onSurfaceVariant.withOpacity(0.6)
+                        ? colorScheme.onSurfaceVariant
                         : colorScheme.primary,
                     side: BorderSide(
                       color: isPending
-                          ? colorScheme.outlineVariant.withOpacity(0.6)
+                          ? colorScheme.outlineVariant
                           : colorScheme.primary,
                       width: 1,
                     ),
@@ -369,7 +376,7 @@ class _StartSessionCardState extends ConsumerState<StartSessionCard> {
                         Icon(
                           Icons.check_circle_outline,
                           size: 20,
-                          color: colorScheme.onSurfaceVariant.withOpacity(0.6),
+                          color: colorScheme.onSurfaceVariant,
                         ),
                       if (isPending) const SizedBox(width: 8),
                       if (isNoShift)
@@ -406,6 +413,8 @@ class _StartSessionCardState extends ConsumerState<StartSessionCard> {
         'bgColor': const Color(0xFFFFF5F2),
         'iconColor': const Color(0xFFED533C),
         'titleColor': const Color(0xFFED533C),
+        'borderColor': const Color(0xFFF5D2CB),
+        'messageColor': const Color(0xFFC14A37),
       },
       SessionRequestStatus.pending: {
         'icon': Icons.pending_outlined,
@@ -414,6 +423,8 @@ class _StartSessionCardState extends ConsumerState<StartSessionCard> {
         'bgColor': const Color(0xFFFFF7ED),
         'iconColor': const Color(0xFFF59E0B),
         'titleColor': const Color(0xFFF59E0B),
+        'borderColor': const Color(0xFFFAD7A0),
+        'messageColor': const Color(0xFFD08A0A),
       },
       SessionRequestStatus.approved: {
         'icon': Icons.check_circle_outline,
@@ -422,6 +433,8 @@ class _StartSessionCardState extends ConsumerState<StartSessionCard> {
         'bgColor': const Color(0xFFECFDF5),
         'iconColor': const Color(0xFF10B981),
         'titleColor': const Color(0xFF10B981),
+        'borderColor': const Color(0xFFA7EBD3),
+        'messageColor': const Color(0xFF0E9A6D),
       },
     };
 
@@ -432,10 +445,7 @@ class _StartSessionCardState extends ConsumerState<StartSessionCard> {
       decoration: BoxDecoration(
         color: config['bgColor'],
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: (config['iconColor'] as Color).withOpacity(0.2),
-          width: 1,
-        ),
+        border: Border.all(color: config['borderColor'], width: 1),
       ),
       child: Row(
         children: [
@@ -456,7 +466,7 @@ class _StartSessionCardState extends ConsumerState<StartSessionCard> {
                 Text(
                   config['message'],
                   style: textTheme.bodySmall?.copyWith(
-                    color: (config['iconColor'] as Color).withOpacity(0.8),
+                    color: config['messageColor'],
                   ),
                 ),
               ],
