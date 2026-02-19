@@ -92,8 +92,9 @@ class _CategoryManagementPageState
                     : categories.isEmpty
                     ? Center(
                         child: Text(
-                          'No categories found',
+                          'No categories yet. Add a category to organize stock items.',
                           style: Theme.of(context).textTheme.bodyMedium,
+                          textAlign: TextAlign.center,
                         ),
                       )
                     : LayoutBuilder(

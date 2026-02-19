@@ -29,7 +29,7 @@ class InventoryStockItemsPage extends ConsumerStatefulWidget {
 class _InventoryStockItemsPageState
     extends ConsumerState<InventoryStockItemsPage> {
   final _searchController = TextEditingController();
-  String _categoryFilter = 'All';
+  String _categoryFilter = 'All Categories';
   _ActiveFilter _activeFilter = _ActiveFilter.all;
   String _selectedBranchId = 'all';
 
@@ -55,31 +55,27 @@ class _InventoryStockItemsPageState
       for (final c in categoryState.categories) c.id: c.name,
     };
     final items = inventoryState.items;
+    final hasNoStockItems = items.isEmpty;
 
     final userBranches =
         ref.watch(loginControllerProvider).user?.branches ?? const [];
     final branchEntries = _branchEntries(items, userBranches);
-    if (_selectedBranchId == 'all' && branchEntries.length == 2) {
-      _selectedBranchId = branchEntries.first['id'] == 'all'
-          ? branchEntries[1]['id']!
-          : branchEntries.first['id']!;
-    } else if (_selectedBranchId == 'all' && userBranches.length == 1) {
-      _selectedBranchId = userBranches.first.branchId.isNotEmpty
-          ? userBranches.first.branchId
-          : userBranches.first.id;
-    }
-    final branchLabel = _branchLabel(branchEntries);
-    final canSelectBranch = branchEntries.length > 1;
+    final effectiveBranchId = branchEntries.any(
+      (entry) => entry['id'] == _selectedBranchId,
+    )
+        ? _selectedBranchId
+        : 'all';
 
     final categories = [
-      'All',
+      'All Categories',
       ...{for (final entry in categoryLookup.entries) entry.value},
     ];
 
     final filtered = items.where((item) {
       final displayCategory = categoryLabel(item, categoryLookup);
       final matchesCategory =
-          _categoryFilter == 'All' || displayCategory == _categoryFilter;
+          _categoryFilter == 'All Categories' ||
+          displayCategory == _categoryFilter;
       final matchesSearch =
           _searchController.text.isEmpty ||
           item.name.toLowerCase().contains(
@@ -94,7 +90,7 @@ class _InventoryStockItemsPageState
         _ActiveFilter.inactive => !item.isActive,
       };
       final matchesBranch =
-          _selectedBranchId == 'all' || item.branchId == _selectedBranchId;
+          effectiveBranchId == 'all' || item.branchId == effectiveBranchId;
       return matchesCategory && matchesSearch && matchesActive && matchesBranch;
     }).toList();
 
@@ -139,27 +135,20 @@ class _InventoryStockItemsPageState
                               const SizedBox(width: 12),
                               Expanded(
                                 flex: 1,
-                                child: GestureDetector(
-                                  onTap: categoryState.categories.isEmpty
-                                      ? () => _showNoCategoriesDialog(context)
-                                      : null,
-                                  child: AbsorbPointer(
-                                    absorbing: categoryState.categories.isEmpty,
-                                    child: InventoryDropdown<String>(
-                                      initialValue: _categoryFilter,
-                                      label: const Text('Category'),
-                                      entries: categories
-                                          .map(
-                                            (category) => DropdownMenuEntry(
-                                              value: category,
-                                              label: category,
-                                            ),
-                                          )
-                                          .toList(),
-                                      onSelected: (value) => setState(
-                                        () => _categoryFilter = value ?? 'All',
-                                      ),
-                                    ),
+                                child: InventoryDropdown<String>(
+                                  initialValue: _categoryFilter,
+                                  label: const Text('Category'),
+                                  entries: categories
+                                      .map(
+                                        (category) => DropdownMenuEntry(
+                                          value: category,
+                                          label: category,
+                                        ),
+                                      )
+                                      .toList(),
+                                  onSelected: (value) => setState(
+                                    () => _categoryFilter =
+                                        value ?? 'All Categories',
                                   ),
                                 ),
                               ),
@@ -222,27 +211,20 @@ class _InventoryStockItemsPageState
                     Row(
                       children: [
                         Expanded(
-                          child: GestureDetector(
-                            onTap: categoryState.categories.isEmpty
-                                ? () => _showNoCategoriesDialog(context)
-                                : null,
-                            child: AbsorbPointer(
-                              absorbing: categoryState.categories.isEmpty,
-                              child: InventoryDropdown<String>(
-                                initialValue: _categoryFilter,
-                                label: const Text('Category'),
-                                entries: categories
-                                    .map(
-                                      (category) => DropdownMenuEntry(
-                                        value: category,
-                                        label: category,
-                                      ),
-                                    )
-                                    .toList(),
-                                onSelected: (value) => setState(
-                                  () => _categoryFilter = value ?? 'All',
-                                ),
-                              ),
+                          child: InventoryDropdown<String>(
+                            initialValue: _categoryFilter,
+                            label: const Text('Category'),
+                            entries: categories
+                                .map(
+                                  (category) => DropdownMenuEntry(
+                                    value: category,
+                                    label: category,
+                                  ),
+                                )
+                                .toList(),
+                            onSelected: (value) => setState(
+                              () =>
+                                  _categoryFilter = value ?? 'All Categories',
                             ),
                           ),
                         ),
@@ -287,15 +269,28 @@ class _InventoryStockItemsPageState
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
                 ),
-                OutlinedButton.icon(
-                  onPressed: canSelectBranch
-                      ? () => _showBranchSelector(branchEntries)
-                      : null,
-                  icon: const Icon(Icons.store_outlined),
-                  label: Text(branchLabel),
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(64, 40),
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                SizedBox(
+                  width: 220,
+                  child: InventoryDropdown<String>(
+                    initialValue: effectiveBranchId,
+                    label: const Text('Branch'),
+                    entries: branchEntries
+                        .map(
+                          (branch) => DropdownMenuEntry(
+                            value: branch['id']!,
+                            label: branch['name']!,
+                          ),
+                        )
+                        .toList(),
+                    onSelected: (value) {
+                      final selected = value ?? 'all';
+                      setState(() => _selectedBranchId = selected);
+                      ref
+                          .read(stockInventoryControllerProvider.notifier)
+                          .loadStockItems(
+                            branchId: selected == 'all' ? null : selected,
+                          );
+                    },
                   ),
                 ),
               ],
@@ -323,6 +318,49 @@ class _InventoryStockItemsPageState
                           textAlign: TextAlign.center,
                         ),
                       )
+                    : hasNoStockItems
+                    ? Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 520),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.inventory_2_outlined,
+                                  size: 48,
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'No stock items yet',
+                                  style: Theme.of(context).textTheme.titleLarge,
+                                  textAlign: TextAlign.center,
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Create your first stock item to start managing inventory in this tab.',
+                                  style: Theme.of(context).textTheme.bodyMedium
+                                      ?.copyWith(
+                                        color: Theme.of(context).hintColor,
+                                      ),
+                                  textAlign: TextAlign.center,
+                                ),
+                                const SizedBox(height: 16),
+                                SizedBox(
+                                  width: 220,
+                                  child: AppAddNewButton(
+                                    label: 'Create Stock Item',
+                                    onPressed: () =>
+                                        context.push(AppRoute.inventoryAddItem.path),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      )
                     : LayoutBuilder(
                         builder: (context, constraints) {
                           final isWide = !AppBreakpoints.isSmall(
@@ -332,8 +370,9 @@ class _InventoryStockItemsPageState
                             if (displayed.isEmpty) {
                               return const Center(
                                 child: Text(
-                                  'No items found',
+                                  'No stock items match your filters. Try a different category, status, or search term.',
                                   style: TextStyle(color: Colors.grey),
+                                  textAlign: TextAlign.center,
                                 ),
                               );
                             }
@@ -364,8 +403,9 @@ class _InventoryStockItemsPageState
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 child: const Text(
-                                  'No items found',
+                                  'No stock items match your filters. Try a different category, status, or search term.',
                                   style: TextStyle(color: Colors.grey),
+                                  textAlign: TextAlign.center,
                                 ),
                               ),
                             );
@@ -403,7 +443,6 @@ class _InventoryStockItemsPageState
                                         DataColumn(label: Text('No.', style: AppTableTheme.headerText,)),
                                         DataColumn(label: Text('Item', style: AppTableTheme.headerText,)),
                                         DataColumn(label: Text('Category', style: AppTableTheme.headerText,)),
-                                        DataColumn(label: Text('Piece Size', style: AppTableTheme.headerText,)),
                                         DataColumn(
                                           label: Text(
                                             'Assigned Branch (es)',
@@ -468,11 +507,6 @@ class _InventoryStockItemsPageState
                                                 ),
                                               ),
                                                                   
-                                              // price
-                                              DataCell(
-                                                Text(item.pieceSize.toString(), style: AppTableTheme.cellText,),
-                                              ),
-                                                                  
                                               // branch assignment
                                               DataCell(Text(assigned, style: AppTableTheme.cellText,)),
                                                                   
@@ -533,40 +567,6 @@ class _InventoryStockItemsPageState
     );
   }
 
-  Future<void> _showBranchSelector(List<Map<String, String>> branches) async {
-    if (branches.length <= 1) return;
-    final selection = await showModalBottomSheet<Map<String, String>>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) {
-        return SafeArea(
-          child: ListView.separated(
-            shrinkWrap: true,
-            itemBuilder: (context, index) {
-              final branch = branches[index];
-              final selected = branch['id'] == _selectedBranchId;
-              return ListTile(
-                title: Text(branch['name']!),
-                trailing: selected ? const Icon(Icons.check) : null,
-                onTap: () => Navigator.of(context).pop(branch),
-              );
-            },
-            separatorBuilder: (_, __) => const Divider(height: 1),
-            itemCount: branches.length,
-          ),
-        );
-      },
-    );
-
-    if (selection != null) {
-      final id = selection['id']!;
-      setState(() => _selectedBranchId = id);
-      ref
-          .read(stockInventoryControllerProvider.notifier)
-          .loadStockItems(branchId: id == 'all' ? null : id);
-    }
-  }
-
   List<Map<String, String>> _branchEntries(
     List<StockItem> items,
     List<UserBranch> userBranches,
@@ -587,58 +587,10 @@ class _InventoryStockItemsPageState
             .map((entry) => {'id': entry.key, 'name': entry.value})
             .toList()
           ..sort((a, b) => a['name']!.compareTo(b['name']!));
-    if (entries.length > 1) {
-      entries.insert(0, {'id': 'all', 'name': 'All branches'});
+    if (entries.every((entry) => entry['id'] != 'all')) {
+      entries.insert(0, {'id': 'all', 'name': 'All Branches'});
     }
     return entries;
-  }
-
-  String _branchLabel(List<Map<String, String>> branches) {
-    if (_selectedBranchId == 'all') return 'All branches';
-    for (final branch in branches) {
-      if (branch['id'] == _selectedBranchId) {
-        return branch['name']!;
-      }
-    }
-    if (branches.isNotEmpty) return branches.first['name']!;
-    return 'All branches';
-  }
-
-  Future<void> _showNoCategoriesDialog(BuildContext context) async {
-    final router = GoRouter.of(context);
-    final choice = await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Row(
-            children: [
-              const Text('No categories'),
-              const Spacer(),
-              IconButton(
-                tooltip: 'Cancel',
-                icon: const Icon(Icons.close),
-                onPressed: () => Navigator.of(context).pop(false),
-              ),
-            ],
-          ),
-          content: const Text(
-            'No categories available. Create a category now?',
-          ),
-          actions: [
-            ElevatedButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Create Category'),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (choice == true && mounted) {
-      await router.push(AppRoute.inventoryAddCategory.path);
-      if (!mounted) return;
-      ref.read(categoryControllerProvider.notifier).loadCategories();
-    }
   }
 
   String _assignedBranches(StockItem item, List<StockItem> allItems) {
