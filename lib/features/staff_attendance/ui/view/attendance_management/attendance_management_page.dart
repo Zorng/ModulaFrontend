@@ -10,7 +10,9 @@ import 'package:modular_pos/features/staff_attendance/ui/view/attendance_managem
 import 'package:modular_pos/features/staff_attendance/ui/view/attendance_management/widgets/attendance_management_record_card.dart';
 
 class AttendanceManagementPage extends ConsumerStatefulWidget {
-  const AttendanceManagementPage({super.key});
+  const AttendanceManagementPage({super.key, this.showAppBar = true});
+
+  final bool showAppBar;
 
   @override
   ConsumerState<AttendanceManagementPage> createState() =>
@@ -64,8 +66,10 @@ class _AttendanceManagementPageState
     } catch (error) {
       if (!mounted) return;
       setState(
-        () => _errorMessage =
-            UserErrorMessage.build(context: 'Failed to load attendance', error: error),
+        () => _errorMessage = UserErrorMessage.build(
+          context: 'Failed to load attendance',
+          error: error,
+        ),
       );
     } finally {
       if (mounted) {
@@ -77,10 +81,12 @@ class _AttendanceManagementPageState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Attendance Management'),
-        centerTitle: false,
-      ),
+      appBar: widget.showAppBar
+          ? AppBar(
+              title: const Text('Attendance Management'),
+              centerTitle: false,
+            )
+          : null,
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
