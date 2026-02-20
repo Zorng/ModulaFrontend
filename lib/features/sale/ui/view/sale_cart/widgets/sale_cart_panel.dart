@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/core/feedback/user_error_message.dart';
-import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
 import 'package:modular_pos/features/policy/ui/viewmodels/policy_viewmodel.dart';
@@ -11,7 +10,6 @@ import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_state.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_viewmodel.dart';
 import 'package:modular_pos/features/sale/ui/view/sale_cart/widgets/sale_cart_bottom_bar.dart';
 import 'package:modular_pos/features/sale/ui/view/sale_cart/widgets/sale_cart_content.dart';
-import 'package:modular_pos/features/sale/ui/view/sale_cart/widgets/sale_cart_readonly_banner.dart';
 import 'package:modular_pos/features/sale/ui/view/sale_cart/widgets/sale_order_type_selector.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
 
@@ -219,7 +217,6 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
     // Cash session check - comment out the next 2 lines and set readOnly = false for testing
     final readOnly =
         !gate.cashSessionLoading && gate.isBlockedByCashSessionPolicy;
-    final cashSessionPath = AppRoute.cashSession.path;
     final policyState = ref.watch(policyNotifierProvider);
     final salesPolicy = policyState.salesPolicy;
     final fxRate = salesPolicy.saleFxRateKhrPerUsd;
@@ -293,15 +290,6 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                if (readOnly) ...[
-                  SaleCartReadOnlyBanner(
-                    message:
-                        gate.blockingMessage ??
-                        'Read-only: start a cash session to begin selling.',
-                    cashSessionPath: cashSessionPath,
-                  ),
-                  const SizedBox(height: 16),
-                ],
                 // Order Type Section
                 Text(
                   'Order Type',

@@ -9,6 +9,7 @@ class SaleBottomNavShellPage extends StatelessWidget {
   const SaleBottomNavShellPage({super.key, required this.navigationShell});
 
   final StatefulNavigationShell navigationShell;
+  static const double _wideBottomTabHorizontalPadding = 210;
 
   static const _titles = <String>['Sale', 'Cart', 'Orders'];
 
@@ -62,13 +63,25 @@ class SaleBottomNavShellPage extends StatelessWidget {
                 ],
               ],
             ),
-            bottomNavigationBar: BottomNavigationBar(
-              currentIndex: wideIndex,
-              items: wideItems,
-              type: BottomNavigationBarType.fixed,
-              onTap: (tabIndex) {
-                navigationShell.goBranch(tabIndex == 0 ? 0 : 2);
-              },
+            bottomNavigationBar: Material(
+              color:
+                  Theme.of(context).bottomNavigationBarTheme.backgroundColor ??
+                  Theme.of(context).colorScheme.surface,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: _wideBottomTabHorizontalPadding,
+                ),
+                child: BottomNavigationBar(
+                  backgroundColor: Colors.transparent,
+                  elevation: 0,
+                  currentIndex: wideIndex,
+                  items: wideItems,
+                  type: BottomNavigationBarType.fixed,
+                  onTap: (tabIndex) {
+                    navigationShell.goBranch(tabIndex == 0 ? 0 : 2);
+                  },
+                ),
+              ),
             ),
           );
         }

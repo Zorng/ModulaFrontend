@@ -42,82 +42,101 @@ class SalePageMenuCatalog extends ConsumerWidget {
     final width = MediaQuery.of(context).size.width;
     final isLarge = AppBreakpoints.isLarge(width);
 
-    return GridView.builder(
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: gridCount,
-        mainAxisSpacing: 12,
-        crossAxisSpacing: 12,
-        childAspectRatio: itemAspectRatio,
-      ),
-      itemCount: items.length,
-      itemBuilder: (context, index) {
-        final item = items[index];
-        final categoryName = categoryLookup[item.categoryId] ?? 'Uncategorized';
-        return MenuItemCard(
-          title: item.name,
-          category: categoryName,
-          price: item.price,
-          imagePath: item.imageUrl,
-          onTap: () async {
-            SaleItemSelectionResult? selection;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const spacing = 2.0;
+        const minTileWidth = 170.0;
+        const minTileHeight = 250.0;
+        final fittingColumns =
+            ((constraints.maxWidth + spacing) / (minTileWidth + spacing))
+                .floor();
+        final effectiveGridCount = fittingColumns.clamp(1, gridCount);
+        final tileWidth =
+            (constraints.maxWidth - ((effectiveGridCount - 1) * spacing)) /
+            effectiveGridCount;
+        final tileHeight = (tileWidth / itemAspectRatio) < minTileHeight
+            ? minTileHeight
+            : (tileWidth / itemAspectRatio);
 
-            // Show modal dialog on wide screens, navigate on mobile
-            if (isLarge) {
-              selection = await showDialog<SaleItemSelectionResult>(
-                context: context,
-                builder: (context) => Dialog(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(
-                      maxWidth: 600,
-                      maxHeight: 700,
-                    ),
-                    child: SaleItemDetailPage(
-                      item: item,
-                      useMockData: useMockData,
-                    ),
-                  ),
-                ),
-              );
-            } else {
-              selection = await context.push<SaleItemSelectionResult>(
-                AppRoute.saleItemDetail.path,
-                extra: item,
-              );
-            }
+        return GridView.builder(
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: effectiveGridCount,
+            mainAxisSpacing: spacing,
+            crossAxisSpacing: spacing,
+            mainAxisExtent: tileHeight,
+          ),
+          itemCount: items.length,
+          itemBuilder: (context, index) {
+            final item = items[index];
+            final categoryName =
+                categoryLookup[item.categoryId] ?? 'Uncategorized';
+            return MenuItemCard(
+              title: item.name,
+              category: categoryName,
+              price: item.price,
+              imagePath: item.imageUrl,
+              onTap: () async {
+                SaleItemSelectionResult? selection;
 
-            if (selection != null && context.mounted) {
-              // TODO: Temporarily commented out for testing - re-enable before production
-              final gate = ref.read(saleAccessGateProvider);
-              if (!gate.canMutateCart) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      gate.blockingMessage ??
-                          'Cash session required. Start one to begin selling.',
-                    ),
-                  ),
-                );
-                return;
-              }
-              try {
-                await ref
-                    .read(saleCartProvider.notifier)
-                    .addSelection(selection);
-              } catch (e, st) {
-                AppLog.e('Add item failed', error: e, stackTrace: st);
-                if (!context.mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      UserErrorMessage.build(
-                        context: 'Failed to add item',
-                        error: e,
+                // Show modal dialog on wide screens, navigate on mobile
+                if (isLarge) {
+                  selection = await showDialog<SaleItemSelectionResult>(
+                    context: context,
+                    builder: (context) => Dialog(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(
+                          maxWidth: 600,
+                          maxHeight: 700,
+                        ),
+                        child: SaleItemDetailPage(
+                          item: item,
+                          useMockData: useMockData,
+                        ),
                       ),
                     ),
-                  ),
-                );
-              }
-            }
+                  );
+                } else {
+                  selection = await context.push<SaleItemSelectionResult>(
+                    AppRoute.saleItemDetail.path,
+                    extra: item,
+                  );
+                }
+
+                if (selection != null && context.mounted) {
+                  // TODO: Temporarily commented out for testing - re-enable before production
+                  final gate = ref.read(saleAccessGateProvider);
+                  if (!gate.canMutateCart) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          gate.blockingMessage ??
+                              'Cash session required. Start one to begin selling.',
+                        ),
+                      ),
+                    );
+                    return;
+                  }
+                  try {
+                    await ref
+                        .read(saleCartProvider.notifier)
+                        .addSelection(selection);
+                  } catch (e, st) {
+                    AppLog.e('Add item failed', error: e, stackTrace: st);
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          UserErrorMessage.build(
+                            context: 'Failed to add item',
+                            error: e,
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+                }
+              },
+            );
           },
         );
       },

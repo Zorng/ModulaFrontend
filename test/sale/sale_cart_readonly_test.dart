@@ -80,8 +80,8 @@ void main() {
 
     final gateStateProvider =
         NotifierProvider<_TestSaleAccessGateNotifier, SaleAccessGate>(
-      _TestSaleAccessGateNotifier.new,
-    );
+          _TestSaleAccessGateNotifier.new,
+        );
 
     const item = MenuItem(
       id: 'menu-1',
@@ -137,8 +137,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('Cash session required'), findsOneWidget);
-    expect(find.widgetWithText(FilledButton, 'Cash session'), findsOneWidget);
+    expect(find.textContaining('Cash session required'), findsNothing);
+    expect(find.widgetWithText(FilledButton, 'Cash session'), findsNothing);
     expect(tester.widget<FilledButton>(checkoutButton).onPressed, isNull);
   });
 }
