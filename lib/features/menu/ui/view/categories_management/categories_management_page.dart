@@ -43,6 +43,7 @@ class _CategoriesManagementPageState
             AppSearchAddBar(
               searchHint: 'Search categories...',
               onSearchChanged: (_) {},
+              addButtonLabel: 'Add category',
               onAddPressed: () {
                 context.push(AppRoute.adminMenuAddCategory.path);
               },

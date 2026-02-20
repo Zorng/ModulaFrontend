@@ -73,6 +73,7 @@ class _MenuPageState extends ConsumerState<MenuPage> {
                 error: menuState.error,
                 items: items,
                 categories: menuState.categories,
+                branches: menuState.branches,
                 onItemTap: (item) => _openItemDetail(context, item),
               ),
             ),

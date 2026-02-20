@@ -99,10 +99,10 @@ class _CategoryManagementPageState
                       )
                     : LayoutBuilder(
                         builder: (context, constraints) {
-                          final isWide = !AppBreakpoints.isSmall(
-                            constraints.maxWidth,
+                          final hasNavigationRail = AppBreakpoints.isLarge(
+                            MediaQuery.of(context).size.width,
                           );
-                          if (!isWide) {
+                          if (!hasNavigationRail) {
                             return ListView.builder(
                               padding: const EdgeInsets.all(16),
                               itemCount: categories.length,
@@ -124,156 +124,164 @@ class _CategoryManagementPageState
                               constraints: BoxConstraints(
                                 minWidth: constraints.maxWidth,
                               ),
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: AppTableTheme.background,
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                padding: const EdgeInsets.all(24),
-                                child: SingleChildScrollView(
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadiusGeometry.circular(
-                                      12,
+                              child: SingleChildScrollView(
+                                child: ClipRRect(
+                                  borderRadius: BorderRadiusGeometry.circular(
+                                    12,
+                                  ),
+                                  child: DataTable(
+                                    dataRowMinHeight: 60,
+                                    dataRowMaxHeight: 70,
+                                    headingRowColor: WidgetStateProperty.all(
+                                      AppTableTheme.headerBackground,
                                     ),
-                                    child: DataTable(
-                                      dataRowMinHeight: 60,
-                                      dataRowMaxHeight: 70,
-                                      headingRowColor: WidgetStateProperty.all(
-                                        AppTableTheme.headerBackground,
+                                    dataRowColor: const WidgetStatePropertyAll(
+                                      AppTableTheme.background,
+                                    ),
+                                    dividerThickness: 1,
+                                    border: const TableBorder(
+                                      top: BorderSide(
+                                        color: AppTableTheme.divider,
                                       ),
-                                      dividerThickness: 1,
-                                      border: const TableBorder(
-                                        horizontalInside: BorderSide(
-                                          color: AppTableTheme.divider,
+                                      bottom: BorderSide(
+                                        color: AppTableTheme.divider,
+                                      ),
+                                      left: BorderSide(
+                                        color: AppTableTheme.divider,
+                                      ),
+                                      right: BorderSide(
+                                        color: AppTableTheme.divider,
+                                      ),
+                                      horizontalInside: BorderSide(
+                                        color: AppTableTheme.divider,
+                                      ),
+                                    ),
+                                    columns: const [
+                                      DataColumn(
+                                        label: Text(
+                                          'No.',
+                                          style: AppTableTheme.headerText,
                                         ),
                                       ),
-                                      columns: const [
-                                        DataColumn(
-                                          label: Text(
-                                            'No.',
-                                            style: AppTableTheme.headerText,
-                                          ),
+                                      DataColumn(
+                                        label: Text(
+                                          'Category name',
+                                          style: AppTableTheme.headerText,
                                         ),
-                                        DataColumn(
-                                          label: Text(
-                                            'Category name',
-                                            style: AppTableTheme.headerText,
-                                          ),
+                                      ),
+                                      DataColumn(
+                                        label: Text(
+                                          'Item count',
+                                          style: AppTableTheme.headerText,
                                         ),
-                                        DataColumn(
-                                          label: Text(
-                                            'Item count',
-                                            style: AppTableTheme.headerText,
-                                          ),
+                                      ),
+                                      DataColumn(
+                                        label: Text(
+                                          'Status',
+                                          style: AppTableTheme.headerText,
                                         ),
-                                        DataColumn(
-                                          label: Text(
-                                            'Status',
-                                            style: AppTableTheme.headerText,
-                                          ),
+                                      ),
+                                      DataColumn(
+                                        label: Text(
+                                          'Action',
+                                          style: AppTableTheme.headerText,
                                         ),
-                                        DataColumn(
-                                          label: Text(
-                                            'Action',
-                                            style: AppTableTheme.headerText,
-                                          ),
-                                        ),
-                                      ],
-                                      rows: List<DataRow>.generate(
-                                        categories.length,
-                                        (index) {
-                                          final category = categories[index];
-                                          final isActive = category.isActive;
-                                          final stockCount =
-                                              itemCountByCategory[
-                                                    category.name
-                                                  ] ??
-                                                  0;
-                                          return DataRow(
-                                            cells: [
-                                              DataCell(
-                                                Text(
-                                                  '${index + 1}',
-                                                  style: AppTableTheme.cellText,
-                                                ),
+                                      ),
+                                    ],
+                                    rows: List<DataRow>.generate(
+                                      categories.length,
+                                      (index) {
+                                        final category = categories[index];
+                                        final isActive = category.isActive;
+                                        final stockCount =
+                                            itemCountByCategory[
+                                                  category.name
+                                                ] ??
+                                                0;
+                                        return DataRow(
+                                          cells: [
+                                            DataCell(
+                                              Text(
+                                                '${index + 1}',
+                                                style: AppTableTheme.cellText,
                                               ),
-                                              DataCell(
-                                                Column(
-                                                  mainAxisAlignment:
-                                                      MainAxisAlignment.center,
-                                                  crossAxisAlignment:
-                                                      CrossAxisAlignment.start,
-                                                  children: [
+                                            ),
+                                            DataCell(
+                                              Column(
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment.center,
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    category.name,
+                                                    style: AppTableTheme.cellText
+                                                        .copyWith(
+                                                          fontWeight:
+                                                              FontWeight.w600,
+                                                        ),
+                                                  ),
+                                                  if (category.description !=
+                                                          null &&
+                                                      category.description!
+                                                          .isNotEmpty)
                                                     Text(
-                                                      category.name,
-                                                      style: AppTableTheme.cellText
-                                                          .copyWith(
-                                                            fontWeight:
-                                                                FontWeight.w600,
+                                                      category.description!,
+                                                      maxLines: 1,
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                      style: Theme.of(context)
+                                                          .textTheme
+                                                          .bodySmall
+                                                          ?.copyWith(
+                                                            color: Theme.of(
+                                                              context,
+                                                            ).hintColor,
                                                           ),
                                                     ),
-                                                    if (category.description !=
-                                                            null &&
-                                                        category.description!
-                                                            .isNotEmpty)
-                                                      Text(
-                                                        category.description!,
-                                                        maxLines: 1,
-                                                        overflow:
-                                                            TextOverflow.ellipsis,
-                                                        style: Theme.of(context)
-                                                            .textTheme
-                                                            .bodySmall
-                                                            ?.copyWith(
-                                                              color: Theme.of(
-                                                                context,
-                                                              ).hintColor,
-                                                            ),
-                                                      ),
-                                                  ],
-                                                ),
+                                                ],
                                               ),
-                                              DataCell(
-                                                Text(
-                                                  '$stockCount',
-                                                  style: AppTableTheme.cellText,
-                                                ),
+                                            ),
+                                            DataCell(
+                                              Text(
+                                                '$stockCount',
+                                                style: AppTableTheme.cellText,
                                               ),
-                                              DataCell(
-                                                Container(
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                        horizontal: 12,
-                                                        vertical: 6,
-                                                      ),
-                                                  decoration: isActive
+                                            ),
+                                            DataCell(
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 12,
+                                                      vertical: 6,
+                                                    ),
+                                                decoration: isActive
+                                                    ? AppTableTheme
+                                                        .healthyDecoration
+                                                    : AppTableTheme
+                                                        .dangerDecoration,
+                                                child: Text(
+                                                  isActive
+                                                      ? 'Active'
+                                                      : 'Inactive',
+                                                  style: isActive
                                                       ? AppTableTheme
-                                                          .healthyDecoration
+                                                          .healthyText
                                                       : AppTableTheme
-                                                          .dangerDecoration,
-                                                  child: Text(
-                                                    isActive
-                                                        ? 'Active'
-                                                        : 'Inactive',
-                                                    style: isActive
-                                                        ? AppTableTheme
-                                                            .healthyText
-                                                        : AppTableTheme
-                                                            .dangerText,
-                                                  ),
+                                                          .dangerText,
                                                 ),
                                               ),
-                                              DataCell(
-                                                InventoryCategoryActionMenu(
-                                                  category: category,
-                                                  compact: false,
-                                                  useDialog: true,
-                                                ),
+                                            ),
+                                            DataCell(
+                                              InventoryCategoryActionMenu(
+                                                category: category,
+                                                compact: false,
+                                                useDialog: true,
                                               ),
-                                            ],
-                                          );
-                                        },
-                                      ),
+                                            ),
+                                          ],
+                                        );
+                                      },
                                     ),
                                   ),
                                 ),

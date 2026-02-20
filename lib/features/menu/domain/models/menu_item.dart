@@ -8,6 +8,7 @@ class MenuItem {
     this.modifierGroupIds = const [],
     this.description = '',
     this.branchIds = const [],
+    this.isActive = true,
   });
 
   final String id;
@@ -18,6 +19,7 @@ class MenuItem {
   final List<String> modifierGroupIds;
   final String description;
   final List<String> branchIds;
+  final bool isActive;
 
   MenuItem copyWith({
     String? id,
@@ -28,6 +30,7 @@ class MenuItem {
     List<String>? modifierGroupIds,
     String? description,
     List<String>? branchIds,
+    bool? isActive,
   }) {
     return MenuItem(
       id: id ?? this.id,
@@ -38,6 +41,7 @@ class MenuItem {
       modifierGroupIds: modifierGroupIds ?? this.modifierGroupIds,
       description: description ?? this.description,
       branchIds: branchIds ?? this.branchIds,
+      isActive: isActive ?? this.isActive,
     );
   }
 
@@ -80,6 +84,7 @@ class MenuItem {
       branchIds: (json['branchIds'] as List<dynamic>? ?? const [])
           .map((e) => e.toString())
           .toList(),
+      isActive: _asBool(json['isActive'], fallback: true),
     );
   }
 
@@ -92,5 +97,17 @@ class MenuItem {
         'modifierGroupIds': modifierGroupIds,
         'description': description,
         'branchIds': branchIds,
+        'isActive': isActive,
       };
+}
+
+bool _asBool(dynamic value, {required bool fallback}) {
+  if (value is bool) return value;
+  if (value is num) return value != 0;
+  if (value is String) {
+    final lower = value.trim().toLowerCase();
+    if (lower == 'true' || lower == '1') return true;
+    if (lower == 'false' || lower == '0') return false;
+  }
+  return fallback;
 }

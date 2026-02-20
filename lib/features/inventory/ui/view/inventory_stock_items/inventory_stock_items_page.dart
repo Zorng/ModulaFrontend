@@ -6,7 +6,6 @@ import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/theme/app_table_theme.dart';
 import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/core/widgets/forms/app_search_bar.dart';
-import 'package:modular_pos/core/widgets/forms/app_search_add_bar.dart';
 import 'package:modular_pos/core/widgets/buttons/app_add_new_button.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
 import 'package:modular_pos/features/inventory/ui/view/inventory_stock_items/inventory_stock_items_utils.dart';
@@ -109,191 +108,155 @@ class _InventoryStockItemsPageState
           children: [
             LayoutBuilder(
               builder: (context, constraints) {
-                final isWide = !AppBreakpoints.isSmall(constraints.maxWidth);
-                if (isWide) {
-                  return Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 1440),
-                      child: Column(
-                        children: [
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              Expanded(
-                                flex: 3,
-                                child: ConstrainedBox(
-                                  constraints: const BoxConstraints(
-                                    maxWidth: 366,
-                                  ),
-                                  child: AppSearchBar(
-                                    hintText: 'Search by name or barcode',
-                                    controller: _searchController,
-                                    onChanged: (_) => setState(() {}),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                flex: 1,
-                                child: InventoryDropdown<String>(
-                                  initialValue: _categoryFilter,
-                                  label: const Text('Category'),
-                                  entries: categories
-                                      .map(
-                                        (category) => DropdownMenuEntry(
-                                          value: category,
-                                          label: category,
-                                        ),
-                                      )
-                                      .toList(),
-                                  onSelected: (value) => setState(
-                                    () => _categoryFilter =
-                                        value ?? 'All Categories',
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              SizedBox(
-                                width: 200,
-                                child: InventoryDropdown<_ActiveFilter>(
-                                  initialValue: _activeFilter,
-                                  label: const Text('Status'),
-                                  entries: const [
-                                    DropdownMenuEntry(
-                                      value: _ActiveFilter.all,
-                                      label: 'All statuses',
-                                    ),
-                                    DropdownMenuEntry(
-                                      value: _ActiveFilter.active,
-                                      label: 'Active',
-                                    ),
-                                    DropdownMenuEntry(
-                                      value: _ActiveFilter.inactive,
-                                      label: 'Inactive',
-                                    ),
-                                  ],
-                                  onSelected: (value) => setState(
-                                    () => _activeFilter =
-                                        value ?? _ActiveFilter.all,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              SizedBox(
-                                width: 140,
-                                child: AppAddNewButton(
-                                  label: 'Add new',
-                                  onPressed: () => context.push(
-                                    AppRoute.inventoryAddItem.path,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                        ],
-                      ),
+                final hasNavigationRail = AppBreakpoints.isLarge(
+                  MediaQuery.of(context).size.width,
+                );
+                final availableWidth = constraints.maxWidth;
+                final contentWidth = (availableWidth - 32).clamp(0.0, double.infinity);
+                final desktopCategoryWidth = (availableWidth * 0.16).clamp(
+                  170.0,
+                  220.0,
+                );
+                final desktopStatusWidth = (availableWidth * 0.14).clamp(
+                  150.0,
+                  190.0,
+                );
+                final desktopBranchWidth = (availableWidth * 0.18).clamp(
+                  180.0,
+                  240.0,
+                );
+                final desktopButtonWidth = 132.0;
+                final compactButtonWidth = contentWidth < 420 ? 108.0 : 120.0;
+                final button = AppAddNewButton(
+                  label: 'Add new',
+                  onPressed: () => context.push(AppRoute.inventoryAddItem.path),
+                );
+
+                final categoryFilter = InventoryDropdown<String>(
+                  initialValue: _categoryFilter,
+                  entries: categories
+                      .map(
+                        (category) => DropdownMenuEntry(
+                          value: category,
+                          label: category,
+                        ),
+                      )
+                      .toList(),
+                  onSelected: (value) => setState(
+                    () => _categoryFilter = value ?? 'All Categories',
+                  ),
+                );
+
+                final statusFilter = InventoryDropdown<_ActiveFilter>(
+                  initialValue: _activeFilter,
+                  entries: const [
+                    DropdownMenuEntry(
+                      value: _ActiveFilter.all,
+                      label: 'All statuses',
                     ),
+                    DropdownMenuEntry(
+                      value: _ActiveFilter.active,
+                      label: 'Active',
+                    ),
+                    DropdownMenuEntry(
+                      value: _ActiveFilter.inactive,
+                      label: 'Inactive',
+                    ),
+                  ],
+                  onSelected: (value) => setState(
+                    () => _activeFilter = value ?? _ActiveFilter.all,
+                  ),
+                );
+
+                final branchFilter = InventoryDropdown<String>(
+                  initialValue: effectiveBranchId,
+                  entries: branchEntries
+                      .map(
+                        (branch) => DropdownMenuEntry(
+                          value: branch['id']!,
+                          label: branch['name']!,
+                        ),
+                      )
+                      .toList(),
+                  onSelected: (value) {
+                    final selected = value ?? 'all';
+                    setState(() => _selectedBranchId = selected);
+                    ref
+                        .read(stockInventoryControllerProvider.notifier)
+                        .loadStockItems(
+                          branchId: selected == 'all' ? null : selected,
+                        );
+                  },
+                );
+
+                if (hasNavigationRail) {
+                  return Row(
+                    children: [
+                      Expanded(
+                        child: AppSearchBar(
+                          hintText: 'Search by name or barcode',
+                          fillColor: Colors.white,
+                          controller: _searchController,
+                          onChanged: (_) => setState(() {}),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      SizedBox(
+                        width: desktopCategoryWidth,
+                        child: categoryFilter,
+                      ),
+                      const SizedBox(width: 12),
+                      SizedBox(
+                        width: desktopStatusWidth,
+                        child: statusFilter,
+                      ),
+                      const SizedBox(width: 12),
+                      SizedBox(
+                        width: desktopBranchWidth,
+                        child: branchFilter,
+                      ),
+                      const SizedBox(width: 12),
+                      SizedBox(width: desktopButtonWidth, child: button),
+                    ],
                   );
                 }
 
-                // Small / default layout
-                return Column(
-                  children: [
-                    AppSearchAddBar(
-                      searchHint: 'Search by name or barcode',
-                      searchController: _searchController,
-                      onSearchChanged: (_) => setState(() {}),
-                      onAddPressed: () =>
-                          context.push(AppRoute.inventoryAddItem.path),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: InventoryDropdown<String>(
-                            initialValue: _categoryFilter,
-                            label: const Text('Category'),
-                            entries: categories
-                                .map(
-                                  (category) => DropdownMenuEntry(
-                                    value: category,
-                                    label: category,
-                                  ),
-                                )
-                                .toList(),
-                            onSelected: (value) => setState(
-                              () =>
-                                  _categoryFilter = value ?? 'All Categories',
+                return Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: AppSearchBar(
+                              hintText: 'Search by name or barcode',
+                              fillColor: Colors.white,
+                              controller: _searchController,
+                              onChanged: (_) => setState(() {}),
                             ),
                           ),
-                        ),
-
-                        const SizedBox(width: 12),
-                        SizedBox(
-                          width: 200,
-                          child: InventoryDropdown<_ActiveFilter>(
-                            initialValue: _activeFilter,
-                            label: const Text('Status'),
-                            entries: const [
-                              DropdownMenuEntry(
-                                value: _ActiveFilter.all,
-                                label: 'All statuses',
-                              ),
-                              DropdownMenuEntry(
-                                value: _ActiveFilter.active,
-                                label: 'Active',
-                              ),
-                              DropdownMenuEntry(
-                                value: _ActiveFilter.inactive,
-                                label: 'Inactive',
-                              ),
-                            ],
-                            onSelected: (value) => setState(
-                              () => _activeFilter = value ?? _ActiveFilter.all,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                  ],
+                          const SizedBox(width: 8),
+                          SizedBox(width: compactButtonWidth, child: button),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(child: statusFilter),
+                          const SizedBox(width: 8),
+                          Expanded(child: categoryFilter),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: contentWidth,
+                        child: branchFilter,
+                      ),
+                    ],
+                  ),
                 );
               },
-            ),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    '${displayed.length} item${displayed.length == 1 ? '' : 's'}',
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                ),
-                SizedBox(
-                  width: 220,
-                  child: InventoryDropdown<String>(
-                    initialValue: effectiveBranchId,
-                    label: const Text('Branch'),
-                    entries: branchEntries
-                        .map(
-                          (branch) => DropdownMenuEntry(
-                            value: branch['id']!,
-                            label: branch['name']!,
-                          ),
-                        )
-                        .toList(),
-                    onSelected: (value) {
-                      final selected = value ?? 'all';
-                      setState(() => _selectedBranchId = selected);
-                      ref
-                          .read(stockInventoryControllerProvider.notifier)
-                          .loadStockItems(
-                            branchId: selected == 'all' ? null : selected,
-                          );
-                    },
-                  ),
-                ),
-              ],
             ),
             const SizedBox(height: 16),
             Expanded(
@@ -363,10 +326,10 @@ class _InventoryStockItemsPageState
                       )
                     : LayoutBuilder(
                         builder: (context, constraints) {
-                          final isWide = !AppBreakpoints.isSmall(
-                            constraints.maxWidth,
+                          final hasNavigationRail = AppBreakpoints.isLarge(
+                            MediaQuery.of(context).size.width,
                           );
-                          if (!isWide) {
+                          if (!hasNavigationRail) {
                             if (displayed.isEmpty) {
                               return const Center(
                                 child: Text(
@@ -417,29 +380,34 @@ class _InventoryStockItemsPageState
                               constraints: BoxConstraints(
                                 minWidth: constraints.maxWidth,
                               ),
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: AppTableTheme.background,
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                padding: const EdgeInsets.all(24),
-                                child: SingleChildScrollView(
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadiusGeometry.circular(12),
-                                    child: DataTable(
-                                      dataRowMinHeight: 60,
-                                      dataRowMaxHeight: 70,
-                                                                    
-                                      headingRowColor: WidgetStateProperty.all(
-                                        AppTableTheme.headerBackground,
+                              child: SingleChildScrollView(
+                                child: ClipRRect(
+                                  borderRadius: BorderRadiusGeometry.circular(12),
+                                  child: DataTable(
+                                    dataRowMinHeight: 60,
+                                    dataRowMaxHeight: 70,
+                                    headingRowColor: WidgetStateProperty.all(
+                                      AppTableTheme.headerBackground,
+                                    ),
+                                    dataRowColor: const WidgetStatePropertyAll(
+                                      AppTableTheme.background,
+                                    ),
+                                    dividerThickness: 1,
+                                    border: const TableBorder(
+                                      top: BorderSide(
+                                        color: AppTableTheme.divider,
                                       ),
-                                      dividerThickness: 1,
-                                      border: const TableBorder(
-                                        horizontalInside: BorderSide(
-                                          color: AppTableTheme.divider,
-                                        ),
+                                      bottom: BorderSide(
+                                        color: AppTableTheme.divider,
                                       ),
-                                      columns: const [
+                                      left: BorderSide(
+                                        color: AppTableTheme.divider,
+                                      ),
+                                      right: BorderSide(
+                                        color: AppTableTheme.divider,
+                                      ),
+                                    ),
+                                    columns: const [
                                         DataColumn(label: Text('No.', style: AppTableTheme.headerText,)),
                                         DataColumn(label: Text('Item', style: AppTableTheme.headerText,)),
                                         DataColumn(label: Text('Category', style: AppTableTheme.headerText,)),
@@ -451,7 +419,7 @@ class _InventoryStockItemsPageState
                                         DataColumn(label: Text('Status', style: AppTableTheme.headerText,)),
                                         DataColumn(label: Text('Action', style: AppTableTheme.headerText,)),
                                       ],
-                                      rows: List<DataRow>.generate(
+                                    rows: List<DataRow>.generate(
                                         displayed.length,
                                         (index) {
                                           final item = displayed[index];
@@ -550,7 +518,6 @@ class _InventoryStockItemsPageState
                                             ],
                                           );
                                         },
-                                      ),
                                     ),
                                   ),
                                 ),

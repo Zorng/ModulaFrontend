@@ -94,6 +94,18 @@ class _StockItemFormPageState extends ConsumerState<StockItemFormPage> {
         const <UserBranch>[];
 
     final categoryOptions = categoryState.categories;
+    if (_mode == StockItemFormMode.create) {
+      if (categoryOptions.isEmpty) {
+        _categoryId = null;
+        _categoryLabel = null;
+      } else if (_categoryId == null ||
+          _categoryId!.isEmpty ||
+          !categoryOptions.any((c) => c.id == _categoryId)) {
+        _categoryId = categoryOptions.first.id;
+        _categoryLabel = categoryOptions.first.name;
+        _categoryError = null;
+      }
+    }
     final usageTags = _selectedTypes.isEmpty
         ? const <String>[]
         : _selectedTypes.toList();
@@ -357,99 +369,128 @@ class _StockItemFormPageState extends ConsumerState<StockItemFormPage> {
     );
 
     final fields = <Widget>[
-      TextFormField(
-        controller: _nameCtrl,
-        maxLength: 20,
-        enabled: isEditing,
-        readOnly: !isEditing,
-        decoration: const InputDecoration(
-          labelText: 'Item name',
-          hintText: 'e.g., Milk 1000ml',
+      _RequiredFieldLabel(
+        text: 'Item name',
+        isRequired: true,
+        child: TextFormField(
+          controller: _nameCtrl,
+          maxLength: 20,
+          enabled: isEditing,
+          readOnly: !isEditing,
+          decoration: const InputDecoration(
+            hintText: 'e.g., Milk 1000ml',
+          ),
+          validator: isEditing
+              ? (value) =>
+                    value == null || value.trim().isEmpty ? 'Required' : null
+              : null,
         ),
-        validator: isEditing
-            ? (value) =>
-                  value == null || value.trim().isEmpty ? 'Required' : null
-            : null,
       ),
-      AbsorbPointer(
-        absorbing: !isEditing,
-        child: InventoryDropdown<String>(
-          initialValue: _categoryId,
-          label: const Text('Category'),
-          enabled: true,
-          entries: categoryOptions
-              .map(
-                (category) =>
-                    DropdownMenuEntry(value: category.id, label: category.name),
-              )
-              .toList(),
-          onSelected: isEditing
+      _RequiredFieldLabel(
+        text: 'Category',
+        isRequired: true,
+        child: AbsorbPointer(
+          absorbing: !isEditing,
+          child: InventoryDropdown<String>(
+            initialValue: categoryOptions.isEmpty
+                ? '__no_category__'
+                : (_categoryId ?? categoryOptions.first.id),
+            enabled: categoryOptions.isNotEmpty,
+            entries: categoryOptions.isEmpty
+                ? const [
+                    DropdownMenuEntry(
+                      value: '__no_category__',
+                      label: 'No category',
+                    ),
+                  ]
+                : categoryOptions
+                    .map(
+                      (category) => DropdownMenuEntry(
+                        value: category.id,
+                        label: category.name,
+                      ),
+                    )
+                    .toList(),
+            onSelected: isEditing && categoryOptions.isNotEmpty
+                ? (value) {
+                    if (value == null) return;
+                    final selected = categoryOptions.firstWhere(
+                      (c) => c.id == value,
+                      orElse: () => InventoryCategory(
+                        id: value,
+                        name: value,
+                        isActive: true,
+                      ),
+                    );
+                    setState(() {
+                      _categoryId = selected.id;
+                      _categoryLabel = selected.name;
+                      _categoryError = null;
+                    });
+                  }
+                : null,
+            errorText: isEditing ? _categoryError : null,
+          ),
+        ),
+      ),
+      _RequiredFieldLabel(
+        text: 'Base unit',
+        isRequired: true,
+        child: AbsorbPointer(
+          absorbing: !isEditing,
+          child: InventoryDropdown<String>(
+            initialValue: _baseUnit,
+            helperText: 'ml for liquids, g for solids, pcs for countable items',
+            enabled: true,
+            entries: _baseUnitOptions
+                .map((unit) => DropdownMenuEntry(value: unit, label: unit))
+                .toList(),
+            onSelected: isEditing
+                ? (value) => setState(() {
+                    _baseUnit = value;
+                    _baseUnitError = null;
+                  })
+                : null,
+            errorText: isEditing ? _baseUnitError : null,
+          ),
+        ),
+      ),
+      _RequiredFieldLabel(
+        text: 'Piece size',
+        isRequired: true,
+        child: TextFormField(
+          controller: _pieceSizeCtrl,
+          keyboardType: TextInputType.number,
+          readOnly: !isEditing,
+          enabled: isEditing,
+          decoration: const InputDecoration(
+            helperText:
+                'How many base units equal 1 piece. e.g., 1 box = 24 units',
+            helperMaxLines: 2,
+          ),
+          validator: isEditing
               ? (value) {
-                  if (value == null) return;
-                  final selected = categoryOptions.firstWhere(
-                    (c) => c.id == value,
-                    orElse: () =>
-                        InventoryCategory(id: value, name: value, isActive: true),
-                  );
-                  setState(() {
-                    _categoryId = selected.id;
-                    _categoryLabel = selected.name;
-                    _categoryError = null;
-                  });
+                  final text = (value ?? '').trim();
+                  final parsed = int.tryParse(text);
+                  if (parsed == null) {
+                    return 'Must be a number';
+                  }
+                  if (parsed <= 0) {
+                    return 'Must be >0';
+                  }
+                  return null;
                 }
               : null,
-          errorText: isEditing ? _categoryError : null,
         ),
       ),
-      AbsorbPointer(
-        absorbing: !isEditing,
-        child: InventoryDropdown<String>(
-          initialValue: _baseUnit,
-          label: const Text('Base unit'),
-          helperText: 'ml for liquids, g for solids, pcs for countable items',
-          enabled: true,
-          entries: _baseUnitOptions
-              .map((unit) => DropdownMenuEntry(value: unit, label: unit))
-              .toList(),
-          onSelected: isEditing
-              ? (value) => setState(() {
-                  _baseUnit = value;
-                  _baseUnitError = null;
-                })
-              : null,
-          errorText: isEditing ? _baseUnitError : null,
+      _RequiredFieldLabel(
+        text: 'Barcode',
+        child: TextFormField(
+          controller: _barcodeCtrl,
+          readOnly: !isEditing,
+          enabled: isEditing,
+          decoration: const InputDecoration(hintText: 'Optional'),
         ),
-      ),
-      TextFormField(
-        controller: _pieceSizeCtrl,
-        keyboardType: TextInputType.number,
-        readOnly: !isEditing,
-        enabled: isEditing,
-        decoration: const InputDecoration(
-          labelText: 'Piece size',
-          helperText:
-              'How many base units equal 1 piece. e.g., 1 box = 24 units',
-          helperMaxLines: 2,
-        ),
-        validator: isEditing
-            ? (value) {
-                final text = (value ?? '').trim();
-                final parsed = int.tryParse(text);
-                if (parsed == null) {
-                  return 'Must be a number';
-                }
-                if (parsed <= 0) {
-                  return 'Must be >0';
-                }
-                return null;
-              }
-            : null,
-      ),
-      TextFormField(
-        controller: _barcodeCtrl,
-        readOnly: !isEditing,
-        enabled: isEditing,
-        decoration: const InputDecoration(labelText: 'Barcode (optional)'),
       ),
     ];
 
@@ -742,6 +783,44 @@ class _StockItemFormPageState extends ConsumerState<StockItemFormPage> {
     }
 
     if (mounted) setState(() => _isSaving = false);
+  }
+}
+
+class _RequiredFieldLabel extends StatelessWidget {
+  const _RequiredFieldLabel({
+    required this.text,
+    required this.child,
+    this.isRequired = false,
+  });
+
+  final String text;
+  final Widget child;
+  final bool isRequired;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: RichText(
+            text: TextSpan(
+              text: text,
+              style: Theme.of(context).textTheme.titleSmall,
+              children: [
+                if (isRequired)
+                  const TextSpan(
+                    text: ' *',
+                    style: TextStyle(color: Colors.red),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        child,
+      ],
+    );
   }
 }
 
