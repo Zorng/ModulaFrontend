@@ -7,6 +7,14 @@ class AppEnv {
     return _readBool('SHOW_DEBUG_ERRORS', defaultValue: false);
   }
 
+  static bool get useMockAttendanceRepository {
+    final mode = _readString(
+      'ATTENDANCE_REPOSITORY_MODE',
+      defaultValue: 'mock',
+    );
+    return mode.trim().toLowerCase() != 'api';
+  }
+
   static bool _readBool(String key, {required bool defaultValue}) {
     final raw = dotenv.env[key];
     if (raw == null) return defaultValue;
@@ -27,5 +35,10 @@ class AppEnv {
         return defaultValue;
     }
   }
-}
 
+  static String _readString(String key, {required String defaultValue}) {
+    final raw = dotenv.env[key];
+    if (raw == null || raw.trim().isEmpty) return defaultValue;
+    return raw;
+  }
+}
