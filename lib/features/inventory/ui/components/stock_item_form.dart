@@ -37,6 +37,7 @@ class StockItemFormPage extends ConsumerStatefulWidget {
 }
 
 class _StockItemFormPageState extends ConsumerState<StockItemFormPage> {
+  static const String _uncategorizedValue = '__uncategorized__';
   final _formKey = GlobalKey<FormState>();
   final _nameCtrl = TextEditingController();
   final _barcodeCtrl = TextEditingController();
@@ -56,7 +57,6 @@ class _StockItemFormPageState extends ConsumerState<StockItemFormPage> {
   bool _isActive = true;
   final _selectedTypes = <String>{};
   String? _baseUnitError;
-  String? _categoryError;
   bool _isSaving = false;
 
   @override
@@ -94,6 +94,10 @@ class _StockItemFormPageState extends ConsumerState<StockItemFormPage> {
         const <UserBranch>[];
 
     final categoryOptions = categoryState.categories;
+    if (_mode == StockItemFormMode.create && categoryOptions.isEmpty) {
+      _categoryId = null;
+      _categoryLabel = null;
+    }
     final usageTags = _selectedTypes.isEmpty
         ? const <String>[]
         : _selectedTypes.toList();
@@ -357,99 +361,129 @@ class _StockItemFormPageState extends ConsumerState<StockItemFormPage> {
     );
 
     final fields = <Widget>[
-      TextFormField(
-        controller: _nameCtrl,
-        maxLength: 20,
-        enabled: isEditing,
-        readOnly: !isEditing,
-        decoration: const InputDecoration(
-          labelText: 'Item name',
-          hintText: 'e.g., Milk 1000ml',
+      _RequiredFieldLabel(
+        text: 'Item name',
+        isRequired: true,
+        child: TextFormField(
+          controller: _nameCtrl,
+          maxLength: 20,
+          enabled: isEditing,
+          readOnly: !isEditing,
+          decoration: const InputDecoration(
+            hintText: 'e.g., Milk 1000ml',
+          ),
+          validator: isEditing
+              ? (value) =>
+                    value == null || value.trim().isEmpty ? 'Required' : null
+              : null,
         ),
-        validator: isEditing
-            ? (value) =>
-                  value == null || value.trim().isEmpty ? 'Required' : null
-            : null,
       ),
-      AbsorbPointer(
-        absorbing: !isEditing,
-        child: InventoryDropdown<String>(
-          initialValue: _categoryId,
-          label: const Text('Category'),
-          enabled: true,
-          entries: categoryOptions
-              .map(
-                (category) =>
-                    DropdownMenuEntry(value: category.id, label: category.name),
-              )
-              .toList(),
-          onSelected: isEditing
+      _RequiredFieldLabel(
+        text: 'Category',
+        child: AbsorbPointer(
+          absorbing: !isEditing,
+          child: InventoryDropdown<String>(
+            initialValue: _categoryId?.isNotEmpty == true
+                ? _categoryId
+                : _uncategorizedValue,
+            enabled: true,
+            entries: [
+              const DropdownMenuEntry(
+                value: _uncategorizedValue,
+                label: 'Uncategorized',
+              ),
+              ...categoryOptions.map(
+                (category) => DropdownMenuEntry(
+                  value: category.id,
+                  label: category.name,
+                ),
+              ),
+            ],
+            onSelected: isEditing
+                ? (value) {
+                    if (value == null) return;
+                    if (value == _uncategorizedValue) {
+                      setState(() {
+                        _categoryId = null;
+                        _categoryLabel = null;
+                      });
+                      return;
+                    }
+                    final selected = categoryOptions.firstWhere(
+                      (c) => c.id == value,
+                      orElse: () => InventoryCategory(
+                        id: value,
+                        name: value,
+                        isActive: true,
+                      ),
+                    );
+                    setState(() {
+                      _categoryId = selected.id;
+                      _categoryLabel = selected.name;
+                    });
+                  }
+                : null,
+          ),
+        ),
+      ),
+      _RequiredFieldLabel(
+        text: 'Base unit',
+        isRequired: true,
+        child: AbsorbPointer(
+          absorbing: !isEditing,
+          child: InventoryDropdown<String>(
+            initialValue: _baseUnit,
+            helperText: 'ml for liquids, g for solids, pcs for countable items',
+            enabled: true,
+            entries: _baseUnitOptions
+                .map((unit) => DropdownMenuEntry(value: unit, label: unit))
+                .toList(),
+            onSelected: isEditing
+                ? (value) => setState(() {
+                    _baseUnit = value;
+                    _baseUnitError = null;
+                  })
+                : null,
+            errorText: isEditing ? _baseUnitError : null,
+          ),
+        ),
+      ),
+      _RequiredFieldLabel(
+        text: 'Piece size',
+        isRequired: true,
+        child: TextFormField(
+          controller: _pieceSizeCtrl,
+          keyboardType: TextInputType.number,
+          readOnly: !isEditing,
+          enabled: isEditing,
+          decoration: const InputDecoration(
+            helperText:
+                'How many base units equal 1 piece. e.g., 1 box = 24 units',
+            helperMaxLines: 2,
+          ),
+          validator: isEditing
               ? (value) {
-                  if (value == null) return;
-                  final selected = categoryOptions.firstWhere(
-                    (c) => c.id == value,
-                    orElse: () =>
-                        InventoryCategory(id: value, name: value, isActive: true),
-                  );
-                  setState(() {
-                    _categoryId = selected.id;
-                    _categoryLabel = selected.name;
-                    _categoryError = null;
-                  });
+                  final text = (value ?? '').trim();
+                  final parsed = int.tryParse(text);
+                  if (parsed == null) {
+                    return 'Must be a number';
+                  }
+                  if (parsed <= 0) {
+                    return 'Must be >0';
+                  }
+                  return null;
                 }
               : null,
-          errorText: isEditing ? _categoryError : null,
         ),
       ),
-      AbsorbPointer(
-        absorbing: !isEditing,
-        child: InventoryDropdown<String>(
-          initialValue: _baseUnit,
-          label: const Text('Base unit'),
-          helperText: 'ml for liquids, g for solids, pcs for countable items',
-          enabled: true,
-          entries: _baseUnitOptions
-              .map((unit) => DropdownMenuEntry(value: unit, label: unit))
-              .toList(),
-          onSelected: isEditing
-              ? (value) => setState(() {
-                  _baseUnit = value;
-                  _baseUnitError = null;
-                })
-              : null,
-          errorText: isEditing ? _baseUnitError : null,
+      _RequiredFieldLabel(
+        text: 'Barcode',
+        child: TextFormField(
+          controller: _barcodeCtrl,
+          readOnly: !isEditing,
+          enabled: isEditing,
+          decoration: const InputDecoration(hintText: 'Optional'),
         ),
-      ),
-      TextFormField(
-        controller: _pieceSizeCtrl,
-        keyboardType: TextInputType.number,
-        readOnly: !isEditing,
-        enabled: isEditing,
-        decoration: const InputDecoration(
-          labelText: 'Piece size',
-          helperText:
-              'How many base units equal 1 piece. e.g., 1 box = 24 units',
-          helperMaxLines: 2,
-        ),
-        validator: isEditing
-            ? (value) {
-                final text = (value ?? '').trim();
-                final parsed = int.tryParse(text);
-                if (parsed == null) {
-                  return 'Must be a number';
-                }
-                if (parsed <= 0) {
-                  return 'Must be >0';
-                }
-                return null;
-              }
-            : null,
-      ),
-      TextFormField(
-        controller: _barcodeCtrl,
-        readOnly: !isEditing,
-        enabled: isEditing,
-        decoration: const InputDecoration(labelText: 'Barcode (optional)'),
       ),
     ];
 
@@ -503,7 +537,6 @@ class _StockItemFormPageState extends ConsumerState<StockItemFormPage> {
       _selectedImageBytes = null;
       _selectedImagePath = null;
       _baseUnitError = null;
-      _categoryError = null;
     });
     _bootstrapFromItem(_originalItem);
   }
@@ -742,6 +775,44 @@ class _StockItemFormPageState extends ConsumerState<StockItemFormPage> {
     }
 
     if (mounted) setState(() => _isSaving = false);
+  }
+}
+
+class _RequiredFieldLabel extends StatelessWidget {
+  const _RequiredFieldLabel({
+    required this.text,
+    required this.child,
+    this.isRequired = false,
+  });
+
+  final String text;
+  final Widget child;
+  final bool isRequired;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: RichText(
+            text: TextSpan(
+              text: text,
+              style: Theme.of(context).textTheme.titleSmall,
+              children: [
+                if (isRequired)
+                  const TextSpan(
+                    text: ' *',
+                    style: TextStyle(color: Colors.red),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        child,
+      ],
+    );
   }
 }
 

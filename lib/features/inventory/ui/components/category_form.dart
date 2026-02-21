@@ -81,27 +81,32 @@ class _CategoryFormBodyState extends ConsumerState<CategoryFormBody> {
               ],
             ),
           if (widget.showHeader) const SizedBox(height: 16),
-          TextField(
-            controller: _nameCtrl,
-            enabled: !isView,
-            decoration: InputDecoration(
-              labelText: 'Category Name',
-              hintText: 'e.g., Coffee, Pastries',
-              errorText: _nameError,
-              counterText: '',
+          _RequiredFieldLabel(
+            text: 'Category Name',
+            isRequired: true,
+            child: TextField(
+              controller: _nameCtrl,
+              enabled: !isView,
+              decoration: InputDecoration(
+                hintText: 'e.g., Coffee, Pastries',
+                errorText: _nameError,
+                counterText: '',
+              ),
             ),
           ),
           const SizedBox(height: 24),
-          TextField(
-            controller: _descriptionCtrl,
-            enabled: !isView,
-            decoration: InputDecoration(
-              labelText: 'Description',
-              hintText: 'Enter category description',
-              errorText: _descriptionError,
+          _RequiredFieldLabel(
+            text: 'Description',
+            child: TextField(
+              controller: _descriptionCtrl,
+              enabled: !isView,
+              decoration: InputDecoration(
+                hintText: 'Enter category description',
+                errorText: _descriptionError,
+              ),
+              maxLines: 3,
+              maxLength: 200,
             ),
-            maxLines: 3,
-            maxLength: 200,
           ),
           const SizedBox(height: 24),
           Row(
@@ -221,5 +226,43 @@ class _CategoryFormBodyState extends ConsumerState<CategoryFormBody> {
 
     if (!mounted) return;
     (widget.onClose ?? () => Navigator.of(context).pop())();
+  }
+}
+
+class _RequiredFieldLabel extends StatelessWidget {
+  const _RequiredFieldLabel({
+    required this.text,
+    required this.child,
+    this.isRequired = false,
+  });
+
+  final String text;
+  final Widget child;
+  final bool isRequired;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: RichText(
+            text: TextSpan(
+              text: text,
+              style: Theme.of(context).textTheme.titleSmall,
+              children: [
+                if (isRequired)
+                  const TextSpan(
+                    text: ' *',
+                    style: TextStyle(color: Colors.red),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        child,
+      ],
+    );
   }
 }
