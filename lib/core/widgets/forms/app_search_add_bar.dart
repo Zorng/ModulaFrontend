@@ -16,7 +16,8 @@ class AppSearchAddBar extends StatelessWidget {
     this.onSearchChanged,
     this.searchController,
     this.onAddPressed,
-    this.addButtonLabel = '+ Add new',
+    this.addButtonLabel = 'Add new',
+    this.addButtonMaxWidth = 150,
   });
 
   final String? searchHint;
@@ -24,6 +25,7 @@ class AppSearchAddBar extends StatelessWidget {
   final TextEditingController? searchController;
   final VoidCallback? onAddPressed;
   final String addButtonLabel;
+  final double addButtonMaxWidth;
 
   @override
   Widget build(BuildContext context) {
@@ -43,7 +45,7 @@ class AppSearchAddBar extends StatelessWidget {
             ),
             SizedBox(width: isTight ? 8 : 12),
             ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 110),
+              constraints: BoxConstraints(maxWidth: addButtonMaxWidth),
               child: IntrinsicWidth(
                 child: AppAddNewButton(
                   onPressed: onAddPressed,

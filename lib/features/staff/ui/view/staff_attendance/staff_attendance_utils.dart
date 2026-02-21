@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:modular_pos/features/staff_attendance/ui/view/attendance_management/attendance_management_models.dart';
+import 'package:modular_pos/features/staff/ui/view/staff_attendance/staff_attendance_models.dart';
 
-AttendanceManagementDateRange buildUtcDayRange(DateTime date) {
+StaffAttendanceDateRange buildUtcDayRange(DateTime date) {
   final start = DateTime(date.year, date.month, date.day);
   final end = start.add(const Duration(days: 1));
-  return AttendanceManagementDateRange(
+  return StaffAttendanceDateRange(
     fromIsoUtc: start.toUtc().toIso8601String(),
     toIsoUtc: end.toUtc().toIso8601String(),
   );
@@ -35,4 +35,3 @@ String titleCaseSnake(String value) {
       })
       .join(' ');
 }
-

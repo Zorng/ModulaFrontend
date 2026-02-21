@@ -5,6 +5,8 @@ import 'package:modular_pos/features/auth/data/auth_repository.dart';
 import 'package:modular_pos/features/auth/data/auth_session_store.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_state.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
+import 'package:modular_pos/features/sale/data/sale_checkout_repository_contract.dart';
+import 'package:modular_pos/features/sale/data/sale_repository.dart';
 import 'package:modular_pos/features/sale/ui/view/sale/sale_page.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_access_gate.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -28,7 +30,7 @@ class _StaticMenuViewModel extends MenuViewModel {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('SalePage shows read-only banner + session-required dialog', (
+  testWidgets('SalePage renders search even when session is required', (
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({});
@@ -36,19 +38,27 @@ void main() {
     final store = AuthSessionStore(prefs);
 
     await tester.pumpWidget(
-          ProviderScope(
+      ProviderScope(
         overrides: [
           authSessionStoreProvider.overrideWithValue(store),
           authRepositoryProvider.overrideWithValue(FakeAuthRepository()),
           menuViewModelProvider.overrideWith(
             () => _StaticMenuViewModel(const MenuState(isLoading: false)),
           ),
+          useMockSaleRepositoryProvider.overrideWithValue(false),
           saleAccessGateProvider.overrideWithValue(
             const SaleAccessGate(
               branchId: 'branch-1',
+              contextLoading: false,
+              branchActive: true,
+              branchFrozen: false,
               cashSessionOpen: false,
-              cashSessionLoading: false,
-              useMockRepository: false,
+              canMutateCart: false,
+              canCheckout: false,
+              canPlacePayLater: false,
+              reasonCode: SaleCheckoutReasonCodes.cashSessionRequired,
+              reasonMessage:
+                  'Read-only: start a cash session to add items and checkout.',
             ),
           ),
         ],
@@ -59,11 +69,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(AlertDialog), findsNothing);
+    expect(find.text('Cash session is not open'), findsOneWidget);
     expect(
-      find.text('Read-only: start a cash session to add items and checkout.'),
+      find.text('Add items as normal. Open session to checkout.'),
       findsOneWidget,
     );
-    expect(find.text('Cash session'), findsOneWidget);
     expect(find.text('Search menu items'), findsOneWidget);
   });
 }

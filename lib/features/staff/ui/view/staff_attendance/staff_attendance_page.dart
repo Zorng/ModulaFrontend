@@ -2,27 +2,28 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/core/feedback/user_error_message.dart';
 import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
-import 'package:modular_pos/features/staff_attendance/data/staff_attendance_repository.dart';
-import 'package:modular_pos/features/staff_attendance/domain/models/attendance_record.dart';
-import 'package:modular_pos/features/staff_attendance/ui/view/attendance_management/attendance_management_utils.dart';
-import 'package:modular_pos/features/staff_attendance/ui/view/attendance_management/widgets/attendance_management_date_picker_row.dart';
-import 'package:modular_pos/features/staff_attendance/ui/view/attendance_management/widgets/attendance_management_message_card.dart';
-import 'package:modular_pos/features/staff_attendance/ui/view/attendance_management/widgets/attendance_management_record_card.dart';
+import 'package:modular_pos/features/staff/data/staff_admin_attendance_repository.dart';
+import 'package:modular_pos/features/staff/domain/models/staff_attendance_record.dart';
+import 'package:modular_pos/features/staff/ui/view/staff_attendance/staff_attendance_utils.dart';
+import 'package:modular_pos/features/staff/ui/view/staff_attendance/widgets/staff_attendance_date_picker_row.dart';
+import 'package:modular_pos/features/staff/ui/view/staff_attendance/widgets/staff_attendance_message_card.dart';
+import 'package:modular_pos/features/staff/ui/view/staff_attendance/widgets/staff_attendance_record_card.dart';
 
-class AttendanceManagementPage extends ConsumerStatefulWidget {
-  const AttendanceManagementPage({super.key});
+class StaffAttendancePage extends ConsumerStatefulWidget {
+  const StaffAttendancePage({super.key, this.showAppBar = false});
+
+  final bool showAppBar;
 
   @override
-  ConsumerState<AttendanceManagementPage> createState() =>
-      _AttendanceManagementPageState();
+  ConsumerState<StaffAttendancePage> createState() =>
+      _StaffAttendancePageState();
 }
 
-class _AttendanceManagementPageState
-    extends ConsumerState<AttendanceManagementPage> {
+class _StaffAttendancePageState extends ConsumerState<StaffAttendancePage> {
   DateTime _selectedDate = DateTime.now();
   bool _loading = false;
   String? _errorMessage;
-  List<AttendanceRecord> _records = const [];
+  List<StaffAttendanceRecord> _records = const [];
 
   @override
   void initState() {
@@ -53,8 +54,8 @@ class _AttendanceManagementPageState
     try {
       final branchId = ref.read(authActiveBranchIdProvider);
       final range = buildUtcDayRange(_selectedDate);
-      final repo = ref.read(staffAttendanceRepositoryProvider);
-      final records = await repo.fetchAdminAttendance(
+      final repo = ref.read(staffAdminAttendanceRepositoryProvider);
+      final records = await repo.fetchAttendanceRecords(
         branchId: branchId,
         from: range.fromIsoUtc,
         to: range.toIsoUtc,
@@ -64,8 +65,10 @@ class _AttendanceManagementPageState
     } catch (error) {
       if (!mounted) return;
       setState(
-        () => _errorMessage =
-            UserErrorMessage.build(context: 'Failed to load attendance', error: error),
+        () => _errorMessage = UserErrorMessage.build(
+          context: 'Failed to load attendance',
+          error: error,
+        ),
       );
     } finally {
       if (mounted) {
@@ -77,14 +80,13 @@ class _AttendanceManagementPageState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Attendance Management'),
-        centerTitle: false,
-      ),
+      appBar: widget.showAppBar
+          ? AppBar(title: const Text('Attendance'), centerTitle: false)
+          : null,
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          AttendanceManagementDatePickerRow(
+          StaffAttendanceDatePickerRow(
             selectedDate: _selectedDate,
             onPickDate: _pickDate,
             enabled: !_loading,
@@ -93,16 +95,16 @@ class _AttendanceManagementPageState
           if (_loading)
             const Center(child: CircularProgressIndicator())
           else if (_errorMessage != null)
-            AttendanceManagementMessageCard(message: _errorMessage!)
+            StaffAttendanceMessageCard(message: _errorMessage!)
           else if (_records.isEmpty)
-            const AttendanceManagementMessageCard(
+            const StaffAttendanceMessageCard(
               message: 'No attendance records for this date.',
             )
           else
             ..._records.map(
               (record) => Padding(
                 padding: const EdgeInsets.only(bottom: 12),
-                child: AttendanceManagementRecordCard(record: record),
+                child: StaffAttendanceRecordCard(record: record),
               ),
             ),
         ],

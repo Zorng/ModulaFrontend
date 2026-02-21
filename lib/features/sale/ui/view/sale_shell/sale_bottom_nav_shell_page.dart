@@ -9,8 +9,10 @@ class SaleBottomNavShellPage extends StatelessWidget {
   const SaleBottomNavShellPage({super.key, required this.navigationShell});
 
   final StatefulNavigationShell navigationShell;
+  static const double _wideBottomTabHorizontalPadding = 210;
 
   static const _titles = <String>['Sale', 'Cart', 'Orders'];
+  static const _mobileTitles = <String>['Sale', 'Cart', 'Orders'];
 
   static const _items = <BottomNavigationBarItem>[
     BottomNavigationBarItem(
@@ -43,6 +45,7 @@ class SaleBottomNavShellPage extends StatelessWidget {
           final appBarTitle = index == 2 ? _titles[2] : _titles[0];
           return Scaffold(
             appBar: AppBar(
+              backgroundColor: Colors.white,
               title: Text(appBarTitle),
               centerTitle: false,
               actions: actionsForIndex(index, context),
@@ -62,20 +65,32 @@ class SaleBottomNavShellPage extends StatelessWidget {
                 ],
               ],
             ),
-            bottomNavigationBar: BottomNavigationBar(
-              currentIndex: wideIndex,
-              items: wideItems,
-              type: BottomNavigationBarType.fixed,
-              onTap: (tabIndex) {
-                navigationShell.goBranch(tabIndex == 0 ? 0 : 2);
-              },
+            bottomNavigationBar: Material(
+              color:
+                  Theme.of(context).bottomNavigationBarTheme.backgroundColor ??
+                  Theme.of(context).colorScheme.surface,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: _wideBottomTabHorizontalPadding,
+                ),
+                child: BottomNavigationBar(
+                  backgroundColor: Colors.transparent,
+                  elevation: 0,
+                  currentIndex: wideIndex,
+                  items: wideItems,
+                  type: BottomNavigationBarType.fixed,
+                  onTap: (tabIndex) {
+                    navigationShell.goBranch(tabIndex == 0 ? 0 : 2);
+                  },
+                ),
+              ),
             ),
           );
         }
 
         return AppBottomNavShellScaffold(
           navigationShell: navigationShell,
-          titles: _titles,
+          titles: _mobileTitles,
           items: _items,
           centerTitle: false,
           actions: actionsForIndex(index, context),

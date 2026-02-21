@@ -1,5 +1,6 @@
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
+import 'package:modular_pos/features/sale/ui/viewmodels/sale_khqr_states.dart';
 
 class CartLine {
   const CartLine({
@@ -55,6 +56,8 @@ class CartLine {
 }
 
 class SaleCartState {
+  static const _unset = Object();
+
   const SaleCartState({
     this.saleId,
     this.saleType = 'take_away',
@@ -63,6 +66,18 @@ class SaleCartState {
     this.paymentMethod = 'cash',
     this.cashUsd = 0,
     this.cashKhr = 0,
+    this.isFinalizing = false,
+    this.checkoutErrorMessage,
+    this.lastFinalizedSaleId,
+    this.lastReceiptId,
+    this.khqrStatus = SaleKhqrUiStates.readyToGenerate,
+    this.khqrAttemptId,
+    this.khqrMd5,
+    this.khqrQrPayload,
+    this.khqrExpiresAt,
+    this.khqrConfirmedAt,
+    this.khqrErrorMessage,
+    this.isKhqrLoading = false,
   });
 
   final String? saleId;
@@ -72,6 +87,18 @@ class SaleCartState {
   final String paymentMethod;
   final double cashUsd;
   final double cashKhr;
+  final bool isFinalizing;
+  final String? checkoutErrorMessage;
+  final String? lastFinalizedSaleId;
+  final String? lastReceiptId;
+  final String khqrStatus;
+  final String? khqrAttemptId;
+  final String? khqrMd5;
+  final String? khqrQrPayload;
+  final DateTime? khqrExpiresAt;
+  final DateTime? khqrConfirmedAt;
+  final String? khqrErrorMessage;
+  final bool isKhqrLoading;
 
   SaleCartState copyWith({
     String? saleId,
@@ -81,6 +108,18 @@ class SaleCartState {
     String? paymentMethod,
     double? cashUsd,
     double? cashKhr,
+    bool? isFinalizing,
+    Object? checkoutErrorMessage = _unset,
+    Object? lastFinalizedSaleId = _unset,
+    Object? lastReceiptId = _unset,
+    String? khqrStatus,
+    Object? khqrAttemptId = _unset,
+    Object? khqrMd5 = _unset,
+    Object? khqrQrPayload = _unset,
+    Object? khqrExpiresAt = _unset,
+    Object? khqrConfirmedAt = _unset,
+    Object? khqrErrorMessage = _unset,
+    bool? isKhqrLoading,
   }) {
     return SaleCartState(
       saleId: saleId ?? this.saleId,
@@ -90,6 +129,34 @@ class SaleCartState {
       paymentMethod: paymentMethod ?? this.paymentMethod,
       cashUsd: cashUsd ?? this.cashUsd,
       cashKhr: cashKhr ?? this.cashKhr,
+      isFinalizing: isFinalizing ?? this.isFinalizing,
+      checkoutErrorMessage: checkoutErrorMessage == _unset
+          ? this.checkoutErrorMessage
+          : checkoutErrorMessage as String?,
+      lastFinalizedSaleId: lastFinalizedSaleId == _unset
+          ? this.lastFinalizedSaleId
+          : lastFinalizedSaleId as String?,
+      lastReceiptId: lastReceiptId == _unset
+          ? this.lastReceiptId
+          : lastReceiptId as String?,
+      khqrStatus: khqrStatus ?? this.khqrStatus,
+      khqrAttemptId: khqrAttemptId == _unset
+          ? this.khqrAttemptId
+          : khqrAttemptId as String?,
+      khqrMd5: khqrMd5 == _unset ? this.khqrMd5 : khqrMd5 as String?,
+      khqrQrPayload: khqrQrPayload == _unset
+          ? this.khqrQrPayload
+          : khqrQrPayload as String?,
+      khqrExpiresAt: khqrExpiresAt == _unset
+          ? this.khqrExpiresAt
+          : khqrExpiresAt as DateTime?,
+      khqrConfirmedAt: khqrConfirmedAt == _unset
+          ? this.khqrConfirmedAt
+          : khqrConfirmedAt as DateTime?,
+      khqrErrorMessage: khqrErrorMessage == _unset
+          ? this.khqrErrorMessage
+          : khqrErrorMessage as String?,
+      isKhqrLoading: isKhqrLoading ?? this.isKhqrLoading,
     );
   }
 
@@ -102,6 +169,12 @@ class SaleCartState {
       'paymentMethod': paymentMethod,
       'cashUsd': cashUsd,
       'cashKhr': cashKhr,
+      'khqrStatus': khqrStatus,
+      'khqrAttemptId': khqrAttemptId,
+      'khqrMd5': khqrMd5,
+      'khqrQrPayload': khqrQrPayload,
+      'khqrExpiresAt': khqrExpiresAt?.toIso8601String(),
+      'khqrConfirmedAt': khqrConfirmedAt?.toIso8601String(),
     };
   }
 
@@ -118,6 +191,24 @@ class SaleCartState {
       paymentMethod: json['paymentMethod'] as String? ?? 'cash',
       cashUsd: (json['cashUsd'] as num?)?.toDouble() ?? 0,
       cashKhr: (json['cashKhr'] as num?)?.toDouble() ?? 0,
+      isFinalizing: false,
+      checkoutErrorMessage: null,
+      lastFinalizedSaleId: null,
+      lastReceiptId: null,
+      khqrStatus: SaleKhqrUiStates.normalize(
+        json['khqrStatus'] as String? ?? SaleKhqrUiStates.readyToGenerate,
+      ),
+      khqrAttemptId: json['khqrAttemptId'] as String?,
+      khqrMd5: json['khqrMd5'] as String?,
+      khqrQrPayload: json['khqrQrPayload'] as String?,
+      khqrExpiresAt: json['khqrExpiresAt'] == null
+          ? null
+          : DateTime.tryParse(json['khqrExpiresAt'] as String),
+      khqrConfirmedAt: json['khqrConfirmedAt'] == null
+          ? null
+          : DateTime.tryParse(json['khqrConfirmedAt'] as String),
+      khqrErrorMessage: null,
+      isKhqrLoading: false,
     );
   }
 }

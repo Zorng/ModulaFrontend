@@ -4,12 +4,14 @@ class TodayShiftCard extends StatelessWidget {
   const TodayShiftCard({
     super.key,
     required this.date,
+    required this.shift,
     required this.checkIn,
     required this.checkOut,
     required this.status,
   });
 
   final String date;
+  final String shift;
   final String checkIn;
   final String checkOut;
   final String status;
@@ -24,9 +26,14 @@ class TodayShiftCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Today\'s Shift', style: Theme.of(context).textTheme.titleSmall),
+            Text(
+              'Today\'s Shift',
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
             const SizedBox(height: 12),
             _Row(label: 'Date', value: date),
+            const SizedBox(height: 8),
+            _Row(label: 'Shift', value: shift),
             const SizedBox(height: 8),
             _Row(label: 'Check in', value: checkIn),
             const SizedBox(height: 8),
@@ -57,4 +64,3 @@ class _Row extends StatelessWidget {
     );
   }
 }
-

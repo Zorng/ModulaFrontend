@@ -61,11 +61,11 @@ class MockSaleData {
       modifierGroupIds: ['cup_size', 'sugar_level'],
     ),
     const MenuItem(
-      id: 'thai_milk_tea',
-      name: 'Thai Milk Tea',
+      id: 'milk_tea',
+      name: 'Milk Tea',
       categoryId: 'milk_tea',
       price: 5.0,
-      description: 'Sweet Thai milk tea',
+      description: 'Sweet milk tea',
       modifierGroupIds: ['cup_size', 'sugar_level', 'toppings'],
     ),
     const MenuItem(

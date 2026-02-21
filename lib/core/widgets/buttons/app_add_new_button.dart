@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:modular_pos/core/theme/app_buttons.dart';
-import 'package:modular_pos/core/theme/responsive.dart';
 
 /// A standardized "Add New" button for consistent use across the app.
 ///
@@ -20,16 +19,11 @@ class AppAddNewButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
     final scheme = Theme.of(context).colorScheme;
-
-    final iconSize = AppBreakpoints.isSmall(width) ? 16.0 : 16.0;
-
-    // Use slightly larger text on roomier layouts.
-    final textStyle = (AppBreakpoints.isSmall(width)
-            ? Theme.of(context).textTheme.labelMedium
-            : Theme.of(context).textTheme.labelLarge)
-        ?.copyWith(color: scheme.onPrimary);
+    final iconSize = 16.0;
+    final textStyle = Theme.of(
+      context,
+    ).textTheme.labelMedium?.copyWith(color: scheme.onPrimary);
 
     return FilledButton(
       onPressed: onPressed,

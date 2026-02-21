@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:modular_pos/features/staff_attendance/ui/view/attendance/attendance_models.dart';
-import 'package:modular_pos/features/staff_attendance/ui/view/attendance/attendance_utils.dart';
+import 'package:modular_pos/features/staff_attendance/domain/models/attendance_history_entry.dart';
+import 'package:modular_pos/features/staff_attendance/ui/view/attendance_shared/attendance_utils.dart';
 
 class AttendanceHistoryCard extends StatelessWidget {
   const AttendanceHistoryCard({super.key, required this.entry});
@@ -9,10 +9,12 @@ class AttendanceHistoryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final checkInLabel =
-        entry.checkInAt == null ? '-' : formatTimeAmPm(entry.checkInAt!);
-    final checkOutLabel =
-        entry.checkOutAt == null ? '-' : formatTimeAmPm(entry.checkOutAt!);
+    final checkInLabel = entry.checkInAt == null
+        ? '-'
+        : formatTimeAmPm(entry.checkInAt!);
+    final checkOutLabel = entry.checkOutAt == null
+        ? '-'
+        : formatTimeAmPm(entry.checkOutAt!);
 
     return Card(
       color: Colors.white,

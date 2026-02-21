@@ -1,16 +1,91 @@
+import 'dart:convert';
 import 'dart:math';
-import 'package:modular_pos/features/sale/data/sale_repository.dart';
+
+import 'package:modular_pos/features/sale/data/sale_checkout_repository_contract.dart';
 import 'package:modular_pos/features/sale/domain/models/sale.dart';
 
-/// Mock implementation of SaleRepository for testing without backend
+/// Mock implementation of [SaleCheckoutRepository] for flow-driven development.
 ///
-/// Enables testing add-to-cart, update quantity, remove items, and checkout flows
-/// while backend mutations are incomplete or unavailable.
+/// FE-SALE-02 goals:
+/// - deterministic behavior for pay-first, KHQR, and pay-later flows
+/// - API-shaped reason_code failures
+/// - idempotency semantics for mutation commands
 ///
-/// Mock data resets on app refresh.
-class MockSaleRepository implements SaleRepository {
-  // In-memory storage for mock sales
-  final Map<String, _MockSale> _sales = {};
+/// Existing sale screens still use legacy methods (ensureDraft/addItem/preCheckout/finalize).
+class MockSaleRepository implements SaleCheckoutRepository {
+  MockSaleRepository({
+    DateTime Function()? nowFactory,
+    bool Function()? cashSessionOpenReader,
+  }) : _nowFactory = nowFactory ?? DateTime.now,
+       _cashSessionOpenReader = cashSessionOpenReader;
+
+  final DateTime Function() _nowFactory;
+  final bool Function()? _cashSessionOpenReader;
+
+  final Map<String, _MockSaleDraft> _drafts = <String, _MockSaleDraft>{};
+  final Map<String, _MockFinalizedSale> _finalizedSales =
+      <String, _MockFinalizedSale>{};
+  final Map<String, _MockFinalizedSale> _voidedSales =
+      <String, _MockFinalizedSale>{};
+  final Map<String, _MockOpenTicket> _openTicketsById =
+      <String, _MockOpenTicket>{};
+  final Map<String, String> _openTicketIdBySaleId = <String, String>{};
+  final Map<String, _MockKhqrAttempt> _khqrByMd5 = <String, _MockKhqrAttempt>{};
+  final Map<String, String> _latestKhqrMd5BySaleId = <String, String>{};
+  final Map<String, SaleReceiptDto> _receiptsBySaleId =
+      <String, SaleReceiptDto>{};
+  final Map<String, String> _cartFingerprintBySaleId = <String, String>{};
+  final Map<String, _IdempotencyRecord> _idempotencyRecords =
+      <String, _IdempotencyRecord>{};
+
+  int _idCounter = 1;
+
+  String _activeBranchId = 'mock-branch-001';
+  bool _branchActive = true;
+  bool _branchFrozen = false;
+  bool _cashSessionOpen = true;
+  bool _payLaterEnabled = true;
+  bool _online = true;
+  bool _authorized = true;
+
+  bool get _isCashSessionOpen =>
+      _cashSessionOpenReader?.call() ?? _cashSessionOpen;
+
+  /// Test hook to control repository guard behavior.
+  void configureContext({
+    String? activeBranchId,
+    bool? branchActive,
+    bool? branchFrozen,
+    bool? cashSessionOpen,
+    bool? payLaterEnabled,
+    bool? online,
+    bool? authorized,
+  }) {
+    if (activeBranchId != null && activeBranchId.isNotEmpty) {
+      _activeBranchId = activeBranchId;
+    }
+    if (branchActive != null) _branchActive = branchActive;
+    if (branchFrozen != null) _branchFrozen = branchFrozen;
+    if (cashSessionOpen != null) _cashSessionOpen = cashSessionOpen;
+    if (payLaterEnabled != null) _payLaterEnabled = payLaterEnabled;
+    if (online != null) _online = online;
+    if (authorized != null) _authorized = authorized;
+  }
+
+  /// Test hook to reset all in-memory state.
+  void reset() {
+    _drafts.clear();
+    _finalizedSales.clear();
+    _voidedSales.clear();
+    _openTicketsById.clear();
+    _openTicketIdBySaleId.clear();
+    _khqrByMd5.clear();
+    _latestKhqrMd5BySaleId.clear();
+    _receiptsBySaleId.clear();
+    _cartFingerprintBySaleId.clear();
+    _idempotencyRecords.clear();
+    _idCounter = 1;
+  }
 
   @override
   Future<String> ensureDraft({
@@ -18,17 +93,17 @@ class MockSaleRepository implements SaleRepository {
     required String saleType,
     double fxRateUsed = 4100,
   }) async {
-    // Simulate network delay
-    await Future.delayed(const Duration(milliseconds: 100));
-
-    final uuid = clientUuid ?? _randomUuid();
+    final uuid = clientUuid ?? _nextId('sale');
     final saleId = 'mock_sale_$uuid';
+    final now = _now();
 
-    _sales[saleId] = _MockSale(
-      id: saleId,
+    _drafts[saleId] = _MockSaleDraft(
+      saleId: saleId,
       saleType: saleType,
       fxRateUsed: fxRateUsed,
-      items: [],
+      items: <_MockSaleItem>[],
+      createdAt: now,
+      updatedAt: now,
     );
 
     return saleId;
@@ -46,49 +121,50 @@ class MockSaleRepository implements SaleRepository {
     double? addonTotalUsd,
     Map<String, dynamic>? pricingSnapshot,
   }) async {
-    // Simulate network delay
-    await Future.delayed(const Duration(milliseconds: 150));
+    _ensureWriteAllowed(
+      branchId: _activeBranchId,
+      requiresPayLaterEnabled: false,
+      requiresOnline: false,
+      requiresCashSessionOpen: false,
+    );
 
-    final sale = _sales[saleId];
-    if (sale == null) {
-      throw Exception('Sale not found: $saleId');
-    }
+    final draft = _requireDraft(saleId);
+    final now = _now();
 
-    // Generate a mock sale item ID
-    final itemId = 'mock_item_${_randomUuid().substring(0, 8)}';
-
-    // Check if item with same modifiers already exists
-    final existingIndex = sale.items.indexWhere(
+    final existingIndex = draft.items.indexWhere(
       (item) =>
           item.menuItemId == menuItemId &&
           _modifiersMatch(item.modifiers, selectedOptionIds),
     );
 
-    if (existingIndex != -1) {
-      // Update existing item quantity
-      final existing = sale.items[existingIndex];
-      sale.items[existingIndex] = _MockSaleItem(
-        id: existing.id,
-        menuItemId: menuItemId,
+    if (existingIndex >= 0) {
+      final existing = draft.items[existingIndex];
+      draft.items[existingIndex] = existing.copyWith(
         quantity: existing.quantity + quantity,
-        modifiers: modifiers,
-        unitPriceUsd: unitPriceUsd ?? 0,
-        lineTotalUsdExact: lineTotalUsdExact ?? 0,
+        unitPriceUsd: unitPriceUsd ?? existing.unitPriceUsd,
+        lineTotalUsdExact: lineTotalUsdExact ?? existing.lineTotalUsdExact,
       );
+      draft.updatedAt = now;
+      _syncCartFingerprintFromDraft(saleId);
+      _supersedeKhqrAttemptForSale(saleId: saleId, reason: 'cart_changed');
       return existing.id;
-    } else {
-      // Add new item
-      final item = _MockSaleItem(
-        id: itemId,
-        menuItemId: menuItemId,
-        quantity: quantity,
-        modifiers: modifiers,
-        unitPriceUsd: unitPriceUsd ?? 0,
-        lineTotalUsdExact: lineTotalUsdExact ?? 0,
-      );
-      sale.items.add(item);
-      return itemId;
     }
+
+    final created = _MockSaleItem(
+      id: _nextId('item'),
+      menuItemId: menuItemId,
+      menuItemName: menuItemId,
+      quantity: quantity,
+      modifiers: modifiers,
+      unitPriceUsd: unitPriceUsd ?? 1,
+      lineTotalUsdExact: lineTotalUsdExact ?? (unitPriceUsd ?? 1),
+    );
+
+    draft.items.add(created);
+    draft.updatedAt = now;
+    _syncCartFingerprintFromDraft(saleId);
+    _supersedeKhqrAttemptForSale(saleId: saleId, reason: 'cart_changed');
+    return created.id;
   }
 
   @override
@@ -97,33 +173,26 @@ class MockSaleRepository implements SaleRepository {
     required String itemId,
     required int quantity,
   }) async {
-    // Simulate network delay
-    await Future.delayed(const Duration(milliseconds: 100));
+    _ensureWriteAllowed(
+      branchId: _activeBranchId,
+      requiresPayLaterEnabled: false,
+      requiresOnline: false,
+      requiresCashSessionOpen: false,
+    );
 
-    final sale = _sales[saleId];
-    if (sale == null) {
-      throw Exception('Sale not found: $saleId');
-    }
-
-    final itemIndex = sale.items.indexWhere((item) => item.id == itemId);
-    if (itemIndex == -1) {
-      // Item not found - ignore (backend might not support this operation)
-      return;
-    }
+    final draft = _requireDraft(saleId);
+    final index = draft.items.indexWhere((item) => item.id == itemId);
+    if (index < 0) return;
 
     if (quantity <= 0) {
-      sale.items.removeAt(itemIndex);
+      draft.items.removeAt(index);
     } else {
-      final item = sale.items[itemIndex];
-      sale.items[itemIndex] = _MockSaleItem(
-        id: item.id,
-        menuItemId: item.menuItemId,
-        quantity: quantity,
-        modifiers: item.modifiers,
-        unitPriceUsd: item.unitPriceUsd,
-        lineTotalUsdExact: item.lineTotalUsdExact,
-      );
+      draft.items[index] = draft.items[index].copyWith(quantity: quantity);
     }
+
+    draft.updatedAt = _now();
+    _syncCartFingerprintFromDraft(saleId);
+    _supersedeKhqrAttemptForSale(saleId: saleId, reason: 'cart_changed');
   }
 
   @override
@@ -131,15 +200,19 @@ class MockSaleRepository implements SaleRepository {
     required String saleId,
     required String itemId,
   }) async {
-    // Simulate network delay
-    await Future.delayed(const Duration(milliseconds: 100));
+    _ensureWriteAllowed(
+      branchId: _activeBranchId,
+      requiresPayLaterEnabled: false,
+      requiresOnline: false,
+      requiresCashSessionOpen: false,
+    );
 
-    final sale = _sales[saleId];
-    if (sale == null) {
-      throw Exception('Sale not found: $saleId');
-    }
+    final draft = _requireDraft(saleId);
+    draft.items.removeWhere((item) => item.id == itemId);
+    draft.updatedAt = _now();
 
-    sale.items.removeWhere((item) => item.id == itemId);
+    _syncCartFingerprintFromDraft(saleId);
+    _supersedeKhqrAttemptForSale(saleId: saleId, reason: 'cart_changed');
   }
 
   @override
@@ -149,74 +222,47 @@ class MockSaleRepository implements SaleRepository {
     required String paymentMethod,
     Map<String, num>? cashReceived,
   }) async {
-    // Simulate network delay
-    await Future.delayed(const Duration(milliseconds: 200));
-
-    final sale = _sales[saleId];
-    if (sale == null) {
-      throw Exception('Sale not found: $saleId');
-    }
-
-    // Calculate totals
-    final subtotalUsd = sale.items.fold<double>(
-      0,
-      (sum, item) => sum + (item.lineTotalUsdExact * item.quantity),
+    final draft = _requireDraft(saleId);
+    final totals = _computeTotals(
+      fxRateUsed: draft.fxRateUsed,
+      items: draft.items,
+      tenderCurrency: tenderCurrency,
+      cashReceived: cashReceived,
     );
-    final totalUsd = subtotalUsd; // No tax in mock
-    final totalKhr = totalUsd * sale.fxRateUsed;
 
-    // Calculate change
-    final cashUsd = (cashReceived?['usd'])?.toDouble() ?? 0.0;
-    final cashKhr = (cashReceived?['khr'])?.toDouble() ?? 0.0;
-
-    final changeUsd = tenderCurrency.toUpperCase() == 'USD'
-        ? max(0.0, cashUsd - totalUsd)
-        : 0.0;
-    final changeKhr = tenderCurrency.toUpperCase() == 'KHR'
-        ? max(0.0, cashKhr - totalKhr)
-        : 0.0;
+    _cartFingerprintBySaleId[saleId] = _fingerprintFromDraft(draft);
 
     return SaleCheckoutSummary(
       saleId: saleId,
       tenderCurrency: tenderCurrency.toLowerCase(),
       paymentMethod: paymentMethod,
-      totalUsdExact: totalUsd,
-      totalKhrExact: totalKhr,
-      cashReceivedUsd: cashUsd,
-      cashReceivedKhr: cashKhr,
-      changeGivenUsd: changeUsd,
-      changeGivenKhr: changeKhr,
+      totalUsdExact: totals.totalUsdExact,
+      totalKhrExact: totals.totalKhrExact,
+      cashReceivedUsd: totals.cashReceivedUsd,
+      cashReceivedKhr: totals.cashReceivedKhr,
+      changeGivenUsd: totals.changeGivenUsd,
+      changeGivenKhr: totals.changeGivenKhr,
     );
   }
 
   @override
   Future<SaleCheckoutSummary> finalize(String saleId) async {
-    // Simulate network delay
-    await Future.delayed(const Duration(milliseconds: 200));
-
-    final sale = _sales[saleId];
-    if (sale == null) {
-      throw Exception('Sale not found: $saleId');
-    }
-
-    // Mark as finalized (in real implementation, this would update state to 'completed')
-    // For mock, we just return the summary
-    final subtotalUsd = sale.items.fold<double>(
-      0,
-      (sum, item) => sum + (item.lineTotalUsdExact * item.quantity),
+    final result = await finalizeSale(
+      SaleFinalizeSaleCommand(
+        saleId: saleId,
+        branchId: _activeBranchId,
+        paymentMethod: 'cash',
+        tenderCurrency: 'USD',
+        clientOpId: 'legacy-finalize-$saleId',
+      ),
     );
-    final totalUsd = subtotalUsd;
-    final totalKhr = totalUsd * sale.fxRateUsed;
-
-    // Remove from mock storage after finalization
-    _sales.remove(saleId);
 
     return SaleCheckoutSummary(
-      saleId: saleId,
+      saleId: result.saleId,
       tenderCurrency: 'usd',
       paymentMethod: 'cash',
-      totalUsdExact: totalUsd,
-      totalKhrExact: totalKhr,
+      totalUsdExact: result.totalUsdExact,
+      totalKhrExact: result.totalKhrExact,
       cashReceivedUsd: 0,
       cashReceivedKhr: 0,
       changeGivenUsd: 0,
@@ -229,11 +275,10 @@ class MockSaleRepository implements SaleRepository {
     required String saleId,
     required String status,
   }) async {
-    // Simulate network delay
-    await Future.delayed(const Duration(milliseconds: 100));
-
-    // Mock implementation - does nothing
-    // In real implementation, this would update the sale's fulfillment status
+    final finalized = _finalizedSales[saleId];
+    if (finalized == null) return;
+    finalized.fulfillmentStatus = status;
+    finalized.updatedAt = _now();
   }
 
   @override
@@ -244,23 +289,1169 @@ class MockSaleRepository implements SaleRepository {
     int page = 1,
     int limit = 50,
   }) async {
-    // Simulate network delay
-    await Future.delayed(const Duration(milliseconds: 150));
+    final all = <Sale>[
+      ..._drafts.values.map(_toDomainDraft),
+      ..._finalizedSales.values.map(_toDomainFinalized),
+      ..._voidedSales.values.map(_toDomainFinalized),
+    ];
 
-    // Return empty list for mock - could be extended to return mock sales
-    return [];
+    final lowerStatus = status?.toLowerCase();
+    final filtered = all.where((sale) {
+      final created = sale.createdAt;
+      if (lowerStatus != null && lowerStatus.isNotEmpty) {
+        if (sale.state.toLowerCase() != lowerStatus) return false;
+      }
+      if (startDate != null && created.isBefore(startDate)) return false;
+      if (endDate != null && !created.isBefore(endDate)) return false;
+      return true;
+    }).toList()..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+    final safePage = page < 1 ? 1 : page;
+    final safeLimit = limit < 1 ? 1 : limit;
+    final from = (safePage - 1) * safeLimit;
+    if (from >= filtered.length) return <Sale>[];
+    final to = min(filtered.length, from + safeLimit);
+    return filtered.sublist(from, to);
   }
 
   @override
   Future<void> voidSale(String saleId, {required String reason}) async {
-    // Simulate network delay
-    await Future.delayed(const Duration(milliseconds: 100));
+    final draft = _drafts.remove(saleId);
+    if (draft != null) {
+      _voidedSales[saleId] = _MockFinalizedSale(
+        saleId: saleId,
+        saleType: draft.saleType,
+        paymentMethod: 'cash',
+        tenderCurrency: 'usd',
+        subtotalUsdExact: _subtotalUsd(draft.items),
+        subtotalKhrExact: _subtotalUsd(draft.items) * draft.fxRateUsed,
+        totalUsdExact: _subtotalUsd(draft.items),
+        totalKhrExact: _subtotalUsd(draft.items) * draft.fxRateUsed,
+        cashReceivedUsd: 0,
+        cashReceivedKhr: 0,
+        changeGivenUsd: 0,
+        changeGivenKhr: 0,
+        fulfillmentStatus: 'cancelled',
+        state: 'voided',
+        items: draft.items,
+        createdAt: draft.createdAt,
+        updatedAt: _now(),
+      );
+      return;
+    }
 
-    // Remove from mock storage
-    _sales.remove(saleId);
+    final finalized = _finalizedSales.remove(saleId);
+    if (finalized != null) {
+      finalized.state = 'voided';
+      finalized.fulfillmentStatus = 'cancelled';
+      finalized.updatedAt = _now();
+      _voidedSales[saleId] = finalized;
+    }
   }
 
-  // Helper methods
+  @override
+  Future<SaleContextDto> getSaleContext({required String branchId}) async {
+    final reason = _resolveBlockingReason(
+      branchId: branchId,
+      requiresPayLaterEnabled: false,
+      requiresOnline: false,
+    );
+
+    return SaleContextDto(
+      branchId: branchId,
+      branchActive: _branchActive,
+      branchFrozen: _branchFrozen,
+      cashSessionOpen: _isCashSessionOpen,
+      canMutateCart:
+          reason == null ||
+          reason.code == SaleCheckoutReasonCodes.cashSessionRequired,
+      canCheckout: reason == null,
+      canPlacePayLater:
+          reason == null && _payLaterEnabled && _online && _branchActive,
+      reasonCode: reason?.code,
+      reasonMessage: reason?.message,
+    );
+  }
+
+  @override
+  Future<SaleCheckoutPreviewDto> computeCheckoutPreview(
+    SaleComputeCheckoutPreviewCommand command,
+  ) async {
+    _ensureReadAllowed(branchId: command.branchId);
+
+    final items = command.cartLines.isNotEmpty
+        ? command.cartLines.map(_lineFromCommand).toList()
+        : _requireDraft(command.saleId).items;
+
+    if (items.isEmpty) {
+      throw const SaleCheckoutRepositoryException(
+        reasonCode: SaleCheckoutReasonCodes.invalidRequest,
+        message: 'Cannot compute checkout preview for an empty cart.',
+      );
+    }
+
+    final draft = _drafts[command.saleId];
+    final fx = draft?.fxRateUsed ?? 4100;
+    final cashReceived = command.cashReceived?.toJson().cast<String, num>();
+    final totals = _computeTotals(
+      fxRateUsed: fx,
+      items: items,
+      tenderCurrency: command.tenderCurrency,
+      cashReceived: cashReceived,
+    );
+
+    final fingerprint = _stableStringify(
+      command.cartLines.map((e) => e.toJson()).toList(),
+    );
+    final previous = _cartFingerprintBySaleId[command.saleId];
+    if (previous != null && previous != fingerprint) {
+      _supersedeKhqrAttemptForSale(
+        saleId: command.saleId,
+        reason: 'cart_changed',
+      );
+    }
+    _cartFingerprintBySaleId[command.saleId] = fingerprint;
+
+    return SaleCheckoutPreviewDto(
+      saleId: command.saleId,
+      tenderCurrency: command.tenderCurrency.toLowerCase(),
+      paymentMethod: command.paymentMethod,
+      subtotalUsdExact: totals.subtotalUsdExact,
+      subtotalKhrExact: totals.subtotalKhrExact,
+      totalUsdExact: totals.totalUsdExact,
+      totalKhrExact: totals.totalKhrExact,
+      cashReceivedUsd: totals.cashReceivedUsd,
+      cashReceivedKhr: totals.cashReceivedKhr,
+      changeGivenUsd: totals.changeGivenUsd,
+      changeGivenKhr: totals.changeGivenKhr,
+    );
+  }
+
+  @override
+  Future<SaleKhqrAttemptDto> generateKhqrAttempt(
+    SaleGenerateKhqrAttemptCommand command,
+  ) async {
+    _ensureWriteAllowed(
+      branchId: _activeBranchId,
+      requiresPayLaterEnabled: false,
+      requiresOnline: false,
+    );
+
+    return _runIdempotent(
+      action: 'khqr.generate',
+      key: command.clientOpId,
+      payload: command.toJson(),
+      onReplay: (existing) => existing,
+      execute: () async {
+        _supersedeKhqrAttemptForSale(
+          saleId: command.saleId,
+          reason: 'new_attempt_generated',
+        );
+
+        final amount = _resolveCurrentPayable(
+          saleId: command.saleId,
+          tenderCurrency: command.tenderCurrency,
+        );
+
+        final now = _now();
+        final attempt = _MockKhqrAttempt(
+          saleId: command.saleId,
+          attemptId: _nextId('khqr_attempt'),
+          md5: _nextId('khqr_md5'),
+          status: 'WAITING_FOR_PAYMENT',
+          amount: amount,
+          currency: command.tenderCurrency.toUpperCase(),
+          createdAt: now,
+          expiresAt: now.add(const Duration(minutes: 2)),
+          pollCount: 0,
+          reasonCode: null,
+          reasonMessage: null,
+        );
+
+        _khqrByMd5[attempt.md5] = attempt;
+        _latestKhqrMd5BySaleId[command.saleId] = attempt.md5;
+
+        return SaleKhqrAttemptDto(
+          saleId: attempt.saleId,
+          attemptId: attempt.attemptId,
+          md5: attempt.md5,
+          status: attempt.status,
+          amount: attempt.amount,
+          currency: attempt.currency,
+          expiresAt: attempt.expiresAt,
+          qrPayload: 'KHQR:${attempt.md5}',
+          reasonCode: attempt.reasonCode,
+          reasonMessage: attempt.reasonMessage,
+        );
+      },
+    );
+  }
+
+  @override
+  Future<SaleKhqrStatusDto> checkKhqrStatus(
+    SaleCheckKhqrStatusCommand command,
+  ) async {
+    final attempt = _khqrByMd5[command.md5];
+    if (attempt == null || attempt.saleId != command.saleId) {
+      throw const SaleCheckoutRepositoryException(
+        reasonCode: SaleCheckoutReasonCodes.invalidRequest,
+        message: 'KHQR attempt was not found for this sale.',
+      );
+    }
+
+    final now = _now();
+
+    if (attempt.status == 'SUPERSEDED' || attempt.status == 'PAID_CONFIRMED') {
+      return SaleKhqrStatusDto(
+        saleId: attempt.saleId,
+        md5: attempt.md5,
+        status: attempt.status,
+        confirmedAt: attempt.confirmedAt,
+        reasonCode: attempt.reasonCode,
+        reasonMessage: attempt.reasonMessage,
+      );
+    }
+
+    if (attempt.expiresAt.isBefore(now)) {
+      attempt.status = 'EXPIRED';
+      attempt.reasonCode = null;
+      attempt.reasonMessage = null;
+      return SaleKhqrStatusDto(
+        saleId: attempt.saleId,
+        md5: attempt.md5,
+        status: attempt.status,
+      );
+    }
+
+    attempt.pollCount += 1;
+
+    if (!_online && attempt.pollCount >= 1) {
+      attempt.status = 'PENDING_CONFIRMATION';
+      return SaleKhqrStatusDto(
+        saleId: attempt.saleId,
+        md5: attempt.md5,
+        status: attempt.status,
+      );
+    }
+
+    if (attempt.pollCount >= 2) {
+      attempt.status = 'PAID_CONFIRMED';
+      attempt.confirmedAt = now;
+      return SaleKhqrStatusDto(
+        saleId: attempt.saleId,
+        md5: attempt.md5,
+        status: attempt.status,
+        confirmedAt: attempt.confirmedAt,
+      );
+    }
+
+    attempt.status = 'WAITING_FOR_PAYMENT';
+    return SaleKhqrStatusDto(
+      saleId: attempt.saleId,
+      md5: attempt.md5,
+      status: attempt.status,
+    );
+  }
+
+  @override
+  Future<SaleFinalizeSaleResultDto> finalizeSale(
+    SaleFinalizeSaleCommand command,
+  ) async {
+    _ensureWriteAllowed(
+      branchId: command.branchId,
+      requiresPayLaterEnabled: false,
+      requiresOnline: false,
+    );
+
+    return _runIdempotent(
+      action: 'sale.finalize',
+      key: command.clientOpId,
+      payload: command.toJson(),
+      onReplay: (existing) => existing.copyWith(idempotentReplay: true),
+      execute: () async {
+        final draft = _requireDraft(command.saleId);
+        if (draft.items.isEmpty) {
+          throw const SaleCheckoutRepositoryException(
+            reasonCode: SaleCheckoutReasonCodes.invalidRequest,
+            message: 'Cannot finalize an empty cart.',
+          );
+        }
+
+        if (command.paymentMethod.toLowerCase() == 'khqr') {
+          _ensureKhqrConfirmed(saleId: command.saleId, md5: command.khqrMd5);
+        }
+
+        final cashReceived = command.cashReceived?.toJson().cast<String, num>();
+        final totals = _computeTotals(
+          fxRateUsed: draft.fxRateUsed,
+          items: draft.items,
+          tenderCurrency: command.tenderCurrency,
+          cashReceived: cashReceived,
+        );
+
+        final now = _now();
+        final finalized = _MockFinalizedSale(
+          saleId: command.saleId,
+          saleType: draft.saleType,
+          paymentMethod: command.paymentMethod,
+          tenderCurrency: command.tenderCurrency.toLowerCase(),
+          subtotalUsdExact: totals.subtotalUsdExact,
+          subtotalKhrExact: totals.subtotalKhrExact,
+          totalUsdExact: totals.totalUsdExact,
+          totalKhrExact: totals.totalKhrExact,
+          cashReceivedUsd: totals.cashReceivedUsd,
+          cashReceivedKhr: totals.cashReceivedKhr,
+          changeGivenUsd: totals.changeGivenUsd,
+          changeGivenKhr: totals.changeGivenKhr,
+          fulfillmentStatus: 'in_prep',
+          state: 'finalized',
+          items: List<_MockSaleItem>.from(draft.items),
+          createdAt: draft.createdAt,
+          updatedAt: now,
+        );
+
+        _drafts.remove(command.saleId);
+        _finalizedSales[command.saleId] = finalized;
+
+        final ticketId = _openTicketIdBySaleId[command.saleId];
+        if (ticketId != null) {
+          final ticket = _openTicketsById[ticketId];
+          if (ticket != null && ticket.status == 'UNPAID') {
+            ticket.status = 'PAID';
+            ticket.updatedAt = now;
+          }
+        }
+
+        final receiptId = _nextId('receipt');
+        _receiptsBySaleId[command.saleId] = _buildReceipt(
+          saleId: command.saleId,
+          receiptId: receiptId,
+          paymentMethod: command.paymentMethod,
+          totalUsdExact: totals.totalUsdExact,
+          totalKhrExact: totals.totalKhrExact,
+          items: draft.items,
+          issuedAt: now,
+        );
+
+        return SaleFinalizeSaleResultDto(
+          saleId: command.saleId,
+          status: 'FINALIZED',
+          totalUsdExact: totals.totalUsdExact,
+          totalKhrExact: totals.totalKhrExact,
+          idempotentReplay: false,
+          orderId: command.saleId,
+          receiptId: receiptId,
+        );
+      },
+    );
+  }
+
+  @override
+  Future<SalePlaceOrderResultDto> placeOrder(
+    SalePlaceOrderCommand command,
+  ) async {
+    _ensureWriteAllowed(
+      branchId: command.branchId,
+      requiresPayLaterEnabled: true,
+      requiresOnline: true,
+    );
+
+    return _runIdempotent(
+      action: 'ticket.place',
+      key: command.clientOpId,
+      payload: command.toJson(),
+      onReplay: (existing) => existing.copyWith(idempotentReplay: true),
+      execute: () async {
+        if (command.cartLines.isEmpty) {
+          throw const SaleCheckoutRepositoryException(
+            reasonCode: SaleCheckoutReasonCodes.invalidRequest,
+            message: 'Cannot place an open ticket with an empty cart.',
+          );
+        }
+
+        final now = _now();
+        final draft = _MockSaleDraft(
+          saleId: command.saleId,
+          saleType: command.saleType,
+          fxRateUsed: 4100,
+          items: command.cartLines.map(_lineFromCommand).toList(),
+          createdAt: now,
+          updatedAt: now,
+        );
+        _drafts[command.saleId] = draft;
+
+        final batchId = _nextId('batch');
+        final batch = _batchFromCartLines(
+          batchId: batchId,
+          cartLines: command.cartLines,
+          createdAt: now,
+        );
+
+        final totals = _computeTotals(
+          fxRateUsed: draft.fxRateUsed,
+          items: batch.items,
+          tenderCurrency: 'USD',
+          cashReceived: null,
+        );
+
+        final openTicketId = _nextId('open_ticket');
+        final ticket = _MockOpenTicket(
+          openTicketId: openTicketId,
+          saleId: command.saleId,
+          status: 'UNPAID',
+          batches: <_MockOpenTicketBatch>[batch],
+          payableUsdExact: totals.totalUsdExact,
+          payableKhrExact: totals.totalKhrExact,
+          createdAt: now,
+          updatedAt: now,
+        );
+
+        _openTicketsById[openTicketId] = ticket;
+        _openTicketIdBySaleId[command.saleId] = openTicketId;
+
+        return SalePlaceOrderResultDto(
+          openTicketId: openTicketId,
+          saleId: command.saleId,
+          status: ticket.status,
+          batchId: batchId,
+          idempotentReplay: false,
+        );
+      },
+    );
+  }
+
+  @override
+  Future<SaleAddItemsToOpenTicketResultDto> addItemsToOpenTicket(
+    SaleAddItemsToOpenTicketCommand command,
+  ) async {
+    _ensureWriteAllowed(
+      branchId: _activeBranchId,
+      requiresPayLaterEnabled: true,
+      requiresOnline: true,
+    );
+
+    return _runIdempotent(
+      action: 'ticket.add_items',
+      key: command.clientOpId,
+      payload: command.toJson(),
+      onReplay: (existing) => existing.copyWith(idempotentReplay: true),
+      execute: () async {
+        final ticket = _openTicketsById[command.openTicketId];
+        if (ticket == null || ticket.status != 'UNPAID') {
+          throw const SaleCheckoutRepositoryException(
+            reasonCode: SaleCheckoutReasonCodes.invalidRequest,
+            message: 'Open ticket is not available for add-items.',
+          );
+        }
+        if (command.cartLines.isEmpty) {
+          throw const SaleCheckoutRepositoryException(
+            reasonCode: SaleCheckoutReasonCodes.invalidRequest,
+            message: 'Add-items requires at least one cart line.',
+          );
+        }
+
+        final batchId = _nextId('batch');
+        final now = _now();
+        final batch = _batchFromCartLines(
+          batchId: batchId,
+          cartLines: command.cartLines,
+          createdAt: now,
+        );
+
+        ticket.batches.add(batch);
+        ticket.updatedAt = now;
+
+        final allItems = ticket.batches.expand((b) => b.items).toList();
+        final totals = _computeTotals(
+          fxRateUsed: 4100,
+          items: allItems,
+          tenderCurrency: 'USD',
+          cashReceived: null,
+        );
+        ticket.payableUsdExact = totals.totalUsdExact;
+        ticket.payableKhrExact = totals.totalKhrExact;
+
+        _supersedeKhqrAttemptForSale(
+          saleId: ticket.saleId,
+          reason: 'ticket_changed',
+        );
+
+        final draft = _drafts[ticket.saleId];
+        if (draft != null) {
+          draft.items
+            ..clear()
+            ..addAll(allItems);
+          draft.updatedAt = now;
+          _syncCartFingerprintFromDraft(ticket.saleId);
+        }
+
+        return SaleAddItemsToOpenTicketResultDto(
+          openTicketId: ticket.openTicketId,
+          batchId: batchId,
+          idempotentReplay: false,
+        );
+      },
+    );
+  }
+
+  @override
+  Future<SaleCheckoutOpenTicketResultDto> checkoutOpenTicket(
+    SaleCheckoutOpenTicketCommand command,
+  ) async {
+    _ensureWriteAllowed(
+      branchId: _activeBranchId,
+      requiresPayLaterEnabled: false,
+      requiresOnline: false,
+    );
+
+    return _runIdempotent(
+      action: 'ticket.checkout',
+      key: command.clientOpId,
+      payload: command.toJson(),
+      onReplay: (existing) => existing.copyWith(idempotentReplay: true),
+      execute: () async {
+        final ticket = _openTicketsById[command.openTicketId];
+        if (ticket == null || ticket.status != 'UNPAID') {
+          throw const SaleCheckoutRepositoryException(
+            reasonCode: SaleCheckoutReasonCodes.invalidRequest,
+            message: 'Open ticket is not payable in its current state.',
+          );
+        }
+
+        if (command.paymentMethod.toLowerCase() == 'khqr') {
+          _ensureKhqrConfirmed(saleId: ticket.saleId, md5: command.khqrMd5);
+        }
+
+        final allItems = ticket.batches.expand((batch) => batch.items).toList();
+        final cashReceived = command.cashReceived?.toJson().cast<String, num>();
+        final totals = _computeTotals(
+          fxRateUsed: 4100,
+          items: allItems,
+          tenderCurrency: command.tenderCurrency,
+          cashReceived: cashReceived,
+        );
+
+        final now = _now();
+        _finalizedSales[ticket.saleId] = _MockFinalizedSale(
+          saleId: ticket.saleId,
+          saleType: 'take_away',
+          paymentMethod: command.paymentMethod,
+          tenderCurrency: command.tenderCurrency.toLowerCase(),
+          subtotalUsdExact: totals.subtotalUsdExact,
+          subtotalKhrExact: totals.subtotalKhrExact,
+          totalUsdExact: totals.totalUsdExact,
+          totalKhrExact: totals.totalKhrExact,
+          cashReceivedUsd: totals.cashReceivedUsd,
+          cashReceivedKhr: totals.cashReceivedKhr,
+          changeGivenUsd: totals.changeGivenUsd,
+          changeGivenKhr: totals.changeGivenKhr,
+          fulfillmentStatus: 'in_prep',
+          state: 'finalized',
+          items: allItems,
+          createdAt: ticket.createdAt,
+          updatedAt: now,
+        );
+
+        ticket.status = 'PAID';
+        ticket.updatedAt = now;
+
+        final receiptId = _nextId('receipt');
+        _receiptsBySaleId[ticket.saleId] = _buildReceipt(
+          saleId: ticket.saleId,
+          receiptId: receiptId,
+          paymentMethod: command.paymentMethod,
+          totalUsdExact: totals.totalUsdExact,
+          totalKhrExact: totals.totalKhrExact,
+          items: allItems,
+          issuedAt: now,
+        );
+
+        _drafts.remove(ticket.saleId);
+
+        return SaleCheckoutOpenTicketResultDto(
+          openTicketId: ticket.openTicketId,
+          saleId: ticket.saleId,
+          status: ticket.status,
+          idempotentReplay: false,
+          receiptId: receiptId,
+        );
+      },
+    );
+  }
+
+  @override
+  Future<SaleCancelOpenTicketResultDto> cancelOpenTicket(
+    SaleCancelOpenTicketCommand command,
+  ) async {
+    _ensureWriteAllowed(
+      branchId: _activeBranchId,
+      requiresPayLaterEnabled: false,
+      requiresOnline: false,
+    );
+
+    return _runIdempotent(
+      action: 'ticket.cancel',
+      key: command.clientOpId,
+      payload: command.toJson(),
+      onReplay: (existing) => existing.copyWith(idempotentReplay: true),
+      execute: () async {
+        final ticket = _openTicketsById[command.openTicketId];
+        if (ticket == null || ticket.status != 'UNPAID') {
+          throw const SaleCheckoutRepositoryException(
+            reasonCode: SaleCheckoutReasonCodes.invalidRequest,
+            message: 'Open ticket is not cancellable in its current state.',
+          );
+        }
+        if (command.reason.trim().isEmpty) {
+          throw const SaleCheckoutRepositoryException(
+            reasonCode: SaleCheckoutReasonCodes.invalidRequest,
+            message: 'Cancellation reason is required.',
+          );
+        }
+
+        final now = _now();
+        ticket.status = 'CANCELLED';
+        ticket.updatedAt = now;
+        ticket.cancelledAt = now;
+
+        _drafts.remove(ticket.saleId);
+
+        return SaleCancelOpenTicketResultDto(
+          openTicketId: ticket.openTicketId,
+          status: ticket.status,
+          idempotentReplay: false,
+          cancelledAt: now,
+        );
+      },
+    );
+  }
+
+  @override
+  Future<SaleOrdersPageDto> getOrders(SaleOrdersQueryDto query) async {
+    final items = <SaleOrderSummaryDto>[];
+
+    for (final ticket in _openTicketsById.values) {
+      items.add(
+        SaleOrderSummaryDto(
+          saleId: ticket.saleId,
+          orderId: ticket.openTicketId,
+          ticketStatus: ticket.status,
+          fulfillmentStatus: ticket.status == 'PAID' ? 'in_prep' : 'pending',
+          totalUsdExact: ticket.payableUsdExact,
+          totalKhrExact: ticket.payableKhrExact,
+          placedAt: ticket.createdAt,
+        ),
+      );
+    }
+
+    for (final finalized in _finalizedSales.values) {
+      items.add(
+        SaleOrderSummaryDto(
+          saleId: finalized.saleId,
+          orderId: finalized.saleId,
+          ticketStatus: 'PAID',
+          fulfillmentStatus: finalized.fulfillmentStatus,
+          totalUsdExact: finalized.totalUsdExact,
+          totalKhrExact: finalized.totalKhrExact,
+          placedAt: finalized.createdAt,
+        ),
+      );
+    }
+
+    final filtered = items.where((order) {
+      final lowerStatus = query.status?.toLowerCase();
+      if (lowerStatus != null && lowerStatus.isNotEmpty) {
+        if (order.ticketStatus.toLowerCase() != lowerStatus &&
+            order.fulfillmentStatus.toLowerCase() != lowerStatus) {
+          return false;
+        }
+      }
+      if (query.from != null && order.placedAt.isBefore(query.from!)) {
+        return false;
+      }
+      if (query.to != null && !order.placedAt.isBefore(query.to!)) {
+        return false;
+      }
+      return true;
+    }).toList()..sort((a, b) => b.placedAt.compareTo(a.placedAt));
+
+    final safePage = query.page < 1 ? 1 : query.page;
+    final safeLimit = query.limit < 1 ? 1 : query.limit;
+    final from = (safePage - 1) * safeLimit;
+    final paged = from >= filtered.length
+        ? <SaleOrderSummaryDto>[]
+        : filtered.sublist(from, min(filtered.length, from + safeLimit));
+
+    return SaleOrdersPageDto(
+      items: paged,
+      page: safePage,
+      limit: safeLimit,
+      total: filtered.length,
+    );
+  }
+
+  @override
+  Future<SaleOpenTicketDetailDto> getOpenTicketDetail({
+    required String saleId,
+  }) async {
+    final openTicketId = _openTicketIdBySaleId[saleId];
+    final ticket = openTicketId == null ? null : _openTicketsById[openTicketId];
+    if (ticket == null) {
+      throw const SaleCheckoutRepositoryException(
+        reasonCode: SaleCheckoutReasonCodes.invalidRequest,
+        message: 'Open ticket not found for this sale.',
+      );
+    }
+
+    return SaleOpenTicketDetailDto(
+      openTicketId: ticket.openTicketId,
+      saleId: ticket.saleId,
+      status: ticket.status,
+      batches: ticket.batches
+          .map(
+            (batch) => SaleOpenTicketBatchDto(
+              batchId: batch.batchId,
+              createdAt: batch.createdAt,
+              totalUsdExact: batch.totalUsdExact,
+              totalKhrExact: batch.totalKhrExact,
+            ),
+          )
+          .toList(),
+      payableUsdExact: ticket.payableUsdExact,
+      payableKhrExact: ticket.payableKhrExact,
+    );
+  }
+
+  @override
+  Future<SaleReceiptDto> getReceipt({required String saleId}) async {
+    final receipt = _receiptsBySaleId[saleId];
+    if (receipt == null) {
+      throw const SaleCheckoutRepositoryException(
+        reasonCode: SaleCheckoutReasonCodes.invalidRequest,
+        message: 'Receipt is not available for this sale.',
+      );
+    }
+    return receipt;
+  }
+
+  Future<T> _runIdempotent<T extends Object>({
+    required String action,
+    required String key,
+    required Object payload,
+    required T Function(T existing) onReplay,
+    required Future<T> Function() execute,
+  }) async {
+    final normalizedKey = key.trim();
+    if (normalizedKey.isEmpty) {
+      throw const SaleCheckoutRepositoryException(
+        reasonCode: SaleCheckoutReasonCodes.invalidRequest,
+        message: 'Idempotency key is required.',
+      );
+    }
+
+    final id = '$action|$normalizedKey';
+    final payloadHash = _stableStringify(payload);
+    final existing = _idempotencyRecords[id];
+
+    if (existing != null) {
+      if (existing.payloadHash != payloadHash) {
+        throw const SaleCheckoutRepositoryException(
+          reasonCode: SaleCheckoutReasonCodes.idempotencyConflict,
+          message: 'Same idempotency key was used with a different payload.',
+        );
+      }
+      return onReplay(existing.response as T);
+    }
+
+    final created = await execute();
+    _idempotencyRecords[id] = _IdempotencyRecord(
+      payloadHash: payloadHash,
+      response: created,
+    );
+    return created;
+  }
+
+  Sale _toDomainDraft(_MockSaleDraft draft) {
+    return Sale(
+      id: draft.saleId,
+      saleType: draft.saleType,
+      state: 'draft',
+      fulfillmentStatus: 'in_prep',
+      paymentMethod: 'cash',
+      tenderCurrency: 'usd',
+      fxRateUsed: draft.fxRateUsed,
+      subtotalUsdExact: _subtotalUsd(draft.items),
+      subtotalKhrExact: _subtotalUsd(draft.items) * draft.fxRateUsed,
+      totalUsdExact: _subtotalUsd(draft.items),
+      totalKhrExact: _subtotalUsd(draft.items) * draft.fxRateUsed,
+      cashReceivedUsd: 0,
+      cashReceivedKhr: 0,
+      changeGivenUsd: 0,
+      changeGivenKhr: 0,
+      createdAt: draft.createdAt,
+      updatedAt: draft.updatedAt,
+      items: draft.items.map(_toDomainItem).toList(),
+    );
+  }
+
+  Sale _toDomainFinalized(_MockFinalizedSale sale) {
+    return Sale(
+      id: sale.saleId,
+      saleType: sale.saleType,
+      state: sale.state,
+      fulfillmentStatus: sale.fulfillmentStatus,
+      paymentMethod: sale.paymentMethod,
+      tenderCurrency: sale.tenderCurrency,
+      fxRateUsed: 4100,
+      subtotalUsdExact: sale.subtotalUsdExact,
+      subtotalKhrExact: sale.subtotalKhrExact,
+      totalUsdExact: sale.totalUsdExact,
+      totalKhrExact: sale.totalKhrExact,
+      cashReceivedUsd: sale.cashReceivedUsd,
+      cashReceivedKhr: sale.cashReceivedKhr,
+      changeGivenUsd: sale.changeGivenUsd,
+      changeGivenKhr: sale.changeGivenKhr,
+      createdAt: sale.createdAt,
+      updatedAt: sale.updatedAt,
+      items: sale.items.map(_toDomainItem).toList(),
+    );
+  }
+
+  SaleItem _toDomainItem(_MockSaleItem item) {
+    return SaleItem(
+      id: item.id,
+      menuItemId: item.menuItemId,
+      menuItemName: item.menuItemName,
+      quantity: item.quantity,
+      modifiers: item.modifiers
+          .map(
+            (modifier) => SaleModifier(
+              groupId: modifier['groupId']?.toString() ?? '',
+              optionIds: ((modifier['optionIds'] as List<dynamic>?) ?? const [])
+                  .map((value) => value.toString())
+                  .toList(),
+              optionLabels:
+                  ((modifier['options'] as List<dynamic>?) ?? const [])
+                      .map((option) {
+                        if (option is Map<String, dynamic>) {
+                          return option['label']?.toString() ?? '';
+                        }
+                        return option.toString();
+                      })
+                      .where((label) => label.isNotEmpty)
+                      .toList(),
+            ),
+          )
+          .toList(),
+    );
+  }
+
+  _Totals _computeTotals({
+    required double fxRateUsed,
+    required List<_MockSaleItem> items,
+    required String tenderCurrency,
+    required Map<String, num>? cashReceived,
+  }) {
+    final subtotalUsd = _subtotalUsd(items);
+    final subtotalKhr = subtotalUsd * fxRateUsed;
+
+    final cashUsd = (cashReceived?['usd'] ?? 0).toDouble();
+    final cashKhr = (cashReceived?['khr'] ?? 0).toDouble();
+
+    final upperCurrency = tenderCurrency.toUpperCase();
+    final changeUsd = upperCurrency == 'USD'
+        ? max<double>(0, cashUsd - subtotalUsd)
+        : 0.0;
+    final changeKhr = upperCurrency == 'KHR'
+        ? max<double>(0, cashKhr - subtotalKhr)
+        : 0.0;
+
+    return _Totals(
+      subtotalUsdExact: subtotalUsd,
+      subtotalKhrExact: subtotalKhr,
+      totalUsdExact: subtotalUsd,
+      totalKhrExact: subtotalKhr,
+      cashReceivedUsd: cashUsd,
+      cashReceivedKhr: cashKhr,
+      changeGivenUsd: changeUsd,
+      changeGivenKhr: changeKhr,
+    );
+  }
+
+  double _subtotalUsd(List<_MockSaleItem> items) {
+    return items.fold<double>(0, (sum, item) {
+      final lineBase = item.lineTotalUsdExact > 0
+          ? item.lineTotalUsdExact
+          : item.unitPriceUsd;
+      return sum + (lineBase * item.quantity);
+    });
+  }
+
+  _MockSaleItem _lineFromCommand(SaleCartLineInputDto line) {
+    final modifiers = line.modifiers
+        .map(
+          (entry) => <String, dynamic>{
+            'groupId': entry.groupId,
+            'optionIds': entry.optionIds,
+          },
+        )
+        .toList();
+
+    return _MockSaleItem(
+      id: _nextId('item'),
+      menuItemId: line.menuItemId,
+      menuItemName: line.menuItemId,
+      quantity: line.quantity,
+      modifiers: modifiers,
+      unitPriceUsd: (line.unitPriceUsd ?? 1).toDouble(),
+      lineTotalUsdExact: (line.lineTotalUsdExact ?? line.unitPriceUsd ?? 1)
+          .toDouble(),
+    );
+  }
+
+  _MockOpenTicketBatch _batchFromCartLines({
+    required String batchId,
+    required List<SaleCartLineInputDto> cartLines,
+    required DateTime createdAt,
+  }) {
+    final items = cartLines.map(_lineFromCommand).toList();
+    final totals = _computeTotals(
+      fxRateUsed: 4100,
+      items: items,
+      tenderCurrency: 'USD',
+      cashReceived: null,
+    );
+
+    return _MockOpenTicketBatch(
+      batchId: batchId,
+      items: items,
+      totalUsdExact: totals.totalUsdExact,
+      totalKhrExact: totals.totalKhrExact,
+      createdAt: createdAt,
+    );
+  }
+
+  SaleReceiptDto _buildReceipt({
+    required String saleId,
+    required String receiptId,
+    required String paymentMethod,
+    required double totalUsdExact,
+    required double totalKhrExact,
+    required List<_MockSaleItem> items,
+    required DateTime issuedAt,
+  }) {
+    return SaleReceiptDto(
+      saleId: saleId,
+      receiptNumber: receiptId,
+      paymentMethod: paymentMethod,
+      totalUsdExact: totalUsdExact,
+      totalKhrExact: totalKhrExact,
+      issuedAt: issuedAt,
+      lines: items
+          .map(
+            (item) => SaleReceiptLineDto(
+              name: item.menuItemName,
+              quantity: item.quantity,
+              unitPriceUsd: item.unitPriceUsd,
+              lineTotalUsdExact: item.lineTotalUsdExact * item.quantity,
+            ),
+          )
+          .toList(),
+    );
+  }
+
+  _MockSaleDraft _requireDraft(String saleId) {
+    final draft = _drafts[saleId];
+    if (draft == null) {
+      throw const SaleCheckoutRepositoryException(
+        reasonCode: SaleCheckoutReasonCodes.invalidRequest,
+        message: 'Sale draft was not found.',
+      );
+    }
+    return draft;
+  }
+
+  void _ensureReadAllowed({required String branchId}) {
+    if (!_authorized) {
+      throw const SaleCheckoutRepositoryException(
+        reasonCode: SaleCheckoutReasonCodes.unauthorized,
+        message: 'You are not authorized for this branch.',
+      );
+    }
+    if (!_adoptActiveBranchContext(branchId)) {
+      throw const SaleCheckoutRepositoryException(
+        reasonCode: SaleCheckoutReasonCodes.branchRequired,
+        message: 'Branch context is required.',
+      );
+    }
+  }
+
+  void _ensureWriteAllowed({
+    required String branchId,
+    required bool requiresPayLaterEnabled,
+    required bool requiresOnline,
+    bool requiresCashSessionOpen = true,
+  }) {
+    final reason = _resolveBlockingReason(
+      branchId: branchId,
+      requiresPayLaterEnabled: requiresPayLaterEnabled,
+      requiresOnline: requiresOnline,
+      requiresCashSessionOpen: requiresCashSessionOpen,
+    );
+    if (reason != null) {
+      throw SaleCheckoutRepositoryException(
+        reasonCode: reason.code,
+        message: reason.message,
+      );
+    }
+  }
+
+  _BlockingReason? _resolveBlockingReason({
+    required String branchId,
+    required bool requiresPayLaterEnabled,
+    required bool requiresOnline,
+    bool requiresCashSessionOpen = true,
+  }) {
+    if (!_authorized) {
+      return const _BlockingReason(
+        code: SaleCheckoutReasonCodes.unauthorized,
+        message: 'You are not authorized for this action.',
+      );
+    }
+    if (!_adoptActiveBranchContext(branchId)) {
+      return const _BlockingReason(
+        code: SaleCheckoutReasonCodes.branchRequired,
+        message: 'Active branch context is required.',
+      );
+    }
+    if (!_branchActive || _branchFrozen) {
+      return const _BlockingReason(
+        code: SaleCheckoutReasonCodes.branchFrozen,
+        message: 'Branch is currently frozen for write operations.',
+      );
+    }
+    if (requiresCashSessionOpen && !_isCashSessionOpen) {
+      return const _BlockingReason(
+        code: SaleCheckoutReasonCodes.cashSessionRequired,
+        message: 'Open cash session is required before this action.',
+      );
+    }
+    if (requiresPayLaterEnabled && !_payLaterEnabled) {
+      return const _BlockingReason(
+        code: SaleCheckoutReasonCodes.payLaterDisabled,
+        message: 'Pay-later is disabled for this branch.',
+      );
+    }
+    if (requiresOnline && !_online) {
+      return const _BlockingReason(
+        code: SaleCheckoutReasonCodes.offlineUnreachable,
+        message: 'This action requires online connectivity.',
+      );
+    }
+    return null;
+  }
+
+  bool _adoptActiveBranchContext(String branchId) {
+    final normalized = branchId.trim();
+    if (normalized.isEmpty) return false;
+    _activeBranchId = normalized;
+    return true;
+  }
+
+  void _ensureKhqrConfirmed({required String saleId, required String? md5}) {
+    if (md5 == null || md5.trim().isEmpty) {
+      throw const SaleCheckoutRepositoryException(
+        reasonCode: SaleCheckoutReasonCodes.khqrNotConfirmed,
+        message: 'KHQR payment is not confirmed for this sale.',
+      );
+    }
+
+    final attempt = _khqrByMd5[md5];
+    if (attempt == null || attempt.saleId != saleId) {
+      throw const SaleCheckoutRepositoryException(
+        reasonCode: SaleCheckoutReasonCodes.khqrNotConfirmed,
+        message: 'KHQR payment proof does not match this sale.',
+      );
+    }
+
+    if (attempt.status != 'PAID_CONFIRMED') {
+      throw const SaleCheckoutRepositoryException(
+        reasonCode: SaleCheckoutReasonCodes.khqrNotConfirmed,
+        message: 'KHQR payment is still pending confirmation.',
+      );
+    }
+  }
+
+  double _resolveCurrentPayable({
+    required String saleId,
+    required String tenderCurrency,
+  }) {
+    final draft = _drafts[saleId];
+    if (draft != null) {
+      final totals = _computeTotals(
+        fxRateUsed: draft.fxRateUsed,
+        items: draft.items,
+        tenderCurrency: tenderCurrency,
+        cashReceived: null,
+      );
+      return tenderCurrency.toUpperCase() == 'KHR'
+          ? totals.totalKhrExact
+          : totals.totalUsdExact;
+    }
+
+    final ticketId = _openTicketIdBySaleId[saleId];
+    final ticket = ticketId == null ? null : _openTicketsById[ticketId];
+    if (ticket != null) {
+      return tenderCurrency.toUpperCase() == 'KHR'
+          ? ticket.payableKhrExact
+          : ticket.payableUsdExact;
+    }
+
+    throw const SaleCheckoutRepositoryException(
+      reasonCode: SaleCheckoutReasonCodes.invalidRequest,
+      message: 'No payable sale context found for KHQR generation.',
+    );
+  }
+
+  void _syncCartFingerprintFromDraft(String saleId) {
+    final draft = _drafts[saleId];
+    if (draft == null) return;
+    _cartFingerprintBySaleId[saleId] = _fingerprintFromDraft(draft);
+  }
+
+  String _fingerprintFromDraft(_MockSaleDraft draft) {
+    final payload = draft.items
+        .map(
+          (item) => {
+            'menu_item_id': item.menuItemId,
+            'quantity': item.quantity,
+            'modifiers': item.modifiers,
+            'unit_price_usd': item.unitPriceUsd,
+            'line_total_usd_exact': item.lineTotalUsdExact,
+          },
+        )
+        .toList();
+    return _stableStringify(payload);
+  }
+
+  void _supersedeKhqrAttemptForSale({
+    required String saleId,
+    required String reason,
+  }) {
+    final latestMd5 = _latestKhqrMd5BySaleId[saleId];
+    if (latestMd5 == null) return;
+
+    final attempt = _khqrByMd5[latestMd5];
+    if (attempt == null) return;
+
+    if (attempt.status == 'WAITING_FOR_PAYMENT' ||
+        attempt.status == 'PAID_CONFIRMED' ||
+        attempt.status == 'PENDING_CONFIRMATION') {
+      attempt.status = 'SUPERSEDED';
+      attempt.reasonCode = SaleCheckoutReasonCodes.invalidRequest;
+      attempt.reasonMessage = reason;
+    }
+  }
 
   bool _modifiersMatch(
     List<Map<String, dynamic>> modifiers,
@@ -299,28 +1490,52 @@ class MockSaleRepository implements SaleRepository {
     }
     return true;
   }
+
+  String _nextId(String prefix) {
+    final next = _idCounter++;
+    return '$prefix-${next.toString().padLeft(6, '0')}';
+  }
+
+  DateTime _now() => _nowFactory().toUtc();
+
+  String _stableStringify(Object? value) {
+    if (value is Map) {
+      final keys = value.keys.map((k) => k.toString()).toList()..sort();
+      final normalized = <String, dynamic>{
+        for (final key in keys) key: _stableStringify(value[key]),
+      };
+      return jsonEncode(normalized);
+    }
+    if (value is Iterable) {
+      return jsonEncode(value.map(_stableStringify).toList());
+    }
+    return jsonEncode(value);
+  }
 }
 
-// Internal mock models
-
-class _MockSale {
-  _MockSale({
-    required this.id,
+class _MockSaleDraft {
+  _MockSaleDraft({
+    required this.saleId,
     required this.saleType,
     required this.fxRateUsed,
     required this.items,
+    required this.createdAt,
+    required this.updatedAt,
   });
 
-  final String id;
+  final String saleId;
   final String saleType;
   final double fxRateUsed;
   final List<_MockSaleItem> items;
+  final DateTime createdAt;
+  DateTime updatedAt;
 }
 
 class _MockSaleItem {
   _MockSaleItem({
     required this.id,
     required this.menuItemId,
+    required this.menuItemName,
     required this.quantity,
     required this.modifiers,
     required this.unitPriceUsd,
@@ -329,23 +1544,242 @@ class _MockSaleItem {
 
   final String id;
   final String menuItemId;
+  final String menuItemName;
   final int quantity;
   final List<Map<String, dynamic>> modifiers;
   final double unitPriceUsd;
   final double lineTotalUsdExact;
+
+  _MockSaleItem copyWith({
+    String? id,
+    String? menuItemId,
+    String? menuItemName,
+    int? quantity,
+    List<Map<String, dynamic>>? modifiers,
+    double? unitPriceUsd,
+    double? lineTotalUsdExact,
+  }) {
+    return _MockSaleItem(
+      id: id ?? this.id,
+      menuItemId: menuItemId ?? this.menuItemId,
+      menuItemName: menuItemName ?? this.menuItemName,
+      quantity: quantity ?? this.quantity,
+      modifiers: modifiers ?? this.modifiers,
+      unitPriceUsd: unitPriceUsd ?? this.unitPriceUsd,
+      lineTotalUsdExact: lineTotalUsdExact ?? this.lineTotalUsdExact,
+    );
+  }
 }
 
-String _randomUuid() {
-  final rand = Random();
-  String fourHex() => rand.nextInt(0x10000).toRadixString(16).padLeft(4, '0');
-  final part1 = '${fourHex()}${fourHex()}';
-  final part2 = fourHex();
-  final part3 = (int.parse(fourHex(), radix: 16) & 0x0fff | 0x4000)
-      .toRadixString(16)
-      .padLeft(4, '0');
-  final part4 = (int.parse(fourHex(), radix: 16) & 0x3fff | 0x8000)
-      .toRadixString(16)
-      .padLeft(4, '0');
-  final part5 = '${fourHex()}${fourHex()}${fourHex()}';
-  return '$part1-$part2-$part3-$part4-$part5';
+class _MockOpenTicketBatch {
+  _MockOpenTicketBatch({
+    required this.batchId,
+    required this.items,
+    required this.totalUsdExact,
+    required this.totalKhrExact,
+    required this.createdAt,
+  });
+
+  final String batchId;
+  final List<_MockSaleItem> items;
+  final double totalUsdExact;
+  final double totalKhrExact;
+  final DateTime createdAt;
+}
+
+class _MockOpenTicket {
+  _MockOpenTicket({
+    required this.openTicketId,
+    required this.saleId,
+    required this.status,
+    required this.batches,
+    required this.payableUsdExact,
+    required this.payableKhrExact,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  final String openTicketId;
+  final String saleId;
+  String status;
+  final List<_MockOpenTicketBatch> batches;
+  double payableUsdExact;
+  double payableKhrExact;
+  final DateTime createdAt;
+  DateTime updatedAt;
+  DateTime? cancelledAt;
+}
+
+class _MockKhqrAttempt {
+  _MockKhqrAttempt({
+    required this.saleId,
+    required this.attemptId,
+    required this.md5,
+    required this.status,
+    required this.amount,
+    required this.currency,
+    required this.createdAt,
+    required this.expiresAt,
+    required this.pollCount,
+    this.reasonCode,
+    this.reasonMessage,
+  });
+
+  final String saleId;
+  final String attemptId;
+  final String md5;
+  String status;
+  final double amount;
+  final String currency;
+  final DateTime createdAt;
+  final DateTime expiresAt;
+  int pollCount;
+  DateTime? confirmedAt;
+  String? reasonCode;
+  String? reasonMessage;
+}
+
+class _MockFinalizedSale {
+  _MockFinalizedSale({
+    required this.saleId,
+    required this.saleType,
+    required this.paymentMethod,
+    required this.tenderCurrency,
+    required this.subtotalUsdExact,
+    required this.subtotalKhrExact,
+    required this.totalUsdExact,
+    required this.totalKhrExact,
+    required this.cashReceivedUsd,
+    required this.cashReceivedKhr,
+    required this.changeGivenUsd,
+    required this.changeGivenKhr,
+    required this.fulfillmentStatus,
+    required this.state,
+    required this.items,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  final String saleId;
+  final String saleType;
+  final String paymentMethod;
+  final String tenderCurrency;
+  final double subtotalUsdExact;
+  final double subtotalKhrExact;
+  final double totalUsdExact;
+  final double totalKhrExact;
+  final double cashReceivedUsd;
+  final double cashReceivedKhr;
+  final double changeGivenUsd;
+  final double changeGivenKhr;
+  String fulfillmentStatus;
+  String state;
+  final List<_MockSaleItem> items;
+  final DateTime createdAt;
+  DateTime updatedAt;
+}
+
+class _BlockingReason {
+  const _BlockingReason({required this.code, required this.message});
+
+  final String code;
+  final String message;
+}
+
+class _Totals {
+  const _Totals({
+    required this.subtotalUsdExact,
+    required this.subtotalKhrExact,
+    required this.totalUsdExact,
+    required this.totalKhrExact,
+    required this.cashReceivedUsd,
+    required this.cashReceivedKhr,
+    required this.changeGivenUsd,
+    required this.changeGivenKhr,
+  });
+
+  final double subtotalUsdExact;
+  final double subtotalKhrExact;
+  final double totalUsdExact;
+  final double totalKhrExact;
+  final double cashReceivedUsd;
+  final double cashReceivedKhr;
+  final double changeGivenUsd;
+  final double changeGivenKhr;
+}
+
+class _IdempotencyRecord {
+  const _IdempotencyRecord({required this.payloadHash, required this.response});
+
+  final String payloadHash;
+  final Object response;
+}
+
+extension on SaleFinalizeSaleResultDto {
+  SaleFinalizeSaleResultDto copyWith({bool? idempotentReplay}) {
+    return SaleFinalizeSaleResultDto(
+      saleId: saleId,
+      status: status,
+      totalUsdExact: totalUsdExact,
+      totalKhrExact: totalKhrExact,
+      idempotentReplay: idempotentReplay ?? this.idempotentReplay,
+      orderId: orderId,
+      receiptId: receiptId,
+      reasonCode: reasonCode,
+      reasonMessage: reasonMessage,
+    );
+  }
+}
+
+extension on SalePlaceOrderResultDto {
+  SalePlaceOrderResultDto copyWith({bool? idempotentReplay}) {
+    return SalePlaceOrderResultDto(
+      openTicketId: openTicketId,
+      saleId: saleId,
+      status: status,
+      batchId: batchId,
+      idempotentReplay: idempotentReplay ?? this.idempotentReplay,
+      reasonCode: reasonCode,
+      reasonMessage: reasonMessage,
+    );
+  }
+}
+
+extension on SaleAddItemsToOpenTicketResultDto {
+  SaleAddItemsToOpenTicketResultDto copyWith({bool? idempotentReplay}) {
+    return SaleAddItemsToOpenTicketResultDto(
+      openTicketId: openTicketId,
+      batchId: batchId,
+      idempotentReplay: idempotentReplay ?? this.idempotentReplay,
+      reasonCode: reasonCode,
+      reasonMessage: reasonMessage,
+    );
+  }
+}
+
+extension on SaleCheckoutOpenTicketResultDto {
+  SaleCheckoutOpenTicketResultDto copyWith({bool? idempotentReplay}) {
+    return SaleCheckoutOpenTicketResultDto(
+      openTicketId: openTicketId,
+      saleId: saleId,
+      status: status,
+      idempotentReplay: idempotentReplay ?? this.idempotentReplay,
+      receiptId: receiptId,
+      reasonCode: reasonCode,
+      reasonMessage: reasonMessage,
+    );
+  }
+}
+
+extension on SaleCancelOpenTicketResultDto {
+  SaleCancelOpenTicketResultDto copyWith({bool? idempotentReplay}) {
+    return SaleCancelOpenTicketResultDto(
+      openTicketId: openTicketId,
+      status: status,
+      idempotentReplay: idempotentReplay ?? this.idempotentReplay,
+      cancelledAt: cancelledAt,
+      reasonCode: reasonCode,
+      reasonMessage: reasonMessage,
+    );
+  }
 }

@@ -7,8 +7,26 @@ class AppEnv {
     return _readBool('SHOW_DEBUG_ERRORS', defaultValue: false);
   }
 
+  static bool get useMockAttendanceRepository {
+    final mode = _readString(
+      'ATTENDANCE_REPOSITORY_MODE',
+      defaultValue: 'mock',
+    );
+    return mode.trim().toLowerCase() != 'api';
+  }
+
+  static bool get useMockSaleRepository {
+    final mode = _readString('SALE_REPOSITORY_MODE', defaultValue: 'mock');
+    return mode.trim().toLowerCase() != 'api';
+  }
+
   static bool _readBool(String key, {required bool defaultValue}) {
-    final raw = dotenv.env[key];
+    String? raw;
+    try {
+      raw = dotenv.env[key];
+    } catch (_) {
+      return defaultValue;
+    }
     if (raw == null) return defaultValue;
     switch (raw.trim().toLowerCase()) {
       case '1':
@@ -27,5 +45,15 @@ class AppEnv {
         return defaultValue;
     }
   }
-}
 
+  static String _readString(String key, {required String defaultValue}) {
+    String? raw;
+    try {
+      raw = dotenv.env[key];
+    } catch (_) {
+      return defaultValue;
+    }
+    if (raw == null || raw.trim().isEmpty) return defaultValue;
+    return raw;
+  }
+}

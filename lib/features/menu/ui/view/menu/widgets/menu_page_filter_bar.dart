@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:modular_pos/core/theme/responsive.dart';
+import 'package:modular_pos/core/widgets/buttons/app_add_new_button.dart';
 import 'package:modular_pos/core/widgets/forms/app_category_selector.dart';
 import 'package:modular_pos/core/widgets/forms/app_search_add_bar.dart';
+import 'package:modular_pos/core/widgets/forms/app_search_bar.dart';
+import 'package:modular_pos/features/inventory/ui/widgets/inventory_dropdown.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_category.dart';
 
 class MenuPageFilterBar extends StatelessWidget {
@@ -40,25 +44,69 @@ class MenuPageFilterBar extends StatelessWidget {
     return Column(
       children: [
         const SizedBox(height: 16),
-        AppSearchAddBar(
-          searchHint: 'Search menu items...',
-          onSearchChanged: onSearchChanged,
-          onAddPressed: onAddPressed,
-        ),
-        const SizedBox(height: 24),
-        SizedBox(
-          width: double.infinity,
-          child: DropdownMenu<String>(
-            width: double.infinity,
-            initialSelection: selectedBranchId,
-            leadingIcon: const Icon(Icons.store_outlined),
-            label: const Text('Branch'),
-            dropdownMenuEntries: branchOptions,
-            onSelected: (value) {
-              if (value == null) return;
-              onBranchSelected(value);
-            },
-          ),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final hasNavigationRail = AppBreakpoints.isLarge(
+              MediaQuery.of(context).size.width,
+            );
+
+            if (hasNavigationRail) {
+              return Row(
+                children: [
+                  Expanded(
+                    child: AppSearchBar(
+                      hintText: 'Search menu items...',
+                      onChanged: onSearchChanged,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  SizedBox(
+                    width: 220,
+                    child: InventoryDropdown<String>(
+                      initialValue: selectedBranchId,
+                      entries: branchOptions,
+                      onSelected: (value) {
+                        if (value == null) return;
+                        onBranchSelected(value);
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  SizedBox(
+                    width: 132,
+                    child: AppAddNewButton(
+                      onPressed: onAddPressed,
+                      label: 'Add menu',
+                    ),
+                  ),
+                ],
+              );
+            }
+
+            return Column(
+              children: [
+                AppSearchAddBar(
+                  searchHint: 'Search menu items...',
+                  addButtonLabel: 'Add menu',
+                  onSearchChanged: onSearchChanged,
+                  onAddPressed: onAddPressed,
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: InventoryDropdown<String>(
+                    initialValue: selectedBranchId,
+                    leadingIcon: const Icon(Icons.store_outlined),
+                    entries: branchOptions,
+                    onSelected: (value) {
+                      if (value == null) return;
+                      onBranchSelected(value);
+                    },
+                  ),
+                ),
+              ],
+            );
+          },
         ),
         const SizedBox(height: 24),
         AppCategorySelector(

@@ -39,6 +39,7 @@ class MenuMappers {
       modifierGroupIds: dto.modifierGroupIds,
       description: dto.description,
       branchIds: dto.branchIds,
+      isActive: dto.isActive,
     );
   }
 

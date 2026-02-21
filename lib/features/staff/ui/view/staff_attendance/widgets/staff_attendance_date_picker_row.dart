@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:modular_pos/features/staff_attendance/ui/view/attendance_management/attendance_management_utils.dart';
+import 'package:modular_pos/features/staff/ui/view/staff_attendance/staff_attendance_utils.dart';
 
-class AttendanceManagementDatePickerRow extends StatelessWidget {
-  const AttendanceManagementDatePickerRow({
+class StaffAttendanceDatePickerRow extends StatelessWidget {
+  const StaffAttendanceDatePickerRow({
     super.key,
     required this.selectedDate,
     required this.onPickDate,
@@ -28,4 +28,3 @@ class AttendanceManagementDatePickerRow extends StatelessWidget {
     );
   }
 }
-

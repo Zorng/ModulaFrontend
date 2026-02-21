@@ -32,4 +32,3 @@ String formatDatePretty(DateTime date) {
   final year = date.year;
   return '$month $day, $year';
 }
-

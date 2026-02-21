@@ -13,11 +13,15 @@ import 'package:modular_pos/features/staff/ui/view/staff_form/widgets/staff_data
 import 'package:modular_pos/features/staff/ui/viewmodels/staff_list_store.dart';
 import 'package:modular_pos/features/staff/data/staff_management_repository.dart';
 
-class StaffListView extends ConsumerWidget {
-  // Change to ConsumerWidget
-  const StaffListView({super.key, this.readOnly = false});
+class StaffHomePage extends ConsumerWidget {
+  const StaffHomePage({
+    super.key,
+    this.readOnly = false,
+    this.showAppBar = false,
+  });
 
   final bool readOnly;
+  final bool showAppBar;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -25,82 +29,80 @@ class StaffListView extends ConsumerWidget {
     final notifier = ref.read(StaffListAsyncNotifier.provider.notifier);
     final useMock = ref.watch(useMockStaffRepositoryProvider);
 
-    // Use screen width instead of layout constraints to determine navigation rail presence
-    final screenWidth = MediaQuery.of(context).size.width;
-    final hasNavigationRail = AppBreakpoints.isLarge(screenWidth);
-
     return LayoutBuilder(
       builder: (context, constraints) {
         final isWide = AppBreakpoints.isLarge(constraints.maxWidth);
 
         return Scaffold(
-          appBar: AppBar(
-            automaticallyImplyLeading: false,
-            leading: hasNavigationRail
-                ? null
-                : AppBackButton(
-                    icon: Icons.home_outlined,
-                    tooltip: 'Home',
-                    onPressed: () => context.go(AppRoute.portal.path),
-                  ),
-            title: const Text('Staff'),
-            actions: [
-              // Mock/Real toggle button for testing
-              Padding(
-                padding: const EdgeInsets.only(right: 8.0),
-                child: Tooltip(
-                  message: useMock
-                      ? 'Using Mock Data (CRUD enabled)'
-                      : 'Using Real API (Read-only)',
-                  child: FilterChip(
-                    label: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          useMock ? Icons.science : Icons.cloud,
-                          size: 16,
-                          color: useMock
+          appBar: showAppBar
+              ? AppBar(
+                  automaticallyImplyLeading: false,
+                  leading:
+                      AppBreakpoints.isLarge(MediaQuery.of(context).size.width)
+                      ? null
+                      : AppBackButton(
+                          icon: Icons.home_outlined,
+                          tooltip: 'Home',
+                          onPressed: () => context.go(AppRoute.portal.path),
+                        ),
+                  title: const Text('Staff'),
+                  actions: [
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8.0),
+                      child: Tooltip(
+                        message: useMock
+                            ? 'Using Mock Data (CRUD enabled)'
+                            : 'Using Real API (Read-only)',
+                        child: FilterChip(
+                          label: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                useMock ? Icons.science : Icons.cloud,
+                                size: 16,
+                                color: useMock
+                                    ? Colors.orange.shade700
+                                    : Colors.blue.shade700,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                useMock ? 'Mock' : 'API',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                  color: useMock
+                                      ? Colors.orange.shade700
+                                      : Colors.blue.shade700,
+                                ),
+                              ),
+                            ],
+                          ),
+                          selected: useMock,
+                          onSelected: (selected) {
+                            ref
+                                .read(useMockStaffRepositoryProvider.notifier)
+                                .toggle();
+                            notifier.reloadStaff();
+                          },
+                          backgroundColor: Colors.grey.shade100,
+                          selectedColor: useMock
+                              ? Colors.orange.shade50
+                              : Colors.blue.shade50,
+                          checkmarkColor: useMock
                               ? Colors.orange.shade700
                               : Colors.blue.shade700,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          useMock ? 'Mock' : 'API',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
+                          side: BorderSide(
                             color: useMock
-                                ? Colors.orange.shade700
-                                : Colors.blue.shade700,
+                                ? Colors.orange.shade300
+                                : Colors.blue.shade300,
+                            width: 1,
                           ),
                         ),
-                      ],
+                      ),
                     ),
-                    selected: useMock,
-                    onSelected: (selected) {
-                      ref
-                          .read(useMockStaffRepositoryProvider.notifier)
-                          .toggle();
-                      notifier.reloadStaff();
-                    },
-                    backgroundColor: Colors.grey.shade100,
-                    selectedColor: useMock
-                        ? Colors.orange.shade50
-                        : Colors.blue.shade50,
-                    checkmarkColor: useMock
-                        ? Colors.orange.shade700
-                        : Colors.blue.shade700,
-                    side: BorderSide(
-                      color: useMock
-                          ? Colors.orange.shade300
-                          : Colors.blue.shade300,
-                      width: 1,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
+                  ],
+                )
+              : null,
           body: Padding(
             padding: const EdgeInsets.all(16.0),
             child: asyncState.when(
