@@ -367,7 +367,7 @@ class MenuRepository {
     final branchId = item.branchIds.isNotEmpty ? item.branchIds.first : null;
     return {
       'id': item.id.isEmpty ? null : item.id,
-      'categoryId': item.categoryId,
+      if (item.categoryId.isNotEmpty) 'categoryId': item.categoryId,
       'branchId': branchId,
       'name': item.name,
       'description': item.description,

@@ -113,17 +113,9 @@ class _InventoryStockItemsPageState
                 );
                 final availableWidth = constraints.maxWidth;
                 final contentWidth = (availableWidth - 32).clamp(0.0, double.infinity);
-                final desktopCategoryWidth = (availableWidth * 0.16).clamp(
+                final desktopFilterWidth = (availableWidth * 0.16).clamp(
                   170.0,
                   220.0,
-                );
-                final desktopStatusWidth = (availableWidth * 0.14).clamp(
-                  150.0,
-                  190.0,
-                );
-                final desktopBranchWidth = (availableWidth * 0.18).clamp(
-                  180.0,
-                  240.0,
                 );
                 final desktopButtonWidth = 132.0;
                 final compactButtonWidth = contentWidth < 420 ? 108.0 : 120.0;
@@ -202,17 +194,17 @@ class _InventoryStockItemsPageState
                       ),
                       const SizedBox(width: 12),
                       SizedBox(
-                        width: desktopCategoryWidth,
+                        width: desktopFilterWidth,
                         child: categoryFilter,
                       ),
                       const SizedBox(width: 12),
                       SizedBox(
-                        width: desktopStatusWidth,
+                        width: desktopFilterWidth,
                         child: statusFilter,
                       ),
                       const SizedBox(width: 12),
                       SizedBox(
-                        width: desktopBranchWidth,
+                        width: desktopFilterWidth,
                         child: branchFilter,
                       ),
                       const SizedBox(width: 12),
@@ -221,40 +213,40 @@ class _InventoryStockItemsPageState
                   );
                 }
 
-                return Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: AppSearchBar(
-                              hintText: 'Search by name or barcode',
-                              fillColor: Colors.white,
-                              controller: _searchController,
-                              onChanged: (_) => setState(() {}),
-                            ),
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: AppSearchBar(
+                            hintText: 'Search by name or barcode',
+                            fillColor: Colors.white,
+                            controller: _searchController,
+                            onChanged: (_) => setState(() {}),
                           ),
-                          const SizedBox(width: 8),
-                          SizedBox(width: compactButtonWidth, child: button),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(child: statusFilter),
-                          const SizedBox(width: 8),
-                          Expanded(child: categoryFilter),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      SizedBox(
-                        width: contentWidth,
-                        child: branchFilter,
-                      ),
-                    ],
-                  ),
+                        ),
+                        const SizedBox(width: 8),
+                        SizedBox(width: compactButtonWidth, child: button),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(child: statusFilter),
+                        const SizedBox(width: 8),
+                        Expanded(child: categoryFilter),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: branchFilter,
+                        ),
+                      ],
+                    ),
+                  ],
                 );
               },
             ),

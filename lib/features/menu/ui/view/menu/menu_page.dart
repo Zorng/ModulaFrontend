@@ -1,13 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:modular_pos/core/widgets/navigation/responsive_detail_modal.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_category.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/features/menu/ui/view/menu/widgets/menu_page_filter_bar.dart';
 import 'package:modular_pos/features/menu/ui/view/menu/widgets/menu_page_items_section.dart';
-import 'package:modular_pos/features/menu/ui/view/view_menu_item/view_menu_item_page.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
 
 class MenuPage extends ConsumerStatefulWidget {
@@ -47,7 +45,7 @@ class _MenuPageState extends ConsumerState<MenuPage> {
 
     return Scaffold(
       body: Padding(
-        padding: const EdgeInsets.fromLTRB(18, 0, 18, 24),
+        padding: EdgeInsetsGeometry.only(left: 16, right: 16),
         child: Column(
           children: [
             MenuPageFilterBar(
@@ -84,12 +82,9 @@ class _MenuPageState extends ConsumerState<MenuPage> {
   }
 
   Future<void> _openItemDetail(BuildContext context, MenuItem item) async {
-    await showResponsiveDetailModal<void>(
-      context: context,
-      builder: (modalContext) => ViewMenuItemPage(
-        menuItem: item,
-        showBack: false,
-      ),
+    await context.push<MenuItem>(
+      AppRoute.adminMenuItemForm.path,
+      extra: item,
     );
     if (mounted) {
       await ref.read(menuViewModelProvider.notifier).loadMenu();

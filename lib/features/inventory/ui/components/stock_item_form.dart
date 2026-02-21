@@ -37,6 +37,7 @@ class StockItemFormPage extends ConsumerStatefulWidget {
 }
 
 class _StockItemFormPageState extends ConsumerState<StockItemFormPage> {
+  static const String _uncategorizedValue = '__uncategorized__';
   final _formKey = GlobalKey<FormState>();
   final _nameCtrl = TextEditingController();
   final _barcodeCtrl = TextEditingController();
@@ -56,7 +57,6 @@ class _StockItemFormPageState extends ConsumerState<StockItemFormPage> {
   bool _isActive = true;
   final _selectedTypes = <String>{};
   String? _baseUnitError;
-  String? _categoryError;
   bool _isSaving = false;
 
   @override
@@ -94,17 +94,9 @@ class _StockItemFormPageState extends ConsumerState<StockItemFormPage> {
         const <UserBranch>[];
 
     final categoryOptions = categoryState.categories;
-    if (_mode == StockItemFormMode.create) {
-      if (categoryOptions.isEmpty) {
-        _categoryId = null;
-        _categoryLabel = null;
-      } else if (_categoryId == null ||
-          _categoryId!.isEmpty ||
-          !categoryOptions.any((c) => c.id == _categoryId)) {
-        _categoryId = categoryOptions.first.id;
-        _categoryLabel = categoryOptions.first.name;
-        _categoryError = null;
-      }
+    if (_mode == StockItemFormMode.create && categoryOptions.isEmpty) {
+      _categoryId = null;
+      _categoryLabel = null;
     }
     final usageTags = _selectedTypes.isEmpty
         ? const <String>[]
@@ -388,32 +380,35 @@ class _StockItemFormPageState extends ConsumerState<StockItemFormPage> {
       ),
       _RequiredFieldLabel(
         text: 'Category',
-        isRequired: true,
         child: AbsorbPointer(
           absorbing: !isEditing,
           child: InventoryDropdown<String>(
-            initialValue: categoryOptions.isEmpty
-                ? '__no_category__'
-                : (_categoryId ?? categoryOptions.first.id),
-            enabled: categoryOptions.isNotEmpty,
-            entries: categoryOptions.isEmpty
-                ? const [
-                    DropdownMenuEntry(
-                      value: '__no_category__',
-                      label: 'No category',
-                    ),
-                  ]
-                : categoryOptions
-                    .map(
-                      (category) => DropdownMenuEntry(
-                        value: category.id,
-                        label: category.name,
-                      ),
-                    )
-                    .toList(),
-            onSelected: isEditing && categoryOptions.isNotEmpty
+            initialValue: _categoryId?.isNotEmpty == true
+                ? _categoryId
+                : _uncategorizedValue,
+            enabled: true,
+            entries: [
+              const DropdownMenuEntry(
+                value: _uncategorizedValue,
+                label: 'Uncategorized',
+              ),
+              ...categoryOptions.map(
+                (category) => DropdownMenuEntry(
+                  value: category.id,
+                  label: category.name,
+                ),
+              ),
+            ],
+            onSelected: isEditing
                 ? (value) {
                     if (value == null) return;
+                    if (value == _uncategorizedValue) {
+                      setState(() {
+                        _categoryId = null;
+                        _categoryLabel = null;
+                      });
+                      return;
+                    }
                     final selected = categoryOptions.firstWhere(
                       (c) => c.id == value,
                       orElse: () => InventoryCategory(
@@ -425,11 +420,9 @@ class _StockItemFormPageState extends ConsumerState<StockItemFormPage> {
                     setState(() {
                       _categoryId = selected.id;
                       _categoryLabel = selected.name;
-                      _categoryError = null;
                     });
                   }
                 : null,
-            errorText: isEditing ? _categoryError : null,
           ),
         ),
       ),
@@ -544,7 +537,6 @@ class _StockItemFormPageState extends ConsumerState<StockItemFormPage> {
       _selectedImageBytes = null;
       _selectedImagePath = null;
       _baseUnitError = null;
-      _categoryError = null;
     });
     _bootstrapFromItem(_originalItem);
   }

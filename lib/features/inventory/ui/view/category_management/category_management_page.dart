@@ -104,7 +104,7 @@ class _CategoryManagementPageState
                           );
                           if (!hasNavigationRail) {
                             return ListView.builder(
-                              padding: const EdgeInsets.all(16),
+                              padding: EdgeInsets.zero,
                               itemCount: categories.length,
                               itemBuilder: (context, index) {
                                 final category = categories[index];
