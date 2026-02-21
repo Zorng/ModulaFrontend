@@ -12,6 +12,7 @@ class SaleBottomNavShellPage extends StatelessWidget {
   static const double _wideBottomTabHorizontalPadding = 210;
 
   static const _titles = <String>['Sale', 'Cart', 'Orders'];
+  static const _mobileTitles = <String>['Sale', 'Cart', 'Orders'];
 
   static const _items = <BottomNavigationBarItem>[
     BottomNavigationBarItem(
@@ -44,6 +45,7 @@ class SaleBottomNavShellPage extends StatelessWidget {
           final appBarTitle = index == 2 ? _titles[2] : _titles[0];
           return Scaffold(
             appBar: AppBar(
+              backgroundColor: Colors.white,
               title: Text(appBarTitle),
               centerTitle: false,
               actions: actionsForIndex(index, context),
@@ -88,7 +90,7 @@ class SaleBottomNavShellPage extends StatelessWidget {
 
         return AppBottomNavShellScaffold(
           navigationShell: navigationShell,
-          titles: _titles,
+          titles: _mobileTitles,
           items: _items,
           centerTitle: false,
           actions: actionsForIndex(index, context),

@@ -10,10 +10,12 @@ class MockCashSessionRepository {
     CashRegister(id: 'reg-1', name: 'Main Register', status: 'active'),
     CashRegister(id: 'reg-2', name: 'Secondary Register', status: 'active'),
   ];
-  
+
   // Track movements for the active session
   double _totalPaidInUsd = 0.0;
   double _totalPaidOutUsd = 0.0;
+
+  bool get isSessionOpen => _activeSession?.status.toLowerCase() == 'open';
 
   Future<CashSession> openSession({
     String? registerId,
@@ -150,23 +152,23 @@ class MockCashSessionRepository {
     bool includeInactive = false,
   }) async {
     await Future.delayed(const Duration(milliseconds: 200));
-    
+
     if (includeInactive) {
       return _registers;
     }
-    
+
     return _registers.where((r) => r.status == 'active').toList();
   }
 
   Future<CashRegister> createRegister(String name) async {
     await Future.delayed(const Duration(milliseconds: 300));
-    
+
     final newRegister = CashRegister(
       id: 'reg-${DateTime.now().millisecondsSinceEpoch}',
       name: name,
       status: 'active',
     );
-    
+
     _registers.add(newRegister);
     return newRegister;
   }
@@ -180,6 +182,8 @@ class MockCashSessionRepository {
 }
 
 /// Provider for the mock repository
-final mockCashSessionRepositoryProvider = Provider<MockCashSessionRepository>((ref) {
+final mockCashSessionRepositoryProvider = Provider<MockCashSessionRepository>((
+  ref,
+) {
   return MockCashSessionRepository();
 });

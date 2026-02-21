@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/core/widgets/media/product_image.dart';
 
 /// Card for a menu item with image, category, and price.
@@ -24,6 +25,8 @@ class MenuItemCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final textTheme = theme.textTheme;
+    final width = MediaQuery.sizeOf(context).width;
+    final isSmall = AppBreakpoints.isSmall(width);
 
     return Card(
       color: Colors.white,
@@ -61,7 +64,7 @@ class MenuItemCard extends StatelessWidget {
             ),
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 9),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -70,14 +73,16 @@ class MenuItemCard extends StatelessWidget {
                       title,
                       style: textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.bold,
+                        fontSize: isSmall ? 14 : null,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                     Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Expanded(
+                        Flexible(
+                          fit: FlexFit.loose,
                           child: Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 8,

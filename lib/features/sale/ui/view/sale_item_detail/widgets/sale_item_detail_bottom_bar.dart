@@ -59,24 +59,7 @@ class SaleItemDetailBottomBar extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Quantity selector at the top
-            Row(
-              children: [
-                Text('Quantity', style: Theme.of(context).textTheme.titleSmall),
-                const Spacer(),
-                QuantityStepper(
-                  quantity: quantity,
-                  onDecrement: quantity > 1
-                      ? () => onQuantityChanged(quantity - 1)
-                      : null,
-                  onIncrement: () => onQuantityChanged(quantity + 1),
-                ),
-              ],
-            ),
             if (showPriceBreakdown) ...[
-              const SizedBox(height: 12),
-              const Divider(height: 1),
-              const SizedBox(height: 12),
               // Price breakdown
               Row(
                 children: [
@@ -121,7 +104,7 @@ class SaleItemDetailBottomBar extends StatelessWidget {
               Row(
                 children: [
                   Text(
-                    'Total',
+                    'Subtotal',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w600,
                     ),
@@ -137,13 +120,26 @@ class SaleItemDetailBottomBar extends StatelessWidget {
               ),
             ],
             const SizedBox(height: 12),
-            // Add to cart button
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: canAddToCart ? onAddItem : null,
-                child: const Text('Add to Cart'),
-              ),
+            // Quantity selector on the left and add button on the right
+            Row(
+              children: [
+                QuantityStepper(
+                  label: null,
+                  dense: true,
+                  quantity: quantity,
+                  onDecrement: quantity > 1
+                      ? () => onQuantityChanged(quantity - 1)
+                      : null,
+                  onIncrement: () => onQuantityChanged(quantity + 1),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: canAddToCart ? onAddItem : null,
+                    child: const Text('Add to Cart'),
+                  ),
+                ),
+              ],
             ),
             if (!canAddToCart) ...[
               const SizedBox(height: 8),

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/core/feedback/user_error_message.dart';
-import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/theme/responsive.dart';
+import 'package:modular_pos/features/cash_session/ui/viewmodels/cash_session_viewmodel.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_category.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
 import 'package:modular_pos/features/sale/data/sale_repository.dart';
@@ -11,7 +11,6 @@ import 'package:modular_pos/features/sale/ui/view/sale/widgets/sale_page_categor
 import 'package:modular_pos/features/sale/ui/view/sale/widgets/sale_page_menu_catalog.dart';
 import 'package:modular_pos/features/sale/ui/view/sale/widgets/sale_page_search_field.dart';
 import 'package:modular_pos/features/sale/ui/view/sale/widgets/sale_page_state_message.dart';
-import 'package:modular_pos/features/sale/ui/viewmodels/sale_access_gate.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/mock_sale_data.dart';
 
 class SalePage extends ConsumerStatefulWidget {
@@ -34,9 +33,10 @@ class _SalePageState extends ConsumerState<SalePage> {
   Widget build(BuildContext context) {
     final menuState = ref.watch(menuViewModelProvider);
     final menuVm = ref.read(menuViewModelProvider.notifier);
-    final gate = ref.watch(saleAccessGateProvider);
-    final cashSessionPath = AppRoute.cashSession.path;
     final useMockData = ref.watch(useMockSaleRepositoryProvider);
+    final cashSessionState = ref.watch(cashSessionViewModelProvider);
+    final showCashSessionBanner =
+        cashSessionState.sessionStatus != SessionStatus.open;
 
     final width = MediaQuery.of(context).size.width;
     final isSmall = AppBreakpoints.isSmall(width);
@@ -58,6 +58,7 @@ class _SalePageState extends ConsumerState<SalePage> {
     final filteredItems = useMockData
         ? MockSaleData.menuItems
         : menuState.filteredItems;
+    final hasMenuItems = filteredItems.isNotEmpty;
 
     VoidCallback retry() =>
         () => menuVm.loadMenu(
@@ -65,6 +66,37 @@ class _SalePageState extends ConsumerState<SalePage> {
               ? null
               : menuState.selectedBranchId,
         );
+
+    Widget buildHeader({required bool constrainToMaxWidth}) {
+      final content = Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (showCashSessionBanner) ...[
+            const SalePageAccessBanner(
+              title: 'Cash session is not open',
+              message: 'Add items as normal. Open session to checkout.',
+            ),
+            const SizedBox(height: 12),
+          ],
+          SalePageSearchField(onChanged: menuVm.searchItems),
+          const SizedBox(height: 12),
+          SalePageCategoryStrip(
+            categories: categories,
+            selectedCategoryId: menuState.selectedCategoryId,
+            onSelected: menuVm.filterByCategory,
+          ),
+          const SizedBox(height: 12),
+        ],
+      );
+
+      if (!constrainToMaxWidth) return content;
+      return Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 800),
+          child: SizedBox(width: double.infinity, child: content),
+        ),
+      );
+    }
 
     // Wide screen layout (menu catalog only - cart panel is handled by shell)
     if (isLarge) {
@@ -75,41 +107,7 @@ class _SalePageState extends ConsumerState<SalePage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Row(
-                  children: [
-                    // Mock data toggle for testing
-                    TextButton.icon(
-                      onPressed: () {
-                        ref
-                            .read(useMockSaleRepositoryProvider.notifier)
-                            .toggle();
-                      },
-                      icon: Icon(useMockData ? Icons.storage : Icons.cloud_off),
-                      label: Text(useMockData ? 'Mock Data' : 'Real Data'),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                if (!gate.cashSessionLoading &&
-                    gate.isBlockedByCashSessionPolicy) ...[
-                  SalePageAccessBanner(cashSessionPath: cashSessionPath),
-                  const SizedBox(height: 12),
-                ],
-                Text(
-                  'Menu',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 12),
-                SalePageSearchField(onChanged: menuVm.searchItems),
-                const SizedBox(height: 12),
-                SalePageCategoryStrip(
-                  categories: categories,
-                  selectedCategoryId: menuState.selectedCategoryId,
-                  onSelected: menuVm.filterByCategory,
-                ),
-                const SizedBox(height: 12),
+                if (!hasMenuItems) buildHeader(constrainToMaxWidth: false),
                 Expanded(
                   child: switch ((
                     menuState.isLoading && !useMockData,
@@ -134,6 +132,7 @@ class _SalePageState extends ConsumerState<SalePage> {
                     _ => RefreshIndicator(
                       onRefresh: () async => retry()(),
                       child: SalePageMenuCatalog(
+                        header: buildHeader(constrainToMaxWidth: false),
                         items: filteredItems,
                         categories: useMockData
                             ? MockSaleData.categories
@@ -160,34 +159,7 @@ class _SalePageState extends ConsumerState<SalePage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 800),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        if (!gate.cashSessionLoading &&
-                            gate.isBlockedByCashSessionPolicy) ...[
-                          SalePageAccessBanner(
-                            cashSessionPath: cashSessionPath,
-                          ),
-                          const SizedBox(height: 12),
-                        ],
-                        SalePageSearchField(onChanged: menuVm.searchItems),
-                        const SizedBox(height: 12),
-                        SalePageCategoryStrip(
-                          categories: categories,
-                          selectedCategoryId: menuState.selectedCategoryId,
-                          onSelected: menuVm.filterByCategory,
-                        ),
-                        const SizedBox(height: 12),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
+              if (!hasMenuItems) buildHeader(constrainToMaxWidth: true),
               Expanded(
                 child: switch ((
                   menuState.isLoading && !useMockData,
@@ -210,6 +182,7 @@ class _SalePageState extends ConsumerState<SalePage> {
                   _ => RefreshIndicator(
                     onRefresh: () async => retry()(),
                     child: SalePageMenuCatalog(
+                      header: buildHeader(constrainToMaxWidth: true),
                       items: filteredItems,
                       categories: useMockData
                           ? MockSaleData.categories

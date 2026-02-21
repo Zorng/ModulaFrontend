@@ -3,6 +3,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
 import 'package:modular_pos/features/policy/domain/models/policy.dart';
 import 'package:modular_pos/features/policy/ui/viewmodels/policy_viewmodel.dart';
+import 'package:modular_pos/features/sale/data/sale_checkout_repository_contract.dart';
 import 'package:modular_pos/features/sale/data/sale_repository.dart';
 import 'package:modular_pos/features/sale/ui/view/sale_item_detail/sale_item_detail_page.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_access_gate.dart';
@@ -39,7 +40,7 @@ void main() {
   });
 
   test(
-    'SaleCartNotifier.addSelection throws and does not call repository when blocked',
+    'SaleCartNotifier.addSelection throws and does not call repository when branch is frozen',
     () async {
       final repo = _MockSaleRepository();
 
@@ -49,9 +50,14 @@ void main() {
           saleAccessGateProvider.overrideWithValue(
             const SaleAccessGate(
               branchId: 'branch-1',
-              cashSessionOpen: false,
-              cashSessionLoading: false,
-              useMockRepository: false,
+              contextLoading: false,
+              branchActive: true,
+              branchFrozen: true,
+              cashSessionOpen: true,
+              canMutateCart: false,
+              canCheckout: false,
+              canPlacePayLater: false,
+              reasonCode: SaleCheckoutReasonCodes.branchFrozen,
             ),
           ),
         ],
@@ -80,7 +86,7 @@ void main() {
           predicate(
             (e) =>
                 e is Exception &&
-                e.toString().contains('Cash session required'),
+                e.toString().toLowerCase().contains('branch is frozen'),
           ),
         ),
       );
@@ -140,9 +146,13 @@ void main() {
           saleAccessGateProvider.overrideWithValue(
             const SaleAccessGate(
               branchId: 'branch-1',
+              contextLoading: false,
+              branchActive: true,
+              branchFrozen: false,
               cashSessionOpen: true,
-              cashSessionLoading: false,
-              useMockRepository: false,
+              canMutateCart: true,
+              canCheckout: true,
+              canPlacePayLater: true,
             ),
           ),
         ],
@@ -229,9 +239,13 @@ void main() {
           saleAccessGateProvider.overrideWithValue(
             const SaleAccessGate(
               branchId: 'branch-1',
+              contextLoading: false,
+              branchActive: true,
+              branchFrozen: false,
               cashSessionOpen: true,
-              cashSessionLoading: false,
-              useMockRepository: false,
+              canMutateCart: true,
+              canCheckout: true,
+              canPlacePayLater: true,
             ),
           ),
         ],

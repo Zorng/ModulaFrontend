@@ -1,12 +1,14 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:modular_pos/features/sale/data/sale_checkout_repository_contract.dart';
 import 'package:modular_pos/features/sale/data/sale_repository.dart';
 import 'package:modular_pos/features/sale/domain/models/sale.dart';
 
-final ordersProvider =
-    NotifierProvider<OrdersNotifier, List<Order>>(OrdersNotifier.new);
+final ordersProvider = NotifierProvider<OrdersNotifier, List<Order>>(
+  OrdersNotifier.new,
+);
 
 class OrdersNotifier extends Notifier<List<Order>> {
-  late final SaleRepository _repo = ref.read(saleRepositoryProvider);
+  late final SaleCheckoutRepository _repo = ref.read(saleRepositoryProvider);
 
   @override
   List<Order> build() => const [];
@@ -63,23 +65,25 @@ class OrdersNotifier extends Notifier<List<Order>> {
 
   Future<void> updateStatus(String number, String status) async {
     try {
-      final saleId = state.firstWhere(
-        (order) => order.number == number || order.id == number,
-        orElse: () => Order(
-          id: '',
-          number: '',
-          status: '',
-          placedAt: DateTime.fromMillisecondsSinceEpoch(0),
-          orderType: '',
-          paymentMethod: '',
-          totalUsd: 0,
-          totalKhr: 0,
-          tenderCurrency: '',
-          tenderAmount: 0,
-          changeAmount: 0,
-          lines: [],
-        ),
-      ).id;
+      final saleId = state
+          .firstWhere(
+            (order) => order.number == number || order.id == number,
+            orElse: () => Order(
+              id: '',
+              number: '',
+              status: '',
+              placedAt: DateTime.fromMillisecondsSinceEpoch(0),
+              orderType: '',
+              paymentMethod: '',
+              totalUsd: 0,
+              totalKhr: 0,
+              tenderCurrency: '',
+              tenderAmount: 0,
+              changeAmount: 0,
+              lines: [],
+            ),
+          )
+          .id;
       if (saleId.isNotEmpty) {
         await _repo.updateFulfillmentStatus(saleId: saleId, status: status);
       }
@@ -143,14 +147,13 @@ class Order {
       for (final item in sale.items)
         OrderLine(
           name: item.menuItemName.isEmpty ? 'Item' : item.menuItemName,
-          modifiers: [
-            for (final mod in item.modifiers) ...mod.optionLabels,
-          ],
+          modifiers: [for (final mod in item.modifiers) ...mod.optionLabels],
           quantity: item.quantity,
         ),
     ];
     final tenderCurrency =
-        (sale.tenderCurrency.isEmpty ? 'usd' : sale.tenderCurrency).toLowerCase();
+        (sale.tenderCurrency.isEmpty ? 'usd' : sale.tenderCurrency)
+            .toLowerCase();
     final cashUsd = sale.cashReceivedUsd ?? 0;
     final cashKhr = sale.cashReceivedKhr ?? 0;
     final changeUsd = sale.changeGivenUsd ?? 0;
@@ -158,7 +161,9 @@ class Order {
     return Order(
       id: sale.id,
       number: sale.id,
-      status: sale.fulfillmentStatus.isEmpty ? 'in_prep' : sale.fulfillmentStatus,
+      status: sale.fulfillmentStatus.isEmpty
+          ? 'in_prep'
+          : sale.fulfillmentStatus,
       placedAt: sale.createdAt,
       orderType: sale.saleType.isEmpty ? 'take_away' : sale.saleType,
       paymentMethod: sale.paymentMethod.isEmpty ? 'cash' : sale.paymentMethod,

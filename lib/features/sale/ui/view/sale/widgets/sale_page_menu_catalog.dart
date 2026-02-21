@@ -20,6 +20,7 @@ class SalePageMenuCatalog extends ConsumerWidget {
     required this.categories,
     required this.gridCount,
     required this.itemAspectRatio,
+    this.header,
     this.useMockData = false,
   });
 
@@ -27,6 +28,7 @@ class SalePageMenuCatalog extends ConsumerWidget {
   final List<MenuCategory> categories;
   final int gridCount;
   final double itemAspectRatio;
+  final Widget? header;
   final bool useMockData;
 
   @override
@@ -58,86 +60,114 @@ class SalePageMenuCatalog extends ConsumerWidget {
             ? minTileHeight
             : (tileWidth / itemAspectRatio);
 
-        return GridView.builder(
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: effectiveGridCount,
-            mainAxisSpacing: spacing,
-            crossAxisSpacing: spacing,
-            mainAxisExtent: tileHeight,
-          ),
-          itemCount: items.length,
-          itemBuilder: (context, index) {
-            final item = items[index];
-            final categoryName =
-                categoryLookup[item.categoryId] ?? 'Uncategorized';
-            return MenuItemCard(
-              title: item.name,
-              category: categoryName,
-              price: item.price,
-              imagePath: item.imageUrl,
-              onTap: () async {
-                SaleItemSelectionResult? selection;
+        return CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            if (header != null) SliverToBoxAdapter(child: header),
+            SliverGrid(
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: effectiveGridCount,
+                mainAxisSpacing: spacing,
+                crossAxisSpacing: spacing,
+                mainAxisExtent: tileHeight,
+              ),
+              delegate: SliverChildBuilderDelegate((context, index) {
+                final item = items[index];
+                final categoryName =
+                    categoryLookup[item.categoryId] ?? 'Uncategorized';
+                final card = MenuItemCard(
+                  title: item.name,
+                  category: categoryName,
+                  price: item.price,
+                  imagePath: item.imageUrl,
+                  onTap: () async {
+                    SaleItemSelectionResult? selection;
 
-                // Show modal dialog on wide screens, navigate on mobile
-                if (isLarge) {
-                  selection = await showDialog<SaleItemSelectionResult>(
-                    context: context,
-                    builder: (context) => Dialog(
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(
-                          maxWidth: 600,
-                          maxHeight: 700,
+                    // Show modal dialog on wide screens, navigate on mobile
+                    if (isLarge) {
+                      selection = await showDialog<SaleItemSelectionResult>(
+                        context: context,
+                        builder: (context) => Dialog(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(
+                              maxWidth: 600,
+                              maxHeight: 700,
+                            ),
+                            child: SaleItemDetailPage(
+                              item: item,
+                              useMockData: useMockData,
+                            ),
+                          ),
                         ),
-                        child: SaleItemDetailPage(
+                      );
+                    } else {
+                      selection = await context.push<SaleItemSelectionResult>(
+                        AppRoute.saleItemDetail.path,
+                        extra: SaleItemDetailRouteExtra(
                           item: item,
                           useMockData: useMockData,
                         ),
-                      ),
-                    ),
-                  );
-                } else {
-                  selection = await context.push<SaleItemSelectionResult>(
-                    AppRoute.saleItemDetail.path,
-                    extra: item,
-                  );
-                }
+                      );
+                    }
 
-                if (selection != null && context.mounted) {
-                  // TODO: Temporarily commented out for testing - re-enable before production
-                  final gate = ref.read(saleAccessGateProvider);
-                  if (!gate.canMutateCart) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          gate.blockingMessage ??
-                              'Cash session required. Start one to begin selling.',
-                        ),
-                      ),
-                    );
-                    return;
-                  }
-                  try {
-                    await ref
-                        .read(saleCartProvider.notifier)
-                        .addSelection(selection);
-                  } catch (e, st) {
-                    AppLog.e('Add item failed', error: e, stackTrace: st);
-                    if (!context.mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          UserErrorMessage.build(
-                            context: 'Failed to add item',
-                            error: e,
+                    if (selection != null && context.mounted) {
+                      final gate = ref.read(saleAccessGateProvider);
+                      if (!gate.canAddToCart) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              gate.blockingMessage ??
+                                  'Sale action is currently blocked.',
+                            ),
                           ),
-                        ),
-                      ),
-                    );
-                  }
-                }
-              },
-            );
-          },
+                        );
+                        return;
+                      }
+                      try {
+                        await ref
+                            .read(saleCartProvider.notifier)
+                            .addSelection(selection);
+                      } catch (e, st) {
+                        AppLog.e('Add item failed', error: e, stackTrace: st);
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              UserErrorMessage.build(
+                                context: 'Failed to add item',
+                                error: e,
+                              ),
+                            ),
+                          ),
+                        );
+                      }
+                    }
+                  },
+                );
+
+                if (!isLarge) return card;
+
+                final theme = Theme.of(context);
+                final textTheme = theme.textTheme;
+                final compactWideTextTheme = textTheme.copyWith(
+                  titleMedium: textTheme.titleMedium?.copyWith(
+                    fontSize: (textTheme.titleMedium?.fontSize ?? 16) - 4.5,
+                  ),
+                  titleSmall: textTheme.titleSmall?.copyWith(
+                    fontSize: (textTheme.titleSmall?.fontSize ?? 14) - 1,
+                  ),
+                  bodySmall: textTheme.bodySmall?.copyWith(
+                    fontSize: (textTheme.bodySmall?.fontSize ?? 12) - 1,
+                  ),
+                );
+
+                return Theme(
+                  data: theme.copyWith(textTheme: compactWideTextTheme),
+                  child: card,
+                );
+              }, childCount: items.length),
+            ),
+          ],
         );
       },
     );
