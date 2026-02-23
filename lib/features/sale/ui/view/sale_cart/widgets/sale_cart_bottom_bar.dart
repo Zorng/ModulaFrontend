@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:modular_pos/core/formatters/khr_currency_formatter.dart';
 
 class SaleCartBottomBar extends StatelessWidget {
   const SaleCartBottomBar({
@@ -6,13 +7,21 @@ class SaleCartBottomBar extends StatelessWidget {
     required this.grandTotalUsd,
     required this.grandTotalKhr,
     required this.canCheckout,
+    required this.isProcessing,
     required this.onCheckout,
+    this.actionLabel = 'Checkout',
+    this.showClearCart = false,
+    this.onClearCart,
   });
 
   final double grandTotalUsd;
   final double grandTotalKhr;
   final bool canCheckout;
+  final bool isProcessing;
   final VoidCallback onCheckout;
+  final String actionLabel;
+  final bool showClearCart;
+  final VoidCallback? onClearCart;
 
   @override
   Widget build(BuildContext context) {
@@ -65,7 +74,7 @@ class SaleCartBottomBar extends StatelessWidget {
             Align(
               alignment: Alignment.centerRight,
               child: Text(
-                'KHR ${grandTotalKhr.toStringAsFixed(0)}',
+                'KHR ${formatKhrAmount(grandTotalKhr)}',
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: Colors.grey[700],
@@ -74,9 +83,37 @@ class SaleCartBottomBar extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 12),
-            FilledButton(
-              onPressed: canCheckout ? onCheckout : null,
-              child: const Text('Checkout'),
+            Row(
+              children: [
+                if (showClearCart) ...[
+                  IconButton(
+                    onPressed: isProcessing ? null : onClearCart,
+                    tooltip: 'Clear Cart',
+                    icon: const Icon(Icons.delete_outline),
+                    color: Colors.red.shade700,
+                  ),
+                  const SizedBox(width: 8),
+                ],
+                Expanded(
+                  child: FilledButton(
+                    onPressed: (canCheckout && !isProcessing)
+                        ? onCheckout
+                        : null,
+                    child: isProcessing
+                        ? const SizedBox(
+                            height: 18,
+                            width: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                Colors.white,
+                              ),
+                            ),
+                          )
+                        : Text(actionLabel),
+                  ),
+                ),
+              ],
             ),
           ],
         ),

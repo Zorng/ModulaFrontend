@@ -89,12 +89,8 @@ class _SaleItemDetailPageState extends ConsumerState<SaleItemDetailPage> {
           modifiers = fetchedMods.isNotEmpty ? fetchedMods : hydratedMods;
         }
 
-        // TODO: Temporarily disabled for testing - re-enable before production
         final gate = ref.watch(saleAccessGateProvider);
-        final canAddToCart =
-            gate.canMutateCart &&
-            gate.canAddToCart; // disables while loading too
-        // final canAddToCart = true; // Temporarily always enabled for testing
+        final canAddToCart = gate.canAddToCart;
 
         // If the first attempt returned empty and not using mock data, trigger one retry automatically.
         if (modifiers.isEmpty &&
@@ -209,9 +205,7 @@ class _SaleItemDetailPageState extends ConsumerState<SaleItemDetailPage> {
           selectedOptions: pricing.selectedOptions,
           onQuantityChanged: (value) => setState(() => _quantity = value),
           canAddToCart: canAddToCart,
-          blockingMessage: canAddToCart
-              ? null
-              : 'Cash session required', // Temporarily disabled
+          blockingMessage: canAddToCart ? null : gate.blockingMessage,
           showPriceBreakdown: true, // Always show price breakdown
           onAddItem: canAddToCart
               ? () {
@@ -320,17 +314,48 @@ class _SaleItemDetailPageState extends ConsumerState<SaleItemDetailPage> {
                   ),
                 ],
               )
-            : Column(
+            : ListView(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                    child: imageSection,
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                    child: headerSection,
-                  ),
-                  Expanded(child: modifiersSection),
+                  imageSection,
+                  const SizedBox(height: 16),
+                  headerSection,
+                  const SizedBox(height: 12),
+                  if (isHydrating)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 24),
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  else if (showError)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 24),
+                      child: Center(child: Text('Unable to load modifiers.')),
+                    )
+                  else if (modifiers.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 24),
+                      child: Center(child: Text('No modifiers for this item.')),
+                    )
+                  else
+                    ...List.generate(modifiers.length, (index) {
+                      final group = modifiers[index];
+                      final selected = _selectedOptionIds[group.id] ?? {};
+                      return Column(
+                        children: [
+                          if (index > 0) const Divider(height: 1),
+                          SaleItemModifierGroupSection(
+                            group: group,
+                            selectedOptionIds: selected,
+                            onSelectionChanged: (newSelection) {
+                              setState(() {
+                                _selectedOptionIds[group.id] = newSelection;
+                              });
+                            },
+                          ),
+                        ],
+                      );
+                    }),
+                  const SizedBox(height: 16),
                 ],
               );
 
@@ -343,6 +368,16 @@ class _SaleItemDetailPageState extends ConsumerState<SaleItemDetailPage> {
       },
     );
   }
+}
+
+class SaleItemDetailRouteExtra {
+  const SaleItemDetailRouteExtra({
+    required this.item,
+    this.useMockData = false,
+  });
+
+  final MenuItem item;
+  final bool useMockData;
 }
 
 class SaleItemSelectionResult {

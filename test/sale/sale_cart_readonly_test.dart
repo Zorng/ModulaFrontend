@@ -9,6 +9,7 @@ import 'package:modular_pos/features/menu/ui/viewmodels/menu_state.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
 import 'package:modular_pos/features/policy/domain/models/policy.dart';
 import 'package:modular_pos/features/policy/ui/viewmodels/policy_viewmodel.dart';
+import 'package:modular_pos/features/sale/data/sale_checkout_repository_contract.dart';
 import 'package:modular_pos/features/sale/data/sale_repository.dart';
 import 'package:modular_pos/features/sale/ui/view/sale_cart/sale_cart_page.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_access_gate.dart';
@@ -59,9 +60,13 @@ class _TestSaleAccessGateNotifier extends Notifier<SaleAccessGate> {
   SaleAccessGate build() {
     return const SaleAccessGate(
       branchId: 'branch-1',
+      contextLoading: false,
+      branchActive: true,
+      branchFrozen: false,
       cashSessionOpen: true,
-      cashSessionLoading: false,
-      useMockRepository: false,
+      canMutateCart: true,
+      canCheckout: true,
+      canPlacePayLater: true,
     );
   }
 
@@ -80,8 +85,8 @@ void main() {
 
     final gateStateProvider =
         NotifierProvider<_TestSaleAccessGateNotifier, SaleAccessGate>(
-      _TestSaleAccessGateNotifier.new,
-    );
+          _TestSaleAccessGateNotifier.new,
+        );
 
     const item = MenuItem(
       id: 'menu-1',
@@ -131,14 +136,19 @@ void main() {
 
     container.read(gateStateProvider.notifier).state = const SaleAccessGate(
       branchId: 'branch-1',
+      contextLoading: false,
+      branchActive: true,
+      branchFrozen: true,
       cashSessionOpen: false,
-      cashSessionLoading: false,
-      useMockRepository: false,
+      canMutateCart: false,
+      canCheckout: false,
+      canPlacePayLater: false,
+      reasonCode: SaleCheckoutReasonCodes.branchFrozen,
     );
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('Cash session required'), findsOneWidget);
-    expect(find.widgetWithText(FilledButton, 'Cash session'), findsOneWidget);
+    expect(find.textContaining('Cash session required'), findsNothing);
+    expect(find.widgetWithText(FilledButton, 'Cash session'), findsNothing);
     expect(tester.widget<FilledButton>(checkoutButton).onPressed, isNull);
   });
 }

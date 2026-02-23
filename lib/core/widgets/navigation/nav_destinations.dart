@@ -77,11 +77,6 @@ List<NavSection> navSectionsForRole(String role) {
             icon: Icons.summarize_outlined,
             path: AppRoute.zReport.path,
           ),
-          NavDestination(
-            label: 'Attendance',
-            icon: Icons.access_time_outlined,
-            path: AppRoute.attendanceManagement.path,
-          ),
         ],
       ),
       NavSection(

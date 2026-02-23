@@ -75,7 +75,19 @@ List<RouteBase> buildInventoryRoutes() {
       path: AppRoute.inventoryCategoryDetail.path,
       name: AppRoute.inventoryCategoryDetail.name,
       builder: (context, state) {
-        final category = state.extra as InventoryCategory;
+        final extra = state.extra;
+        if (extra == null) {
+          throw ArgumentError('Missing category route data');
+        }
+        final category = extra is InventoryCategory
+            ? extra
+            : extra is Map
+            ? InventoryCategory.fromJson(
+                Map<String, dynamic>.from(extra),
+              )
+            : throw ArgumentError(
+                'Invalid category route data type: ${extra.runtimeType}',
+              );
         return CategoryFormPage(
           mode: CategoryFormMode.view,
           category: category,

@@ -1,39 +1,43 @@
 import 'dart:math';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:modular_pos/core/config/app_env.dart';
+import 'package:modular_pos/features/cash_session/data/cash_session_repository.dart';
+import 'package:modular_pos/features/cash_session/data/mock_cash_session_repository.dart';
 import 'package:modular_pos/features/sale/data/sale_api.dart';
 import 'package:modular_pos/features/sale/data/dto/sale_dto.dart';
 import 'package:modular_pos/features/sale/data/mock_sale_repository.dart';
+import 'package:modular_pos/features/sale/data/sale_checkout_repository_contract.dart';
 import 'package:modular_pos/features/sale/domain/models/sale.dart';
 
-/// Provider to control whether to use mock or real repository
-/// Set to true for testing without backend
-final useMockSaleRepositoryProvider = NotifierProvider<_UseMockNotifier, bool>(
-  _UseMockNotifier.new,
+/// Sale data source mode is config-driven (no runtime UI toggle).
+/// Defaults to mock mode until API integration is enabled.
+final useMockSaleRepositoryProvider = Provider<bool>(
+  (ref) => AppEnv.useMockSaleRepository,
 );
 
-class _UseMockNotifier extends Notifier<bool> {
-  @override
-  bool build() => false;
-
-  void toggle() => state = !state;
-  void set(bool value) => state = value;
-}
-
-final saleRepositoryProvider = Provider<SaleRepository>((ref) {
+final saleRepositoryProvider = Provider<SaleCheckoutRepository>((ref) {
   final useMock = ref.watch(useMockSaleRepositoryProvider);
   if (useMock) {
+    final useMockCashSession = ref.watch(useMockCashSessionProvider);
+    if (useMockCashSession) {
+      final mockCashSessionRepo = ref.watch(mockCashSessionRepositoryProvider);
+      return MockSaleRepository(
+        cashSessionOpenReader: () => mockCashSessionRepo.isSessionOpen,
+      );
+    }
     return MockSaleRepository();
   }
   final api = ref.watch(saleApiProvider);
   return SaleRepository(api);
 });
 
-class SaleRepository {
+class SaleRepository implements SaleCheckoutRepository {
   SaleRepository(this._api);
 
   final SaleApi _api;
 
+  @override
   Future<String> ensureDraft({
     String? clientUuid,
     required String saleType,
@@ -54,6 +58,7 @@ class SaleRepository {
     return createdId;
   }
 
+  @override
   Future<String?> addItem({
     required String saleId,
     required String menuItemId,
@@ -85,6 +90,7 @@ class SaleRepository {
     return null;
   }
 
+  @override
   Future<void> updateItemQuantity({
     required String saleId,
     required String itemId,
@@ -93,6 +99,7 @@ class SaleRepository {
     await _api.updateItemQuantity(saleId, itemId, quantity);
   }
 
+  @override
   Future<void> removeItem({
     required String saleId,
     required String itemId,
@@ -100,6 +107,7 @@ class SaleRepository {
     await _api.removeItem(saleId, itemId);
   }
 
+  @override
   Future<SaleCheckoutSummary> preCheckout({
     required String saleId,
     required String tenderCurrency,
@@ -117,11 +125,13 @@ class SaleRepository {
     return _toCheckoutSummary(sale);
   }
 
+  @override
   Future<SaleCheckoutSummary> finalize(String saleId) async {
     final sale = await _api.finalize(saleId);
     return _toCheckoutSummary(sale);
   }
 
+  @override
   Future<void> updateFulfillmentStatus({
     required String saleId,
     required String status,
@@ -129,6 +139,7 @@ class SaleRepository {
     await _api.updateFulfillmentStatus(saleId, status: status);
   }
 
+  @override
   Future<List<Sale>> listSales({
     String? status,
     DateTime? startDate,
@@ -146,8 +157,155 @@ class SaleRepository {
     return data.map(_toDomain).where((sale) => sale.id.isNotEmpty).toList();
   }
 
+  @override
   Future<void> voidSale(String saleId, {required String reason}) async {
     await _api.voidSale(saleId, reason: reason);
+  }
+
+  @override
+  Future<SaleContextDto> getSaleContext({required String branchId}) async {
+    throw UnimplementedError(
+      'FE-SALE-04 will implement getSaleContext in API repository.',
+    );
+  }
+
+  @override
+  Future<SaleCheckoutPreviewDto> computeCheckoutPreview(
+    SaleComputeCheckoutPreviewCommand command,
+  ) async {
+    final preview = await preCheckout(
+      saleId: command.saleId,
+      tenderCurrency: command.tenderCurrency,
+      paymentMethod: command.paymentMethod,
+      cashReceived: command.cashReceived?.toJson().cast<String, num>(),
+    );
+    return SaleCheckoutPreviewDto(
+      saleId: preview.saleId,
+      tenderCurrency: preview.tenderCurrency,
+      paymentMethod: preview.paymentMethod,
+      subtotalUsdExact: preview.totalUsdExact,
+      subtotalKhrExact: preview.totalKhrExact,
+      totalUsdExact: preview.totalUsdExact,
+      totalKhrExact: preview.totalKhrExact,
+      cashReceivedUsd: preview.cashReceivedUsd,
+      cashReceivedKhr: preview.cashReceivedKhr,
+      changeGivenUsd: preview.changeGivenUsd,
+      changeGivenKhr: preview.changeGivenKhr,
+    );
+  }
+
+  @override
+  Future<SaleKhqrAttemptDto> generateKhqrAttempt(
+    SaleGenerateKhqrAttemptCommand command,
+  ) async {
+    throw UnimplementedError(
+      'FE-SALE-07 will implement KHQR generation in API repository.',
+    );
+  }
+
+  @override
+  Future<SaleKhqrStatusDto> checkKhqrStatus(
+    SaleCheckKhqrStatusCommand command,
+  ) async {
+    throw UnimplementedError(
+      'FE-SALE-07 will implement KHQR status checks in API repository.',
+    );
+  }
+
+  @override
+  Future<SaleFinalizeSaleResultDto> finalizeSale(
+    SaleFinalizeSaleCommand command,
+  ) async {
+    final finalized = await finalize(command.saleId);
+    return SaleFinalizeSaleResultDto(
+      saleId: finalized.saleId,
+      status: 'FINALIZED',
+      totalUsdExact: finalized.totalUsdExact,
+      totalKhrExact: finalized.totalKhrExact,
+      idempotentReplay: false,
+    );
+  }
+
+  @override
+  Future<SalePlaceOrderResultDto> placeOrder(
+    SalePlaceOrderCommand command,
+  ) async {
+    throw UnimplementedError(
+      'FE-SALE-09 will implement pay-later place order in API repository.',
+    );
+  }
+
+  @override
+  Future<SaleAddItemsToOpenTicketResultDto> addItemsToOpenTicket(
+    SaleAddItemsToOpenTicketCommand command,
+  ) async {
+    throw UnimplementedError(
+      'FE-SALE-10 will implement add-items to open ticket in API repository.',
+    );
+  }
+
+  @override
+  Future<SaleCheckoutOpenTicketResultDto> checkoutOpenTicket(
+    SaleCheckoutOpenTicketCommand command,
+  ) async {
+    throw UnimplementedError(
+      'FE-SALE-11 will implement checkout open ticket in API repository.',
+    );
+  }
+
+  @override
+  Future<SaleCancelOpenTicketResultDto> cancelOpenTicket(
+    SaleCancelOpenTicketCommand command,
+  ) async {
+    throw UnimplementedError(
+      'FE-SALE-12 will implement cancel open ticket in API repository.',
+    );
+  }
+
+  @override
+  Future<SaleOrdersPageDto> getOrders(SaleOrdersQueryDto query) async {
+    final sales = await listSales(
+      status: query.status,
+      startDate: query.from,
+      endDate: query.to,
+      page: query.page,
+      limit: query.limit,
+    );
+    final items = sales
+        .map(
+          (sale) => SaleOrderSummaryDto(
+            saleId: sale.id,
+            orderId: sale.id,
+            ticketStatus: sale.state,
+            fulfillmentStatus: sale.fulfillmentStatus,
+            totalUsdExact: sale.totalUsdExact,
+            totalKhrExact: sale.totalKhrExact,
+            placedAt: sale.createdAt,
+          ),
+        )
+        .toList();
+    return SaleOrdersPageDto(
+      items: items,
+      page: query.page,
+      limit: query.limit,
+      total: items.length,
+    );
+  }
+
+  @override
+  Future<SaleOpenTicketDetailDto> getOpenTicketDetail({
+    required String saleId,
+  }) async {
+    throw UnimplementedError(
+      'FE-SALE-13 will implement open ticket detail in API repository.',
+    );
+  }
+
+  @override
+  Future<SaleReceiptDto> getReceipt({required String saleId}) async {
+    throw UnimplementedError(
+      'FE-SALE-14 will implement receipt retrieval in API repository.',
+    );
   }
 
   Sale _toDomain(SaleDto dto) {

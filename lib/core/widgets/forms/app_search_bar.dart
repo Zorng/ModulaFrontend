@@ -12,11 +12,13 @@ class AppSearchBar extends StatefulWidget {
     this.hintText,
     this.onChanged,
     this.controller,
+    this.fillColor,
   });
 
   final String? hintText;
   final ValueChanged<String>? onChanged;
   final TextEditingController? controller;
+  final Color? fillColor;
 
   @override
   State<AppSearchBar> createState() => _AppSearchBarState();
@@ -57,8 +59,7 @@ class _AppSearchBarState extends State<AppSearchBar> {
               )
             : null,
         filled: true,
-        fillColor:
-            Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+        fillColor: Colors.white,
         contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(30.0),

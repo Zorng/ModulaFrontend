@@ -300,7 +300,7 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
       'closed' => SessionStatus.closed,
       _ => SessionStatus.notStarted,
     };
-
+    
     final paidIn = session.totalPaidInUsd;
     final paidOut = session.totalPaidOutUsd;
 

@@ -33,6 +33,7 @@ enum AppRoute {
   inventoryJournal,
   inventoryJournalDetail,
   staff,
+  staffRequests,
   staffDetail,
   staffForm,
   staffAdd,
@@ -86,6 +87,7 @@ extension AppRoutePath on AppRoute {
     AppRoute.inventoryJournal => '/inventory/journal',
     AppRoute.inventoryJournalDetail => '/inventory/journal/detail',
     AppRoute.staff => '/staff',
+    AppRoute.staffRequests => '/staff/requests',
     AppRoute.staffDetail => '/staff/detail/:id',
     AppRoute.staffForm => '/staff/form',
     AppRoute.staffAdd => '/staff/add',
@@ -100,7 +102,7 @@ extension AppRoutePath on AppRoute {
     AppRoute.cashMovement => '/cash/session/movement',
     AppRoute.xReport => '/reports/x',
     AppRoute.zReport => '/reports/z',
-    AppRoute.attendanceManagement => '/attendance/manage',
+    AppRoute.attendanceManagement => '/staff/attendance',
   };
 
   String get name => switch (this) {
@@ -138,6 +140,7 @@ extension AppRoutePath on AppRoute {
     AppRoute.inventoryJournal => 'inventoryJournal',
     AppRoute.inventoryJournalDetail => 'inventoryJournalDetail',
     AppRoute.staff => 'staff',
+    AppRoute.staffRequests => 'staffRequests',
     AppRoute.staffDetail => 'staffDetail',
     AppRoute.staffForm => 'staffForm',
     AppRoute.staffAdd => 'staffAdd',

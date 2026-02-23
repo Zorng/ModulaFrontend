@@ -6,5 +6,5 @@ String resolveCategoryName(List<MenuCategory> categories, String categoryId) {
       return category.name;
     }
   }
-  return 'Unassigned';
+  return 'Uncategorized';
 }

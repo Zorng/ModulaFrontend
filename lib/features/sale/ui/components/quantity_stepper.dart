@@ -18,6 +18,7 @@ class QuantityStepper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final buttonPadding = dense ? const EdgeInsets.all(4) : null;
     final buttonConstraints = dense ? const BoxConstraints() : null;
 
@@ -27,14 +28,21 @@ class QuantityStepper extends StatelessWidget {
         if (label != null) ...[Text(label!), const SizedBox(width: 8)],
         IconButton(
           onPressed: onDecrement,
-          icon: const Icon(Icons.remove_circle_outline),
+          icon: const Icon(Icons.remove),
           constraints: buttonConstraints,
           padding: buttonPadding,
         ),
+        const SizedBox(width: 20),
         Text('$quantity', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(width: 20),
         IconButton(
           onPressed: onIncrement,
-          icon: const Icon(Icons.add_circle_outline),
+          icon: Icon(
+            Icons.add,
+            color: onIncrement == null
+                ? theme.disabledColor
+                : theme.colorScheme.primary,
+          ),
           constraints: buttonConstraints,
           padding: buttonPadding,
         ),

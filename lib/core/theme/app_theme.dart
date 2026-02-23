@@ -4,6 +4,7 @@ class AppTheme {
   const AppTheme._();
 
   static const _surfaceColor = Color(0xFFF5F7FA);
+  static const _disabledFillColor = Color(0xFFF6B8AD);
   static const _fontFamily = 'DMSans';
   static const _bodyColor = Color(0xFF1E1F20);
   static const editActionColor = Color(0xFFED533C);
@@ -32,8 +33,8 @@ class AppTheme {
     ),
   );
 
-  
-  static ThemeData get light { // use color scheme from seed for now. defined whole custome color scheme later
+  static ThemeData get light {
+    // use color scheme from seed for now. defined whole custome color scheme later
     final baseScheme = ColorScheme.fromSeed(
       seedColor: const Color(0xFFED533C),
       brightness: Brightness.light,
@@ -75,6 +76,8 @@ class AppTheme {
         style: FilledButton.styleFrom(
           backgroundColor: baseScheme.primary,
           foregroundColor: Colors.white,
+          disabledBackgroundColor: _disabledFillColor,
+          disabledForegroundColor: Colors.white,
           minimumSize: const Size.fromHeight(48),
           padding: const EdgeInsets.symmetric(horizontal: 16),
           shape: RoundedRectangleBorder(
@@ -106,8 +109,10 @@ class AppTheme {
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: baseScheme.primary, width: 1.5),
         ),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
       ),
     );
   }

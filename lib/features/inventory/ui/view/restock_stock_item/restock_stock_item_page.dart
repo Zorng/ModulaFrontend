@@ -156,7 +156,7 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
                   children: [
                     Expanded(
                       child: Text(
-                        'No stock items found. Please create a stock item first.',
+                        'No stock items are available for restocking yet. Create a stock item first, then return here to record restock.',
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                     ),
@@ -330,7 +330,7 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
         return AlertDialog(
           title: Row(
             children: [
-              const Text('No stock items'),
+              const Text('Stock items required'),
               const Spacer(),
               IconButton(
                 tooltip: 'Cancel',
@@ -340,7 +340,7 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
             ],
           ),
           content: const Text(
-            'No stock items found. You need to create a stock item before restocking.',
+            'Restock requires at least one stock item. Create a stock item first, then continue with restocking.',
           ),
           actions: [
             ElevatedButton(

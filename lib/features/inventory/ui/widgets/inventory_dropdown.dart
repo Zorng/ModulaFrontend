@@ -13,6 +13,7 @@ class InventoryDropdown<T> extends StatelessWidget {
     this.trailingIcon,
     this.helperText,
     this.errorText,
+    this.fillColor = Colors.white,
   });
 
   final List<DropdownMenuEntry<T>> entries;
@@ -25,6 +26,7 @@ class InventoryDropdown<T> extends StatelessWidget {
   final Widget? trailingIcon;
   final String? helperText;
   final String? errorText;
+  final Color fillColor;
 
   @override
   Widget build(BuildContext context) {
@@ -40,7 +42,13 @@ class InventoryDropdown<T> extends StatelessWidget {
         );
 
         return DropdownMenuTheme(
-          data: DropdownMenuThemeData(menuStyle: menuStyle),
+          data: DropdownMenuThemeData(
+            menuStyle: menuStyle,
+            inputDecorationTheme: InputDecorationTheme(
+              filled: true,
+              fillColor: fillColor,
+            ),
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
