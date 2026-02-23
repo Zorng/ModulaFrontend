@@ -70,6 +70,8 @@ class SaleCartState {
     this.checkoutErrorMessage,
     this.lastFinalizedSaleId,
     this.lastReceiptId,
+    this.lastPlacedOpenTicketId,
+    this.lastPlacedSaleId,
     this.khqrStatus = SaleKhqrUiStates.readyToGenerate,
     this.khqrAttemptId,
     this.khqrMd5,
@@ -91,6 +93,8 @@ class SaleCartState {
   final String? checkoutErrorMessage;
   final String? lastFinalizedSaleId;
   final String? lastReceiptId;
+  final String? lastPlacedOpenTicketId;
+  final String? lastPlacedSaleId;
   final String khqrStatus;
   final String? khqrAttemptId;
   final String? khqrMd5;
@@ -112,6 +116,8 @@ class SaleCartState {
     Object? checkoutErrorMessage = _unset,
     Object? lastFinalizedSaleId = _unset,
     Object? lastReceiptId = _unset,
+    Object? lastPlacedOpenTicketId = _unset,
+    Object? lastPlacedSaleId = _unset,
     String? khqrStatus,
     Object? khqrAttemptId = _unset,
     Object? khqrMd5 = _unset,
@@ -139,6 +145,12 @@ class SaleCartState {
       lastReceiptId: lastReceiptId == _unset
           ? this.lastReceiptId
           : lastReceiptId as String?,
+      lastPlacedOpenTicketId: lastPlacedOpenTicketId == _unset
+          ? this.lastPlacedOpenTicketId
+          : lastPlacedOpenTicketId as String?,
+      lastPlacedSaleId: lastPlacedSaleId == _unset
+          ? this.lastPlacedSaleId
+          : lastPlacedSaleId as String?,
       khqrStatus: khqrStatus ?? this.khqrStatus,
       khqrAttemptId: khqrAttemptId == _unset
           ? this.khqrAttemptId
@@ -195,6 +207,8 @@ class SaleCartState {
       checkoutErrorMessage: null,
       lastFinalizedSaleId: null,
       lastReceiptId: null,
+      lastPlacedOpenTicketId: null,
+      lastPlacedSaleId: null,
       khqrStatus: SaleKhqrUiStates.normalize(
         json['khqrStatus'] as String? ?? SaleKhqrUiStates.readyToGenerate,
       ),
