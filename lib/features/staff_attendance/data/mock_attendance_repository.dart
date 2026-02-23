@@ -27,6 +27,7 @@ class MockAttendanceRepository implements AttendanceRepository {
     centerLat: 11.6458916,
     centerLng: 104.8968759,
     radiusM: 120,
+    // (11.5729610, 104.9085106)
   );
 
   int _idCounter = 1;
@@ -58,7 +59,7 @@ class MockAttendanceRepository implements AttendanceRepository {
           isOff: false,
         ),
         AttendanceShiftScheduleEntry(
-          dayOfWeek: 5,
+          dayOfWeek: 6,
           startTime: '08:00',
           endTime: '17:00',
           isOff: false,

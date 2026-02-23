@@ -30,6 +30,18 @@ class SaleCheckoutResult {
   final bool idempotentReplay;
 }
 
+class SalePlaceOrderResult {
+  const SalePlaceOrderResult({
+    required this.openTicketId,
+    required this.saleId,
+    required this.idempotentReplay,
+  });
+
+  final String openTicketId;
+  final String saleId;
+  final bool idempotentReplay;
+}
+
 class SaleCartNotifier extends Notifier<SaleCartState> {
   SaleCartNotifier();
 
@@ -371,11 +383,19 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
       checkoutErrorMessage: null,
       lastFinalizedSaleId: null,
       lastReceiptId: null,
+      lastPlacedOpenTicketId: null,
+      lastPlacedSaleId: null,
     );
   }
 
   Future<SaleReceiptDto> getReceipt({required String saleId}) {
     return _repo.getReceipt(saleId: saleId);
+  }
+
+  Future<SaleOpenTicketDetailDto> getOpenTicketDetail({
+    required String saleId,
+  }) {
+    return _repo.getOpenTicketDetail(saleId: saleId);
   }
 
   Future<void> generateKhqrAttempt() async {
@@ -590,6 +610,105 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
         summary: summary,
         receiptId: finalizeResult.receiptId,
         idempotentReplay: finalizeResult.idempotentReplay,
+      );
+    } on SaleCheckoutRepositoryException catch (e) {
+      state = currentState.copyWith(
+        isFinalizing: false,
+        checkoutErrorMessage: e.message,
+      );
+      rethrow;
+    } catch (e) {
+      state = currentState.copyWith(
+        isFinalizing: false,
+        checkoutErrorMessage: e.toString(),
+      );
+      rethrow;
+    }
+  }
+
+  Future<SalePlaceOrderResult> placeOrder() async {
+    if (state.isFinalizing) {
+      throw Exception('Order placement already in progress.');
+    }
+
+    _assertCanCreateDraftSale();
+    final gate = ref.read(saleAccessGateProvider);
+    if (!gate.canPlacePayLater) {
+      throw Exception(
+        gate.blockingMessage ?? 'Pay-later order is currently unavailable.',
+      );
+    }
+
+    await _ensureSaleId();
+    final currentState = state;
+    final saleId = currentState.saleId;
+    if (saleId == null || saleId.isEmpty) {
+      throw Exception('No sale draft');
+    }
+    if (currentState.lines.isEmpty) {
+      throw Exception('Cannot place an order with an empty cart.');
+    }
+
+    final branchId = gate.branchId;
+    if (branchId == null || branchId.trim().isEmpty) {
+      throw Exception('Branch context is missing. Please switch branch.');
+    }
+
+    final commandLines = currentState.lines.map((line) {
+      final payload = SaleCartPayloadBuilder.fromLine(line);
+      final modifiers = payload.modifiers
+          .where(
+            (entry) => entry['groupId'] is String && entry['optionIds'] is List,
+          )
+          .map(
+            (entry) => SaleCartModifierInputDto(
+              groupId: entry['groupId'] as String,
+              optionIds: List<String>.from(
+                (entry['optionIds'] as List).map((id) => id.toString()),
+              ),
+            ),
+          )
+          .toList();
+      return SaleCartLineInputDto(
+        menuItemId: line.item.id,
+        quantity: line.quantity,
+        modifiers: modifiers,
+        unitPriceUsd: payload.unitPriceUsd,
+        lineTotalUsdExact: payload.lineTotalUsdExact,
+        addonTotalUsd: payload.addonTotalUsd,
+        pricingSnapshot: payload.pricingSnapshot,
+      );
+    }).toList();
+
+    state = currentState.copyWith(
+      isFinalizing: true,
+      checkoutErrorMessage: null,
+      lastFinalizedSaleId: null,
+      lastReceiptId: null,
+      lastPlacedOpenTicketId: null,
+      lastPlacedSaleId: null,
+    );
+
+    try {
+      final result = await _repo.placeOrder(
+        SalePlaceOrderCommand(
+          saleId: saleId,
+          branchId: branchId,
+          saleType: currentState.saleType,
+          clientOpId: 'sale-place-order-$saleId',
+          cartLines: commandLines,
+        ),
+      );
+
+      await _clearPersistedCart();
+      state = SaleCartState(
+        lastPlacedOpenTicketId: result.openTicketId,
+        lastPlacedSaleId: result.saleId,
+      );
+      return SalePlaceOrderResult(
+        openTicketId: result.openTicketId,
+        saleId: result.saleId,
+        idempotentReplay: result.idempotentReplay,
       );
     } on SaleCheckoutRepositoryException catch (e) {
       state = currentState.copyWith(

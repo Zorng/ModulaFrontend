@@ -9,6 +9,7 @@ class SaleCartBottomBar extends StatelessWidget {
     required this.canCheckout,
     required this.isProcessing,
     required this.onCheckout,
+    this.actionLabel = 'Checkout',
     this.showClearCart = false,
     this.onClearCart,
   });
@@ -18,6 +19,7 @@ class SaleCartBottomBar extends StatelessWidget {
   final bool canCheckout;
   final bool isProcessing;
   final VoidCallback onCheckout;
+  final String actionLabel;
   final bool showClearCart;
   final VoidCallback? onClearCart;
 
@@ -108,7 +110,7 @@ class SaleCartBottomBar extends StatelessWidget {
                               ),
                             ),
                           )
-                        : const Text('Checkout'),
+                        : Text(actionLabel),
                   ),
                 ),
               ],

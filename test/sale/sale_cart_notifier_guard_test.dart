@@ -7,6 +7,7 @@ import 'package:modular_pos/features/sale/data/sale_checkout_repository_contract
 import 'package:modular_pos/features/sale/data/sale_repository.dart';
 import 'package:modular_pos/features/sale/ui/view/sale_item_detail/sale_item_detail_page.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_access_gate.dart';
+import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_state.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_viewmodel.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -26,6 +27,15 @@ class _StaticPolicyNotifier extends PolicyNotifier {
   }
 }
 
+class _PrefilledCartNotifier extends SaleCartNotifier {
+  _PrefilledCartNotifier(this._initial);
+
+  final SaleCartState _initial;
+
+  @override
+  SaleCartState build() => _initial;
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -33,6 +43,15 @@ void main() {
     // Used by mocktail when matching non-primitive arguments via `any(...)`.
     registerFallbackValue(<Map<String, dynamic>>[]);
     registerFallbackValue(<String, dynamic>{});
+    registerFallbackValue(
+      const SalePlaceOrderCommand(
+        saleId: 'sale-1',
+        branchId: 'branch-1',
+        saleType: 'dine_in',
+        clientOpId: 'op-1',
+        cartLines: [],
+      ),
+    );
   });
 
   setUp(() {
@@ -296,6 +315,193 @@ void main() {
       expect(state.lines.first.item.id, 'menu-1');
       expect(state.lines.first.quantity, 1);
       expect(state.lines.first.saleItemId, 'sale-item-1');
+    },
+  );
+
+  test(
+    'SaleCartNotifier.placeOrder throws and does not call repository when pay-later is blocked',
+    () async {
+      final repo = _MockSaleRepository();
+      const item = MenuItem(
+        id: 'menu-1',
+        name: 'Item',
+        categoryId: 'cat-1',
+        price: 2.0,
+      );
+
+      final container = createTestContainer(
+        overrides: [
+          saleRepositoryProvider.overrideWithValue(repo),
+          saleCartProvider.overrideWith(
+            () => _PrefilledCartNotifier(
+              const SaleCartState(
+                saleId: 'sale-1',
+                saleType: 'dine_in',
+                lines: [
+                  CartLine(item: item, quantity: 1, selectedOptionIds: {}),
+                ],
+              ),
+            ),
+          ),
+          saleAccessGateProvider.overrideWithValue(
+            const SaleAccessGate(
+              branchId: 'branch-1',
+              contextLoading: false,
+              branchActive: true,
+              branchFrozen: false,
+              cashSessionOpen: true,
+              canMutateCart: true,
+              canCheckout: true,
+              canPlacePayLater: false,
+              reasonCode: SaleCheckoutReasonCodes.payLaterDisabled,
+            ),
+          ),
+        ],
+      );
+
+      final notifier = container.read(saleCartProvider.notifier);
+      await expectLater(
+        notifier.placeOrder(),
+        throwsA(
+          predicate(
+            (e) =>
+                e is Exception &&
+                e.toString().toLowerCase().contains('pay-later'),
+          ),
+        ),
+      );
+
+      verifyNever(() => repo.placeOrder(any()));
+    },
+  );
+
+  test(
+    'SaleCartNotifier.placeOrder calls repository and clears cart on success',
+    () async {
+      final repo = _MockSaleRepository();
+      const item = MenuItem(
+        id: 'menu-1',
+        name: 'Item',
+        categoryId: 'cat-1',
+        price: 2.0,
+      );
+
+      when(() => repo.placeOrder(any())).thenAnswer(
+        (_) async => const SalePlaceOrderResultDto(
+          openTicketId: 'ticket-1',
+          saleId: 'sale-1',
+          status: 'UNPAID',
+          batchId: 'batch-1',
+          idempotentReplay: false,
+        ),
+      );
+
+      final container = createTestContainer(
+        overrides: [
+          saleRepositoryProvider.overrideWithValue(repo),
+          saleCartProvider.overrideWith(
+            () => _PrefilledCartNotifier(
+              const SaleCartState(
+                saleId: 'sale-1',
+                saleType: 'dine_in',
+                lines: [
+                  CartLine(item: item, quantity: 2, selectedOptionIds: {}),
+                ],
+              ),
+            ),
+          ),
+          saleAccessGateProvider.overrideWithValue(
+            const SaleAccessGate(
+              branchId: 'branch-1',
+              contextLoading: false,
+              branchActive: true,
+              branchFrozen: false,
+              cashSessionOpen: true,
+              canMutateCart: true,
+              canCheckout: true,
+              canPlacePayLater: true,
+            ),
+          ),
+        ],
+      );
+
+      final notifier = container.read(saleCartProvider.notifier);
+      final result = await notifier.placeOrder();
+
+      verify(() => repo.placeOrder(any())).called(1);
+      expect(result.openTicketId, 'ticket-1');
+
+      final state = container.read(saleCartProvider);
+      expect(state.lines, isEmpty);
+      expect(state.saleId, isNull);
+      expect(state.lastPlacedOpenTicketId, 'ticket-1');
+      expect(state.lastPlacedSaleId, 'sale-1');
+    },
+  );
+
+  test(
+    'SaleCartNotifier.placeOrder preserves cart and exposes error on repository failure',
+    () async {
+      final repo = _MockSaleRepository();
+      const item = MenuItem(
+        id: 'menu-1',
+        name: 'Item',
+        categoryId: 'cat-1',
+        price: 2.0,
+      );
+
+      when(() => repo.placeOrder(any())).thenThrow(
+        const SaleCheckoutRepositoryException(
+          reasonCode: SaleCheckoutReasonCodes.offlineUnreachable,
+          message: 'Network unavailable.',
+        ),
+      );
+
+      final container = createTestContainer(
+        overrides: [
+          saleRepositoryProvider.overrideWithValue(repo),
+          saleCartProvider.overrideWith(
+            () => _PrefilledCartNotifier(
+              const SaleCartState(
+                saleId: 'sale-1',
+                saleType: 'dine_in',
+                lines: [
+                  CartLine(item: item, quantity: 2, selectedOptionIds: {}),
+                ],
+              ),
+            ),
+          ),
+          saleAccessGateProvider.overrideWithValue(
+            const SaleAccessGate(
+              branchId: 'branch-1',
+              contextLoading: false,
+              branchActive: true,
+              branchFrozen: false,
+              cashSessionOpen: true,
+              canMutateCart: true,
+              canCheckout: true,
+              canPlacePayLater: true,
+            ),
+          ),
+        ],
+      );
+
+      final notifier = container.read(saleCartProvider.notifier);
+      await expectLater(
+        notifier.placeOrder(),
+        throwsA(isA<SaleCheckoutRepositoryException>()),
+      );
+
+      verify(() => repo.placeOrder(any())).called(1);
+
+      final state = container.read(saleCartProvider);
+      expect(state.saleId, 'sale-1');
+      expect(state.lines, hasLength(1));
+      expect(state.lines.first.quantity, 2);
+      expect(state.isFinalizing, isFalse);
+      expect(state.checkoutErrorMessage, 'Network unavailable.');
+      expect(state.lastPlacedOpenTicketId, isNull);
+      expect(state.lastPlacedSaleId, isNull);
     },
   );
 }

@@ -30,7 +30,6 @@ class SaleCartPanel extends ConsumerStatefulWidget {
 }
 
 class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
-  String _orderType = 'take_away';
   String _paymentMethod = 'cash';
   String _tenderCurrency = 'USD';
   final TextEditingController _usdController = TextEditingController();
@@ -111,6 +110,69 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
         SnackBar(
           content: Text(
             UserErrorMessage.build(context: 'Failed to load receipt', error: e),
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _showOpenTicketDialog({
+    required SaleCartNotifier cartNotifier,
+    required String saleId,
+  }) async {
+    try {
+      final detail = await cartNotifier.getOpenTicketDetail(saleId: saleId);
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) {
+          final theme = Theme.of(dialogContext);
+          return AlertDialog(
+            title: const Text('Open Ticket'),
+            content: SizedBox(
+              width: 420,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Ticket #: ${detail.openTicketId}'),
+                  const SizedBox(height: 4),
+                  Text('Sale ID: ${detail.saleId}'),
+                  const SizedBox(height: 4),
+                  Text('Status: ${detail.status}'),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Payable',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text('\$${detail.payableUsdExact.toStringAsFixed(2)}'),
+                  Text('KHR ${formatKhrAmount(detail.payableKhrExact)}'),
+                  const SizedBox(height: 12),
+                  Text('Batches: ${detail.batches.length}'),
+                ],
+              ),
+            ),
+            actions: [
+              FilledButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('Close'),
+              ),
+            ],
+          );
+        },
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            UserErrorMessage.build(
+              context: 'Failed to load open ticket',
+              error: e,
+            ),
           ),
         ),
       );
@@ -321,12 +383,18 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
       paymentMethod: _paymentMethod.toLowerCase(),
       khqrStatus: cartState.khqrStatus,
     );
+    final orderType = cartState.saleType;
+    final isPayLaterMode = orderType == 'dine_in';
     final canCheckout =
         gate.canCheckout &&
         !cartState.isFinalizing &&
         items.isNotEmpty &&
         ((_paymentMethod == 'cash' && tenderUsd >= grandTotalUsd) ||
             (_paymentMethod == 'qr' && khqrReady));
+    final canPlaceOrder =
+        gate.canPlacePayLater && !cartState.isFinalizing && items.isNotEmpty;
+    final canPrimaryAction = isPayLaterMode ? canPlaceOrder : canCheckout;
+    final primaryActionLabel = isPayLaterMode ? 'Place Order' : 'Checkout';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -416,6 +484,51 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
               ),
             ),
           ),
+        if (cartState.lastPlacedOpenTicketId != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.receipt_long, color: Colors.blue),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Open ticket placed successfully.'),
+                        Text('Ticket #: ${cartState.lastPlacedOpenTicketId}'),
+                        if (cartState.lastPlacedSaleId != null)
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: TextButton(
+                              onPressed: cartState.isFinalizing
+                                  ? null
+                                  : () => _showOpenTicketDialog(
+                                      cartNotifier: cartNotifier,
+                                      saleId: cartState.lastPlacedSaleId!,
+                                    ),
+                              child: const Text('View Ticket'),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: cartNotifier.clearCheckoutFeedback,
+                    icon: const Icon(Icons.close, size: 18),
+                    tooltip: 'Dismiss',
+                  ),
+                ],
+              ),
+            ),
+          ),
         if (!cartState.isFinalizing &&
             cartState.checkoutErrorMessage != null &&
             cartState.checkoutErrorMessage!.trim().isNotEmpty)
@@ -462,12 +575,10 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
                 ),
                 const SizedBox(height: 12),
                 SaleOrderTypeSelector(
-                  value: _orderType,
+                  value: orderType,
                   enabled: !readOnly,
-                  onChanged: (value) {
-                    setState(() => _orderType = value);
-                    ref.read(saleCartProvider.notifier).setSaleType(value);
-                  },
+                  onChanged: (value) =>
+                      ref.read(saleCartProvider.notifier).setSaleType(value),
                 ),
                 const SizedBox(height: 20),
                 // Summary Section
@@ -559,11 +670,44 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
           SaleCartBottomBar(
             grandTotalUsd: grandTotalUsd,
             grandTotalKhr: grandTotalKhr,
-            canCheckout: canCheckout,
+            canCheckout: canPrimaryAction,
             isProcessing: cartState.isFinalizing,
+            actionLabel: primaryActionLabel,
             showClearCart: !readOnly,
             onClearCart: () => _showClearCartConfirmation(cartNotifier),
             onCheckout: () async {
+              if (isPayLaterMode) {
+                try {
+                  final result = await cartNotifier.placeOrder();
+                  await ref
+                      .read(ordersProvider.notifier)
+                      .load(date: DateTime.now());
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        result.idempotentReplay
+                            ? 'Open ticket already placed (replayed).'
+                            : 'Open ticket placed.',
+                      ),
+                    ),
+                  );
+                } catch (e) {
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        UserErrorMessage.build(
+                          context: 'Place order failed',
+                          error: e,
+                        ),
+                      ),
+                    ),
+                  );
+                }
+                return;
+              }
+
               final ordersNotifier = ref.read(ordersProvider.notifier);
               final menuSnapshot = ref.read(menuViewModelProvider);
               final cartSnapshot = ref.read(saleCartProvider);
@@ -581,7 +725,6 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
                     ),
                   )
                   .toList();
-              final cartNotifier = ref.read(saleCartProvider.notifier);
               cartNotifier.setTenderCurrency(_tenderCurrency);
               cartNotifier.setPaymentMethod(_paymentMethod);
               cartNotifier.setCashReceived(
@@ -603,7 +746,7 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
                 final changeUsd = summary.changeGivenUsd;
                 final changeKhr = summary.changeGivenKhr;
                 ordersNotifier.createOrder(
-                  orderType: _orderType,
+                  orderType: orderType,
                   paymentMethod: _paymentMethod,
                   totalUsd: totalUsd,
                   totalKhr: totalKhr,
