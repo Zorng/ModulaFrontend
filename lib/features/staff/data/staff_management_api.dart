@@ -1,6 +1,6 @@
 import 'package:dio/dio.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:modular_pos/core/config/app_env.dart';
 import 'package:modular_pos/core/network/dio_client.dart';
 import 'package:modular_pos/features/staff/data/dto/shift_schedule_entry_dto.dart';
 import 'package:modular_pos/features/staff/data/dto/staff_dto.dart';
@@ -12,8 +12,7 @@ final staffManagementApiProvider = Provider<StaffManagementApi>((ref) {
 });
 
 class StaffManagementApi {
-  StaffManagementApi(this._dio)
-    : _prefix = dotenv.env['AUTH_API_PREFIX'] ?? '/v1/auth';
+  StaffManagementApi(this._dio) : _prefix = AppEnv.authApiPrefix;
 
   final Dio _dio;
   final String _prefix;

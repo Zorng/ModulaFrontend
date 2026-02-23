@@ -1,6 +1,6 @@
 import 'package:dio/dio.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:modular_pos/core/config/app_env.dart';
 import 'package:modular_pos/core/network/dio_client.dart';
 import 'package:modular_pos/features/sale/data/dto/sale_dto.dart';
 
@@ -10,30 +10,31 @@ final saleApiProvider = Provider<SaleApi>((ref) {
 });
 
 class SaleApi {
-  SaleApi(this._dio)
-      : _prefix = dotenv.env['SALES_API_PREFIX'] ?? '/v1/sales';
+  SaleApi(this._dio) : _prefix = AppEnv.salesApiPrefix;
 
   final Dio _dio;
   final String _prefix;
 
   Future<SaleDto> createDraft(Map<String, dynamic> body) async {
-    final response =
-        await _dio.post<Map<String, dynamic>>('$_prefix/drafts', data: body);
+    final response = await _dio.post<Map<String, dynamic>>(
+      '$_prefix/drafts',
+      data: body,
+    );
     return SaleDto.fromJson(_unwrap(response.data));
   }
 
   Future<SaleDto> getOrCreateDraft(String clientUuid) async {
-    final response =
-        await _dio.get<Map<String, dynamic>>('$_prefix/drafts/$clientUuid');
+    final response = await _dio.get<Map<String, dynamic>>(
+      '$_prefix/drafts/$clientUuid',
+    );
     return SaleDto.fromJson(_unwrap(response.data));
   }
 
-  Future<SaleDto> addItem(
-    String saleId,
-    Map<String, dynamic> body,
-  ) async {
-    final response =
-        await _dio.post<Map<String, dynamic>>('$_prefix/$saleId/items', data: body);
+  Future<SaleDto> addItem(String saleId, Map<String, dynamic> body) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '$_prefix/$saleId/items',
+      data: body,
+    );
     return SaleDto.fromJson(_unwrap(response.data));
   }
 
@@ -53,10 +54,7 @@ class SaleApi {
     await _dio.delete('$_prefix/$saleId/items/$itemId');
   }
 
-  Future<SaleDto> preCheckout(
-    String saleId,
-    Map<String, dynamic> body,
-  ) async {
+  Future<SaleDto> preCheckout(String saleId, Map<String, dynamic> body) async {
     final response = await _dio.post<Map<String, dynamic>>(
       '$_prefix/$saleId/pre-checkout',
       data: body,
@@ -65,8 +63,9 @@ class SaleApi {
   }
 
   Future<SaleDto> finalize(String saleId) async {
-    final response =
-        await _dio.post<Map<String, dynamic>>('$_prefix/$saleId/finalize');
+    final response = await _dio.post<Map<String, dynamic>>(
+      '$_prefix/$saleId/finalize',
+    );
     return SaleDto.fromJson(_unwrap(response.data));
   }
 
@@ -95,8 +94,10 @@ class SaleApi {
       if (startDate != null) 'startDate': _toUtcIso(startDate),
       if (endDate != null) 'endDate': _toUtcIso(endDate),
     };
-    final response =
-        await _dio.get<Map<String, dynamic>>(_prefix, queryParameters: query);
+    final response = await _dio.get<Map<String, dynamic>>(
+      _prefix,
+      queryParameters: query,
+    );
     final data = response.data;
     if (data == null) return const [];
 

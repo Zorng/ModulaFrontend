@@ -4,6 +4,7 @@ Flutter frontend for the Modular POS system (web-first, mobile later).
 
 ## Start here
 - Handover index: `handbook/handover/README.md`
+- Runtime config guide: `handbook/handover/dart_define_run_guide.md`
 - Agent guidance: `handbook/agents/agent_guide.md`
 - Architecture: `handbook/architecture/overview.md`
 - Non-negotiables: `handbook/non_negotiables.md`
@@ -11,9 +12,11 @@ Flutter frontend for the Modular POS system (web-first, mobile later).
 - Responsive breakpoints: `docs/responsive_breakpoints.md`
 
 ## Quick start (dev)
-1) Create `.env` from `.env.example`
-2) Install deps: `flutter pub get`
-3) Run (web): `flutter run -d chrome`
+1) Install deps: `flutter pub get`
+2) Run (web) with defines:
+   - `flutter run -d chrome --dart-define=API_BASE_URL=http://localhost:3000`
+3) Optional local fallback: create `.env` from `.env.example` for non-web/dev convenience
+4) See full keys/examples: `handbook/handover/dart_define_run_guide.md`
 
 ## CI
 GitHub Actions runs on PRs:

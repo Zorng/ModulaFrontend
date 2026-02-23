@@ -1,6 +1,6 @@
 import 'package:dio/dio.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:modular_pos/core/config/app_env.dart';
 import 'package:modular_pos/core/network/dio_client.dart';
 import 'package:modular_pos/features/menu/data/menu_api_helpers.dart';
 import 'package:modular_pos/features/menu/data/dto/menu_branch_dto.dart';
@@ -15,9 +15,7 @@ final menuApiProvider = Provider<MenuApi>((ref) {
 });
 
 class MenuApi {
-  MenuApi.real(Dio dio)
-      : _dio = dio,
-        _menuPrefix = dotenv.env['MENU_API_PREFIX'] ?? '/v1/menu';
+  MenuApi.real(Dio dio) : _dio = dio, _menuPrefix = AppEnv.menuApiPrefix;
 
   final Dio _dio;
   final String _menuPrefix;
@@ -27,9 +25,7 @@ class MenuApi {
     return const [];
   }
 
-  Future<List<MenuCategoryDto>> fetchCategories({
-    bool? isActive,
-  }) async {
+  Future<List<MenuCategoryDto>> fetchCategories({bool? isActive}) async {
     final dio = _requireDio();
     try {
       final response = await dio.get<dynamic>(
@@ -58,7 +54,8 @@ class MenuApi {
   }
 
   Future<List<ModifierOptionDto>> fetchModifierOptions(
-      String modifierGroupId) async {
+    String modifierGroupId,
+  ) async {
     final dio = _requireDio();
     try {
       final response = await dio.get<dynamic>(
@@ -78,13 +75,11 @@ class MenuApi {
     final String path = hasBranch
         ? '$_menuPrefix/items/by-branch'
         : '$_menuPrefix/items';
-    final Map<String, dynamic>? query =
-        hasBranch ? {'branchId': branchId} : null;
+    final Map<String, dynamic>? query = hasBranch
+        ? {'branchId': branchId}
+        : null;
     try {
-      final response = await dio.get<dynamic>(
-        path,
-        queryParameters: query,
-      );
+      final response = await dio.get<dynamic>(path, queryParameters: query);
       final raw = MenuApiHelpers.unwrap(response.data);
       final items = raw['items'] ?? raw['data'] ?? raw;
       return MenuApiHelpers.parseList(items, MenuItemDto.fromJson);
@@ -108,8 +103,7 @@ class MenuApi {
     }
   }
 
-  Future<MenuCategoryDto> createCategory(
-      Map<String, dynamic> payload) async {
+  Future<MenuCategoryDto> createCategory(Map<String, dynamic> payload) async {
     final dio = _requireDio();
     try {
       final body = Map<String, dynamic>.from(payload)
@@ -125,17 +119,14 @@ class MenuApi {
     }
   }
 
-  Future<MenuCategoryDto> updateCategory(
-      Map<String, dynamic> payload) async {
+  Future<MenuCategoryDto> updateCategory(Map<String, dynamic> payload) async {
     final dio = _requireDio();
     final categoryId = payload['id']?.toString();
     if (categoryId == null) {
       throw const MenuApiException('Category id is required for update');
     }
     final updateMap = Map<String, dynamic>.from(payload)
-      ..removeWhere(
-        (key, value) => value == null || key == 'id',
-      );
+      ..removeWhere((key, value) => value == null || key == 'id');
     try {
       final response = await dio.patch<Map<String, dynamic>>(
         '$_menuPrefix/categories/$categoryId',
@@ -158,7 +149,8 @@ class MenuApi {
   }
 
   Future<ModifierGroupDto> createModifierGroup(
-      Map<String, dynamic> payload) async {
+    Map<String, dynamic> payload,
+  ) async {
     final dio = _requireDio();
     try {
       final body = Map<String, dynamic>.from(payload)
@@ -175,7 +167,8 @@ class MenuApi {
   }
 
   Future<ModifierGroupDto> updateModifierGroup(
-      Map<String, dynamic> payload) async {
+    Map<String, dynamic> payload,
+  ) async {
     final dio = _requireDio();
     final groupId = payload['id']?.toString();
     if (groupId == null) {
@@ -238,7 +231,8 @@ class MenuApi {
   }
 
   Future<ModifierOptionDto> addModifierOption(
-      Map<String, dynamic> payload) async {
+    Map<String, dynamic> payload,
+  ) async {
     final dio = _requireDio();
     try {
       final body = Map<String, dynamic>.from(payload)
@@ -352,10 +346,7 @@ class MenuApi {
     try {
       await dio.put<void>(
         '$_menuPrefix/items/$menuItemId/branches/availability',
-        data: {
-          'branchId': branchId,
-          'isAvailable': isAvailable,
-        },
+        data: {'branchId': branchId, 'isAvailable': isAvailable},
       );
     } on DioError catch (error) {
       throw MenuApiException.fromDio(error);
@@ -371,10 +362,7 @@ class MenuApi {
     try {
       await dio.put<void>(
         '$_menuPrefix/items/$menuItemId/branches/price',
-        data: {
-          'branchId': branchId,
-          'priceUsd': priceUsd,
-        },
+        data: {'branchId': branchId, 'priceUsd': priceUsd},
       );
     } on DioError catch (error) {
       throw MenuApiException.fromDio(error);
@@ -384,7 +372,6 @@ class MenuApi {
   Dio _requireDio() {
     return _dio;
   }
-
 }
 
 class MenuApiException implements Exception {

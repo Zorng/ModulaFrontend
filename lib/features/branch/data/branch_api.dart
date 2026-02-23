@@ -1,5 +1,5 @@
 import 'package:dio/dio.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:modular_pos/core/config/app_env.dart';
 import 'package:modular_pos/features/branch/data/dto/branch_dto.dart';
 
 /// Branch API client
@@ -7,8 +7,7 @@ class BranchApi {
   final Dio _dio;
   final String _prefix;
 
-  BranchApi(this._dio)
-      : _prefix = dotenv.get('BRANCH_API_PREFIX', fallback: '/v1/branches');
+  BranchApi(this._dio) : _prefix = AppEnv.branchApiPrefix;
 
   /// List all accessible branches for the authenticated user
   Future<List<BranchDto>> listBranches() async {

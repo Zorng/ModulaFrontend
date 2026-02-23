@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -9,8 +10,10 @@ import 'package:modular_pos/features/auth/data/auth_session_store.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Load environment variables; allow missing file in dev/CI.
-  await dotenv.load(fileName: '.env', isOptional: true);
+  // On web, prefer --dart-define and avoid asset fetch for .env.
+  if (!kIsWeb) {
+    await dotenv.load(fileName: '.env', isOptional: true);
+  }
 
   final prefs = await SharedPreferences.getInstance();
   final store = AuthSessionStore(prefs);

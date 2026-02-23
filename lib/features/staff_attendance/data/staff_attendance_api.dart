@@ -1,6 +1,6 @@
 import 'package:dio/dio.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:modular_pos/core/config/app_env.dart';
 import 'package:modular_pos/core/network/dio_client.dart';
 import 'package:modular_pos/features/staff_attendance/data/dto/attendance_record_dto.dart';
 import 'package:modular_pos/features/staff_attendance/data/dto/attendance_shift_schedule_dto.dart';
@@ -12,8 +12,7 @@ final staffAttendanceApiProvider = Provider<StaffAttendanceApi>((ref) {
 });
 
 class StaffAttendanceApi {
-  StaffAttendanceApi(this._dio)
-    : _prefix = dotenv.env['ATTENDANCE_API_PREFIX'] ?? '/v1/attendance';
+  StaffAttendanceApi(this._dio) : _prefix = AppEnv.attendanceApiPrefix;
 
   final Dio _dio;
   final String _prefix;

@@ -7,9 +7,23 @@
 ## Toolchain + demo accounts
 - Toolchain pinning: `handbook/handover/toolchain.md`
 - Demo logins: `handbook/handover/demo_accounts.md`
+- Runtime config guide: `handbook/handover/dart_define_run_guide.md`
 
-## Environment (.env)
-The app loads `.env` on startup (`lib/main.dart`). Example: `.env.example`
+## Environment and runtime config
+
+Primary approach: use `--dart-define` for run/build config.
+
+Correct flag:
+- `--dart-define` (not `--dart--define`)
+
+The app reads config in this order (`lib/core/config/app_env.dart`):
+1. `--dart-define`
+2. `.env` fallback (non-web startup path)
+3. defaults in `AppEnv`
+
+## Optional `.env` fallback
+
+For local non-web/dev convenience, you can still use `.env` (example: `.env.example`).
 
 Create your local env file:
 - `cp .env.example .env`
@@ -30,11 +44,11 @@ Common keys:
 
 ### Web (dev)
 - `flutter pub get`
-- `flutter run -d chrome`
+- `flutter run -d chrome --dart-define=API_BASE_URL=http://localhost:3000`
 
 ### Mobile (dev)
 - `flutter pub get`
-- `flutter run -d <device>`
+- `flutter run -d <device> --dart-define=API_BASE_URL=http://localhost:3000`
 
 ## Backend (dev)
 Backend runs in a separate repo:
@@ -74,7 +88,7 @@ Minimum startup command (per current team convention):
 - If this breaks suddenly after backend changes, check server CORS config first (common root cause).
 
 ### 404 Not Found
-- Verify API prefixes in `.env` and the endpoint in `docs/apiContracts/**`.
+- Verify API prefixes in your `--dart-define` values (or `.env` fallback) and the endpoint in `docs/apiContracts/**`.
 - Ensure the correct query parameters are present (e.g., `branchId`).
 
 ### “UI freezes” during API calls

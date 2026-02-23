@@ -1,6 +1,6 @@
 import 'package:dio/dio.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:modular_pos/core/config/app_env.dart';
 import 'package:modular_pos/core/network/dio_client.dart';
 import 'package:modular_pos/features/policy/data/dto/policy_bundle_dto.dart';
 
@@ -10,8 +10,7 @@ final policyApiProvider = Provider<PolicyApi>((ref) {
 });
 
 class PolicyApi {
-  PolicyApi(this._dio)
-      : _prefix = dotenv.env['POLICY_API_PREFIX'] ?? '/v1/policies';
+  PolicyApi(this._dio) : _prefix = AppEnv.policyApiPrefix;
 
   final Dio _dio;
   final String _prefix;
@@ -19,8 +18,9 @@ class PolicyApi {
   Future<PolicyBundleDto> getPolicies({String? branchId}) async {
     final response = await _dio.get<Map<String, dynamic>>(
       _prefix,
-      queryParameters:
-          branchId != null && branchId.isNotEmpty ? {'branchId': branchId} : null,
+      queryParameters: branchId != null && branchId.isNotEmpty
+          ? {'branchId': branchId}
+          : null,
     );
     return PolicyBundleDto.fromJson(response.data ?? const {});
   }
@@ -31,8 +31,7 @@ class PolicyApi {
   }
 
   Future<PolicyBundleDto> getInventoryPolicies() async {
-    final response =
-        await _dio.get<Map<String, dynamic>>('$_prefix/inventory');
+    final response = await _dio.get<Map<String, dynamic>>('$_prefix/inventory');
     return PolicyBundleDto.fromJson(response.data ?? const {});
   }
 
@@ -48,10 +47,7 @@ class PolicyApi {
     if (branchId != null && branchId.isNotEmpty) {
       body['branchId'] = branchId;
     }
-    await _dio.patch<Map<String, dynamic>>(
-      '$_prefix/tax',
-      data: body,
-    );
+    await _dio.patch<Map<String, dynamic>>('$_prefix/tax', data: body);
     // ignore response; repository re-fetches canonical policies.
   }
 
@@ -59,16 +55,11 @@ class PolicyApi {
     String? branchId,
     required double saleFxRateKhrPerUsd,
   }) async {
-    final body = <String, dynamic>{
-      'saleFxRateKhrPerUsd': saleFxRateKhrPerUsd,
-    };
+    final body = <String, dynamic>{'saleFxRateKhrPerUsd': saleFxRateKhrPerUsd};
     if (branchId != null && branchId.isNotEmpty) {
       body['branchId'] = branchId;
     }
-    await _dio.patch<Map<String, dynamic>>(
-      '$_prefix/currency',
-      data: body,
-    );
+    await _dio.patch<Map<String, dynamic>>('$_prefix/currency', data: body);
   }
 
   Future<void> updateRounding({
@@ -90,10 +81,7 @@ class PolicyApi {
     if (saleKhrRoundingGranularity != null) {
       body['saleKhrRoundingGranularity'] = saleKhrRoundingGranularity;
     }
-    await _dio.patch<Map<String, dynamic>>(
-      '$_prefix/rounding',
-      data: body,
-    );
+    await _dio.patch<Map<String, dynamic>>('$_prefix/rounding', data: body);
   }
 
   Future<void> updateInventory({
@@ -109,13 +97,9 @@ class PolicyApi {
       body['inventoryAutoSubtractOnSale'] = inventoryAutoSubtractOnSale;
     }
     if (inventoryExpiryTrackingEnabled != null) {
-      body['inventoryExpiryTrackingEnabled'] =
-          inventoryExpiryTrackingEnabled;
+      body['inventoryExpiryTrackingEnabled'] = inventoryExpiryTrackingEnabled;
     }
-    await _dio.patch<Map<String, dynamic>>(
-      '$_prefix/inventory',
-      data: body,
-    );
+    await _dio.patch<Map<String, dynamic>>('$_prefix/inventory', data: body);
   }
 
   Future<void> updateCashSession({
@@ -172,9 +156,6 @@ class PolicyApi {
     if (attendanceAllowManagerEdits != null) {
       body['attendanceAllowManagerEdits'] = attendanceAllowManagerEdits;
     }
-    await _dio.patch<Map<String, dynamic>>(
-      '$_prefix/attendance',
-      data: body,
-    );
+    await _dio.patch<Map<String, dynamic>>('$_prefix/attendance', data: body);
   }
 }

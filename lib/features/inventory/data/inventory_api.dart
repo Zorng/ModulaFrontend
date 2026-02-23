@@ -1,6 +1,6 @@
 import 'package:dio/dio.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:modular_pos/core/config/app_env.dart';
 import 'package:modular_pos/core/network/dio_client.dart';
 import 'package:modular_pos/features/inventory/data/dto/branch_stock_item_dto.dart';
 import 'package:modular_pos/features/inventory/data/dto/inventory_category_dto.dart';
@@ -14,17 +14,14 @@ final inventoryApiProvider = Provider<InventoryApi>((ref) {
 });
 
 class InventoryApi {
-  InventoryApi(this._dio)
-      : _prefix = dotenv.env['INVENTORY_API_PREFIX'] ?? '/v1/inventory';
+  InventoryApi(this._dio) : _prefix = AppEnv.inventoryApiPrefix;
 
   final Dio _dio;
   final String _prefix;
 
   // Categories
   Future<List<InventoryCategoryDto>> fetchCategories({bool? isActive}) async {
-    final query = <String, dynamic>{
-      if (isActive != null) 'isActive': isActive,
-    };
+    final query = <String, dynamic>{if (isActive != null) 'isActive': isActive};
     final response = await _dio.get<Map<String, dynamic>>(
       '$_prefix/categories',
       queryParameters: query.isEmpty ? null : query,
@@ -35,8 +32,10 @@ class InventoryApi {
   }
 
   Future<InventoryCategoryDto> createCategory(Map<String, dynamic> body) async {
-    final response =
-        await _dio.post<Map<String, dynamic>>('$_prefix/categories', data: body);
+    final response = await _dio.post<Map<String, dynamic>>(
+      '$_prefix/categories',
+      data: body,
+    );
     final json = _unwrap(_asMap(response.data));
     return InventoryCategoryDto.fromJson(json);
   }
@@ -45,8 +44,10 @@ class InventoryApi {
     String id,
     Map<String, dynamic> body,
   ) async {
-    final response =
-        await _dio.patch<Map<String, dynamic>>('$_prefix/categories/$id', data: body);
+    final response = await _dio.patch<Map<String, dynamic>>(
+      '$_prefix/categories/$id',
+      data: body,
+    );
     final json = _unwrap(_asMap(response.data));
     return InventoryCategoryDto.fromJson(json);
   }
@@ -73,8 +74,10 @@ class InventoryApi {
       if (isActive != null) 'isActive': isActive,
       if (categoryId != null && categoryId.isNotEmpty) 'categoryId': categoryId,
     };
-    final response =
-        await _dio.get<Map<String, dynamic>>('$_prefix/stock-items', queryParameters: query);
+    final response = await _dio.get<Map<String, dynamic>>(
+      '$_prefix/stock-items',
+      queryParameters: query,
+    );
     final root = _asMap(response.data);
     final list = _pickList(root);
     return list.map(StockItemDto.fromJson).toList(growable: false);
@@ -87,18 +90,20 @@ class InventoryApi {
   }) async {
     MultipartFile? imageFile;
     if (imageBytes != null) {
-      imageFile = MultipartFile.fromBytes(imageBytes, filename: 'stock-item.jpg');
+      imageFile = MultipartFile.fromBytes(
+        imageBytes,
+        filename: 'stock-item.jpg',
+      );
     } else if (imagePath != null && imagePath.isNotEmpty) {
       imageFile = await MultipartFile.fromFile(imagePath);
     }
     final payload = imageFile != null
-        ? FormData.fromMap({
-            ...body,
-            'image': imageFile,
-          })
+        ? FormData.fromMap({...body, 'image': imageFile})
         : FormData.fromMap(body);
-    final response =
-        await _dio.post<Map<String, dynamic>>('$_prefix/stock-items', data: payload);
+    final response = await _dio.post<Map<String, dynamic>>(
+      '$_prefix/stock-items',
+      data: payload,
+    );
     final json = _unwrap(_asMap(response.data));
     return StockItemDto.fromJson(json);
   }
@@ -111,29 +116,35 @@ class InventoryApi {
   }) async {
     MultipartFile? imageFile;
     if (imageBytes != null) {
-      imageFile = MultipartFile.fromBytes(imageBytes, filename: 'stock-item.jpg');
+      imageFile = MultipartFile.fromBytes(
+        imageBytes,
+        filename: 'stock-item.jpg',
+      );
     } else if (imagePath != null && imagePath.isNotEmpty) {
       imageFile = await MultipartFile.fromFile(imagePath);
     }
     final payload = imageFile != null
-        ? FormData.fromMap({
-            ...body,
-            'image': imageFile,
-          })
+        ? FormData.fromMap({...body, 'image': imageFile})
         : FormData.fromMap(body);
-    final response =
-        await _dio.patch<Map<String, dynamic>>('$_prefix/stock-items/$id', data: payload);
+    final response = await _dio.patch<Map<String, dynamic>>(
+      '$_prefix/stock-items/$id',
+      data: payload,
+    );
     final json = _unwrap(_asMap(response.data));
     return StockItemDto.fromJson(json);
   }
 
   Future<void> deactivateStockItem(String id) async {
-    await _dio.put<Map<String, dynamic>>('$_prefix/stock-items/$id', data: {'isActive': false});
+    await _dio.put<Map<String, dynamic>>(
+      '$_prefix/stock-items/$id',
+      data: {'isActive': false},
+    );
   }
 
-  Future<List<BranchStockItemDto>> fetchBranchStockItems({String? branchId}) async {
-    final response =
-        await _dio.get<Map<String, dynamic>>(
+  Future<List<BranchStockItemDto>> fetchBranchStockItems({
+    String? branchId,
+  }) async {
+    final response = await _dio.get<Map<String, dynamic>>(
       '$_prefix/branch/stock-items',
       queryParameters: branchId == null || branchId.isEmpty
           ? null
@@ -142,7 +153,9 @@ class InventoryApi {
     final root = _asMap(response.data);
     final list = _pickList(root);
     return list
-        .map((json) => BranchStockItemDto.fromJson(json, branchIdHint: branchId))
+        .map(
+          (json) => BranchStockItemDto.fromJson(json, branchIdHint: branchId),
+        )
         .toList(growable: false);
   }
 
@@ -190,7 +203,8 @@ class InventoryApi {
         'stockItemId': stockItemId,
         'qty': qty,
         if (note != null && note.isNotEmpty) 'note': note,
-        if (occurredAt != null && occurredAt.isNotEmpty) 'occurredAt': occurredAt,
+        if (occurredAt != null && occurredAt.isNotEmpty)
+          'occurredAt': occurredAt,
       },
     );
     return _maybeJournalEntry(response.data);
@@ -210,7 +224,8 @@ class InventoryApi {
         'stockItemId': stockItemId,
         'qty': qty,
         'note': note,
-        if (occurredAt != null && occurredAt.isNotEmpty) 'occurredAt': occurredAt,
+        if (occurredAt != null && occurredAt.isNotEmpty)
+          'occurredAt': occurredAt,
       },
     );
     return _maybeJournalEntry(response.data);
@@ -230,7 +245,8 @@ class InventoryApi {
         'stockItemId': stockItemId,
         'delta': delta,
         'note': note,
-        if (occurredAt != null && occurredAt.isNotEmpty) 'occurredAt': occurredAt,
+        if (occurredAt != null && occurredAt.isNotEmpty)
+          'occurredAt': occurredAt,
       },
     );
     return _maybeJournalEntry(response.data);
@@ -249,7 +265,8 @@ class InventoryApi {
       'page': page,
       'pageSize': pageSize,
       if (branchId != null && branchId.isNotEmpty) 'branchId': branchId,
-      if (stockItemId != null && stockItemId.isNotEmpty) 'stockItemId': stockItemId,
+      if (stockItemId != null && stockItemId.isNotEmpty)
+        'stockItemId': stockItemId,
       if (reason != null && reason.isNotEmpty) 'reason': reason,
       if (fromDate != null && fromDate.isNotEmpty) 'fromDate': fromDate,
       if (toDate != null && toDate.isNotEmpty) 'toDate': toDate,
@@ -263,7 +280,9 @@ class InventoryApi {
     return list.map(InventoryJournalEntryDto.fromJson).toList(growable: false);
   }
 
-  Future<List<InventoryJournalEntryDto>> fetchLowStockAlerts({String? branchId}) async {
+  Future<List<InventoryJournalEntryDto>> fetchLowStockAlerts({
+    String? branchId,
+  }) async {
     final response = await _dio.get<Map<String, dynamic>>(
       '$_prefix/branch/alerts/low-stock',
       queryParameters: branchId == null || branchId.isEmpty
@@ -296,10 +315,7 @@ Map<String, dynamic> _unwrap(Map<String, dynamic> root) {
 List<Map<String, dynamic>> _pickList(Map<String, dynamic> root) {
   final value = _extractListValue(root);
   if (value is List) {
-    return value
-        .whereType<Map>()
-        .map((e) => _asMap(e))
-        .toList(growable: false);
+    return value.whereType<Map>().map((e) => _asMap(e)).toList(growable: false);
   }
   return const <Map<String, dynamic>>[];
 }

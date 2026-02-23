@@ -1,8 +1,8 @@
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:modular_pos/core/config/app_env.dart';
 import 'package:modular_pos/core/network/dio_client.dart';
 import 'package:modular_pos/features/auth/data/dto/auth_login_response_dto.dart';
 import 'package:modular_pos/features/auth/data/dto/auth_tokens_dto.dart';
@@ -68,7 +68,9 @@ class AuthApi {
     }
   }
 
-  EstablishedAuthSessionDto _parseEstablishedSession(Map<String, dynamic> data) {
+  EstablishedAuthSessionDto _parseEstablishedSession(
+    Map<String, dynamic> data,
+  ) {
     final userJson = (() {
       final employee = _asMap(data['employee']);
       if (employee.isNotEmpty) return employee;
@@ -85,9 +87,9 @@ class AuthApi {
         data['branch_assignments'] ?? data['branchAssignments'];
     final assignments = assignmentsValue is List
         ? assignmentsValue
-            .map(_asMap)
-            .where((m) => m.isNotEmpty)
-            .toList(growable: false)
+              .map(_asMap)
+              .where((m) => m.isNotEmpty)
+              .toList(growable: false)
         : const <Map<String, dynamic>>[];
 
     final branches = assignments
@@ -104,27 +106,34 @@ class AuthApi {
         ? DateTime.now().add(Duration(seconds: expiresInSeconds))
         : DateTime.now().add(const Duration(minutes: 15));
 
-    final claims = accessToken.isEmpty ? const <String, dynamic>{} : _decodeJwtClaims(accessToken);
+    final claims = accessToken.isEmpty
+        ? const <String, dynamic>{}
+        : _decodeJwtClaims(accessToken);
     final tenantIdFromToken =
         claims['tenantId']?.toString() ?? claims['tenant_id']?.toString() ?? '';
     final roleFromToken = claims['role']?.toString() ?? '';
 
-    final roleFromAssignment =
-        branches.isNotEmpty ? branches.first.role : null;
+    final roleFromAssignment = branches.isNotEmpty ? branches.first.role : null;
 
-    final tenantId = (userJson['tenantId']?.toString() ??
-            userJson['tenant_id']?.toString() ??
-            '')
-        .trim()
-        .isNotEmpty
-        ? (userJson['tenantId']?.toString() ?? userJson['tenant_id']?.toString() ?? '').trim()
+    final tenantId =
+        (userJson['tenantId']?.toString() ??
+                userJson['tenant_id']?.toString() ??
+                '')
+            .trim()
+            .isNotEmpty
+        ? (userJson['tenantId']?.toString() ??
+                  userJson['tenant_id']?.toString() ??
+                  '')
+              .trim()
         : tenantIdFromToken;
 
     final role = (() {
       final jsonRole = (userJson['role']?.toString() ?? '').trim();
       if (jsonRole.isNotEmpty) return jsonRole;
       if (roleFromToken.trim().isNotEmpty) return roleFromToken.trim();
-      if ((roleFromAssignment ?? '').trim().isNotEmpty) return roleFromAssignment!.trim();
+      if ((roleFromAssignment ?? '').trim().isNotEmpty) {
+        return roleFromAssignment!.trim();
+      }
       return 'cashier';
     })();
 
@@ -132,8 +141,10 @@ class AuthApi {
     if ((normalizedUser['name']?.toString().trim() ?? '').isEmpty) {
       final first = normalizedUser['first_name']?.toString() ?? '';
       final last = normalizedUser['last_name']?.toString() ?? '';
-      normalizedUser['name'] =
-          [first, last].where((e) => e.isNotEmpty).join(' ').trim();
+      normalizedUser['name'] = [
+        first,
+        last,
+      ].where((e) => e.isNotEmpty).join(' ').trim();
     }
     normalizedUser['tenantId'] = tenantId;
     normalizedUser['role'] = role;
@@ -141,10 +152,10 @@ class AuthApi {
     final rawMemberships = data['memberships'];
     final memberships = rawMemberships is List
         ? rawMemberships
-            .map(_asMap)
-            .map(TenantMembershipDto.fromJson)
-            .where((m) => m.tenantId.isNotEmpty)
-            .toList(growable: false)
+              .map(_asMap)
+              .map(TenantMembershipDto.fromJson)
+              .where((m) => m.tenantId.isNotEmpty)
+              .toList(growable: false)
         : const <TenantMembershipDto>[];
 
     final tenantObject = _asMap(data['tenant']);
@@ -185,33 +196,33 @@ class AuthApi {
     required String username,
     required String password,
   }) async {
-    final authPrefix = dotenv.env['AUTH_API_PREFIX'] ?? '/v1/auth';
+    final authPrefix = AppEnv.authApiPrefix;
     final path = '$authPrefix/login';
 
     final response = await _dio.post(
       path,
       options: Options(contentType: Headers.jsonContentType),
-      data: {
-        'phone': username,
-        'password': password,
-      },
+      data: {'phone': username, 'password': password},
     );
 
     final data = _unwrap(_readJsonObject(response.data));
 
     final requiresTenantSelection =
-        data['requires_tenant_selection'] == true || data['requiresTenantSelection'] == true;
+        data['requires_tenant_selection'] == true ||
+        data['requiresTenantSelection'] == true;
     if (requiresTenantSelection) {
       final selectionToken =
-          data['selection_token']?.toString() ?? data['selectionToken']?.toString() ?? '';
+          data['selection_token']?.toString() ??
+          data['selectionToken']?.toString() ??
+          '';
 
       final rawMemberships = data['memberships'];
       final memberships = rawMemberships is List
           ? rawMemberships
-              .map(_asMap)
-              .map(TenantMembershipDto.fromJson)
-              .where((m) => m.tenantId.isNotEmpty)
-              .toList(growable: false)
+                .map(_asMap)
+                .map(TenantMembershipDto.fromJson)
+                .where((m) => m.tenantId.isNotEmpty)
+                .toList(growable: false)
           : const <TenantMembershipDto>[];
 
       return AuthLoginResponseDto(
@@ -234,7 +245,7 @@ class AuthApi {
     required String tenantId,
     String? branchId,
   }) async {
-    final authPrefix = dotenv.env['AUTH_API_PREFIX'] ?? '/v1/auth';
+    final authPrefix = AppEnv.authApiPrefix;
     final path = '$authPrefix/select-tenant';
 
     final response = await _dio.post(
@@ -243,7 +254,8 @@ class AuthApi {
       data: {
         'selection_token': selectionToken,
         'tenant_id': tenantId,
-        if (branchId != null && branchId.trim().isNotEmpty) 'branch_id': branchId,
+        if (branchId != null && branchId.trim().isNotEmpty)
+          'branch_id': branchId,
       },
     );
 

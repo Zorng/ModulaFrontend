@@ -1,11 +1,11 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:modular_pos/core/config/app_env.dart';
 import 'package:modular_pos/features/auth/domain/auth_token_provider.dart';
 
 final dioProvider = Provider<Dio>((ref) {
-  final baseUrl = dotenv.env['API_BASE_URL'] ?? 'http://localhost:3000';
+  final baseUrl = AppEnv.apiBaseUrl;
 
   final dio = Dio(
     BaseOptions(
@@ -14,9 +14,7 @@ final dioProvider = Provider<Dio>((ref) {
       receiveTimeout: const Duration(seconds: 20),
       contentType: Headers.jsonContentType,
       responseType: ResponseType.json,
-      headers: {
-        Headers.acceptHeader: Headers.jsonContentType,
-      },
+      headers: {Headers.acceptHeader: Headers.jsonContentType},
     ),
   );
 
