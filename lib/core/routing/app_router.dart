@@ -1,6 +1,9 @@
 enum AppRoute {
   login,
+  signup,
+  otpVerification,
   tenantSelection,
+  branchSelection,
   portal,
   branch,
   branchDetail,
@@ -54,7 +57,10 @@ enum AppRoute {
 extension AppRoutePath on AppRoute {
   String get path => switch (this) {
     AppRoute.login => '/login',
+    AppRoute.signup => '/signup',
+    AppRoute.otpVerification => '/verify-otp',
     AppRoute.tenantSelection => '/select-tenant',
+    AppRoute.branchSelection => '/select-branch',
     AppRoute.portal => '/portal',
     AppRoute.branch => '/branches',
     AppRoute.branchDetail => '/branches/:id',
@@ -107,7 +113,10 @@ extension AppRoutePath on AppRoute {
 
   String get name => switch (this) {
     AppRoute.login => 'login',
+    AppRoute.signup => 'signup',
+    AppRoute.otpVerification => 'otpVerification',
     AppRoute.tenantSelection => 'tenantSelection',
+    AppRoute.branchSelection => 'branchSelection',
     AppRoute.portal => 'portal',
     AppRoute.branch => 'branch',
     AppRoute.branchDetail => 'branchDetail',

@@ -22,8 +22,16 @@ import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 
 final appRouterProvider = Provider<GoRouter>((ref) {
+  final routerRefresh = ValueNotifier<int>(0);
+  ref
+    ..listen<LoginState>(loginControllerProvider, (_, __) {
+      routerRefresh.value++;
+    })
+    ..onDispose(routerRefresh.dispose);
+
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
+    refreshListenable: routerRefresh,
     errorBuilder: (context, state) => const Scaffold(
       body: Center(
         child: Text(
@@ -38,7 +46,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final path = state.uri.path; // current path
 
       final isLoggingIn = path == AppRoute.login.path;
+      final isSignup = path == AppRoute.signup.path;
+      final isOtpVerification = path == AppRoute.otpVerification.path;
       final isTenantSelection = path == AppRoute.tenantSelection.path;
+      final isBranchSelection = path == AppRoute.branchSelection.path;
       final isPortal = path == AppRoute.portal.path;
 
       // Developer-only gallery should be reachable without auth.
@@ -48,12 +59,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       // Not authenticated: only allow /login
       if (session == null) {
-        return isLoggingIn ? null : AppRoute.login.path;
+        if (isLoggingIn || isSignup || isOtpVerification) return null;
+        return AppRoute.login.path;
       }
 
       // Authenticated, but tenant context not selected yet.
       if (session.requiresTenantSelection) {
         return isTenantSelection ? null : AppRoute.tenantSelection.path;
+      }
+      if (authState.requiresBranchSelection) {
+        return isBranchSelection ? null : AppRoute.branchSelection.path;
       }
 
       final role = session.user.role.trim().toLowerCase();
@@ -69,7 +84,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       }
 
       // Already authenticated: prevent going back to /login
-      if (isLoggingIn) {
+      if (isLoggingIn || isSignup || isOtpVerification) {
         return homeForRole();
       }
 
@@ -135,10 +150,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     routes: [
       ...buildCoreRoutes(),
       ShellRoute(
-        builder: (context, state, child) => AppScaffoldShell(
-          currentPath: state.uri.path,
-          child: child,
-        ),
+        builder: (context, state, child) =>
+            AppScaffoldShell(currentPath: state.uri.path, child: child),
         routes: [
           buildPortalRoute(ref),
           ...buildMenuRoutes(),

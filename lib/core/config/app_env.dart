@@ -33,6 +33,9 @@ class AppEnv {
   static const _saleRepositoryModeDefine = String.fromEnvironment(
     'SALE_REPOSITORY_MODE',
   );
+  static const _authRepositoryModeDefine = String.fromEnvironment(
+    'AUTH_REPOSITORY_MODE',
+  );
 
   static String get apiBaseUrl => _readString(
     primary: _apiBaseUrlDefine,
@@ -43,55 +46,55 @@ class AppEnv {
   static String get authApiPrefix => _readString(
     primary: _authApiPrefixDefine,
     dotenvKey: 'AUTH_API_PREFIX',
-    defaultValue: '/v1/auth',
+    defaultValue: '/v0/auth',
   );
 
   static String get menuApiPrefix => _readString(
     primary: _menuApiPrefixDefine,
     dotenvKey: 'MENU_API_PREFIX',
-    defaultValue: '/v1/menu',
+    defaultValue: '/v0/menu',
   );
 
   static String get inventoryApiPrefix => _readString(
     primary: _inventoryApiPrefixDefine,
     dotenvKey: 'INVENTORY_API_PREFIX',
-    defaultValue: '/v1/inventory',
+    defaultValue: '/v0/inventory',
   );
 
   static String get salesApiPrefix => _readString(
     primary: _salesApiPrefixDefine,
     dotenvKey: 'SALES_API_PREFIX',
-    defaultValue: '/v1/sales',
+    defaultValue: '/v0/sales',
   );
 
   static String get cashApiPrefix => _readString(
     primary: _cashApiPrefixDefine,
     dotenvKey: 'CASH_API_PREFIX',
-    defaultValue: '/v1/cash',
+    defaultValue: '/v0/cash',
   );
 
   static String get reportingApiPrefix => _readString(
     primary: _reportingApiPrefixDefine,
     dotenvKey: 'REPORTING_API_PREFIX',
-    defaultValue: '/v1/reports',
+    defaultValue: '/v0/reports',
   );
 
   static String get policyApiPrefix => _readString(
     primary: _policyApiPrefixDefine,
     dotenvKey: 'POLICY_API_PREFIX',
-    defaultValue: '/v1/policies',
+    defaultValue: '/v0/policies',
   );
 
   static String get attendanceApiPrefix => _readString(
     primary: _attendanceApiPrefixDefine,
     dotenvKey: 'ATTENDANCE_API_PREFIX',
-    defaultValue: '/v1/attendance',
+    defaultValue: '/v0/attendance',
   );
 
   static String get branchApiPrefix => _readString(
     primary: _branchApiPrefixDefine,
     dotenvKey: 'BRANCH_API_PREFIX',
-    defaultValue: '/v1/branches',
+    defaultValue: '/v0/branches',
   );
 
   static bool get showDebugErrors {
@@ -119,6 +122,15 @@ class AppEnv {
       defaultValue: 'mock',
     );
     return mode.trim().toLowerCase() != 'api';
+  }
+
+  static bool get useMockAuthRepository {
+    final mode = _readString(
+      primary: _authRepositoryModeDefine,
+      dotenvKey: 'AUTH_REPOSITORY_MODE',
+      defaultValue: 'api',
+    );
+    return mode.trim().toLowerCase() == 'mock';
   }
 
   static bool _readBool({

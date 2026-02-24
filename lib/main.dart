@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:modular_pos/app.dart';
 import 'package:modular_pos/features/auth/data/auth_session_store.dart';
+import 'package:modular_pos/core/network/idempotency_key_store.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -17,6 +18,7 @@ Future<void> main() async {
 
   final prefs = await SharedPreferences.getInstance();
   final store = AuthSessionStore(prefs);
+  final idempotencyStore = SharedPrefsIdempotencyKeyStore(prefs);
   final initialSession = await store.load();
 
   runApp(
@@ -24,6 +26,7 @@ Future<void> main() async {
       overrides: [
         authSessionStoreProvider.overrideWithValue(store),
         initialAuthSessionProvider.overrideWithValue(initialSession),
+        idempotencyKeyStoreProvider.overrideWithValue(idempotencyStore),
       ],
       child: const ModulaApp(),
     ),

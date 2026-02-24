@@ -63,13 +63,19 @@ class TenantSelectionPage extends ConsumerWidget {
                           onTap: () async {
                             await controller.selectTenant(membership.tenantId);
 
-                            final updatedSession =
-                                ref.read(loginControllerProvider).session;
+                            final updatedSession = ref
+                                .read(loginControllerProvider)
+                                .session;
+                            final updatedState = ref.read(
+                              loginControllerProvider,
+                            );
                             if (updatedSession == null ||
                                 updatedSession.requiresTenantSelection) {
                               return;
                             }
-                            final route = AppRoute.portal.path;
+                            final route = updatedState.requiresBranchSelection
+                                ? AppRoute.branchSelection.path
+                                : AppRoute.portal.path;
 
                             if (context.mounted) context.go(route);
                           },

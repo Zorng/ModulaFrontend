@@ -25,6 +25,13 @@ class AuthSessionStore {
       final Map<String, dynamic> decoded =
           jsonDecode(jsonStr) as Map<String, dynamic>;
       final session = AuthSession.fromJson(decoded);
+      final hasMissingTokens =
+          session.accessToken.trim().isEmpty ||
+          session.refreshToken.trim().isEmpty;
+      if (hasMissingTokens) {
+        await clear();
+        return null;
+      }
       // Drop expired sessions (respect 72h window).
       if (session.isRefreshTokenExpired) {
         await clear();
@@ -51,4 +58,3 @@ final authSessionStoreProvider = Provider<AuthSessionStore>((ref) {
 
 /// Session loaded on app startup, if any.
 final initialAuthSessionProvider = Provider<AuthSession?>((ref) => null);
-

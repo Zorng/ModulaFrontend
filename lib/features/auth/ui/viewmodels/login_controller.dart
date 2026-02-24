@@ -2,26 +2,70 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/core/logging/app_log.dart';
+import 'package:modular_pos/core/network/api_contract.dart';
 import 'package:modular_pos/features/auth/data/auth_repository.dart';
+import 'package:modular_pos/features/auth/data/auth_repository_session_utils.dart';
 import 'package:modular_pos/features/auth/data/auth_session_store.dart';
 import 'package:modular_pos/features/auth/domain/models/auth_session.dart';
-import 'package:modular_pos/features/auth/domain/models/tenant_membership.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
 
 class LoginState {
+  static const Object _unset = Object();
+
   final bool isLoading;
   final AuthSession? session;
   final String? error;
+  final String? errorCode;
+  final int? errorStatusCode;
+  final String? pendingVerificationPhone;
+  final int? otpExpiresInMinutes;
+  final List<AuthBranchContextOption> branchOptions;
+  final bool requiresBranchSelection;
 
-  const LoginState({this.isLoading = false, this.session, this.error});
+  const LoginState({
+    this.isLoading = false,
+    this.session,
+    this.error,
+    this.errorCode,
+    this.errorStatusCode,
+    this.pendingVerificationPhone,
+    this.otpExpiresInMinutes,
+    this.branchOptions = const <AuthBranchContextOption>[],
+    this.requiresBranchSelection = false,
+  });
 
   User? get user => session?.user;
 
-  LoginState copyWith({bool? isLoading, AuthSession? session, String? error}) {
+  LoginState copyWith({
+    bool? isLoading,
+    AuthSession? session,
+    Object? error = _unset,
+    Object? errorCode = _unset,
+    Object? errorStatusCode = _unset,
+    Object? pendingVerificationPhone = _unset,
+    Object? otpExpiresInMinutes = _unset,
+    List<AuthBranchContextOption>? branchOptions,
+    bool? requiresBranchSelection,
+  }) {
     return LoginState(
       isLoading: isLoading ?? this.isLoading,
       session: session ?? this.session,
-      error: error,
+      error: identical(error, _unset) ? this.error : error as String?,
+      errorCode: identical(errorCode, _unset)
+          ? this.errorCode
+          : errorCode as String?,
+      errorStatusCode: identical(errorStatusCode, _unset)
+          ? this.errorStatusCode
+          : errorStatusCode as int?,
+      pendingVerificationPhone: identical(pendingVerificationPhone, _unset)
+          ? this.pendingVerificationPhone
+          : pendingVerificationPhone as String?,
+      otpExpiresInMinutes: identical(otpExpiresInMinutes, _unset)
+          ? this.otpExpiresInMinutes
+          : otpExpiresInMinutes as int?,
+      branchOptions: branchOptions ?? this.branchOptions,
+      requiresBranchSelection:
+          requiresBranchSelection ?? this.requiresBranchSelection,
     );
   }
 }
@@ -40,24 +84,133 @@ class LoginController extends Notifier<LoginState> {
     return LoginState(session: initialSession);
   }
 
+  Future<void> registerAccount({
+    required String phone,
+    required String password,
+    required String firstName,
+    required String lastName,
+    String? gender,
+    String? dateOfBirth,
+  }) async {
+    state = state.copyWith(
+      isLoading: true,
+      error: null,
+      errorCode: null,
+      errorStatusCode: null,
+    );
+
+    try {
+      final result = await _repository.registerAccount(
+        phone: phone,
+        password: password,
+        firstName: firstName,
+        lastName: lastName,
+        gender: gender,
+        dateOfBirth: dateOfBirth,
+      );
+      state = state.copyWith(
+        isLoading: false,
+        pendingVerificationPhone: result.phone,
+      );
+    } catch (e, st) {
+      _setError(e, st, fallbackMessage: 'Account registration failed.');
+    }
+  }
+
+  Future<void> sendRegistrationOtp({required String phone}) async {
+    state = state.copyWith(
+      isLoading: true,
+      error: null,
+      errorCode: null,
+      errorStatusCode: null,
+    );
+
+    try {
+      final result = await _repository.sendRegistrationOtp(phone: phone);
+      state = state.copyWith(
+        isLoading: false,
+        pendingVerificationPhone: phone.trim(),
+        otpExpiresInMinutes: result.expiresInMinutes,
+      );
+    } catch (e, st) {
+      _setError(e, st, fallbackMessage: 'Failed to send OTP.');
+    }
+  }
+
+  Future<void> verifyRegistrationOtp({
+    required String phone,
+    required String otp,
+  }) async {
+    state = state.copyWith(
+      isLoading: true,
+      error: null,
+      errorCode: null,
+      errorStatusCode: null,
+    );
+
+    try {
+      final result = await _repository.verifyRegistrationOtp(
+        phone: phone,
+        otp: otp,
+      );
+      if (!result.verified) {
+        state = state.copyWith(
+          isLoading: false,
+          error: 'Invalid verification code.',
+          errorCode: 'OTP_INVALID',
+          errorStatusCode: 400,
+        );
+        return;
+      }
+      state = state.copyWith(
+        isLoading: false,
+        pendingVerificationPhone: phone.trim(),
+        otpExpiresInMinutes: null,
+      );
+    } catch (e, st) {
+      _setError(e, st, fallbackMessage: 'Failed to verify OTP.');
+    }
+  }
+
   Future<void> login(String username, String password) async {
-    state = state.copyWith(isLoading: true, error: null);
+    state = state.copyWith(
+      isLoading: true,
+      error: null,
+      errorCode: null,
+      errorStatusCode: null,
+      requiresBranchSelection: false,
+      branchOptions: const <AuthBranchContextOption>[],
+    );
 
     try {
       final session = await _repository.login(username, password);
+      // Persist snapshot immediately so refresh/reload keeps auth state and
+      // routing state (tenant/branch selection steps).
+      await _sessionStore.save(session);
       // Only persist fully-established sessions.
       if (!session.requiresTenantSelection &&
           session.accessToken.trim().isNotEmpty) {
-        await _sessionStore.save(session);
+        await _applyBranchContextState(session);
+      } else {
+        state = state.copyWith(
+          isLoading: false,
+          session: session,
+          requiresBranchSelection: false,
+          branchOptions: const <AuthBranchContextOption>[],
+        );
       }
-
-      state = state.copyWith(isLoading: false, session: session);
     } catch (e, st) {
-      AppLog.e('Login failed', error: e, stackTrace: st);
-      state = state.copyWith(
-        isLoading: false,
-        error: 'Login failed', // you can inspect e for more details
-      );
+      if (e is ApiClientException && _isPhoneNotVerified(e)) {
+        state = state.copyWith(
+          isLoading: false,
+          error: e.message,
+          errorCode: e.code,
+          errorStatusCode: e.statusCode,
+          pendingVerificationPhone: username.trim(),
+        );
+        return;
+      }
+      _setError(e, st, fallbackMessage: 'Login failed.');
     }
   }
 
@@ -65,63 +218,215 @@ class LoginController extends Notifier<LoginState> {
     final current = state.session;
     if (current == null) return;
 
-    state = state.copyWith(isLoading: true, error: null);
+    state = state.copyWith(
+      isLoading: true,
+      error: null,
+      errorCode: null,
+      errorStatusCode: null,
+      requiresBranchSelection: false,
+      branchOptions: const <AuthBranchContextOption>[],
+    );
 
     try {
-      if (current.tenantSelectionToken.trim().isNotEmpty) {
-        final selected = await _repository.selectTenant(
-          selectionToken: current.tenantSelectionToken,
-          tenantId: tenantId,
-        );
-
-        final nextSession = selected.copyWith(
-          memberships: current.memberships.isNotEmpty
-              ? current.memberships
-              : selected.memberships,
-          activeTenantId: tenantId,
-          tenantSelectionToken: '',
-        );
-
-        await _sessionStore.save(nextSession);
-        state = state.copyWith(isLoading: false, session: nextSession);
-        return;
-      }
-
-      TenantMembership? membership;
-      for (final m in current.memberships) {
-        if (m.tenantId == tenantId) {
-          membership = m;
-          break;
-        }
-      }
-      if (membership == null) {
-        state = state.copyWith(isLoading: false);
-        return;
-      }
-
-      final nextUser = current.user.copyWith(
-        tenantId: membership.tenantId,
-        role: membership.role.isNotEmpty ? membership.role : current.user.role,
-        branches: membership.branches,
+      final selected = await _repository.selectTenant(
+        selectionToken: current.tenantSelectionToken,
+        tenantId: tenantId,
       );
-      final nextSession = current.copyWith(
-        user: nextUser,
-        activeTenantId: membership.tenantId,
+      final nextSession = selected.copyWith(
+        memberships: current.memberships.isNotEmpty
+            ? current.memberships
+            : selected.memberships,
+        activeTenantId: tenantId,
+        tenantSelectionToken: '',
       );
-
       await _sessionStore.save(nextSession);
-      state = state.copyWith(isLoading: false, session: nextSession);
+      await _applyBranchContextState(nextSession);
     } catch (e, st) {
-      AppLog.e('Tenant selection failed', error: e, stackTrace: st);
+      _setError(e, st, fallbackMessage: 'Tenant selection failed.');
+    }
+  }
+
+  Future<void> loadBranchContexts() async {
+    final current = state.session;
+    if (current == null) return;
+
+    state = state.copyWith(
+      isLoading: true,
+      error: null,
+      errorCode: null,
+      errorStatusCode: null,
+    );
+
+    try {
+      final options = await _repository.listBranchContexts(
+        currentSession: current,
+      );
       state = state.copyWith(
         isLoading: false,
-        error: 'Tenant selection failed',
+        branchOptions: options.branches,
+        requiresBranchSelection: options.requiresSelection,
       );
+    } catch (e, st) {
+      _setError(e, st, fallbackMessage: 'Failed to load branches.');
+    }
+  }
+
+  Future<void> selectBranch(String branchId) async {
+    final current = state.session;
+    if (current == null) return;
+
+    state = state.copyWith(
+      isLoading: true,
+      error: null,
+      errorCode: null,
+      errorStatusCode: null,
+    );
+
+    try {
+      final selected = await _repository.selectBranch(
+        currentSession: current,
+        branchId: branchId,
+      );
+      await _sessionStore.save(selected);
+      state = state.copyWith(
+        isLoading: false,
+        session: selected,
+        branchOptions: const <AuthBranchContextOption>[],
+        requiresBranchSelection: false,
+      );
+    } catch (e, st) {
+      _setError(e, st, fallbackMessage: 'Branch selection failed.');
+    }
+  }
+
+  Future<void> refreshSession() async {
+    final current = state.session;
+    if (current == null) return;
+
+    state = state.copyWith(
+      isLoading: true,
+      error: null,
+      errorCode: null,
+      errorStatusCode: null,
+    );
+
+    try {
+      final refreshed = await _repository.refreshSession(
+        currentSession: current,
+      );
+      await _sessionStore.save(refreshed);
+      await _applyBranchContextState(refreshed);
+    } catch (e, st) {
+      _setError(e, st, fallbackMessage: 'Session refresh failed.');
+    }
+  }
+
+  /// Used by the network layer for silent token refresh on 401 responses.
+  ///
+  /// This avoids UI loading/error state churn while still rotating tokens and
+  /// invalidating session when refresh is no longer valid.
+  Future<AuthSession?> refreshSessionForNetwork() async {
+    final current = state.session;
+    if (current == null) return null;
+
+    try {
+      final refreshed = await _repository.refreshSession(
+        currentSession: current,
+      );
+      await _sessionStore.save(refreshed);
+      state = state.copyWith(
+        session: refreshed,
+        error: null,
+        errorCode: null,
+        errorStatusCode: null,
+      );
+      return refreshed;
+    } catch (e, st) {
+      AppLog.e(
+        'Silent refresh failed, clearing session',
+        error: e,
+        stackTrace: st,
+      );
+      await _sessionStore.clear();
+      state = const LoginState();
+      return null;
     }
   }
 
   Future<void> logout() async {
+    final refreshToken = state.session?.refreshToken;
+    try {
+      await _repository.logout(refreshToken: refreshToken);
+    } catch (e, st) {
+      AppLog.e('Logout failed', error: e, stackTrace: st);
+    }
     await _sessionStore.clear();
     state = const LoginState();
+  }
+
+  Future<void> _applyBranchContextState(AuthSession session) async {
+    final branchContext = await _repository.listBranchContexts(
+      currentSession: session,
+    );
+
+    if (!branchContext.requiresSelection) {
+      final selectedBranchId = (branchContext.selectedBranchId ?? '').trim();
+      final activeBranchId = currentBranchId(session) ?? '';
+      if (selectedBranchId.isNotEmpty && selectedBranchId != activeBranchId) {
+        final selectedSession = await _repository.selectBranch(
+          currentSession: session,
+          branchId: selectedBranchId,
+        );
+        await _sessionStore.save(selectedSession);
+        state = state.copyWith(
+          isLoading: false,
+          session: selectedSession,
+          requiresBranchSelection: false,
+          branchOptions: const <AuthBranchContextOption>[],
+        );
+        return;
+      }
+    }
+
+    state = state.copyWith(
+      isLoading: false,
+      session: session,
+      requiresBranchSelection: branchContext.requiresSelection,
+      branchOptions: branchContext.branches,
+    );
+  }
+
+  void _setError(
+    Object error,
+    StackTrace stackTrace, {
+    required String fallbackMessage,
+  }) {
+    AppLog.e(fallbackMessage, error: error, stackTrace: stackTrace);
+    if (error is ApiClientException) {
+      state = state.copyWith(
+        isLoading: false,
+        error: error.message,
+        errorCode: error.code,
+        errorStatusCode: error.statusCode,
+      );
+      return;
+    }
+
+    state = state.copyWith(
+      isLoading: false,
+      error: fallbackMessage,
+      errorCode: null,
+      errorStatusCode: null,
+    );
+  }
+
+  bool _isPhoneNotVerified(ApiClientException exception) {
+    if (exception.statusCode != 403) return false;
+    final code = (exception.code ?? '').trim().toUpperCase();
+    final message = exception.message.trim().toUpperCase();
+    if (code.contains('PHONE_NOT_VERIFIED')) return true;
+    if (message.contains('PHONE NOT VERIFIED')) return true;
+    if (message.contains('NOT VERIFIED')) return true;
+    return false;
   }
 }

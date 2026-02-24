@@ -24,18 +24,15 @@ class AuthSession {
 
   bool get requiresTenantSelection =>
       tenantSelectionToken.isNotEmpty ||
-      (memberships.length > 1 && (activeTenantId == null || activeTenantId!.isEmpty));
+      (memberships.length > 1 &&
+          (activeTenantId == null || activeTenantId!.isEmpty));
 
-  bool get isAccessTokenExpired =>
-      DateTime.now().isAfter(accessTokenExpiresAt);
+  bool get isAccessTokenExpired => DateTime.now().isAfter(accessTokenExpiresAt);
 
   bool get isRefreshTokenExpired =>
       DateTime.now().isAfter(refreshTokenExpiresAt);
 
   /// Snapshot for client-side persistence.
-  ///
-  /// Note: Deliberately excludes access/refresh token values; those should
-  /// be held in memory or httpOnly cookies, not in app storage.
   Map<String, dynamic> toJson() {
     return {
       'user': {
@@ -49,13 +46,17 @@ class AuthSession {
       },
       'memberships': memberships.map((m) => m.toJson()).toList(growable: false),
       'activeTenantId': activeTenantId,
+      'tenantSelectionToken': tenantSelectionToken,
+      'accessToken': accessToken,
+      'refreshToken': refreshToken,
       'accessTokenExpiresAt': accessTokenExpiresAt.toIso8601String(),
       'refreshTokenExpiresAt': refreshTokenExpiresAt.toIso8601String(),
     };
   }
 
   factory AuthSession.fromJson(Map<String, dynamic> json) {
-    final memberships = (json['memberships'] as List<dynamic>?)
+    final memberships =
+        (json['memberships'] as List<dynamic>?)
             ?.whereType<Map<String, dynamic>>()
             .map(TenantMembership.fromJson)
             .toList(growable: false) ??
@@ -65,14 +66,15 @@ class AuthSession {
       user: User.fromJson(json['user'] as Map<String, dynamic>),
       memberships: memberships,
       activeTenantId: json['activeTenantId']?.toString(),
-      accessToken: '',
-      refreshToken: '',
+      accessToken: json['accessToken']?.toString() ?? '',
+      refreshToken: json['refreshToken']?.toString() ?? '',
       accessTokenExpiresAt: DateTime.parse(
         json['accessTokenExpiresAt'] as String,
       ).toUtc(),
       refreshTokenExpiresAt: DateTime.parse(
         json['refreshTokenExpiresAt'] as String,
       ).toUtc(),
+      tenantSelectionToken: json['tenantSelectionToken']?.toString() ?? '',
     );
   }
 
@@ -93,7 +95,8 @@ class AuthSession {
       accessToken: accessToken ?? this.accessToken,
       refreshToken: refreshToken ?? this.refreshToken,
       accessTokenExpiresAt: accessTokenExpiresAt ?? this.accessTokenExpiresAt,
-      refreshTokenExpiresAt: refreshTokenExpiresAt ?? this.refreshTokenExpiresAt,
+      refreshTokenExpiresAt:
+          refreshTokenExpiresAt ?? this.refreshTokenExpiresAt,
       tenantSelectionToken: tenantSelectionToken ?? this.tenantSelectionToken,
     );
   }
