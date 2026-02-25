@@ -39,6 +39,9 @@ class AppEnv {
   static const _tenantRepositoryModeDefine = String.fromEnvironment(
     'TENANT_REPOSITORY_MODE',
   );
+  static const _branchRepositoryModeDefine = String.fromEnvironment(
+    'BRANCH_REPOSITORY_MODE',
+  );
 
   static String get apiBaseUrl => _readString(
     primary: _apiBaseUrlDefine,
@@ -140,6 +143,15 @@ class AppEnv {
     final mode = _readString(
       primary: _tenantRepositoryModeDefine,
       dotenvKey: 'TENANT_REPOSITORY_MODE',
+      defaultValue: 'api',
+    );
+    return mode.trim().toLowerCase() == 'mock';
+  }
+
+  static bool get useMockBranchRepository {
+    final mode = _readString(
+      primary: _branchRepositoryModeDefine,
+      dotenvKey: 'BRANCH_REPOSITORY_MODE',
       defaultValue: 'api',
     );
     return mode.trim().toLowerCase() == 'mock';

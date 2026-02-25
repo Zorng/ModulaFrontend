@@ -4,7 +4,7 @@ import 'package:modular_pos/core/widgets/widget_gallery_page.dart';
 import 'package:modular_pos/features/auth/ui/view/login_view.dart';
 import 'package:modular_pos/features/auth/ui/view/otp/otp_verification_page.dart';
 import 'package:modular_pos/features/auth/ui/view/signup/signup_page.dart';
-import 'package:modular_pos/features/branch/ui/view/branch_selection/branch_selection_page.dart';
+import 'package:modular_pos/features/branchV2/ui/view/branch_selection/branch_selection_page.dart';
 import 'package:modular_pos/features/tenant/ui/view/tenant_selection/tenant_selection_page.dart';
 
 List<RouteBase> buildCoreRoutes() {
