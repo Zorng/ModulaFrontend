@@ -604,4 +604,76 @@ void main() {
       expect(state.error, 'Invalid verification code.');
     },
   );
+
+  test(
+    'upsertSessionTenantMembership appends created tenant membership',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final store = AuthSessionStore(prefs);
+      final initial = _session(accessToken: 'access-1', branches: const []);
+      final repository = _StubAuthRepository();
+      final container = createTestContainer(
+        overrides: [
+          authRepositoryProvider.overrideWithValue(repository),
+          authSessionStoreProvider.overrideWithValue(store),
+          initialAuthSessionProvider.overrideWithValue(initial),
+        ],
+      );
+
+      await container
+          .read(loginControllerProvider.notifier)
+          .upsertSessionTenantMembership(
+            tenantId: 'tenant-2',
+            tenantName: 'Tenant 2',
+            role: 'OWNER',
+          );
+
+      final state = container.read(loginControllerProvider);
+      expect(state.session, isNotNull);
+      expect(state.session!.memberships, hasLength(2));
+      expect(
+        state.session!.memberships.any(
+          (membership) => membership.tenantId == 'tenant-2',
+        ),
+        isTrue,
+      );
+
+      final persisted = await store.load();
+      expect(persisted, isNotNull);
+      expect(persisted!.memberships, hasLength(2));
+    },
+  );
+
+  test(
+    'upsertSessionTenantMembership updates existing tenant membership',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final store = AuthSessionStore(prefs);
+      final initial = _session(accessToken: 'access-1', branches: const []);
+      final repository = _StubAuthRepository();
+      final container = createTestContainer(
+        overrides: [
+          authRepositoryProvider.overrideWithValue(repository),
+          authSessionStoreProvider.overrideWithValue(store),
+          initialAuthSessionProvider.overrideWithValue(initial),
+        ],
+      );
+
+      await container
+          .read(loginControllerProvider.notifier)
+          .upsertSessionTenantMembership(
+            tenantId: 'tenant-1',
+            tenantName: 'Tenant 1 Updated',
+            role: 'OWNER',
+          );
+
+      final state = container.read(loginControllerProvider);
+      expect(state.session, isNotNull);
+      expect(state.session!.memberships, hasLength(1));
+      expect(state.session!.memberships.first.tenantName, 'Tenant 1 Updated');
+      expect(state.session!.memberships.first.role, 'OWNER');
+    },
+  );
 }

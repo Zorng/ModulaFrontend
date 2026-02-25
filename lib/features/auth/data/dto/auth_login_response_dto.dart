@@ -5,6 +5,7 @@ class TenantSelectionRequiredDto {
   const TenantSelectionRequiredDto({
     required this.selectionToken,
     required this.memberships,
+    this.user,
     this.accessToken,
     this.refreshToken,
     this.accessTokenExpiresAt,
@@ -13,6 +14,7 @@ class TenantSelectionRequiredDto {
 
   final String selectionToken;
   final List<TenantMembershipDto> memberships;
+  final AuthUserDto? user;
   final String? accessToken;
   final String? refreshToken;
   final DateTime? accessTokenExpiresAt;

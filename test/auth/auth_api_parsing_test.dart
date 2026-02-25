@@ -105,6 +105,9 @@ void main() {
       expect(selection.memberships.first.tenantName, 'Tenant One');
       expect(selection.memberships.last.tenantId, 'tenant-2');
       expect(selection.memberships.last.tenantName, 'Tenant Two');
+      expect(selection.user, isNotNull);
+      expect(selection.user!.name, '+123');
+      expect(selection.user!.phone, '+123');
     },
   );
 
@@ -155,6 +158,9 @@ void main() {
       expect(selection.refreshToken, 'refresh-v0-1');
       expect(selection.accessTokenExpiresAt, isNotNull);
       expect(selection.refreshTokenExpiresAt, isNotNull);
+      expect(selection.user, isNotNull);
+      expect(selection.user!.name, 'Demo Owner');
+      expect(selection.user!.phone, '+85511111111');
     },
   );
 

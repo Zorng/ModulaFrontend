@@ -68,7 +68,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         return isTenantSelection ? null : AppRoute.tenantSelection.path;
       }
       if (authState.requiresBranchSelection) {
-        return isBranchSelection ? null : AppRoute.branchSelection.path;
+        return (isBranchSelection || isTenantSelection)
+            ? null
+            : AppRoute.branchSelection.path;
       }
 
       final role = session.user.role.trim().toLowerCase();

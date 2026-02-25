@@ -321,6 +321,28 @@ class LoginController extends Notifier<LoginState> {
     }
   }
 
+  Future<void> upsertSessionTenantMembership({
+    required String tenantId,
+    required String tenantName,
+    required String role,
+    List<UserBranch> branches = const <UserBranch>[],
+  }) async {
+    final current = state.session;
+    if (current == null) return;
+
+    final updated = upsertTenantMembership(
+      current,
+      tenantId: tenantId,
+      tenantName: tenantName,
+      role: role,
+      branches: branches,
+    );
+    if (identical(updated, current)) return;
+
+    await _sessionStore.save(updated);
+    state = state.copyWith(session: updated);
+  }
+
   /// Used by the network layer for silent token refresh on 401 responses.
   ///
   /// This avoids UI loading/error state churn while still rotating tokens and

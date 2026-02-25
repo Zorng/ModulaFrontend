@@ -57,6 +57,57 @@ AuthSession updateSessionTokensAndContext(
   );
 }
 
+AuthSession upsertTenantMembership(
+  AuthSession currentSession, {
+  required String tenantId,
+  required String tenantName,
+  required String role,
+  List<UserBranch> branches = const <UserBranch>[],
+}) {
+  final normalizedTenantId = tenantId.trim();
+  if (normalizedTenantId.isEmpty) return currentSession;
+
+  final normalizedTenantName = tenantName.trim().isEmpty
+      ? normalizedTenantId
+      : tenantName.trim();
+  final normalizedRole = role.trim().isEmpty ? 'MEMBER' : role.trim();
+
+  final existingIndex = currentSession.memberships.indexWhere(
+    (membership) => membership.tenantId.trim() == normalizedTenantId,
+  );
+
+  final existingMembership = existingIndex >= 0
+      ? currentSession.memberships[existingIndex]
+      : null;
+  final nextBranches = branches.isEmpty
+      ? (existingMembership?.branches ?? const <UserBranch>[])
+      : branches;
+
+  final nextMembership = TenantMembership(
+    tenantId: normalizedTenantId,
+    tenantName: normalizedTenantName,
+    role: normalizedRole,
+    branches: nextBranches,
+  );
+
+  final nextMemberships = currentSession.memberships.toList(growable: true);
+  if (existingIndex >= 0) {
+    final previousMembership = nextMemberships[existingIndex];
+    final isUnchanged =
+        previousMembership.tenantName == nextMembership.tenantName &&
+        previousMembership.role == nextMembership.role &&
+        _sameBranches(previousMembership.branches, nextMembership.branches);
+    if (isUnchanged) return currentSession;
+    nextMemberships[existingIndex] = nextMembership;
+  } else {
+    nextMemberships.add(nextMembership);
+  }
+
+  return currentSession.copyWith(
+    memberships: nextMemberships.toList(growable: false),
+  );
+}
+
 List<UserBranch> activateBranchForUser(
   List<UserBranch> branches,
   String branchId,
@@ -83,4 +134,20 @@ List<UserBranch> activateBranchForUser(
       })
       .toList(growable: false);
   return matched ? updated : branches;
+}
+
+bool _sameBranches(List<UserBranch> a, List<UserBranch> b) {
+  if (identical(a, b)) return true;
+  if (a.length != b.length) return false;
+  for (var i = 0; i < a.length; i++) {
+    final left = a[i];
+    final right = b[i];
+    if (left.id != right.id) return false;
+    if (left.name != right.name) return false;
+    if (left.role != right.role) return false;
+    if (left.active != right.active) return false;
+    if (left.employeeId != right.employeeId) return false;
+    if (left.branchId != right.branchId) return false;
+  }
+  return true;
 }

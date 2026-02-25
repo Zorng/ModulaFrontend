@@ -32,6 +32,11 @@ class _BranchSelectionPageState extends ConsumerState<BranchSelectionPage> {
 
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          tooltip: 'Back',
+          onPressed: () => context.go(AppRoute.tenantSelection.path),
+          icon: const Icon(Icons.arrow_back),
+        ),
         title: const Text('Select Branch'),
         centerTitle: false,
         actions: [

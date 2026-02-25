@@ -60,8 +60,21 @@ class RemoteAuthRepository implements AuthRepository {
     final response = await _api.login(username: username, password: password);
     if (response.requiresTenantSelection) {
       final selection = response.tenantSelection!;
+      final fallbackRole = selection.memberships.isNotEmpty
+          ? selection.memberships.first.role
+          : 'member';
+      final fallbackName = username.trim().isEmpty ? 'User' : username.trim();
       return AuthSession(
-        user: User(id: '', name: '', role: '', tenantId: ''),
+        user: selection.user != null
+            ? _toUser(selection.user!)
+            : User(
+                id: '',
+                name: fallbackName,
+                role: fallbackRole,
+                tenantId: '',
+                phone: username.trim(),
+                status: 'ACTIVE',
+              ),
         memberships: selection.memberships
             .map(_toMembership)
             .toList(growable: false),

@@ -140,6 +140,79 @@ class AuthApi {
         .toList(growable: false);
   }
 
+  AuthUserDto _parseTenantSelectionUser({
+    required Map<String, dynamic> data,
+    required String fallbackPhone,
+    required List<TenantMembershipDto> memberships,
+    String? accessToken,
+  }) {
+    final account = _asMap(data['account']);
+    final user = _asMap(data['user']);
+    final employee = _asMap(data['employee']);
+    final source = account.isNotEmpty
+        ? account
+        : (user.isNotEmpty ? user : employee);
+
+    final normalizedAccessToken = (accessToken ?? '').trim();
+    final claims = normalizedAccessToken.isEmpty
+        ? const <String, dynamic>{}
+        : _decodeJwtClaims(normalizedAccessToken);
+
+    final firstName =
+        source['firstName']?.toString() ??
+        source['first_name']?.toString() ??
+        '';
+    final lastName =
+        source['lastName']?.toString() ?? source['last_name']?.toString() ?? '';
+    final fullName = [
+      firstName,
+      lastName,
+    ].where((part) => part.trim().isNotEmpty).join(' ').trim();
+
+    final idCandidates = <String>[
+      source['id']?.toString() ?? '',
+      source['accountId']?.toString() ?? '',
+      source['employeeId']?.toString() ?? '',
+      _claimString(claims, const ['sub', 'accountId', 'userId']),
+    ];
+    final id = idCandidates.firstWhere(
+      (value) => value.trim().isNotEmpty,
+      orElse: () => '',
+    );
+
+    final roleFromMembership = memberships.isNotEmpty
+        ? memberships.first.role
+        : '';
+    final roleCandidates = <String>[
+      source['role']?.toString() ?? '',
+      _claimString(claims, const ['role', 'roleKey']),
+      roleFromMembership,
+    ];
+    final role = roleCandidates.firstWhere(
+      (value) => value.trim().isNotEmpty,
+      orElse: () => '',
+    );
+
+    final sourceName = (source['name']?.toString() ?? '').trim();
+    final name = sourceName.isNotEmpty ? sourceName : fullName.trim();
+
+    final sourcePhone = (source['phone']?.toString() ?? '').trim();
+    final phone = sourcePhone.isNotEmpty ? sourcePhone : fallbackPhone.trim();
+
+    final normalizedName = name.trim().isEmpty ? fallbackPhone.trim() : name;
+
+    final userJson = <String, dynamic>{
+      'id': id.trim(),
+      'name': normalizedName,
+      'phone': phone,
+      'role': role.trim().isEmpty ? 'member' : role.trim(),
+      'tenantId': '',
+      'status': source['status']?.toString() ?? 'ACTIVE',
+    };
+
+    return AuthUserDto.fromJson(userJson, branches: const <UserBranchDto>[]);
+  }
+
   Future<AuthTenantContextOptionsDto?> _safeListTenantContexts(
     String accessToken,
   ) async {
@@ -433,11 +506,18 @@ class AuthApi {
                 .where((m) => m.tenantId.isNotEmpty)
                 .toList(growable: false)
           : const <TenantMembershipDto>[];
+      final tenantSelectionUser = _parseTenantSelectionUser(
+        data: data,
+        fallbackPhone: username,
+        memberships: memberships,
+        accessToken: accessToken,
+      );
 
       return AuthLoginResponseDto(
         tenantSelection: TenantSelectionRequiredDto(
           selectionToken: selectionToken,
           memberships: memberships,
+          user: tenantSelectionUser,
           accessToken: accessToken.isEmpty ? null : accessToken,
           refreshToken: refreshToken.isEmpty ? null : refreshToken,
           accessTokenExpiresAt: accessToken.isEmpty
@@ -485,10 +565,17 @@ class AuthApi {
     if (needsTenantSelection) {
       final refreshToken = data['refreshToken']?.toString() ?? '';
       final accessToken = data['accessToken']?.toString() ?? '';
+      final tenantSelectionUser = _parseTenantSelectionUser(
+        data: data,
+        fallbackPhone: username,
+        memberships: memberships,
+        accessToken: accessToken,
+      );
       return AuthLoginResponseDto(
         tenantSelection: TenantSelectionRequiredDto(
           selectionToken: 'v0-context-selection',
           memberships: memberships,
+          user: tenantSelectionUser,
           accessToken: accessToken,
           refreshToken: refreshToken.isEmpty ? null : refreshToken,
           accessTokenExpiresAt: accessToken.isEmpty
