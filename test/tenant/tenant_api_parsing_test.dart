@@ -49,7 +49,9 @@ void main() {
     'getCurrentTenantProfile unwraps canonical envelope and parses dto',
     () async {
       final dio = _MockDio();
-      when(() => dio.get<dynamic>(any())).thenAnswer(
+      when(
+        () => dio.get<dynamic>(any(), options: any(named: 'options')),
+      ).thenAnswer(
         (_) async => Response<dynamic>(
           requestOptions: RequestOptions(path: '/v0/org/tenant/current'),
           data: {
@@ -72,6 +74,45 @@ void main() {
       expect(result.tenantId, 'tenant-1');
       expect(result.tenantName, 'X Cafe');
       expect(result.status, 'ACTIVE');
+    },
+  );
+
+  test(
+    'getCurrentTenantProfile sends accessToken override when provided',
+    () async {
+      final dio = _MockDio();
+      when(
+        () => dio.get<dynamic>(any(), options: any(named: 'options')),
+      ).thenAnswer(
+        (_) async => Response<dynamic>(
+          requestOptions: RequestOptions(path: '/v0/org/tenant/current'),
+          data: {
+            'success': true,
+            'data': {
+              'tenantId': 'tenant-1',
+              'tenantName': 'X Cafe',
+              'status': 'ACTIVE',
+            },
+          },
+        ),
+      );
+
+      final api = TenantApi(dio);
+      await api.getCurrentTenantProfile(accessTokenOverride: 'access-1');
+
+      verify(
+        () => dio.get<dynamic>(
+          any(),
+          options: any(
+            named: 'options',
+            that: isA<Options>().having(
+              (o) => o.headers?['Authorization'],
+              'Authorization',
+              'Bearer access-1',
+            ),
+          ),
+        ),
+      ).called(1);
     },
   );
 

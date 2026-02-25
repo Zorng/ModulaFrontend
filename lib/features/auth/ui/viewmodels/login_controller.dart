@@ -7,6 +7,7 @@ import 'package:modular_pos/features/auth/data/auth_repository.dart';
 import 'package:modular_pos/features/auth/data/auth_repository_session_utils.dart';
 import 'package:modular_pos/features/auth/data/auth_session_store.dart';
 import 'package:modular_pos/features/auth/domain/models/auth_session.dart';
+import 'package:modular_pos/features/auth/domain/models/tenant_membership.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
 import 'package:modular_pos/features/tenant/data/tenant_repository.dart';
 
@@ -235,16 +236,36 @@ class LoginController extends Notifier<LoginState> {
         tenantId: tenantId,
       );
       final nextSession = selected.copyWith(
-        memberships: current.memberships.isNotEmpty
-            ? current.memberships
-            : selected.memberships,
+        memberships: selected.memberships.isNotEmpty
+            ? selected.memberships
+            : current.memberships,
         activeTenantId: tenantId,
         tenantSelectionToken: '',
       );
+      final mergedUser = _mergeIdentityFromCurrentUser(
+        current.user,
+        nextSession.user,
+      );
+      final tenantRole = _roleForTenant(nextSession.memberships, tenantId);
+      final nextSessionWithRole = nextSession.copyWith(
+        user: mergedUser.copyWith(tenantId: tenantId, role: tenantRole),
+      );
       // Validate tenant context using canonical org endpoint before persisting.
-      await _tenantRepository.getCurrentTenantProfile();
+      final tenantProfile = await _tenantRepository.getCurrentTenantProfile(
+        accessTokenOverride: nextSessionWithRole.accessToken,
+      );
+      final resolvedTenantId = tenantProfile.tenantId.trim();
+      if (resolvedTenantId.isNotEmpty && resolvedTenantId != tenantId.trim()) {
+        throw ApiClientException(
+          message: 'Selected tenant context mismatch.',
+          code: 'TENANT_CONTEXT_MISMATCH',
+          statusCode: 409,
+        );
+      }
 
-      final branchResolution = await _resolveBranchContextState(nextSession);
+      final branchResolution = await _resolveBranchContextState(
+        nextSessionWithRole,
+      );
       await _sessionStore.save(branchResolution.session);
       state = state.copyWith(
         isLoading: false,
@@ -439,6 +460,35 @@ class LoginController extends Notifier<LoginState> {
       session: session,
       requiresBranchSelection: branchContext.requiresSelection,
       branchOptions: branchContext.branches,
+    );
+  }
+
+  String _roleForTenant(List<TenantMembership> memberships, String tenantId) {
+    final normalizedTenantId = tenantId.trim();
+    if (normalizedTenantId.isEmpty) return '';
+    final matched = memberships.where(
+      (membership) =>
+          membership.tenantId.trim().isNotEmpty &&
+          membership.tenantId.trim() == normalizedTenantId,
+    );
+    if (matched.isEmpty) return '';
+    return matched.first.role.trim();
+  }
+
+  User _mergeIdentityFromCurrentUser(User currentUser, User selectedUser) {
+    final selectedName = selectedUser.name.trim();
+    final selectedPhone = selectedUser.phone.trim();
+    final selectedId = selectedUser.id.trim();
+    final selectedStatus = selectedUser.status.trim();
+
+    final useCurrentName =
+        selectedName.isEmpty || selectedName.toLowerCase() == 'user';
+
+    return selectedUser.copyWith(
+      id: selectedId.isEmpty ? currentUser.id : selectedUser.id,
+      name: useCurrentName ? currentUser.name : selectedUser.name,
+      phone: selectedPhone.isEmpty ? currentUser.phone : selectedUser.phone,
+      status: selectedStatus.isEmpty ? currentUser.status : selectedUser.status,
     );
   }
 

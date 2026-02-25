@@ -8,7 +8,7 @@ import 'package:modular_pos/features/tenant/domain/models/tenant_provision_resul
 
 abstract class TenantRepository {
   Future<TenantProvisionResult> createTenant({required String tenantName});
-  Future<TenantProfile> getCurrentTenantProfile();
+  Future<TenantProfile> getCurrentTenantProfile({String? accessTokenOverride});
 }
 
 final tenantRepositoryProvider = Provider<TenantRepository>((ref) {

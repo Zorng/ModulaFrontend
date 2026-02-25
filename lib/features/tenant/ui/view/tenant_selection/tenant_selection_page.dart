@@ -136,9 +136,7 @@ class TenantSelectionPage extends ConsumerWidget {
                 padding: const EdgeInsets.only(bottom: 12),
                 child: Text(
                   loginState.error!,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyMedium?.copyWith(
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: Theme.of(context).colorScheme.error,
                   ),
                 ),

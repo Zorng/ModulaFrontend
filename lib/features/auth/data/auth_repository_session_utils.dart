@@ -41,9 +41,20 @@ AuthSession updateSessionTokensAndContext(
         ),
       )
       .toList(growable: false);
+  final tenantRole = updatedMemberships
+      .where(
+        (membership) =>
+            membership.tenantId.trim().isNotEmpty &&
+            membership.tenantId.trim() == tenantId.trim(),
+      )
+      .map((membership) => membership.role.trim())
+      .firstWhere((role) => role.isNotEmpty, orElse: () => '');
+  final resolvedUserRole = tenantRole.isNotEmpty
+      ? tenantRole
+      : currentSession.user.role;
 
   return currentSession.copyWith(
-    user: updatedUser,
+    user: updatedUser.copyWith(role: resolvedUserRole),
     memberships: updatedMemberships,
     activeTenantId: tenantId,
     accessToken: accessToken,

@@ -36,9 +36,19 @@ class TenantApi {
     }
   }
 
-  Future<CurrentTenantProfileDto> getCurrentTenantProfile() async {
+  Future<CurrentTenantProfileDto> getCurrentTenantProfile({
+    String? accessTokenOverride,
+  }) async {
     try {
-      final response = await _dio.get<dynamic>('$_prefix/tenant/current');
+      final normalizedAccessToken = (accessTokenOverride ?? '').trim();
+      final response = await _dio.get<dynamic>(
+        '$_prefix/tenant/current',
+        options: normalizedAccessToken.isEmpty
+            ? null
+            : Options(
+                headers: {'Authorization': 'Bearer $normalizedAccessToken'},
+              ),
+      );
       final data = ApiContract.asJsonMap(ApiContract.unwrapData(response.data));
       return CurrentTenantProfileDto.fromJson(data);
     } on DioError catch (error) {

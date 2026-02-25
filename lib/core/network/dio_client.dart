@@ -9,6 +9,7 @@ import 'package:modular_pos/features/auth/domain/auth_token_provider.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 
 const _retryAfterRefreshExtraKey = '__retry_after_refresh__';
+const _explicitAuthHeaderExtraKey = '__explicit_auth_header__';
 
 final dioProvider = Provider<Dio>((ref) {
   final baseUrl = AppEnv.apiBaseUrl;
@@ -56,11 +57,23 @@ final dioProvider = Provider<Dio>((ref) {
         p.contains('/auth/logout');
   }
 
+  String authorizationHeaderValue(Map<String, dynamic> headers) {
+    for (final entry in headers.entries) {
+      if (entry.key.toString().toLowerCase() != 'authorization') continue;
+      return entry.value?.toString().trim() ?? '';
+    }
+    return '';
+  }
+
   dio.interceptors.add(
     InterceptorsWrapper(
       onRequest: (options, handler) async {
+        final explicitAuthorization = authorizationHeaderValue(options.headers);
+        final hasExplicitAuthorization = explicitAuthorization.isNotEmpty;
+        options.extra[_explicitAuthHeaderExtraKey] = hasExplicitAuthorization;
+
         final token = ref.read(authAccessTokenProvider);
-        if (token != null && token.isNotEmpty) {
+        if (!hasExplicitAuthorization && token != null && token.isNotEmpty) {
           options.headers['Authorization'] = 'Bearer $token';
         }
 
@@ -88,8 +101,11 @@ final dioProvider = Provider<Dio>((ref) {
         final options = error.requestOptions;
         final alreadyRetried =
             options.extra[_retryAfterRefreshExtraKey] == true;
+        final hasExplicitAuthorization =
+            options.extra[_explicitAuthHeaderExtraKey] == true;
         if (statusCode != 401 ||
             alreadyRetried ||
+            hasExplicitAuthorization ||
             isRefreshProtectedPath(options.path)) {
           handler.next(error);
           return;

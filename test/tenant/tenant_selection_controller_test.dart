@@ -80,8 +80,9 @@ class _StubTenantRepository implements TenantRepository {
   }
 
   @override
-  Future<TenantProfile> getCurrentTenantProfile() =>
-      Future<TenantProfile>.error(UnimplementedError());
+  Future<TenantProfile> getCurrentTenantProfile({
+    String? accessTokenOverride,
+  }) => Future<TenantProfile>.error(UnimplementedError());
 }
 
 AuthSession _session() {

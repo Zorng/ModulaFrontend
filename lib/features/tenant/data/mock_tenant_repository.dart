@@ -42,7 +42,9 @@ class MockTenantRepository implements TenantRepository {
   }
 
   @override
-  Future<TenantProfile> getCurrentTenantProfile() async {
+  Future<TenantProfile> getCurrentTenantProfile({
+    String? accessTokenOverride,
+  }) async {
     final current = _currentTenantProfile;
     if (current == null) {
       throw const ApiClientException(

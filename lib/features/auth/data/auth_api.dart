@@ -181,19 +181,6 @@ class AuthApi {
       orElse: () => '',
     );
 
-    final roleFromMembership = memberships.isNotEmpty
-        ? memberships.first.role
-        : '';
-    final roleCandidates = <String>[
-      source['role']?.toString() ?? '',
-      _claimString(claims, const ['role', 'roleKey']),
-      roleFromMembership,
-    ];
-    final role = roleCandidates.firstWhere(
-      (value) => value.trim().isNotEmpty,
-      orElse: () => '',
-    );
-
     final sourceName = (source['name']?.toString() ?? '').trim();
     final name = sourceName.isNotEmpty ? sourceName : fullName.trim();
 
@@ -206,7 +193,9 @@ class AuthApi {
       'id': id.trim(),
       'name': normalizedName,
       'phone': phone,
-      'role': role.trim(),
+      // Login payload does not carry authoritative tenant role before tenant is
+      // selected, keep role empty until active tenant is established.
+      'role': '',
       'tenantId': '',
       'status': source['status']?.toString() ?? 'ACTIVE',
     };
@@ -349,11 +338,24 @@ class AuthApi {
     final refreshToken = data['refreshToken']?.toString() ?? '';
     final context = _asMap(data['context']);
     final claims = _decodeJwtClaims(accessToken);
-    final role = _claimString(claims, const ['role', 'roleKey']);
+    final roleFromToken = _claimString(claims, const ['role', 'roleKey']);
     final tokenTenantId = _claimString(claims, const ['tenantId', 'tenant_id']);
     final resolvedTenantId =
         (activeTenantId ?? context['tenantId']?.toString() ?? tokenTenantId)
             .trim();
+    final roleFromMembership = (() {
+      if (resolvedTenantId.isEmpty) return '';
+      final matched = memberships.where(
+        (membership) =>
+            membership.tenantId.trim().isNotEmpty &&
+            membership.tenantId.trim() == resolvedTenantId,
+      );
+      if (matched.isEmpty) return '';
+      return matched.first.role.trim();
+    })();
+    final resolvedRole = roleFromMembership.isNotEmpty
+        ? roleFromMembership
+        : roleFromToken;
     final account = _asMap(data['account']);
     final firstName =
         account['firstName']?.toString() ??
@@ -378,7 +380,7 @@ class AuthApi {
       'name': derivedName.isEmpty ? 'User' : derivedName,
       'phone': account['phone']?.toString() ?? '',
       'status': 'ACTIVE',
-      'role': role,
+      'role': resolvedRole,
       'tenantId': resolvedTenantId,
     };
 
@@ -390,7 +392,7 @@ class AuthApi {
                     membershipId: '',
                     tenantId: resolvedTenantId,
                     tenantName: resolvedTenantId,
-                    role: role,
+                    role: resolvedRole,
                     branches: const <UserBranchDto>[],
                   ),
                 ]

@@ -18,8 +18,12 @@ class RemoteTenantRepository implements TenantRepository {
   }
 
   @override
-  Future<TenantProfile> getCurrentTenantProfile() async {
-    final dto = await _api.getCurrentTenantProfile();
+  Future<TenantProfile> getCurrentTenantProfile({
+    String? accessTokenOverride,
+  }) async {
+    final dto = await _api.getCurrentTenantProfile(
+      accessTokenOverride: accessTokenOverride,
+    );
     return TenantMappers.toTenantProfile(dto);
   }
 }
