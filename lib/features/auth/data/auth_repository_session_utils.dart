@@ -31,6 +31,7 @@ AuthSession updateSessionTokensAndContext(
   final updatedMemberships = currentSession.memberships
       .map(
         (membership) => TenantMembership(
+          membershipId: membership.membershipId,
           tenantId: membership.tenantId,
           tenantName: membership.tenantName,
           role: membership.role,
@@ -84,6 +85,7 @@ AuthSession upsertTenantMembership(
       : branches;
 
   final nextMembership = TenantMembership(
+    membershipId: existingMembership?.membershipId ?? '',
     tenantId: normalizedTenantId,
     tenantName: normalizedTenantName,
     role: normalizedRole,

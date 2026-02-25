@@ -131,6 +131,18 @@ class TenantSelectionPage extends ConsumerWidget {
               },
             ),
             const SizedBox(height: 16),
+            if (loginState.error != null && loginState.error!.trim().isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Text(
+                  loginState.error!,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.error,
+                  ),
+                ),
+              ),
             Expanded(
               child: tenantState.visibleMemberships.isEmpty
                   ? const Center(child: Text('No tenant found.'))
@@ -144,9 +156,10 @@ class TenantSelectionPage extends ConsumerWidget {
                           membership: membership,
                           enabled: !loginState.isLoading,
                           onTap: () async {
-                            await loginController.selectTenant(
+                            final success = await loginController.selectTenant(
                               membership.tenantId,
                             );
+                            if (!success) return;
                             if (!context.mounted) return;
                             context.go(AppRoute.branchSelection.path);
                           },

@@ -6,6 +6,9 @@ import 'package:modular_pos/features/auth/domain/models/auth_session.dart';
 import 'package:modular_pos/features/auth/domain/models/tenant_membership.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
+import 'package:modular_pos/features/tenant/data/tenant_repository.dart';
+import 'package:modular_pos/features/tenant/domain/models/tenant_profile.dart';
+import 'package:modular_pos/features/tenant/domain/models/tenant_provision_result.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../test_utils/riverpod_test_utils.dart';
@@ -13,6 +16,7 @@ import '../test_utils/riverpod_test_utils.dart';
 class _StubAuthRepository implements AuthRepository {
   _StubAuthRepository({
     this.onLogin,
+    this.onSelectTenant,
     this.onListBranchContexts,
     this.onSelectBranch,
     this.onSendRegistrationOtp,
@@ -22,6 +26,12 @@ class _StubAuthRepository implements AuthRepository {
   });
 
   final Future<AuthSession> Function(String username, String password)? onLogin;
+  final Future<AuthSession> Function({
+    required String selectionToken,
+    required String tenantId,
+    String? branchId,
+  })?
+  onSelectTenant;
   final Future<AuthBranchContextOptions> Function({
     required AuthSession currentSession,
   })?
@@ -130,9 +140,18 @@ class _StubAuthRepository implements AuthRepository {
     required String selectionToken,
     required String tenantId,
     String? branchId,
-  }) => Future<AuthSession>.error(
-    UnimplementedError('selectTenant not configured'),
-  );
+  }) {
+    if (onSelectTenant != null) {
+      return onSelectTenant!(
+        selectionToken: selectionToken,
+        tenantId: tenantId,
+        branchId: branchId,
+      );
+    }
+    return Future<AuthSession>.error(
+      UnimplementedError('selectTenant not configured'),
+    );
+  }
 
   @override
   Future<AuthSession> refreshSession({required AuthSession currentSession}) {
@@ -146,6 +165,29 @@ class _StubAuthRepository implements AuthRepository {
 
   @override
   Future<void> logout({String? refreshToken}) async {}
+}
+
+class _StubTenantRepository implements TenantRepository {
+  _StubTenantRepository({this.onGetCurrentTenantProfile});
+
+  final Future<TenantProfile> Function()? onGetCurrentTenantProfile;
+
+  @override
+  Future<TenantProvisionResult> createTenant({required String tenantName}) {
+    return Future<TenantProvisionResult>.error(
+      UnimplementedError('createTenant not configured'),
+    );
+  }
+
+  @override
+  Future<TenantProfile> getCurrentTenantProfile() {
+    if (onGetCurrentTenantProfile != null) {
+      return onGetCurrentTenantProfile!();
+    }
+    return Future<TenantProfile>.error(
+      UnimplementedError('getCurrentTenantProfile not configured'),
+    );
+  }
 }
 
 AuthSession _session({
@@ -174,6 +216,45 @@ AuthSession _session({
     refreshToken: 'refresh-1',
     accessTokenExpiresAt: DateTime.now().toUtc().add(const Duration(hours: 1)),
     refreshTokenExpiresAt: DateTime.now().toUtc().add(const Duration(days: 1)),
+  );
+}
+
+AuthSession _tenantSelectionSession() {
+  return AuthSession(
+    user: User(
+      id: 'user-1',
+      name: 'Tester',
+      role: '',
+      tenantId: '',
+      phone: '+8551',
+      status: 'ACTIVE',
+    ),
+    memberships: const [
+      TenantMembership(
+        membershipId: 'm-1',
+        tenantId: 'tenant-1',
+        tenantName: 'Tenant 1',
+        role: 'OWNER',
+        branches: [],
+      ),
+      TenantMembership(
+        membershipId: 'm-2',
+        tenantId: 'tenant-2',
+        tenantName: 'Tenant 2',
+        role: 'OWNER',
+        branches: [],
+      ),
+    ],
+    activeTenantId: null,
+    accessToken: 'access-selection',
+    refreshToken: 'refresh-selection',
+    accessTokenExpiresAt: DateTime.now().toUtc().add(
+      const Duration(minutes: 15),
+    ),
+    refreshTokenExpiresAt: DateTime.now().toUtc().add(
+      const Duration(hours: 72),
+    ),
+    tenantSelectionToken: 'selection-token-123',
   );
 }
 
@@ -278,6 +359,135 @@ void main() {
     expect(state.session, isNotNull);
     expect(state.session!.accessToken, 'access-2');
   });
+
+  test(
+    'selectTenant returns true and persists only after tenant context verification succeeds',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final store = AuthSessionStore(prefs);
+
+      final initial = _tenantSelectionSession();
+      final selectedSession = initial.copyWith(
+        activeTenantId: 'tenant-2',
+        accessToken: 'access-tenant-2',
+        refreshToken: 'refresh-tenant-2',
+        tenantSelectionToken: '',
+      );
+
+      final repository = _StubAuthRepository(
+        onSelectTenant:
+            ({required selectionToken, required tenantId, String? branchId}) async {
+              expect(selectionToken, 'selection-token-123');
+              expect(tenantId, 'tenant-2');
+              return selectedSession;
+            },
+        onListBranchContexts: ({required currentSession}) async =>
+            const AuthBranchContextOptions(
+              state: 'BRANCH_SELECTION_REQUIRED',
+              tenantId: 'tenant-2',
+              selectedBranchId: null,
+              branches: [
+                AuthBranchContextOption(
+                  branchId: 'branch-2',
+                  branchName: 'Branch Two',
+                ),
+              ],
+            ),
+      );
+      final tenantRepository = _StubTenantRepository(
+        onGetCurrentTenantProfile: () async => const TenantProfile(
+          tenantId: 'tenant-2',
+          tenantName: 'Tenant 2',
+          tenantAddress: null,
+          contactNumber: null,
+          logoUrl: null,
+          status: 'ACTIVE',
+        ),
+      );
+
+      final container = createTestContainer(
+        overrides: [
+          authRepositoryProvider.overrideWithValue(repository),
+          tenantRepositoryProvider.overrideWithValue(tenantRepository),
+          authSessionStoreProvider.overrideWithValue(store),
+          initialAuthSessionProvider.overrideWithValue(initial),
+        ],
+      );
+
+      final success = await container
+          .read(loginControllerProvider.notifier)
+          .selectTenant('tenant-2');
+      final state = container.read(loginControllerProvider);
+      final persisted = await store.load();
+
+      expect(success, isTrue);
+      expect(state.session, isNotNull);
+      expect(state.session!.activeTenantId, 'tenant-2');
+      expect(state.session!.accessToken, 'access-tenant-2');
+      expect(state.requiresBranchSelection, isTrue);
+      expect(state.branchOptions, hasLength(1));
+      expect(persisted, isNotNull);
+      expect(persisted!.activeTenantId, 'tenant-2');
+      expect(persisted.accessToken, 'access-tenant-2');
+    },
+  );
+
+  test(
+    'selectTenant returns false and keeps previous session when tenant context verification fails',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final store = AuthSessionStore(prefs);
+
+      final initial = _tenantSelectionSession();
+      final selectedSession = initial.copyWith(
+        activeTenantId: 'tenant-2',
+        accessToken: 'access-tenant-2',
+        refreshToken: 'refresh-tenant-2',
+        tenantSelectionToken: '',
+      );
+
+      final repository = _StubAuthRepository(
+        onSelectTenant:
+            ({required selectionToken, required tenantId, String? branchId}) async {
+              return selectedSession;
+            },
+      );
+      final tenantRepository = _StubTenantRepository(
+        onGetCurrentTenantProfile: () async {
+          throw const ApiClientException(
+            message: 'TENANT_CONTEXT_REQUIRED',
+            code: 'TENANT_CONTEXT_REQUIRED',
+            statusCode: 403,
+          );
+        },
+      );
+
+      final container = createTestContainer(
+        overrides: [
+          authRepositoryProvider.overrideWithValue(repository),
+          tenantRepositoryProvider.overrideWithValue(tenantRepository),
+          authSessionStoreProvider.overrideWithValue(store),
+          initialAuthSessionProvider.overrideWithValue(initial),
+        ],
+      );
+
+      final success = await container
+          .read(loginControllerProvider.notifier)
+          .selectTenant('tenant-2');
+      final state = container.read(loginControllerProvider);
+      final persisted = await store.load();
+
+      expect(success, isFalse);
+      expect(state.errorCode, 'TENANT_CONTEXT_REQUIRED');
+      expect(state.errorStatusCode, 403);
+      expect(state.session, isNotNull);
+      expect(state.session!.activeTenantId, isNull);
+      expect(state.session!.tenantSelectionToken, 'selection-token-123');
+      expect(persisted, isNull);
+    },
+  );
 
   test(
     'sendRegistrationOtp stores backend code and status on rate limit',

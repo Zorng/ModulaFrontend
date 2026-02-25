@@ -130,6 +130,7 @@ class AuthApi {
     return options.memberships
         .map(
           (m) => TenantMembershipDto(
+            membershipId: m.membershipId,
             tenantId: m.tenantId,
             tenantName: m.tenantName,
             role: m.roleKey,
@@ -205,22 +206,12 @@ class AuthApi {
       'id': id.trim(),
       'name': normalizedName,
       'phone': phone,
-      'role': role.trim().isEmpty ? 'member' : role.trim(),
+      'role': role.trim(),
       'tenantId': '',
       'status': source['status']?.toString() ?? 'ACTIVE',
     };
 
     return AuthUserDto.fromJson(userJson, branches: const <UserBranchDto>[]);
-  }
-
-  Future<AuthTenantContextOptionsDto?> _safeListTenantContexts(
-    String accessToken,
-  ) async {
-    try {
-      return await listTenantContexts(accessTokenOverride: accessToken);
-    } catch (_) {
-      return null;
-    }
   }
 
   EstablishedAuthSessionDto _parseEstablishedSession(
@@ -290,7 +281,7 @@ class AuthApi {
       if ((roleFromAssignment ?? '').trim().isNotEmpty) {
         return roleFromAssignment!.trim();
       }
-      return 'cashier';
+      return '';
     })();
 
     final normalizedUser = Map<String, dynamic>.from(userJson);
@@ -324,6 +315,7 @@ class AuthApi {
         tenantId;
 
     final fallbackMembership = TenantMembershipDto(
+      membershipId: '',
       tenantId: tenantId,
       tenantName: tenantName,
       role: role,
@@ -386,7 +378,7 @@ class AuthApi {
       'name': derivedName.isEmpty ? 'User' : derivedName,
       'phone': account['phone']?.toString() ?? '',
       'status': 'ACTIVE',
-      'role': role.isEmpty ? 'cashier' : role,
+      'role': role,
       'tenantId': resolvedTenantId,
     };
 
@@ -395,6 +387,7 @@ class AuthApi {
         : (resolvedTenantId.isNotEmpty
               ? <TenantMembershipDto>[
                   TenantMembershipDto(
+                    membershipId: '',
                     tenantId: resolvedTenantId,
                     tenantName: resolvedTenantId,
                     role: role,
@@ -550,16 +543,16 @@ class AuthApi {
       );
     }
 
-    final options = await _safeListTenantContexts(accessToken);
+    final options = await listTenantContexts(accessTokenOverride: accessToken);
     final memberships = _toMembershipDtosFromContext(options);
     final context = _asMap(data['context']);
     final contextTenantId = context['tenantId']?.toString().trim() ?? '';
-    final selectedTenantId = options?.selectedTenantId ?? contextTenantId;
+    final selectedTenantId = options.selectedTenantId ?? contextTenantId;
     final effectiveTenantId = selectedTenantId.isNotEmpty
         ? selectedTenantId
         : (memberships.length == 1 ? memberships.first.tenantId : '');
     final needsTenantSelection =
-        options?.requiresSelection == true ||
+        options.requiresSelection ||
         (effectiveTenantId.isEmpty && memberships.length > 1);
 
     if (needsTenantSelection) {
@@ -639,6 +632,16 @@ class AuthApi {
     return AuthContextTokenResultDto.fromJson(data);
   }
 
+  Future<AuthCurrentBranchProfileDto> getCurrentBranchProfile({
+    String? accessTokenOverride,
+  }) async {
+    final data = await _getData(
+      '/v0/org/branch/current',
+      accessTokenOverride: accessTokenOverride,
+    );
+    return AuthCurrentBranchProfileDto.fromJson(data);
+  }
+
   Future<AuthContextTokenResultDto> refreshSession({
     required String refreshToken,
   }) async {
@@ -677,7 +680,9 @@ class AuthApi {
     }
 
     final selected = await selectTenantContext(tenantId: tenantId);
-    final options = await _safeListTenantContexts(selected.accessToken);
+    final options = await listTenantContexts(
+      accessTokenOverride: selected.accessToken,
+    );
     final memberships = _toMembershipDtosFromContext(options);
 
     final data = <String, dynamic>{

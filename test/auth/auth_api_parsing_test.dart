@@ -154,6 +154,8 @@ void main() {
       final selection = response.tenantSelection!;
       expect(selection.selectionToken, 'v0-context-selection');
       expect(selection.memberships, hasLength(2));
+      expect(selection.memberships.first.membershipId, 'm-1');
+      expect(selection.memberships.first.role, 'OWNER');
       expect(selection.accessToken, isNotEmpty);
       expect(selection.refreshToken, 'refresh-v0-1');
       expect(selection.accessTokenExpiresAt, isNotNull);
@@ -207,7 +209,87 @@ void main() {
       expect(session.activeTenantId, 'tenant-1');
       expect(session.accessToken, isNotEmpty);
       expect(session.memberships, hasLength(1));
+      expect(session.memberships.first.membershipId, 'm-1');
       expect(session.user.tenantId, 'tenant-1');
     },
   );
+
+  test('AuthApi.login keeps user.role empty when login token has no role claim', () async {
+    final loginPayload = <String, dynamic>{
+      'success': true,
+      'data': {
+        'accessToken': 'e30.eyJzdWIiOiJhY2NvdW50LTEiLCJ0ZW5hbnRJZCI6InRlbmFudC0xIn0.sig',
+        'refreshToken': 'refresh-no-role',
+        'account': {
+          'id': 'account-1',
+          'phone': '+85511111111',
+          'firstName': 'Demo',
+          'lastName': 'Owner',
+          'phoneVerifiedAt': '2026-02-20T10:00:00.000Z',
+        },
+        'context': {'tenantId': 'tenant-1', 'branchId': null},
+        'activeMembershipsCount': 1,
+      },
+    };
+    final tenantOptions = readJsonMapFixture(
+      'test/fixtures/auth/context_tenants_selected_v0.json',
+    );
+
+    final dio = _MockDio();
+    when(
+      () => dio.post(
+        any(),
+        data: any(named: 'data'),
+        options: any(named: 'options'),
+      ),
+    ).thenAnswer(
+      (_) async => Response<dynamic>(
+        data: loginPayload,
+        requestOptions: RequestOptions(path: '/v0/auth/login'),
+      ),
+    );
+    when(() => dio.get(any(), options: any(named: 'options'))).thenAnswer(
+      (_) async => Response<dynamic>(
+        data: tenantOptions,
+        requestOptions: RequestOptions(path: '/v0/auth/context/tenants'),
+      ),
+    );
+
+    final api = AuthApi(dio);
+    final response = await api.login(username: '+85511111111', password: 'pw');
+
+    expect(response.requiresTenantSelection, isFalse);
+    expect(response.established, isNotNull);
+    expect(response.established!.user.role, isEmpty);
+  });
+
+  test('AuthApi.getCurrentBranchProfile parses /v0/org/branch/current payload', () async {
+    const branchPayload = {
+      'success': true,
+      'data': {
+        'branchId': 'branch-1',
+        'tenantId': 'tenant-1',
+        'branchName': 'Main Branch',
+        'status': 'ACTIVE',
+      },
+    };
+
+    final dio = _MockDio();
+    when(() => dio.get(any(), options: any(named: 'options'))).thenAnswer(
+      (_) async => Response<dynamic>(
+        data: branchPayload,
+        requestOptions: RequestOptions(path: '/v0/org/branch/current'),
+      ),
+    );
+
+    final api = AuthApi(dio);
+    final profile = await api.getCurrentBranchProfile(
+      accessTokenOverride: 'access-1',
+    );
+
+    expect(profile.branchId, 'branch-1');
+    expect(profile.tenantId, 'tenant-1');
+    expect(profile.branchName, 'Main Branch');
+    expect(profile.status, 'ACTIVE');
+  });
 }

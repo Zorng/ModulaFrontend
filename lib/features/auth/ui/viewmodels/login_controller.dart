@@ -8,6 +8,7 @@ import 'package:modular_pos/features/auth/data/auth_repository_session_utils.dar
 import 'package:modular_pos/features/auth/data/auth_session_store.dart';
 import 'package:modular_pos/features/auth/domain/models/auth_session.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
+import 'package:modular_pos/features/tenant/data/tenant_repository.dart';
 
 class LoginState {
   static const Object _unset = Object();
@@ -77,6 +78,7 @@ final loginControllerProvider = NotifierProvider<LoginController, LoginState>(
 class LoginController extends Notifier<LoginState> {
   AuthRepository get _repository => ref.read(authRepositoryProvider);
   AuthSessionStore get _sessionStore => ref.read(authSessionStoreProvider);
+  TenantRepository get _tenantRepository => ref.read(tenantRepositoryProvider);
 
   @override
   LoginState build() {
@@ -214,9 +216,9 @@ class LoginController extends Notifier<LoginState> {
     }
   }
 
-  Future<void> selectTenant(String tenantId) async {
+  Future<bool> selectTenant(String tenantId) async {
     final current = state.session;
-    if (current == null) return;
+    if (current == null) return false;
 
     state = state.copyWith(
       isLoading: true,
@@ -239,10 +241,21 @@ class LoginController extends Notifier<LoginState> {
         activeTenantId: tenantId,
         tenantSelectionToken: '',
       );
-      await _sessionStore.save(nextSession);
-      await _applyBranchContextState(nextSession);
+      // Validate tenant context using canonical org endpoint before persisting.
+      await _tenantRepository.getCurrentTenantProfile();
+
+      final branchResolution = await _resolveBranchContextState(nextSession);
+      await _sessionStore.save(branchResolution.session);
+      state = state.copyWith(
+        isLoading: false,
+        session: branchResolution.session,
+        requiresBranchSelection: branchResolution.requiresBranchSelection,
+        branchOptions: branchResolution.branchOptions,
+      );
+      return true;
     } catch (e, st) {
       _setError(e, st, fallbackMessage: 'Tenant selection failed.');
+      return false;
     }
   }
 
@@ -387,6 +400,21 @@ class LoginController extends Notifier<LoginState> {
   }
 
   Future<void> _applyBranchContextState(AuthSession session) async {
+    final branchResolution = await _resolveBranchContextState(session);
+    if (!identical(branchResolution.session, session)) {
+      await _sessionStore.save(branchResolution.session);
+    }
+    state = state.copyWith(
+      isLoading: false,
+      session: branchResolution.session,
+      requiresBranchSelection: branchResolution.requiresBranchSelection,
+      branchOptions: branchResolution.branchOptions,
+    );
+  }
+
+  Future<_BranchContextResolution> _resolveBranchContextState(
+    AuthSession session,
+  ) async {
     final branchContext = await _repository.listBranchContexts(
       currentSession: session,
     );
@@ -399,19 +427,15 @@ class LoginController extends Notifier<LoginState> {
           currentSession: session,
           branchId: selectedBranchId,
         );
-        await _sessionStore.save(selectedSession);
-        state = state.copyWith(
-          isLoading: false,
+        return _BranchContextResolution(
           session: selectedSession,
           requiresBranchSelection: false,
           branchOptions: const <AuthBranchContextOption>[],
         );
-        return;
       }
     }
 
-    state = state.copyWith(
-      isLoading: false,
+    return _BranchContextResolution(
       session: session,
       requiresBranchSelection: branchContext.requiresSelection,
       branchOptions: branchContext.branches,
@@ -451,4 +475,16 @@ class LoginController extends Notifier<LoginState> {
     if (message.contains('NOT VERIFIED')) return true;
     return false;
   }
+}
+
+class _BranchContextResolution {
+  const _BranchContextResolution({
+    required this.session,
+    required this.requiresBranchSelection,
+    required this.branchOptions,
+  });
+
+  final AuthSession session;
+  final bool requiresBranchSelection;
+  final List<AuthBranchContextOption> branchOptions;
 }

@@ -2,18 +2,25 @@ import 'package:modular_pos/features/auth/domain/models/user.dart';
 
 class TenantMembership {
   const TenantMembership({
+    this.membershipId = '',
     required this.tenantId,
     required this.tenantName,
     required this.role,
     required this.branches,
   });
 
+  final String membershipId;
   final String tenantId;
   final String tenantName;
   final String role;
   final List<UserBranch> branches;
 
   factory TenantMembership.fromJson(Map<String, dynamic> json) {
+    final membershipId =
+        json['membershipId']?.toString() ??
+        json['membership_id']?.toString() ??
+        json['id']?.toString() ??
+        '';
     final tenantObject = json['tenant'];
     final tenantId = json['tenantId']?.toString() ??
         json['tenant_id']?.toString() ??
@@ -53,6 +60,7 @@ class TenantMembership {
         .toList(growable: false);
 
     return TenantMembership(
+      membershipId: membershipId,
       tenantId: tenantId,
       tenantName: tenantName,
       role: json['role']?.toString() ?? json['memberRole']?.toString() ?? '',
@@ -62,6 +70,7 @@ class TenantMembership {
 
   Map<String, dynamic> toJson() {
     return {
+      'membershipId': membershipId,
       'tenantId': tenantId,
       'tenantName': tenantName,
       'role': role,

@@ -148,3 +148,26 @@ class AuthContextTokenResultDto {
     );
   }
 }
+
+class AuthCurrentBranchProfileDto {
+  const AuthCurrentBranchProfileDto({
+    required this.branchId,
+    required this.tenantId,
+    required this.branchName,
+    required this.status,
+  });
+
+  final String branchId;
+  final String tenantId;
+  final String branchName;
+  final String status;
+
+  factory AuthCurrentBranchProfileDto.fromJson(Map<String, dynamic> json) {
+    return AuthCurrentBranchProfileDto(
+      branchId: json['branchId']?.toString() ?? '',
+      tenantId: json['tenantId']?.toString() ?? '',
+      branchName: json['branchName']?.toString() ?? '',
+      status: json['status']?.toString() ?? '',
+    );
+  }
+}

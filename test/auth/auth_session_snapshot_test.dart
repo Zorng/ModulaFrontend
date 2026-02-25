@@ -17,6 +17,7 @@ void main() {
     ];
 
     const membership = TenantMembership(
+      membershipId: 'membership-1',
       tenantId: 'tenant-1',
       tenantName: 'tenant-1',
       role: 'ADMIN',
@@ -67,6 +68,7 @@ void main() {
     expect(roundTrip.activeTenantId, 'tenant-1');
 
     final roundTripMembership = roundTrip.memberships.first;
+    expect(roundTripMembership.membershipId, 'membership-1');
     expect(roundTripMembership.tenantId, 'tenant-1');
     expect(roundTripMembership.tenantName, 'tenant-1');
     expect(roundTripMembership.role, 'ADMIN');

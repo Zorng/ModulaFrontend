@@ -60,9 +60,6 @@ class RemoteAuthRepository implements AuthRepository {
     final response = await _api.login(username: username, password: password);
     if (response.requiresTenantSelection) {
       final selection = response.tenantSelection!;
-      final fallbackRole = selection.memberships.isNotEmpty
-          ? selection.memberships.first.role
-          : 'member';
       final fallbackName = username.trim().isEmpty ? 'User' : username.trim();
       return AuthSession(
         user: selection.user != null
@@ -70,7 +67,7 @@ class RemoteAuthRepository implements AuthRepository {
             : User(
                 id: '',
                 name: fallbackName,
-                role: fallbackRole,
+                role: '',
                 tenantId: '',
                 phone: username.trim(),
                 status: 'ACTIVE',
@@ -124,16 +121,27 @@ class RemoteAuthRepository implements AuthRepository {
     required String branchId,
   }) async {
     final selected = await _api.selectBranchContext(branchId: branchId);
-    final tenantId = selected.tenantId?.trim().isNotEmpty == true
-        ? selected.tenantId!.trim()
-        : (currentSession.activeTenantId ?? currentSession.user.tenantId);
+    final currentBranch = await _api.getCurrentBranchProfile(
+      accessTokenOverride: selected.accessToken,
+    );
+
+    final tenantId = currentBranch.tenantId.trim().isNotEmpty
+        ? currentBranch.tenantId.trim()
+        : (selected.tenantId?.trim().isNotEmpty == true
+              ? selected.tenantId!.trim()
+              : (currentSession.activeTenantId ?? currentSession.user.tenantId));
+    final resolvedBranchId = currentBranch.branchId.trim().isNotEmpty
+        ? currentBranch.branchId.trim()
+        : (selected.branchId?.trim().isNotEmpty == true
+              ? selected.branchId!.trim()
+              : branchId);
 
     return updateSessionTokensAndContext(
       currentSession,
       accessToken: selected.accessToken,
       refreshToken: selected.refreshToken,
       tenantId: tenantId,
-      branchId: branchId,
+      branchId: resolvedBranchId,
     );
   }
 
@@ -195,6 +203,7 @@ User _toUser(AuthUserDto dto) {
 
 TenantMembership _toMembership(TenantMembershipDto dto) {
   return TenantMembership(
+    membershipId: dto.membershipId,
     tenantId: dto.tenantId,
     tenantName: dto.tenantName,
     role: dto.role,
