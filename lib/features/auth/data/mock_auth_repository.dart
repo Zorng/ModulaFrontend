@@ -157,6 +157,7 @@ class MockAuthRepository implements AuthRepository {
   Future<AuthSession> selectBranch({
     required AuthSession currentSession,
     required String branchId,
+    bool verifyCurrentBranchProfile = true,
   }) async {
     return updateSessionTokensAndContext(
       currentSession,

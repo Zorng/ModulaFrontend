@@ -90,6 +90,7 @@ abstract class AuthRepository {
   Future<AuthSession> selectBranch({
     required AuthSession currentSession,
     required String branchId,
+    bool verifyCurrentBranchProfile = true,
   });
 
   Future<AuthSession> refreshSession({required AuthSession currentSession});

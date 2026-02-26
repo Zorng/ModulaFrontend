@@ -119,22 +119,34 @@ class RemoteAuthRepository implements AuthRepository {
   Future<AuthSession> selectBranch({
     required AuthSession currentSession,
     required String branchId,
+    bool verifyCurrentBranchProfile = true,
   }) async {
     final selected = await _api.selectBranchContext(branchId: branchId);
+    final tenantIdFromSelection = selected.tenantId?.trim().isNotEmpty == true
+        ? selected.tenantId!.trim()
+        : (currentSession.activeTenantId ?? currentSession.user.tenantId);
+    final branchIdFromSelection = selected.branchId?.trim().isNotEmpty == true
+        ? selected.branchId!.trim()
+        : branchId.trim();
+    if (!verifyCurrentBranchProfile) {
+      return updateSessionTokensAndContext(
+        currentSession,
+        accessToken: selected.accessToken,
+        refreshToken: selected.refreshToken,
+        tenantId: tenantIdFromSelection,
+        branchId: branchIdFromSelection,
+      );
+    }
+
     final currentBranch = await _api.getCurrentBranchProfile(
       accessTokenOverride: selected.accessToken,
     );
-
     final tenantId = currentBranch.tenantId.trim().isNotEmpty
         ? currentBranch.tenantId.trim()
-        : (selected.tenantId?.trim().isNotEmpty == true
-              ? selected.tenantId!.trim()
-              : (currentSession.activeTenantId ?? currentSession.user.tenantId));
+        : tenantIdFromSelection;
     final resolvedBranchId = currentBranch.branchId.trim().isNotEmpty
         ? currentBranch.branchId.trim()
-        : (selected.branchId?.trim().isNotEmpty == true
-              ? selected.branchId!.trim()
-              : branchId);
+        : branchIdFromSelection;
 
     return updateSessionTokensAndContext(
       currentSession,

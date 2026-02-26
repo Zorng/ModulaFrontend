@@ -28,6 +28,7 @@ class _NoopAuthRepository implements AuthRepository {
   Future<AuthSession> selectBranch({
     required AuthSession currentSession,
     required String branchId,
+    bool verifyCurrentBranchProfile = true,
   }) => Future<AuthSession>.error(UnimplementedError());
 
   @override

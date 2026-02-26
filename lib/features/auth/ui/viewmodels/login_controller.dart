@@ -5,6 +5,7 @@ import 'package:modular_pos/core/logging/app_log.dart';
 import 'package:modular_pos/core/network/api_contract.dart';
 import 'package:modular_pos/features/auth/data/auth_repository.dart';
 import 'package:modular_pos/features/auth/data/auth_repository_session_utils.dart';
+import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
 import 'package:modular_pos/features/auth/data/auth_session_store.dart';
 import 'package:modular_pos/features/auth/domain/models/auth_session.dart';
 import 'package:modular_pos/features/auth/domain/models/tenant_membership.dart';
@@ -262,18 +263,44 @@ class LoginController extends Notifier<LoginState> {
           statusCode: 409,
         );
       }
+      // Prevent stale branch-local marker from previous tenant context.
+      ref.read(authActiveBranchOverrideProvider.notifier).clear();
 
-      final branchResolution = await _resolveBranchContextState(
-        nextSessionWithRole,
-      );
-      await _sessionStore.save(branchResolution.session);
-      state = state.copyWith(
-        isLoading: false,
-        session: branchResolution.session,
-        requiresBranchSelection: branchResolution.requiresBranchSelection,
-        branchOptions: branchResolution.branchOptions,
-      );
-      return true;
+      try {
+        final branchResolution = await _resolveBranchContextState(
+          nextSessionWithRole,
+        );
+        await _sessionStore.save(branchResolution.session);
+        state = state.copyWith(
+          isLoading: false,
+          session: branchResolution.session,
+          requiresBranchSelection: branchResolution.requiresBranchSelection,
+          branchOptions: branchResolution.branchOptions,
+        );
+        return true;
+      } catch (error, stackTrace) {
+        if (error is ApiClientException &&
+            _isRecoverableBranchContextResolutionError(error)) {
+          AppLog.e(
+            'Recoverable branch-context error after tenant selection; '
+            'falling back to branch selection state.',
+            error: error,
+            stackTrace: stackTrace,
+          );
+          await _sessionStore.save(nextSessionWithRole);
+          state = state.copyWith(
+            isLoading: false,
+            session: nextSessionWithRole,
+            requiresBranchSelection: true,
+            branchOptions: const <AuthBranchContextOption>[],
+            error: null,
+            errorCode: null,
+            errorStatusCode: null,
+          );
+          return true;
+        }
+        rethrow;
+      }
     } catch (e, st) {
       _setError(e, st, fallbackMessage: 'Tenant selection failed.');
       return false;
@@ -439,26 +466,15 @@ class LoginController extends Notifier<LoginState> {
     final branchContext = await _repository.listBranchContexts(
       currentSession: session,
     );
-
-    if (!branchContext.requiresSelection) {
-      final selectedBranchId = (branchContext.selectedBranchId ?? '').trim();
-      final activeBranchId = currentBranchId(session) ?? '';
-      if (selectedBranchId.isNotEmpty && selectedBranchId != activeBranchId) {
-        final selectedSession = await _repository.selectBranch(
-          currentSession: session,
-          branchId: selectedBranchId,
-        );
-        return _BranchContextResolution(
-          session: selectedSession,
-          requiresBranchSelection: false,
-          branchOptions: const <AuthBranchContextOption>[],
-        );
-      }
-    }
+    final hasActiveBranchContext = (currentBranchId(session) ?? '')
+        .trim()
+        .isNotEmpty;
+    final requiresBranchSelection =
+        branchContext.requiresSelection || !hasActiveBranchContext;
 
     return _BranchContextResolution(
       session: session,
-      requiresBranchSelection: branchContext.requiresSelection,
+      requiresBranchSelection: requiresBranchSelection,
       branchOptions: branchContext.branches,
     );
   }
@@ -524,6 +540,28 @@ class LoginController extends Notifier<LoginState> {
     if (message.contains('PHONE NOT VERIFIED')) return true;
     if (message.contains('NOT VERIFIED')) return true;
     return false;
+  }
+
+  bool _isRecoverableBranchContextResolutionError(
+    ApiClientException exception,
+  ) {
+    final statusCode = exception.statusCode;
+    final code = (exception.code ?? '').trim().toUpperCase();
+    final message = exception.message.trim().toUpperCase();
+
+    final isBranchNotFound = statusCode == 404 ||
+        code.contains('BRANCH_NOT_FOUND') ||
+        message.contains('BRANCH NOT FOUND');
+    final isBranchAccessError = statusCode == 403 &&
+        (code.contains('NO_BRANCH_ACCESS') ||
+            code.contains('BRANCH_CONTEXT_REQUIRED') ||
+            message.contains('NO BRANCH ACCESS') ||
+            message.contains('BRANCH CONTEXT REQUIRED'));
+    final isTenantContextCrossOver = (statusCode == 409 || statusCode == 403) &&
+        (code.contains('TENANT_CONTEXT_REQUIRED') ||
+            message.contains('TENANT CONTEXT REQUIRED'));
+
+    return isBranchNotFound || isBranchAccessError || isTenantContextCrossOver;
   }
 }
 

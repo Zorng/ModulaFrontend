@@ -63,6 +63,7 @@ class FakeAuthRepository implements AuthRepository {
   Future<AuthSession> selectBranch({
     required AuthSession currentSession,
     required String branchId,
+    bool verifyCurrentBranchProfile = true,
   }) {
     throw UnimplementedError(
       'FakeAuthRepository.selectBranch is not implemented',
