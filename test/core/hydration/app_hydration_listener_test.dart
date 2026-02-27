@@ -6,6 +6,7 @@ import 'package:modular_pos/core/hydration/context_scoped_runtime_resource.dart'
 import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
 import 'package:modular_pos/features/auth/domain/auth_tenant_provider.dart';
 import 'package:modular_pos/features/auth/domain/auth_token_provider.dart';
+import 'package:modular_pos/features/auth/domain/workspace_context_provider.dart';
 import 'package:modular_pos/features/auth/domain/models/auth_session.dart';
 import 'package:modular_pos/features/auth/domain/models/tenant_membership.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
@@ -238,6 +239,84 @@ void main() {
       expect(policy.resetCount, 2);
       expect(cash.resetCount, 2);
       expect(runtimeResource.clearedCount, 2);
+    },
+  );
+
+  testWidgets(
+    'resets on global workspace and reloads when branch workspace resumes',
+    (tester) async {
+      final runtimeResource = _TestContextScopedResource();
+      final container = createTestContainer(
+        overrides: [
+          loginControllerProvider.overrideWith(_TestLoginController.new),
+          policyNotifierProvider.overrideWith(_TestPolicyNotifier.new),
+          cashSessionViewModelProvider.overrideWith(
+            _TestCashSessionViewModel.new,
+          ),
+          contextScopedRuntimeResourcesProvider.overrideWithValue([
+            runtimeResource,
+          ]),
+        ],
+      );
+
+      await tester.pumpWidget(
+        _TestHarness(
+          container: container,
+          child: const AppHydrationListener(child: SizedBox.shrink()),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 1));
+
+      final policy =
+          container.read(policyNotifierProvider.notifier)
+              as _TestPolicyNotifier;
+      final cash =
+          container.read(cashSessionViewModelProvider.notifier)
+              as _TestCashSessionViewModel;
+      final login =
+          container.read(loginControllerProvider.notifier)
+              as _TestLoginController;
+
+      login.setSession(
+        _buildSession(
+          tenantId: 'tenant-1',
+          accessToken: 'token-1',
+          branches: const [
+            UserBranch(
+              id: 'assign-a',
+              name: 'Branch A',
+              role: 'admin',
+              active: true,
+              branchId: 'branch-a',
+            ),
+          ],
+        ),
+      );
+      await tester.pump();
+
+      expect(policy.loadCount, 1);
+      expect(cash.loadCount, 1);
+      expect(runtimeResource.reboundCount, 1);
+
+      container.read(workspaceContextProvider.notifier).setGlobalManagement();
+      await tester.pump();
+
+      expect(policy.resetCount, 2);
+      expect(cash.resetCount, 2);
+      expect(runtimeResource.clearedCount, 2);
+
+      container
+          .read(workspaceContextProvider.notifier)
+          .setBranchPos(activeBranchId: 'branch-a');
+      await tester.pump();
+
+      expect(policy.loadCount, 2);
+      expect(policy.loadedBranchIds.last, 'branch-a');
+      expect(cash.loadCount, 2);
+      expect(cash.loadedBranchIds.last, 'branch-a');
+      expect(runtimeResource.reboundCount, 2);
+      expect(runtimeResource.rebinds.last, ('token-1', 'tenant-1', 'branch-a'));
     },
   );
 }

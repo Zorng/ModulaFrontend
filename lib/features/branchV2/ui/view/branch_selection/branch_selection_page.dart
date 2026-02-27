@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
+import 'package:modular_pos/core/routing/workspace_route_guard.dart';
 import 'package:modular_pos/core/theme/responsive.dart';
+import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
+import 'package:modular_pos/features/auth/domain/workspace_context_provider.dart';
 import 'package:modular_pos/features/branchV2/ui/view/branch_selection/widgets/branch_selection_tile.dart';
 import 'package:modular_pos/features/branchV2/ui/view/branch_selection/widgets/create_branch_dialog.dart';
 import 'package:modular_pos/features/branchV2/ui/view/branch_selection/widgets/global_management_entry_tile.dart';
@@ -13,7 +16,8 @@ class BranchSelectionPage extends ConsumerStatefulWidget {
   const BranchSelectionPage({super.key});
 
   @override
-  ConsumerState<BranchSelectionPage> createState() => _BranchSelectionPageState();
+  ConsumerState<BranchSelectionPage> createState() =>
+      _BranchSelectionPageState();
 }
 
 class _BranchSelectionPageState extends ConsumerState<BranchSelectionPage> {
@@ -23,6 +27,11 @@ class _BranchSelectionPageState extends ConsumerState<BranchSelectionPage> {
   @override
   void initState() {
     super.initState();
+    Future<void>(() {
+      if (!mounted) return;
+      ref.read(workspaceContextProvider.notifier).clear();
+      ref.read(authActiveBranchOverrideProvider.notifier).clear();
+    });
 
     _branchSubscription = ref.listenManual<BranchState>(
       branchControllerProvider,
@@ -57,6 +66,11 @@ class _BranchSelectionPageState extends ConsumerState<BranchSelectionPage> {
   Widget build(BuildContext context) {
     final state = ref.watch(branchControllerProvider);
     final controller = ref.read(branchControllerProvider.notifier);
+    final routeState = GoRouterState.of(context);
+    final redirectReason =
+        routeState.uri.queryParameters[branchSelectionReasonQueryParam];
+    final showBranchContextMessage =
+        redirectReason == branchContextRequiredReasonCode;
     final tenantTitle = state.tenantName.trim().isEmpty
         ? 'Select Branch'
         : state.tenantName.trim();
@@ -133,6 +147,21 @@ class _BranchSelectionPageState extends ConsumerState<BranchSelectionPage> {
               },
             ),
             const SizedBox(height: 16),
+            if (showBranchContextMessage) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  branchContextRequiredUserMessage,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
             if (state.error != null && state.error!.trim().isNotEmpty) ...[
               Text(
                 state.error!,

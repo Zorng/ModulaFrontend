@@ -1,5 +1,6 @@
 import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
+import 'package:modular_pos/features/branch_subscription/ui/view/branch_subscription_page.dart';
 import 'package:modular_pos/features/branch/ui/view/branches/branch_list_page.dart';
 import 'package:modular_pos/features/branch/ui/view/branches/branch_detail_page.dart';
 
@@ -17,6 +18,11 @@ List<RouteBase> buildBranchRoutes() {
         final branchId = state.pathParameters['id'] ?? '';
         return BranchDetailPage(branchId: branchId);
       },
+    ),
+    GoRoute(
+      path: AppRoute.branchSubscription.path,
+      name: AppRoute.branchSubscription.name,
+      builder: (context, state) => const BranchSubscriptionPage(),
     ),
   ];
 }

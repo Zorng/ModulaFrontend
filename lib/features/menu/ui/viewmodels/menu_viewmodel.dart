@@ -379,7 +379,6 @@ class MenuViewModel extends Notifier<MenuState> {
     final assignments = loginState.session?.user.branches ?? const [];
     return assignments
         .where((branch) =>
-            branch.active &&
             (branch.branchId.isNotEmpty || branch.id.isNotEmpty))
         .map(
           (branch) => MenuBranch(

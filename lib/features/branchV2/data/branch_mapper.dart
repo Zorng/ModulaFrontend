@@ -1,3 +1,4 @@
+import 'package:modular_pos/features/auth/domain/auth_role.dart';
 import 'package:modular_pos/features/auth/domain/models/tenant_membership.dart';
 import 'package:modular_pos/features/branchV2/data/dto/branch_dto.dart';
 import 'package:modular_pos/features/branchV2/domain/models/branch_models.dart';
@@ -46,9 +47,11 @@ class BranchMapper {
         .map(
           (dto) => toBranchListItem(
             dto,
-            isNew: normalizedNewId.isNotEmpty &&
+            isNew:
+                normalizedNewId.isNotEmpty &&
                 dto.branchId.trim() == normalizedNewId,
-            shouldHighlight: normalizedHighlightId.isNotEmpty &&
+            shouldHighlight:
+                normalizedHighlightId.isNotEmpty &&
                 dto.branchId.trim() == normalizedHighlightId,
           ),
         )
@@ -132,7 +135,8 @@ class BranchMapper {
     }
 
     final roleKey = (matchedMembership?.role ?? '').trim().toUpperCase();
-    final canManageTenant = roleKey == 'OWNER' || roleKey == 'ADMIN';
+    final role = parseAuthRole(matchedMembership?.role);
+    final canManageTenant = role == AuthRole.owner || role == AuthRole.admin;
 
     return BranchTenantAccess(
       activeTenantId: tenantId,

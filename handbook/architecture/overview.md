@@ -151,6 +151,8 @@ All new screens/features must support breakpoints in `docs/responsive_breakpoint
 
 ## Navigation model (canonical)
 See `handbook/architecture/navigation.md` for full rules.
+For the updated workspace-based flow and recent navigation changes, see
+`handbook/architecture/navigation_workspace_system.md`.
 
 At a high level:
 - **Mobile**: portal (feature hub) → feature root pages with **feature tabs** (bottom nav).

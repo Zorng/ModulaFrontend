@@ -1,7 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/core/network/api_contract.dart';
-import 'package:modular_pos/features/auth/domain/models/auth_session.dart';
+import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
 import 'package:modular_pos/features/auth/domain/models/tenant_membership.dart';
+import 'package:modular_pos/features/auth/domain/workspace_context_provider.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/branchV2/data/branch_mapper.dart';
 import 'package:modular_pos/features/branchV2/data/branch_repository.dart';
@@ -72,6 +73,7 @@ class BranchController extends Notifier<BranchState> {
       return;
     }
 
+    ref.read(workspaceContextProvider.notifier).setGlobalManagement();
     state = state.copyWith(
       navigationIntent: BranchNavigationIntent.globalManagement,
       error: null,
@@ -126,22 +128,34 @@ class BranchController extends Notifier<BranchState> {
       }
 
       final updatedSession = loginState.session;
-      final activeBranchId = _activeBranchIdFor(updatedSession);
+      // Keep selected branch as the source of truth for workspace context.
+      // Some backend payloads may not mark the selected assignment as active.
+      final resolvedBranchId = normalizedBranchId;
+      ref
+          .read(authActiveBranchOverrideProvider.notifier)
+          .setOverride(resolvedBranchId);
+      ref
+          .read(workspaceContextProvider.notifier)
+          .setFromBranchSelection(
+            isAdminOrOwner: state.canManageTenant,
+            activeBranchId: resolvedBranchId,
+          );
       final tokens = updatedSession == null
           ? null
           : BranchContextTokens(
               accessToken: updatedSession.accessToken,
               refreshToken: updatedSession.refreshToken,
-              tenantId: (updatedSession.activeTenantId ??
-                      updatedSession.user.tenantId)
-                  .trim(),
-              branchId: activeBranchId,
+              tenantId:
+                  (updatedSession.activeTenantId ??
+                          updatedSession.user.tenantId)
+                      .trim(),
+              branchId: resolvedBranchId,
             );
 
       state = state.copyWith(
         isLoading: false,
         selectedContextTokens: tokens,
-        selectedBranchId: tokens?.branchId ?? activeBranchId ?? normalizedBranchId,
+        selectedBranchId: tokens?.branchId ?? resolvedBranchId,
         navigationIntent: BranchNavigationIntent.branchWorkspace,
       );
     } catch (error) {
@@ -241,11 +255,7 @@ class BranchController extends Notifier<BranchState> {
   }
 
   void clearFeedback() {
-    state = state.copyWith(
-      error: null,
-      errorCode: null,
-      errorStatusCode: null,
-    );
+    state = state.copyWith(error: null, errorCode: null, errorStatusCode: null);
   }
 
   void clearCreateFlow() {
@@ -292,7 +302,8 @@ class BranchController extends Notifier<BranchState> {
       final normalizedNew = (markNewBranchId ?? '').trim();
       final normalizedItems = items
           .map((item) {
-            final shouldHighlight = normalizedHighlight.isNotEmpty &&
+            final shouldHighlight =
+                normalizedHighlight.isNotEmpty &&
                 item.branchId == normalizedHighlight;
             final isNew =
                 normalizedNew.isNotEmpty && item.branchId == normalizedNew;
@@ -302,10 +313,7 @@ class BranchController extends Notifier<BranchState> {
             );
           })
           .toList(growable: false);
-      state = state.copyWith(
-        isLoading: false,
-        branches: normalizedItems,
-      );
+      state = state.copyWith(isLoading: false, branches: normalizedItems);
     } catch (error) {
       _setActionError(error, fallbackMessage: 'Failed to load branches.');
     }
@@ -347,7 +355,8 @@ class BranchController extends Notifier<BranchState> {
     final code = _formatExceptionCode(error);
     final normalizedCode = code?.toUpperCase();
     final branchCode = normalizedCode;
-    final knownCode = BranchErrorCodes.isInitiateCode(branchCode) ||
+    final knownCode =
+        BranchErrorCodes.isInitiateCode(branchCode) ||
         BranchErrorCodes.isConfirmCode(branchCode);
 
     state = state.copyWith(
@@ -381,24 +390,5 @@ class BranchController extends Notifier<BranchState> {
       if (tenantName.isNotEmpty) return tenantName;
     }
     return tenantId;
-  }
-
-  String? _activeBranchIdFor(AuthSession? session) {
-    if (session == null) return null;
-    final branches = session.user.branches;
-    if (branches.isEmpty) return null;
-
-    for (final branch in branches) {
-      final branchId = branch.branchId.trim();
-      final fallbackId = branch.id.trim();
-      final resolvedId = branchId.isNotEmpty ? branchId : fallbackId;
-      if (branch.active && resolvedId.isNotEmpty) return resolvedId;
-    }
-
-    final first = branches.first;
-    final firstBranchId = first.branchId.trim();
-    if (firstBranchId.isNotEmpty) return firstBranchId;
-    final firstId = first.id.trim();
-    return firstId.isEmpty ? null : firstId;
   }
 }
