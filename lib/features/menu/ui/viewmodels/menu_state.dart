@@ -4,6 +4,8 @@ import 'package:modular_pos/features/menu/domain/models/menu_category.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 
+const _unset = Object();
+
 @immutable
 class MenuState {
   const MenuState({
@@ -20,6 +22,7 @@ class MenuState {
     this.selectedBranchId = 'all',
     this.searchQuery = '',
     this.error,
+    this.errorCode,
   });
 
   final bool isLoading;
@@ -35,6 +38,7 @@ class MenuState {
   final String selectedBranchId;
   final String searchQuery;
   final String? error;
+  final String? errorCode;
 
   MenuState copyWith({
     bool? isLoading,
@@ -49,7 +53,8 @@ class MenuState {
     String? selectedCategoryId,
     String? selectedBranchId,
     String? searchQuery,
-    String? error,
+    Object? error = _unset,
+    Object? errorCode = _unset,
   }) {
     return MenuState(
       isLoading: isLoading ?? this.isLoading,
@@ -65,7 +70,10 @@ class MenuState {
       selectedCategoryId: selectedCategoryId ?? this.selectedCategoryId,
       selectedBranchId: selectedBranchId ?? this.selectedBranchId,
       searchQuery: searchQuery ?? this.searchQuery,
-      error: error ?? this.error,
+      error: identical(error, _unset) ? this.error : error as String?,
+      errorCode: identical(errorCode, _unset)
+          ? this.errorCode
+          : errorCode as String?,
     );
   }
 }

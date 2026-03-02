@@ -31,8 +31,9 @@ class _EditCategorySheetState extends ConsumerState<EditCategorySheet> {
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.category.name);
-    _descriptionController =
-        TextEditingController(text: widget.category.description);
+    _descriptionController = TextEditingController(
+      text: widget.category.description,
+    );
     _isActive = widget.category.isActive;
     _isEditing = widget.startInEdit;
   }
@@ -48,7 +49,7 @@ class _EditCategorySheetState extends ConsumerState<EditCategorySheet> {
     final updated = widget.category.copyWith(
       name: _nameController.text.trim(),
       description: _descriptionController.text.trim(),
-      isActive: _isActive,
+      status: _isActive ? 'ACTIVE' : 'ARCHIVED',
     );
     await ref.read(menuViewModelProvider.notifier).updateCategory(updated);
     if (!mounted) return;
@@ -144,7 +145,9 @@ class _EditCategorySheetState extends ConsumerState<EditCategorySheet> {
                       child: FilledButton(
                         style: FilledButton.styleFrom(
                           backgroundColor: Colors.white,
-                          foregroundColor: Theme.of(context).textTheme.bodyLarge?.color,
+                          foregroundColor: Theme.of(
+                            context,
+                          ).textTheme.bodyLarge?.color,
                         ),
                         onPressed: _cancelEdit,
                         child: const Text('Cancel'),

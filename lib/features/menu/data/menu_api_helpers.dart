@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:modular_pos/core/network/api_contract.dart';
 
 class MenuApiHelpers {
   const MenuApiHelpers._();
@@ -13,6 +14,16 @@ class MenuApiHelpers {
 
   static Map<String, dynamic> unwrap(dynamic body) {
     final map = asMap(body);
+    if (map['success'] == false) {
+      final message = ApiContract.errorMessage(map);
+      throw ApiClientException(
+        message: (message ?? '').trim().isNotEmpty
+            ? message!.trim()
+            : 'Menu request failed.',
+        code: ApiContract.errorCode(map),
+        details: ApiContract.errorDetails(map),
+      );
+    }
     final inner = map['data'];
     if (map['success'] == true && inner is Map) {
       return asMap(inner);
@@ -47,10 +58,7 @@ class MenuApiHelpers {
       );
     }
     if (imageBytes != null && imageBytes.isNotEmpty) {
-      return MultipartFile.fromBytes(
-        imageBytes,
-        filename: 'upload.jpg',
-      );
+      return MultipartFile.fromBytes(imageBytes, filename: 'upload.jpg');
     }
     return null;
   }

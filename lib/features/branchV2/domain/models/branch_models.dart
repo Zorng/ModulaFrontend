@@ -8,6 +8,8 @@ class BranchListItem {
     this.contactNumber,
     this.khqrReceiverAccountId,
     this.khqrReceiverName,
+    this.attendanceLocationVerificationMode = '',
+    this.workplaceLocation,
     this.isNew = false,
     this.shouldHighlight = false,
   });
@@ -20,6 +22,8 @@ class BranchListItem {
   final String? contactNumber;
   final String? khqrReceiverAccountId;
   final String? khqrReceiverName;
+  final String attendanceLocationVerificationMode;
+  final BranchWorkplaceLocation? workplaceLocation;
   final bool isNew;
   final bool shouldHighlight;
 
@@ -35,6 +39,8 @@ class BranchListItem {
     String? contactNumber,
     String? khqrReceiverAccountId,
     String? khqrReceiverName,
+    String? attendanceLocationVerificationMode,
+    BranchWorkplaceLocation? workplaceLocation,
     bool? isNew,
     bool? shouldHighlight,
   }) {
@@ -47,8 +53,36 @@ class BranchListItem {
       contactNumber: contactNumber ?? this.contactNumber,
       khqrReceiverAccountId: khqrReceiverAccountId ?? this.khqrReceiverAccountId,
       khqrReceiverName: khqrReceiverName ?? this.khqrReceiverName,
+      attendanceLocationVerificationMode:
+          attendanceLocationVerificationMode ??
+          this.attendanceLocationVerificationMode,
+      workplaceLocation: workplaceLocation ?? this.workplaceLocation,
       isNew: isNew ?? this.isNew,
       shouldHighlight: shouldHighlight ?? this.shouldHighlight,
+    );
+  }
+}
+
+class BranchWorkplaceLocation {
+  const BranchWorkplaceLocation({
+    required this.latitude,
+    required this.longitude,
+    required this.radiusMeters,
+  });
+
+  final double latitude;
+  final double longitude;
+  final double radiusMeters;
+
+  BranchWorkplaceLocation copyWith({
+    double? latitude,
+    double? longitude,
+    double? radiusMeters,
+  }) {
+    return BranchWorkplaceLocation(
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
+      radiusMeters: radiusMeters ?? this.radiusMeters,
     );
   }
 }

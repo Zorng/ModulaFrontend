@@ -7,6 +7,8 @@ class BranchAccessibleBranchDto {
     required this.contactNumber,
     required this.khqrReceiverAccountId,
     required this.khqrReceiverName,
+    required this.attendanceLocationVerificationMode,
+    required this.workplaceLocation,
     required this.status,
   });
 
@@ -17,9 +19,19 @@ class BranchAccessibleBranchDto {
   final String? contactNumber;
   final String? khqrReceiverAccountId;
   final String? khqrReceiverName;
+  final String attendanceLocationVerificationMode;
+  final BranchWorkplaceLocationDto? workplaceLocation;
   final String status;
 
   factory BranchAccessibleBranchDto.fromJson(Map<String, dynamic> json) {
+    final workplaceLocation = BranchWorkplaceLocationDto.tryFromJson(
+      _nullableMap(json['workplaceLocation']),
+    );
+    final attendanceLocationVerificationMode =
+        _nullableString(json['attendanceLocationVerificationMode']) ??
+        _nullableString(json['attendanceLocationVerification']) ??
+        '';
+
     return BranchAccessibleBranchDto(
       branchId: json['branchId']?.toString() ?? '',
       tenantId: json['tenantId']?.toString() ?? '',
@@ -28,6 +40,8 @@ class BranchAccessibleBranchDto {
       contactNumber: _nullableString(json['contactNumber']),
       khqrReceiverAccountId: _nullableString(json['khqrReceiverAccountId']),
       khqrReceiverName: _nullableString(json['khqrReceiverName']),
+      attendanceLocationVerificationMode: attendanceLocationVerificationMode,
+      workplaceLocation: workplaceLocation,
       status: json['status']?.toString() ?? '',
     );
   }
@@ -41,7 +55,46 @@ class BranchAccessibleBranchDto {
       'contactNumber': contactNumber,
       'khqrReceiverAccountId': khqrReceiverAccountId,
       'khqrReceiverName': khqrReceiverName,
+      'attendanceLocationVerificationMode': attendanceLocationVerificationMode,
+      'workplaceLocation': workplaceLocation?.toJson(),
       'status': status,
+    };
+  }
+}
+
+class BranchWorkplaceLocationDto {
+  const BranchWorkplaceLocationDto({
+    required this.latitude,
+    required this.longitude,
+    required this.radiusMeters,
+  });
+
+  final double latitude;
+  final double longitude;
+  final double radiusMeters;
+
+  static BranchWorkplaceLocationDto? tryFromJson(Map<String, dynamic>? json) {
+    if (json == null) return null;
+
+    final latitude = _nullableDouble(json['latitude']);
+    final longitude = _nullableDouble(json['longitude']);
+    final radiusMeters = _nullableDouble(json['radiusMeters']);
+    if (latitude == null || longitude == null || radiusMeters == null) {
+      return null;
+    }
+
+    return BranchWorkplaceLocationDto(
+      latitude: latitude,
+      longitude: longitude,
+      radiusMeters: radiusMeters,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      'latitude': latitude,
+      'longitude': longitude,
+      'radiusMeters': radiusMeters,
     };
   }
 }
@@ -216,6 +269,21 @@ String? _nullableString(dynamic value) {
   if (value == null) return null;
   final normalized = value.toString().trim();
   return normalized.isEmpty ? null : normalized;
+}
+
+Map<String, dynamic>? _nullableMap(dynamic value) {
+  if (value is Map<String, dynamic>) return Map<String, dynamic>.from(value);
+  if (value is Map) {
+    return value.map((key, val) => MapEntry(key.toString(), val));
+  }
+  return null;
+}
+
+double? _nullableDouble(dynamic value) {
+  if (value is num) return value.toDouble();
+  final raw = _nullableString(value);
+  if (raw == null) return null;
+  return double.tryParse(raw);
 }
 
 DateTime? _nullableDateTime(dynamic value) {

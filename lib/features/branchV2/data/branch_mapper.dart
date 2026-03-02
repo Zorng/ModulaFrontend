@@ -30,6 +30,11 @@ class BranchMapper {
       contactNumber: _nullableTrim(dto.contactNumber),
       khqrReceiverAccountId: _nullableTrim(dto.khqrReceiverAccountId),
       khqrReceiverName: _nullableTrim(dto.khqrReceiverName),
+      attendanceLocationVerificationMode:
+          _normalizeAttendanceLocationVerificationMode(
+            dto.attendanceLocationVerificationMode,
+          ),
+      workplaceLocation: _toWorkplaceLocation(dto.workplaceLocation),
       isNew: isNew,
       shouldHighlight: shouldHighlight,
     );
@@ -150,5 +155,36 @@ class BranchMapper {
     final normalized = (value ?? '').trim();
     if (normalized.isEmpty) return null;
     return normalized;
+  }
+
+  static BranchWorkplaceLocation? _toWorkplaceLocation(
+    BranchWorkplaceLocationDto? dto,
+  ) {
+    if (dto == null) return null;
+    return BranchWorkplaceLocation(
+      latitude: dto.latitude,
+      longitude: dto.longitude,
+      radiusMeters: dto.radiusMeters,
+    );
+  }
+
+  static String _normalizeAttendanceLocationVerificationMode(String? value) {
+    final raw = (value ?? '').trim().toLowerCase();
+    switch (raw) {
+      case '':
+        return '';
+      case 'disabled':
+        return 'disabled';
+      case 'checkin_only':
+      case 'checkin-only':
+      case 'checkin only':
+        return 'checkin_only';
+      case 'checkin_and_checkout':
+      case 'checkin-and-checkout':
+      case 'checkin and checkout':
+        return 'checkin_and_checkout';
+      default:
+        return raw;
+    }
   }
 }

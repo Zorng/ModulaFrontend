@@ -27,8 +27,9 @@ class _EditCategoryPageState extends ConsumerState<EditCategoryPage> {
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.category.name);
-    _descriptionController =
-        TextEditingController(text: widget.category.description);
+    _descriptionController = TextEditingController(
+      text: widget.category.description,
+    );
     _isActive = widget.category.isActive;
   }
 
@@ -43,7 +44,7 @@ class _EditCategoryPageState extends ConsumerState<EditCategoryPage> {
     final updated = widget.category.copyWith(
       name: _nameController.text.trim(),
       description: _descriptionController.text.trim(),
-      isActive: _isActive,
+      status: _isActive ? 'ACTIVE' : 'ARCHIVED',
     );
     await ref.read(menuViewModelProvider.notifier).updateCategory(updated);
     if (!mounted) return;
@@ -76,8 +77,9 @@ class _EditCategoryPageState extends ConsumerState<EditCategoryPage> {
               const MenuFormFieldLabel(text: 'Category Name', isRequired: true),
               TextField(
                 controller: _nameController,
-                decoration:
-                    const InputDecoration(hintText: 'e.g., Coffee, Pastries'),
+                decoration: const InputDecoration(
+                  hintText: 'e.g., Coffee, Pastries',
+                ),
               ),
               const SizedBox(height: 24),
               const MenuFormFieldLabel(text: 'Description'),
@@ -92,8 +94,10 @@ class _EditCategoryPageState extends ConsumerState<EditCategoryPage> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('Set Active',
-                      style: Theme.of(context).textTheme.titleMedium),
+                  Text(
+                    'Set Active',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
                   CupertinoSwitch(
                     value: _isActive,
                     activeTrackColor: Theme.of(context).primaryColor,
@@ -114,7 +118,9 @@ class _EditCategoryPageState extends ConsumerState<EditCategoryPage> {
                     child: FilledButton(
                       style: FilledButton.styleFrom(
                         backgroundColor: Colors.white,
-                        foregroundColor: Theme.of(context).textTheme.bodyLarge?.color,
+                        foregroundColor: Theme.of(
+                          context,
+                        ).textTheme.bodyLarge?.color,
                       ),
                       onPressed: _cancelEdit,
                       child: const Text('Cancel'),

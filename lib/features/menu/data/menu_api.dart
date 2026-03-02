@@ -2,12 +2,13 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/core/config/app_env.dart';
 import 'package:modular_pos/core/network/dio_client.dart';
-import 'package:modular_pos/features/menu/data/menu_api_helpers.dart';
+import 'package:modular_pos/core/network/idempotency_key_store.dart';
 import 'package:modular_pos/features/menu/data/dto/menu_branch_dto.dart';
 import 'package:modular_pos/features/menu/data/dto/menu_category_dto.dart';
 import 'package:modular_pos/features/menu/data/dto/menu_item_dto.dart';
 import 'package:modular_pos/features/menu/data/dto/menu_item_with_modifiers_dto.dart';
 import 'package:modular_pos/features/menu/data/dto/modifier_group_dto.dart';
+import 'package:modular_pos/features/menu/data/menu_api_helpers.dart';
 
 final menuApiProvider = Provider<MenuApi>((ref) {
   final dio = ref.watch(dioProvider);
@@ -25,12 +26,12 @@ class MenuApi {
     return const [];
   }
 
-  Future<List<MenuCategoryDto>> fetchCategories({bool? isActive}) async {
+  Future<List<MenuCategoryDto>> fetchCategories({String? status}) async {
     final dio = _requireDio();
     try {
       final response = await dio.get<dynamic>(
         '$_menuPrefix/categories',
-        queryParameters: isActive == null ? null : {'isActive': isActive},
+        queryParameters: status == null ? null : {'status': status},
       );
       final raw = MenuApiHelpers.unwrap(response.data);
       final categories = raw['categories'] ?? raw['data'] ?? raw;
@@ -40,10 +41,13 @@ class MenuApi {
     }
   }
 
-  Future<List<ModifierGroupDto>> fetchModifierGroups() async {
+  Future<List<ModifierGroupDto>> fetchModifierGroups({String? status}) async {
     final dio = _requireDio();
     try {
-      final response = await dio.get<dynamic>('$_menuPrefix/modifiers/groups');
+      final response = await dio.get<dynamic>(
+        '$_menuPrefix/modifier-groups',
+        queryParameters: status == null ? null : {'status': status},
+      );
       final raw = MenuApiHelpers.unwrap(response.data);
       final groups =
           raw['modifierGroups'] ?? raw['groups'] ?? raw['data'] ?? raw;
@@ -56,28 +60,60 @@ class MenuApi {
   Future<List<ModifierOptionDto>> fetchModifierOptions(
     String modifierGroupId,
   ) async {
-    final dio = _requireDio();
-    try {
-      final response = await dio.get<dynamic>(
-        '$_menuPrefix/modifiers/groups/$modifierGroupId/options',
-      );
-      final raw = MenuApiHelpers.unwrap(response.data);
-      final options = raw['options'] ?? raw['data'] ?? raw;
-      return MenuApiHelpers.parseList(options, ModifierOptionDto.fromJson);
-    } on DioError catch (error) {
-      throw MenuApiException.fromDio(error);
-    }
+    final groups = await fetchModifierGroups();
+    final target = groups.firstWhere(
+      (entry) => entry.id == modifierGroupId,
+      orElse: () => const ModifierGroupDto(
+        id: '',
+        tenantId: '',
+        name: '',
+        selectionMode: 'SINGLE',
+        minSelections: 0,
+        maxSelections: 1,
+        isRequired: false,
+        status: 'ACTIVE',
+        options: <ModifierOptionDto>[],
+        selectionType: 'single',
+        pricingBehavior: 'addon',
+        defaultOptionId: null,
+        isActive: true,
+      ),
+    );
+    return target.options;
   }
 
-  Future<List<MenuItemDto>> fetchMenuItems({String? branchId}) async {
+  Future<List<MenuItemDto>> fetchMenuItems({
+    bool includeAllBranches = false,
+    String status = 'active',
+    String? categoryId,
+    String? search,
+    int? limit,
+    int? offset,
+    String? branchId,
+  }) async {
     final dio = _requireDio();
-    final bool hasBranch = branchId != null && branchId.isNotEmpty;
-    final String path = hasBranch
-        ? '$_menuPrefix/items/by-branch'
+    final normalizedStatus = status.trim().isEmpty
+        ? 'active'
+        : status.trim().toLowerCase();
+    final path = includeAllBranches
+        ? '$_menuPrefix/items/all'
         : '$_menuPrefix/items';
-    final Map<String, dynamic>? query = hasBranch
-        ? {'branchId': branchId}
-        : null;
+    final normalizedCategoryId = _nullableCategoryId(categoryId);
+    final normalizedSearch = search?.trim();
+    final normalizedBranchId = branchId?.trim();
+    final query = <String, dynamic>{
+      'status': normalizedStatus,
+      if (normalizedCategoryId != null) 'categoryId': normalizedCategoryId,
+      if (normalizedSearch != null && normalizedSearch.isNotEmpty)
+        'search': normalizedSearch,
+      if (limit != null) 'limit': limit,
+      if (offset != null) 'offset': offset,
+      // branchId is only a filter on management lane; it must not override token context.
+      if (includeAllBranches &&
+          normalizedBranchId != null &&
+          normalizedBranchId.isNotEmpty)
+        'branchId': normalizedBranchId,
+    };
     try {
       final response = await dio.get<dynamic>(path, queryParameters: query);
       final raw = MenuApiHelpers.unwrap(response.data);
@@ -93,9 +129,7 @@ class MenuApi {
   ) async {
     final dio = _requireDio();
     try {
-      final response = await dio.get<dynamic>(
-        '$_menuPrefix/items/$menuItemId/with-modifiers',
-      );
+      final response = await dio.get<dynamic>('$_menuPrefix/items/$menuItemId');
       final raw = MenuApiHelpers.unwrap(response.data);
       return MenuItemWithModifiersDto.fromJson(raw);
     } on DioError catch (error) {
@@ -111,6 +145,10 @@ class MenuApi {
       final response = await dio.post<Map<String, dynamic>>(
         '$_menuPrefix/categories',
         data: body,
+        options: _writeOptions(
+          actionKey: 'menu.categories.create',
+          payload: body,
+        ),
       );
       final raw = MenuApiHelpers.unwrap(response.data);
       return MenuCategoryDto.fromJson(raw);
@@ -131,6 +169,10 @@ class MenuApi {
       final response = await dio.patch<Map<String, dynamic>>(
         '$_menuPrefix/categories/$categoryId',
         data: updateMap,
+        options: _writeOptions(
+          actionKey: 'menu.categories.update',
+          payload: {'categoryId': categoryId, ...updateMap},
+        ),
       );
       final raw = MenuApiHelpers.unwrap(response.data);
       return MenuCategoryDto.fromJson(raw);
@@ -139,10 +181,17 @@ class MenuApi {
     }
   }
 
+  /// Compatibility method name; uses contract archive endpoint.
   Future<void> deleteCategory(String categoryId) async {
     final dio = _requireDio();
     try {
-      await dio.delete<void>('$_menuPrefix/categories/$categoryId');
+      await dio.post<void>(
+        '$_menuPrefix/categories/$categoryId/archive',
+        options: _writeOptions(
+          actionKey: 'menu.categories.archive',
+          payload: {'categoryId': categoryId},
+        ),
+      );
     } on DioError catch (error) {
       throw MenuApiException.fromDio(error);
     }
@@ -153,11 +202,14 @@ class MenuApi {
   ) async {
     final dio = _requireDio();
     try {
-      final body = Map<String, dynamic>.from(payload)
-        ..removeWhere((key, value) => value == null);
+      final body = _normalizeModifierGroupWritePayload(payload);
       final response = await dio.post<Map<String, dynamic>>(
-        '$_menuPrefix/modifiers/groups',
+        '$_menuPrefix/modifier-groups',
         data: body,
+        options: _writeOptions(
+          actionKey: 'menu.modifierGroups.create',
+          payload: body,
+        ),
       );
       final raw = MenuApiHelpers.unwrap(response.data);
       return ModifierGroupDto.fromJson(raw);
@@ -174,12 +226,16 @@ class MenuApi {
     if (groupId == null) {
       throw const MenuApiException('Modifier group id is required for update');
     }
-    final updateMap = Map<String, dynamic>.from(payload)
-      ..removeWhere((key, value) => key == 'id' || value == null);
+    final updateMap = _normalizeModifierGroupWritePayload(payload)
+      ..remove('id');
     try {
       final response = await dio.patch<Map<String, dynamic>>(
-        '$_menuPrefix/modifiers/groups/$groupId',
+        '$_menuPrefix/modifier-groups/$groupId',
         data: updateMap,
+        options: _writeOptions(
+          actionKey: 'menu.modifierGroups.update',
+          payload: {'groupId': groupId, ...updateMap},
+        ),
       );
       final raw = MenuApiHelpers.unwrap(response.data);
       return ModifierGroupDto.fromJson(raw);
@@ -193,12 +249,19 @@ class MenuApi {
     Map<String, dynamic> payload,
   ) async {
     final dio = _requireDio();
+    final groupId = _extractGroupId(payload);
+    final body = _normalizeModifierOptionWritePayload(payload)
+      ..remove('id')
+      ..remove('groupId')
+      ..remove('modifierGroupId');
     try {
-      final body = Map<String, dynamic>.from(payload)
-        ..removeWhere((key, value) => value == null || key == 'id');
       final response = await dio.patch<Map<String, dynamic>>(
-        '$_menuPrefix/modifiers/options/$optionId',
+        '$_menuPrefix/modifier-groups/$groupId/options/$optionId',
         data: body,
+        options: _writeOptions(
+          actionKey: 'menu.modifierOptions.update',
+          payload: {'groupId': groupId, 'optionId': optionId, ...body},
+        ),
       );
       final raw = MenuApiHelpers.unwrap(response.data);
       return ModifierOptionDto.fromJson(raw);
@@ -207,23 +270,22 @@ class MenuApi {
     }
   }
 
-  Future<void> deleteModifierOption(String optionId) async {
-    final dio = _requireDio();
-    try {
-      await dio.delete<void>('$_menuPrefix/modifiers/options/$optionId');
-    } on DioError catch (error) {
-      throw MenuApiException.fromDio(error);
+  /// Compatibility method name; uses contract archive endpoint.
+  Future<void> deleteModifierOption(String optionId, {String? groupId}) async {
+    final resolvedGroupId = (groupId ?? '').trim();
+    if (resolvedGroupId.isEmpty) {
+      throw const MenuApiException(
+        'Modifier group id is required to archive modifier option.',
+      );
     }
-  }
-
-  Future<void> detachModifierFromItem({
-    required String menuItemId,
-    required String modifierGroupId,
-  }) async {
     final dio = _requireDio();
     try {
-      await dio.delete<void>(
-        '$_menuPrefix/items/$menuItemId/modifiers/$modifierGroupId',
+      await dio.post<void>(
+        '$_menuPrefix/modifier-groups/$resolvedGroupId/options/$optionId/archive',
+        options: _writeOptions(
+          actionKey: 'menu.modifierOptions.archive',
+          payload: {'groupId': resolvedGroupId, 'optionId': optionId},
+        ),
       );
     } on DioError catch (error) {
       throw MenuApiException.fromDio(error);
@@ -234,30 +296,21 @@ class MenuApi {
     Map<String, dynamic> payload,
   ) async {
     final dio = _requireDio();
+    final groupId = _extractGroupId(payload);
+    final body = _normalizeModifierOptionWritePayload(payload)
+      ..remove('groupId')
+      ..remove('modifierGroupId');
     try {
-      final body = Map<String, dynamic>.from(payload)
-        ..removeWhere((key, value) => value == null);
       final response = await dio.post<Map<String, dynamic>>(
-        '$_menuPrefix/modifiers/options',
+        '$_menuPrefix/modifier-groups/$groupId/options',
         data: body,
+        options: _writeOptions(
+          actionKey: 'menu.modifierOptions.create',
+          payload: {'groupId': groupId, ...body},
+        ),
       );
       final raw = MenuApiHelpers.unwrap(response.data);
       return ModifierOptionDto.fromJson(raw);
-    } on DioError catch (error) {
-      throw MenuApiException.fromDio(error);
-    }
-  }
-
-  Future<void> attachModifierToItem(
-    String menuItemId,
-    Map<String, dynamic> payload,
-  ) async {
-    final dio = _requireDio();
-    try {
-      await dio.post<void>(
-        '$_menuPrefix/items/$menuItemId/modifiers',
-        data: payload,
-      );
     } on DioError catch (error) {
       throw MenuApiException.fromDio(error);
     }
@@ -270,17 +323,15 @@ class MenuApi {
   }) async {
     final dio = _requireDio();
     try {
-      final body = Map<String, dynamic>.from(payload)
-        ..removeWhere((key, value) => key == 'id' || value == null);
-      final formData = FormData.fromMap(body);
-      final imagePart = await MenuApiHelpers.buildImagePart(
+      final body = await _normalizeMenuItemWritePayload(
+        payload,
         imagePath: imagePath,
         imageBytes: imageBytes,
       );
-      if (imagePart != null) formData.files.add(MapEntry('image', imagePart));
       final response = await dio.post<Map<String, dynamic>>(
         '$_menuPrefix/items',
-        data: formData,
+        data: body,
+        options: _writeOptions(actionKey: 'menu.items.create', payload: body),
       );
       final raw = MenuApiHelpers.unwrap(response.data);
       return MenuItemDto.fromJson(raw);
@@ -299,18 +350,19 @@ class MenuApi {
     if (itemId == null) {
       throw const MenuApiException('Menu item id is required for update');
     }
-    final updateMap = Map<String, dynamic>.from(payload)
-      ..removeWhere((key, value) => key == 'id' || value == null);
     try {
-      final formData = FormData.fromMap(updateMap);
-      final imagePart = await MenuApiHelpers.buildImagePart(
+      final body = await _normalizeMenuItemWritePayload(
+        payload,
         imagePath: imagePath,
         imageBytes: imageBytes,
       );
-      if (imagePart != null) formData.files.add(MapEntry('image', imagePart));
       final response = await dio.patch<Map<String, dynamic>>(
         '$_menuPrefix/items/$itemId',
-        data: formData,
+        data: body,
+        options: _writeOptions(
+          actionKey: 'menu.items.update',
+          payload: {'menuItemId': itemId, ...body},
+        ),
       );
       final raw = MenuApiHelpers.unwrap(response.data);
       return MenuItemDto.fromJson(raw);
@@ -319,77 +371,308 @@ class MenuApi {
     }
   }
 
+  /// Compatibility method name; uses contract archive endpoint.
   Future<void> deleteMenuItem(String menuItemId) async {
     final dio = _requireDio();
     try {
-      await dio.delete<void>('$_menuPrefix/items/$menuItemId');
+      await dio.post<void>(
+        '$_menuPrefix/items/$menuItemId/archive',
+        options: _writeOptions(
+          actionKey: 'menu.items.archive',
+          payload: {'menuItemId': menuItemId},
+        ),
+      );
     } on DioError catch (error) {
       throw MenuApiException.fromDio(error);
     }
   }
 
+  Future<void> restoreMenuItem(String menuItemId) async {
+    final dio = _requireDio();
+    try {
+      await dio.post<void>(
+        '$_menuPrefix/items/$menuItemId/restore',
+        options: _writeOptions(
+          actionKey: 'menu.items.restore',
+          payload: {'menuItemId': menuItemId},
+        ),
+      );
+    } on DioError catch (error) {
+      throw MenuApiException.fromDio(error);
+    }
+  }
+
+  /// Compatibility method name; uses contract archive endpoint.
   Future<void> deleteModifierGroup(String groupId) async {
     final dio = _requireDio();
     try {
-      await dio.delete<void>('$_menuPrefix/modifiers/groups/$groupId');
+      await dio.post<void>(
+        '$_menuPrefix/modifier-groups/$groupId/archive',
+        options: _writeOptions(
+          actionKey: 'menu.modifierGroups.archive',
+          payload: {'groupId': groupId},
+        ),
+      );
     } on DioError catch (error) {
       throw MenuApiException.fromDio(error);
     }
   }
 
+  Future<void> setItemVisibility({
+    required String menuItemId,
+    required List<String> visibleBranchIds,
+  }) async {
+    final dio = _requireDio();
+    final body = <String, dynamic>{'visibleBranchIds': visibleBranchIds};
+    try {
+      await dio.put<void>(
+        '$_menuPrefix/items/$menuItemId/visibility',
+        data: body,
+        options: _writeOptions(
+          actionKey: 'menu.items.visibility.set',
+          payload: {'menuItemId': menuItemId, ...body},
+        ),
+      );
+    } on DioError catch (error) {
+      throw MenuApiException.fromDio(error);
+    }
+  }
+
+  /// Legacy compatibility wrapper. Prefer [setItemVisibility].
   Future<void> setBranchAvailability({
     required String menuItemId,
     required String branchId,
     required bool isAvailable,
   }) async {
-    final dio = _requireDio();
-    try {
-      await dio.put<void>(
-        '$_menuPrefix/items/$menuItemId/branches/availability',
-        data: {'branchId': branchId, 'isAvailable': isAvailable},
-      );
-    } on DioError catch (error) {
-      throw MenuApiException.fromDio(error);
-    }
+    await setItemVisibility(
+      menuItemId: menuItemId,
+      visibleBranchIds: isAvailable ? <String>[branchId] : const <String>[],
+    );
   }
 
   Future<void> setPriceOverride({
     required String menuItemId,
     required String branchId,
     required double priceUsd,
-  }) async {
-    final dio = _requireDio();
-    try {
-      await dio.put<void>(
-        '$_menuPrefix/items/$menuItemId/branches/price',
-        data: {'branchId': branchId, 'priceUsd': priceUsd},
-      );
-    } on DioError catch (error) {
-      throw MenuApiException.fromDio(error);
-    }
+  }) {
+    throw const MenuApiException(
+      'Price override endpoint is not part of /v0/menu contract.',
+    );
   }
 
   Dio _requireDio() {
     return _dio;
   }
+
+  Options _writeOptions({
+    required String actionKey,
+    required Object payload,
+    String? intentId,
+  }) {
+    return withIdempotency(
+      request: IdempotencyRequest(
+        actionKey: actionKey,
+        payload: payload,
+        intentId: (intentId ?? '').trim().isEmpty ? null : intentId?.trim(),
+      ),
+    );
+  }
+
+  Future<Map<String, dynamic>> _normalizeMenuItemWritePayload(
+    Map<String, dynamic> payload, {
+    String? imagePath,
+    List<int>? imageBytes,
+  }) async {
+    final body = Map<String, dynamic>.from(payload)
+      ..remove('id')
+      ..removeWhere((key, value) => value == null);
+
+    final normalized = <String, dynamic>{
+      'name': body['name']?.toString() ?? '',
+      'basePrice': _asDouble(
+        body['basePrice'] ?? body['priceUsd'] ?? body['price'],
+      ),
+      'categoryId': _nullableCategoryId(body['categoryId']),
+      'modifierGroupIds': _asStringList(body['modifierGroupIds']),
+      'visibleBranchIds': _asStringList(
+        body['visibleBranchIds'] ?? body['branchIds'],
+      ),
+      'imageUrl': body['imageUrl']?.toString(),
+    };
+
+    if ((imagePath ?? '').trim().isNotEmpty ||
+        (imageBytes != null && imageBytes.isNotEmpty)) {
+      normalized['imageUrl'] = await _uploadMenuImage(
+        imagePath: imagePath,
+        imageBytes: imageBytes,
+      );
+    }
+
+    normalized.removeWhere((key, value) => value == null);
+    return normalized;
+  }
+
+  Map<String, dynamic> _normalizeModifierGroupWritePayload(
+    Map<String, dynamic> payload,
+  ) {
+    final body = Map<String, dynamic>.from(payload)
+      ..removeWhere((key, value) => value == null);
+
+    final selectionMode = _normalizeSelectionMode(
+      body['selectionMode']?.toString() ?? body['selectionType']?.toString(),
+    );
+    final minSelections = _asInt(body['minSelections']) ?? 0;
+    final maxSelections =
+        _asInt(body['maxSelections']) ?? (selectionMode == 'SINGLE' ? 1 : 99);
+
+    return <String, dynamic>{
+      if (body['id'] != null) 'id': body['id'],
+      'name': body['name']?.toString() ?? '',
+      'selectionMode': selectionMode,
+      'minSelections': minSelections,
+      'maxSelections': maxSelections,
+      'isRequired': _asBool(body['isRequired']),
+    };
+  }
+
+  Map<String, dynamic> _normalizeModifierOptionWritePayload(
+    Map<String, dynamic> payload,
+  ) {
+    final body = Map<String, dynamic>.from(payload)
+      ..removeWhere((key, value) => value == null);
+    return <String, dynamic>{
+      if (body['id'] != null) 'id': body['id'],
+      if (body['groupId'] != null) 'groupId': body['groupId'],
+      if (body['modifierGroupId'] != null)
+        'modifierGroupId': body['modifierGroupId'],
+      'label': body['label']?.toString() ?? body['name']?.toString() ?? '',
+      'priceDelta': _asDouble(
+        body['priceDelta'] ?? body['priceAdjustmentUsd'] ?? body['price'],
+      ),
+      'componentDeltas': _asComponentDeltas(body['componentDeltas']),
+    };
+  }
+
+  String _extractGroupId(Map<String, dynamic> payload) {
+    final groupId =
+        payload['groupId']?.toString() ??
+        payload['modifierGroupId']?.toString() ??
+        '';
+    if (groupId.trim().isEmpty) {
+      throw const MenuApiException('Modifier group id is required.');
+    }
+    return groupId.trim();
+  }
+
+  Future<String> _uploadMenuImage({
+    String? imagePath,
+    List<int>? imageBytes,
+  }) async {
+    final dio = _requireDio();
+    final imagePart = await MenuApiHelpers.buildImagePart(
+      imagePath: imagePath,
+      imageBytes: imageBytes,
+    );
+    if (imagePart == null) {
+      throw const MenuApiException('Image file is required for upload.');
+    }
+    final formData = FormData.fromMap({'image': imagePart});
+    final response = await dio.post<dynamic>(
+      '$_menuPrefix/images/upload',
+      data: formData,
+    );
+    final raw = MenuApiHelpers.unwrap(response.data);
+    final imageUrl = raw['imageUrl']?.toString().trim() ?? '';
+    if (imageUrl.isEmpty) {
+      throw const MenuApiException('Image upload failed: imageUrl is missing.');
+    }
+    return imageUrl;
+  }
+}
+
+String? _nullableCategoryId(dynamic value) {
+  if (value == null) return null;
+  final raw = value.toString().trim();
+  if (raw.isEmpty || raw.toLowerCase() == 'null') return null;
+  return raw;
+}
+
+List<String> _asStringList(dynamic value) {
+  if (value is! List) return const <String>[];
+  return value
+      .map((entry) => entry?.toString().trim() ?? '')
+      .where((entry) => entry.isNotEmpty)
+      .toList(growable: false);
+}
+
+List<Map<String, dynamic>> _asComponentDeltas(dynamic value) {
+  if (value is! List) return const <Map<String, dynamic>>[];
+  return value
+      .whereType<Map>()
+      .map((entry) => entry.map((key, val) => MapEntry(key.toString(), val)))
+      .toList(growable: false);
+}
+
+double _asDouble(dynamic value) {
+  if (value is num) return value.toDouble();
+  return double.tryParse(value?.toString() ?? '') ?? 0;
+}
+
+int? _asInt(dynamic value) {
+  if (value is int) return value;
+  if (value is num) return value.toInt();
+  return int.tryParse(value?.toString() ?? '');
+}
+
+bool _asBool(dynamic value) {
+  if (value is bool) return value;
+  if (value is num) return value != 0;
+  if (value is String) {
+    final lower = value.trim().toLowerCase();
+    if (lower == 'true' || lower == '1') return true;
+    if (lower == 'false' || lower == '0') return false;
+  }
+  return false;
+}
+
+String _normalizeSelectionMode(String? value) {
+  final raw = (value ?? '').trim().toUpperCase();
+  if (raw == 'MULTI' || raw == 'MULTIPLE') return 'MULTI';
+  return 'SINGLE';
 }
 
 class MenuApiException implements Exception {
-  const MenuApiException(this.message, [this.statusCode]);
+  const MenuApiException(this.message, [this.statusCode, this.code]);
 
   factory MenuApiException.fromDio(DioError exception) {
     final data = exception.response?.data;
-    final message = data is Map ? data['message']?.toString() : null;
+    String? message;
+    String? code;
+    if (data is Map) {
+      final map = data.map((key, value) => MapEntry(key.toString(), value));
+      final nestedData = map['data'];
+      final nestedMap = nestedData is Map
+          ? nestedData.map((key, value) => MapEntry(key.toString(), value))
+          : const <String, dynamic>{};
+      message =
+          map['error']?.toString() ??
+          map['message']?.toString() ??
+          nestedMap['error']?.toString() ??
+          nestedMap['message']?.toString();
+      code = map['code']?.toString();
+    }
     return MenuApiException(
       message ?? exception.message ?? 'Menu API error',
       exception.response?.statusCode,
+      code,
     );
   }
 
   final String message;
   final int? statusCode;
+  final String? code;
 
   @override
   String toString() =>
-      'MenuApiException(statusCode: $statusCode, message: $message)';
+      'MenuApiException(statusCode: $statusCode, code: $code, message: $message)';
 }
