@@ -24,10 +24,17 @@ String buildBranchSelectionRedirect({String? reasonCode}) {
 String? guardBranchWorkspaceAccess({
   required WorkspaceContext? workspaceContext,
   required String? activeBranchId,
+  bool allowWithoutWorkspaceContext = false,
+  bool requireActiveBranchId = true,
 }) {
-  if (workspaceContext?.scope != WorkspaceScope.branch) {
+  if (workspaceContext != null &&
+      workspaceContext.scope != WorkspaceScope.branch) {
     return '/404';
   }
+  if (workspaceContext == null && !allowWithoutWorkspaceContext) {
+    return '/404';
+  }
+  if (!requireActiveBranchId) return null;
   final normalizedBranchId = (activeBranchId ?? '').trim();
   if (normalizedBranchId.isEmpty) {
     return buildBranchSelectionRedirect(

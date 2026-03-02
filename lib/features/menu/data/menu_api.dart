@@ -644,6 +644,13 @@ class MenuApi {
     List<int>? imageBytes,
   }) async {
     final dio = _requireDio();
+    if (imageBytes != null && imageBytes.length > 5 * 1024 * 1024) {
+      throw const MenuApiException(
+        'Image is too large. Maximum size is 5MB.',
+        422,
+        'UPLOAD_FILE_TOO_LARGE',
+      );
+    }
     final imagePart = await MenuApiHelpers.buildImagePart(
       imagePath: imagePath,
       imageBytes: imageBytes,
@@ -716,6 +723,14 @@ String _normalizeSelectionMode(String? value) {
   return 'SINGLE';
 }
 
+String? _errorCodeFrom(dynamic value) {
+  final raw = value?.toString().trim() ?? '';
+  if (raw.isEmpty) return null;
+  final normalized = raw.toUpperCase();
+  final isCodeLike = RegExp(r'^[A-Z0-9_]+$').hasMatch(normalized);
+  return isCodeLike ? normalized : null;
+}
+
 class MenuApiException implements Exception {
   const MenuApiException(this.message, [this.statusCode, this.code]);
 
@@ -730,11 +745,17 @@ class MenuApiException implements Exception {
           ? nestedData.map((key, value) => MapEntry(key.toString(), value))
           : const <String, dynamic>{};
       message =
-          map['error']?.toString() ??
           map['message']?.toString() ??
+          map['error']?.toString() ??
           nestedMap['error']?.toString() ??
           nestedMap['message']?.toString();
-      code = map['code']?.toString();
+      code =
+          _errorCodeFrom(map['code']) ??
+          _errorCodeFrom(map['errorCode']) ??
+          _errorCodeFrom(map['error']) ??
+          _errorCodeFrom(nestedMap['code']) ??
+          _errorCodeFrom(nestedMap['errorCode']) ??
+          _errorCodeFrom(nestedMap['error']);
     }
     return MenuApiException(
       message ?? exception.message ?? 'Menu API error',

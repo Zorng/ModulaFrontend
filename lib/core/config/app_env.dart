@@ -42,6 +42,9 @@ class AppEnv {
   static const _branchRepositoryModeDefine = String.fromEnvironment(
     'BRANCH_REPOSITORY_MODE',
   );
+  static const _inventoryRepositoryModeDefine = String.fromEnvironment(
+    'INVENTORY_REPOSITORY_MODE',
+  );
 
   static String get apiBaseUrl => _readString(
     primary: _apiBaseUrlDefine,
@@ -152,6 +155,15 @@ class AppEnv {
     final mode = _readString(
       primary: _branchRepositoryModeDefine,
       dotenvKey: 'BRANCH_REPOSITORY_MODE',
+      defaultValue: 'api',
+    );
+    return mode.trim().toLowerCase() == 'mock';
+  }
+
+  static bool get useMockInventoryRepository {
+    final mode = _readString(
+      primary: _inventoryRepositoryModeDefine,
+      dotenvKey: 'INVENTORY_REPOSITORY_MODE',
       defaultValue: 'api',
     );
     return mode.trim().toLowerCase() == 'mock';

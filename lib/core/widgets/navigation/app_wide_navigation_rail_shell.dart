@@ -11,6 +11,8 @@ import 'package:modular_pos/features/auth/domain/models/auth_session.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
 import 'package:modular_pos/features/auth/domain/workspace_context_provider.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
+import 'package:modular_pos/features/branchV2/domain/models/branch_models.dart';
+import 'package:modular_pos/features/branchV2/ui/viewmodels/branch_controller.dart';
 import 'package:modular_pos/core/widgets/navigation/workspace_nav_config.dart';
 
 class AppScaffoldShell extends ConsumerWidget {
@@ -34,11 +36,21 @@ class AppScaffoldShell extends ConsumerWidget {
         final role = resolveSessionAuthRole(session);
         final workspaceContext = ref.watch(workspaceContextProvider);
         final tenantName = _resolveTenantName(session);
+        final activeBranchId = ref.watch(activeBranchContextIdProvider);
+        final activeBranchNameOverride = ref.watch(
+          authActiveBranchNameOverrideProvider,
+        );
+        final knownBranches = ref.watch(
+          branchControllerProvider.select((state) => state.branches),
+        );
         final branchName = workspaceContext?.isGlobal == true
             ? 'Global Management'
             : _resolveBranchName(
                 ref.watch(authActiveBranchProvider),
                 session?.user.branches ?? const <UserBranch>[],
+                activeBranchId: activeBranchId,
+                activeBranchNameOverride: activeBranchNameOverride,
+                knownBranches: knownBranches,
               );
         final tenantInitial = tenantName.isNotEmpty
             ? tenantName.characters.first.toUpperCase()
@@ -63,6 +75,8 @@ class AppScaffoldShell extends ConsumerWidget {
                         tenantName: tenantName,
                         branchName: branchName,
                         tenantInitial: tenantInitial,
+                        onBackPressed: () =>
+                            context.go(AppRoute.branchSelection.path),
                       ),
                       const SizedBox(height: 16),
                       for (final section in sections) ...[
@@ -115,14 +129,43 @@ String _resolveTenantName(AuthSession? session) {
   return 'Tenant name';
 }
 
-String _resolveBranchName(UserBranch? active, List<UserBranch> branches) {
-  final branch =
-      active ??
-      (branches.isNotEmpty
-          ? branches.first
-          : const UserBranch(id: '', name: '', role: '', active: false));
-  if (branch.name.isNotEmpty) return branch.name;
-  return 'Branch name';
+String _resolveBranchName(
+  UserBranch? active,
+  List<UserBranch> branches, {
+  required String? activeBranchId,
+  required String? activeBranchNameOverride,
+  required List<BranchListItem> knownBranches,
+}) {
+  final overriddenName = (activeBranchNameOverride ?? '').trim();
+  if (overriddenName.isNotEmpty) return overriddenName;
+
+  final activeName = active?.name.trim() ?? '';
+  if (activeName.isNotEmpty) return activeName;
+
+  final normalizedActiveId = (activeBranchId ?? '').trim();
+  if (normalizedActiveId.isNotEmpty) {
+    for (final branch in knownBranches) {
+      if (branch.branchId == normalizedActiveId &&
+          branch.branchName.trim().isNotEmpty) {
+        return branch.branchName.trim();
+      }
+    }
+
+    for (final branch in branches) {
+      final matchesId =
+          branch.branchId.trim() == normalizedActiveId ||
+          branch.id.trim() == normalizedActiveId;
+      if (matchesId && branch.name.trim().isNotEmpty) {
+        return branch.name.trim();
+      }
+    }
+  }
+
+  for (final branch in branches) {
+    if (branch.name.trim().isNotEmpty) return branch.name.trim();
+  }
+
+  return 'Branch';
 }
 
 class _RailHeader extends ConsumerWidget {
@@ -130,11 +173,13 @@ class _RailHeader extends ConsumerWidget {
     required this.tenantName,
     required this.branchName,
     required this.tenantInitial,
+    this.onBackPressed,
   });
 
   final String tenantName;
   final String branchName;
   final String tenantInitial;
+  final VoidCallback? onBackPressed;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -145,6 +190,7 @@ class _RailHeader extends ConsumerWidget {
           tenantName: tenantName,
           branchName: branchName,
           initial: tenantInitial,
+          onBackPressed: onBackPressed,
         ),
       ],
     );

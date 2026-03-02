@@ -98,7 +98,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             isAdminOrOwner &&
             workspaceContext?.scope == WorkspaceScope.global &&
             (isPortal || isGlobalWorkspaceFeaturePath);
-        if (canEnterGlobalWorkspace) {
+        final canEnterBranchWorkspace =
+            hasActiveBranchContext && (isPortal || isBranchWorkspaceFeaturePath);
+        if (canEnterGlobalWorkspace || canEnterBranchWorkspace) {
           // Admin/owner can continue to tenant-level global workspace
           // without branch selection.
         } else {
@@ -112,14 +114,23 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           isPortal ||
           isGlobalWorkspaceFeaturePath ||
           isBranchWorkspaceFeaturePath;
+      final canRecoverWorkspaceFromContext =
+          (isGlobalWorkspaceFeaturePath && isAdminOrOwner) ||
+          (isBranchWorkspaceFeaturePath &&
+              (hasActiveBranchContext || !authState.requiresBranchSelection)) ||
+          (isPortal && (isAdminOrOwner || hasActiveBranchContext));
 
-      if (isWorkspaceManagedPath && !hasWorkspaceContext) {
+      if (isWorkspaceManagedPath &&
+          !hasWorkspaceContext &&
+          !canRecoverWorkspaceFromContext) {
         return buildBranchSelectionRedirect();
       }
 
       String homeForRole() {
         final context = workspaceContext;
         if (context == null) {
+          if (isAdminOrOwner) return AppRoute.adminMenu.path;
+          if (hasActiveBranchContext) return AppRoute.sale.path;
           return AppRoute.branchSelection.path;
         }
         if (context.scope == WorkspaceScope.global) {
@@ -153,13 +164,21 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       if (isGlobalWorkspaceFeaturePath) {
         if (!isAdminOrOwner) return '/404';
-        if (workspaceContext?.scope != WorkspaceScope.global) return '/404';
+        if (workspaceContext != null &&
+            workspaceContext.scope != WorkspaceScope.global) {
+          return '/404';
+        }
       }
 
       if (isBranchWorkspaceFeaturePath) {
         final branchGuardRedirect = guardBranchWorkspaceAccess(
           workspaceContext: workspaceContext,
           activeBranchId: hasActiveBranchContext ? activeBranchId : null,
+          allowWithoutWorkspaceContext: true,
+          requireActiveBranchId:
+              hasActiveBranchContext ||
+              hasWorkspaceContext ||
+              authState.requiresBranchSelection,
         );
         if (branchGuardRedirect != null) return branchGuardRedirect;
       }

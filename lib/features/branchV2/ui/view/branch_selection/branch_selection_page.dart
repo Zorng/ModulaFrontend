@@ -31,6 +31,7 @@ class _BranchSelectionPageState extends ConsumerState<BranchSelectionPage> {
       if (!mounted) return;
       ref.read(workspaceContextProvider.notifier).clear();
       ref.read(authActiveBranchOverrideProvider.notifier).clear();
+      ref.read(authActiveBranchNameOverrideProvider.notifier).clear();
     });
 
     _branchSubscription = ref.listenManual<BranchState>(

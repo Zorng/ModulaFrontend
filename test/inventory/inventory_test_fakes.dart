@@ -1,13 +1,13 @@
-import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:modular_pos/features/auth/domain/models/auth_session.dart';
 import 'package:modular_pos/features/auth/domain/models/tenant_membership.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
-import 'package:modular_pos/features/inventory/data/inventory_api.dart';
+import 'package:modular_pos/features/inventory/data/branch_stock_repository.dart';
 import 'package:modular_pos/features/inventory/data/stock_item_repository.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_category.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_journal_entry.dart';
+import 'package:modular_pos/features/inventory/domain/models/on_hand_record.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_batch.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/category_controller.dart';
@@ -213,14 +213,74 @@ class FakeInventoryJournalController extends InventoryJournalController {
 }
 
 class FakeStockItemRepository extends StockItemRepository {
-  FakeStockItemRepository(this._items) : super(InventoryApi(Dio()));
+  FakeStockItemRepository(this._items);
 
   final List<StockItem> _items;
 
   @override
   Future<List<StockItem>> fetchMasterStockItems({int pageSize = 200}) async {
-    return _items;
+    return _items.take(pageSize).toList(growable: false);
   }
+
+  @override
+  Future<StockItem> createStockItem(
+    StockItem item, {
+    String? imagePath,
+    List<int>? imageBytes,
+  }) async {
+    return item;
+  }
+
+  @override
+  Future<StockItem> updateStockItem(
+    StockItem item, {
+    String? imagePath,
+    List<int>? imageBytes,
+  }) async {
+    return item;
+  }
+
+  @override
+  Future<void> deleteStockItem(String id) async {}
+}
+
+class FakeBranchStockRepository extends BranchStockRepository {
+  FakeBranchStockRepository(this._items);
+
+  final List<StockItem> _items;
+
+  @override
+  Future<List<OnHandRecord>> fetchOnHand({String? branchId}) async {
+    return _items
+        .where(
+          (item) =>
+              branchId == null || branchId.isEmpty || item.branchId == branchId,
+        )
+        .map(
+          (item) => OnHandRecord(
+            stockItemId: item.id,
+            branchId: item.branchId,
+            onHand: item.onHand,
+            minThreshold: item.minThreshold,
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  @override
+  Future<List<StockItem>> fetchStockItems({String? branchId}) async {
+    if (branchId == null || branchId.isEmpty) return _items;
+    return _items
+        .where((item) => item.branchId == branchId)
+        .toList(growable: false);
+  }
+
+  @override
+  Future<void> assignToBranch({
+    required String stockItemId,
+    required String branchId,
+    required int minThreshold,
+  }) async {}
 }
 
 List<Override> inventoryOverrides({
@@ -229,12 +289,11 @@ List<Override> inventoryOverrides({
   StockInventoryState? stockInventoryState,
   List<InventoryJournalEntry>? journalEntries,
   StockItemRepository? stockItemRepository,
+  BranchStockRepository? branchStockRepository,
 }) {
   return [
     loginControllerProvider.overrideWith(
-      () => FakeLoginController(
-        loginState ?? LoginState(session: testSession),
-      ),
+      () => FakeLoginController(loginState ?? LoginState(session: testSession)),
     ),
     categoryControllerProvider.overrideWith(
       () => FakeCategoryController(
@@ -248,11 +307,12 @@ List<Override> inventoryOverrides({
       ),
     ),
     inventoryJournalControllerProvider.overrideWith(
-      () => FakeInventoryJournalController(
-        journalEntries ?? testJournalEntries,
-      ),
+      () =>
+          FakeInventoryJournalController(journalEntries ?? testJournalEntries),
     ),
     if (stockItemRepository != null)
       stockItemRepositoryProvider.overrideWithValue(stockItemRepository),
+    if (branchStockRepository != null)
+      branchStockRepositoryProvider.overrideWithValue(branchStockRepository),
   ];
 }

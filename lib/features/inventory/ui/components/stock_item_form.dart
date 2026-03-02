@@ -8,7 +8,7 @@ import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/core/theme/app_theme.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
-import 'package:modular_pos/features/inventory/data/stock_item_repository.dart';
+import 'package:modular_pos/features/inventory/data/branch_stock_repository.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_category.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
 import 'package:modular_pos/features/inventory/ui/components/branch_assignment.dart';
@@ -369,9 +369,7 @@ class _StockItemFormPageState extends ConsumerState<StockItemFormPage> {
           maxLength: 20,
           enabled: isEditing,
           readOnly: !isEditing,
-          decoration: const InputDecoration(
-            hintText: 'e.g., Milk 1000ml',
-          ),
+          decoration: const InputDecoration(hintText: 'e.g., Milk 1000ml'),
           validator: isEditing
               ? (value) =>
                     value == null || value.trim().isEmpty ? 'Required' : null
@@ -393,10 +391,8 @@ class _StockItemFormPageState extends ConsumerState<StockItemFormPage> {
                 label: 'Uncategorized',
               ),
               ...categoryOptions.map(
-                (category) => DropdownMenuEntry(
-                  value: category.id,
-                  label: category.name,
-                ),
+                (category) =>
+                    DropdownMenuEntry(value: category.id, label: category.name),
               ),
             ],
             onSelected: isEditing
@@ -701,7 +697,7 @@ class _StockItemFormPageState extends ConsumerState<StockItemFormPage> {
         imageBytes: _selectedImageBytes,
       );
 
-      final repo = ref.read(stockItemRepositoryProvider);
+      final repo = ref.read(branchStockRepositoryProvider);
       for (final assignment in _branchAssignments) {
         final branchId = assignment.branchId;
         if (branchId == null || branchId.isEmpty) continue;
@@ -743,7 +739,7 @@ class _StockItemFormPageState extends ConsumerState<StockItemFormPage> {
         imagePath: kIsWeb ? null : _selectedImagePath,
         imageBytes: _selectedImageBytes,
       );
-      final repo = ref.read(stockItemRepositoryProvider);
+      final repo = ref.read(branchStockRepositoryProvider);
       for (final assignment in _branchAssignments) {
         final branchId = assignment.branchId;
         if (branchId == null || branchId.isEmpty) continue;

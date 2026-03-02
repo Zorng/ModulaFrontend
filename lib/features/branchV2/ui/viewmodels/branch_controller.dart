@@ -84,6 +84,18 @@ class BranchController extends Notifier<BranchState> {
 
   Future<void> onBranchTileTap({required String branchId}) async {
     final normalizedBranchId = branchId.trim();
+    final selectedBranchName = state.branches
+        .firstWhere(
+          (branch) => branch.branchId == normalizedBranchId,
+          orElse: () => const BranchListItem(
+            branchId: '',
+            tenantId: '',
+            branchName: '',
+            status: '',
+          ),
+        )
+        .branchName
+        .trim();
     if (normalizedBranchId.isEmpty) {
       state = state.copyWith(
         error: 'Branch ID is required.',
@@ -134,6 +146,9 @@ class BranchController extends Notifier<BranchState> {
       ref
           .read(authActiveBranchOverrideProvider.notifier)
           .setOverride(resolvedBranchId);
+      ref
+          .read(authActiveBranchNameOverrideProvider.notifier)
+          .setName(selectedBranchName);
       ref
           .read(workspaceContextProvider.notifier)
           .setFromBranchSelection(

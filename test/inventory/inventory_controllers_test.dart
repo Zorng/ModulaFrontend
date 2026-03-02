@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:modular_pos/features/inventory/data/branch_stock_repository.dart';
 import 'package:modular_pos/features/inventory/data/inventory_category_repository.dart';
 import 'package:modular_pos/features/inventory/data/inventory_journal_repository.dart';
 import 'package:modular_pos/features/inventory/data/stock_item_repository.dart';
@@ -22,7 +23,11 @@ class _MockCategoryRepository extends Mock
 
 class _MockStockItemRepository extends Mock implements StockItemRepository {}
 
-class _MockJournalRepository extends Mock implements InventoryJournalRepository {}
+class _MockBranchStockRepository extends Mock
+    implements BranchStockRepository {}
+
+class _MockJournalRepository extends Mock
+    implements InventoryJournalRepository {}
 
 class _SpyStockInventoryController extends StockInventoryController {
   bool loadCalled = false;
@@ -55,9 +60,7 @@ void main() {
     );
 
     final container = createTestContainer(
-      overrides: [
-        inventoryCategoryRepositoryProvider.overrideWithValue(repo),
-      ],
+      overrides: [inventoryCategoryRepositoryProvider.overrideWithValue(repo)],
     );
 
     final notifier = container.read(categoryControllerProvider.notifier);
@@ -69,101 +72,115 @@ void main() {
     expect(state.categories, hasLength(1));
   });
 
-  test('CategoryController.updateCategory triggers inventory refresh', () async {
-    final repo = _MockCategoryRepository();
-    final spy = _SpyStockInventoryController();
-    const category = InventoryCategory(
-      id: 'cat-1',
-      name: 'Beverages',
-      isActive: true,
-    );
-    const updated = InventoryCategory(
-      id: 'cat-1',
-      name: 'Beverages',
-      isActive: false,
-    );
+  test(
+    'CategoryController.updateCategory triggers inventory refresh',
+    () async {
+      final repo = _MockCategoryRepository();
+      final spy = _SpyStockInventoryController();
+      const category = InventoryCategory(
+        id: 'cat-1',
+        name: 'Beverages',
+        isActive: true,
+      );
+      const updated = InventoryCategory(
+        id: 'cat-1',
+        name: 'Beverages',
+        isActive: false,
+      );
 
-    when(() => repo.updateCategory(any())).thenAnswer((_) async => updated);
+      when(() => repo.updateCategory(any())).thenAnswer((_) async => updated);
 
-    final container = createTestContainer(
-      overrides: [
-        inventoryCategoryRepositoryProvider.overrideWithValue(repo),
-        stockInventoryControllerProvider.overrideWith(() => spy),
-      ],
-    );
+      final container = createTestContainer(
+        overrides: [
+          inventoryCategoryRepositoryProvider.overrideWithValue(repo),
+          stockInventoryControllerProvider.overrideWith(() => spy),
+        ],
+      );
 
-    final notifier = container.read(categoryControllerProvider.notifier);
-    notifier.state = const CategoryState(categories: [category]);
-    await notifier.updateCategory(updated);
+      final notifier = container.read(categoryControllerProvider.notifier);
+      notifier.state = const CategoryState(categories: [category]);
+      await notifier.updateCategory(updated);
 
-    final state = container.read(categoryControllerProvider);
-    expect(state.categories.first.isActive, isFalse);
-    expect(spy.loadCalled, isTrue);
-  });
+      final state = container.read(categoryControllerProvider);
+      expect(state.categories.first.isActive, isFalse);
+      expect(spy.loadCalled, isTrue);
+    },
+  );
 
-  test('StockInventoryController.loadStockItems maps category labels', () async {
-    final stockRepo = _MockStockItemRepository();
-    final journalRepo = _MockJournalRepository();
+  test(
+    'StockInventoryController.loadStockItems maps category labels',
+    () async {
+      final stockRepo = _MockStockItemRepository();
+      final branchStockRepo = _MockBranchStockRepository();
+      final journalRepo = _MockJournalRepository();
 
-    when(() => stockRepo.fetchStockItems(branchId: any(named: 'branchId')))
-        .thenAnswer(
-      (_) async => const [
-        StockItem(
-          id: 'item-1',
-          name: 'Iced Coffee',
-          category: '',
-          categoryId: 'cat-1',
-          baseUnit: 'ml',
-          pieceSize: 1,
-          branchId: 'branch-1',
-          branchName: '',
-          onHand: 10,
-          minThreshold: 2,
-          isActive: true,
-        ),
-      ],
-    );
-    when(() => stockRepo.fetchOnHand(branchId: any(named: 'branchId')))
-        .thenAnswer((_) async => const []);
+      when(
+        () => branchStockRepo.fetchStockItems(branchId: any(named: 'branchId')),
+      ).thenAnswer(
+        (_) async => const [
+          StockItem(
+            id: 'item-1',
+            name: 'Iced Coffee',
+            category: '',
+            categoryId: 'cat-1',
+            baseUnit: 'ml',
+            pieceSize: 1,
+            branchId: 'branch-1',
+            branchName: '',
+            onHand: 10,
+            minThreshold: 2,
+            isActive: true,
+          ),
+        ],
+      );
+      when(
+        () => branchStockRepo.fetchOnHand(branchId: any(named: 'branchId')),
+      ).thenAnswer((_) async => const []);
 
-    final container = createTestContainer(
-      overrides: [
-        stockItemRepositoryProvider.overrideWithValue(stockRepo),
-        inventoryJournalRepositoryProvider.overrideWithValue(journalRepo),
-        loginControllerProvider.overrideWith(
-          () => FakeLoginController(LoginState(session: testSession)),
-        ),
-        categoryControllerProvider.overrideWith(
-          () => FakeCategoryController(
-            const CategoryState(
-              categories: [
-                InventoryCategory(
-                  id: 'cat-1',
-                  name: 'Beverages',
-                  isActive: true,
-                ),
-              ],
+      final container = createTestContainer(
+        overrides: [
+          stockItemRepositoryProvider.overrideWithValue(stockRepo),
+          branchStockRepositoryProvider.overrideWithValue(branchStockRepo),
+          inventoryJournalRepositoryProvider.overrideWithValue(journalRepo),
+          loginControllerProvider.overrideWith(
+            () => FakeLoginController(LoginState(session: testSession)),
+          ),
+          categoryControllerProvider.overrideWith(
+            () => FakeCategoryController(
+              const CategoryState(
+                categories: [
+                  InventoryCategory(
+                    id: 'cat-1',
+                    name: 'Beverages',
+                    isActive: true,
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
-      ],
-    );
+        ],
+      );
 
-    final notifier = container.read(stockInventoryControllerProvider.notifier);
-    await notifier.loadStockItems(branchId: 'branch-1');
+      final notifier = container.read(
+        stockInventoryControllerProvider.notifier,
+      );
+      await notifier.loadStockItems(branchId: 'branch-1');
 
-    final state = container.read(stockInventoryControllerProvider);
-    expect(state.isLoading, isFalse);
-    expect(state.items.first.category, 'Beverages');
-  });
+      final state = container.read(stockInventoryControllerProvider);
+      expect(state.isLoading, isFalse);
+      expect(state.items.first.category, 'Beverages');
+    },
+  );
 
   test('StockInventoryController.adjustBatch throws when negative', () async {
     final stockRepo = _MockStockItemRepository();
+    final branchStockRepo = _MockBranchStockRepository();
     final journalRepo = _MockJournalRepository();
 
     final container = createTestContainer(
       overrides: [
         stockItemRepositoryProvider.overrideWithValue(stockRepo),
+        branchStockRepositoryProvider.overrideWithValue(branchStockRepo),
         inventoryJournalRepositoryProvider.overrideWithValue(journalRepo),
       ],
     );
@@ -205,10 +222,12 @@ void main() {
     final journalRepo = _MockInventoryJournalRepository();
     final stockRepo = _MockStockItemRepository();
 
-    when(() => journalRepo.fetch(
-          branchId: any(named: 'branchId'),
-          stockItemId: any(named: 'stockItemId'),
-        )).thenAnswer(
+    when(
+      () => journalRepo.fetch(
+        branchId: any(named: 'branchId'),
+        stockItemId: any(named: 'stockItemId'),
+      ),
+    ).thenAnswer(
       (_) async => [
         InventoryJournalEntry(
           id: 'entry-1',
@@ -225,8 +244,9 @@ void main() {
         ),
       ],
     );
-    when(() => stockRepo.fetchMasterStockItems(pageSize: any(named: 'pageSize')))
-        .thenAnswer(
+    when(
+      () => stockRepo.fetchMasterStockItems(pageSize: any(named: 'pageSize')),
+    ).thenAnswer(
       (_) async => const [
         StockItem(
           id: 'item-1',
@@ -253,8 +273,9 @@ void main() {
       ],
     );
 
-    final notifier =
-        container.read(inventoryJournalControllerProvider.notifier);
+    final notifier = container.read(
+      inventoryJournalControllerProvider.notifier,
+    );
     await notifier.load();
 
     final state = container.read(inventoryJournalControllerProvider);

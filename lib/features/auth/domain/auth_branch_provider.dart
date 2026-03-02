@@ -13,6 +13,11 @@ final authActiveBranchOverrideProvider =
       AuthActiveBranchOverrideNotifier.new,
     );
 
+final authActiveBranchNameOverrideProvider =
+    NotifierProvider<AuthActiveBranchNameOverrideNotifier, String?>(
+      AuthActiveBranchNameOverrideNotifier.new,
+    );
+
 class AuthActiveBranchOverrideNotifier extends Notifier<String?> {
   @override
   String? build() => null;
@@ -22,6 +27,18 @@ class AuthActiveBranchOverrideNotifier extends Notifier<String?> {
     // once a workspace context exists.
     if (ref.read(workspaceContextProvider) != null) return;
     final trimmed = (branchId ?? '').trim();
+    state = trimmed.isEmpty ? null : trimmed;
+  }
+
+  void clear() => state = null;
+}
+
+class AuthActiveBranchNameOverrideNotifier extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  void setName(String? branchName) {
+    final trimmed = (branchName ?? '').trim();
     state = trimmed.isEmpty ? null : trimmed;
   }
 

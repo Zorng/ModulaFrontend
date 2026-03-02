@@ -265,6 +265,7 @@ class LoginController extends Notifier<LoginState> {
       }
       // Prevent stale branch-local marker from previous tenant context.
       ref.read(authActiveBranchOverrideProvider.notifier).clear();
+      ref.read(authActiveBranchNameOverrideProvider.notifier).clear();
 
       try {
         final branchResolution = await _resolveBranchContextState(
@@ -444,6 +445,8 @@ class LoginController extends Notifier<LoginState> {
       AppLog.e('Logout failed', error: e, stackTrace: st);
     }
     await _sessionStore.clear();
+    ref.read(authActiveBranchOverrideProvider.notifier).clear();
+    ref.read(authActiveBranchNameOverrideProvider.notifier).clear();
     state = const LoginState();
   }
 

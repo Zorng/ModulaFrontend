@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
+import 'package:modular_pos/features/inventory/data/branch_stock_repository.dart';
 import 'package:modular_pos/features/inventory/data/stock_item_repository.dart';
 import 'package:modular_pos/features/inventory/data/inventory_journal_repository.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_batch.dart';
@@ -15,11 +16,13 @@ final stockInventoryControllerProvider =
 
 class StockInventoryController extends Notifier<StockInventoryState> {
   late final StockItemRepository _repository;
+  late final BranchStockRepository _branchStockRepository;
   late final InventoryJournalRepository _journalRepository;
 
   @override
   StockInventoryState build() {
     _repository = ref.read(stockItemRepositoryProvider);
+    _branchStockRepository = ref.read(branchStockRepositoryProvider);
     _journalRepository = ref.read(inventoryJournalRepositoryProvider);
     return const StockInventoryState();
   }
@@ -289,16 +292,18 @@ class StockInventoryController extends Notifier<StockInventoryState> {
   Future<List<OnHandRecord>> _fetchOnHand({String? branchId}) async {
     // If a specific branch is selected, fetch on-hand once.
     if (branchId != null && branchId.isNotEmpty && branchId != 'all') {
-      final data = await _repository.fetchOnHand(branchId: branchId);
+      final data = await _branchStockRepository.fetchOnHand(branchId: branchId);
       return data
-          .map((record) => record.branchId.isEmpty
-              ? OnHandRecord(
-                  stockItemId: record.stockItemId,
-                  branchId: branchId,
-                  onHand: record.onHand,
-                  minThreshold: record.minThreshold,
-                )
-              : record)
+          .map(
+            (record) => record.branchId.isEmpty
+                ? OnHandRecord(
+                    stockItemId: record.stockItemId,
+                    branchId: branchId,
+                    onHand: record.onHand,
+                    minThreshold: record.minThreshold,
+                  )
+                : record,
+          )
           .where((record) => record.branchId == branchId)
           .toList(growable: false);
     }
@@ -309,7 +314,7 @@ class StockInventoryController extends Notifier<StockInventoryState> {
     final aggregated = <String, OnHandRecord>{};
     for (final branch in branches) {
       final id = branch.branchId.isNotEmpty ? branch.branchId : branch.id;
-      final data = await _repository.fetchOnHand(branchId: id);
+      final data = await _branchStockRepository.fetchOnHand(branchId: id);
       for (final record in data) {
         if (record.stockItemId.isEmpty) continue;
         final key = '${record.stockItemId}|$id';
@@ -329,19 +334,19 @@ class StockInventoryController extends Notifier<StockInventoryState> {
   Future<List<StockItem>> _fetchItems({String? branchId}) async {
     // If a specific branch is selected, fetch only that branch.
     if (branchId != null && branchId.isNotEmpty && branchId != 'all') {
-      return _repository.fetchStockItems(branchId: branchId);
+      return _branchStockRepository.fetchStockItems(branchId: branchId);
     }
 
     final branches =
         ref.read(loginControllerProvider).user?.branches ?? const [];
     if (branches.isEmpty) {
-      return _repository.fetchStockItems();
+      return _branchStockRepository.fetchStockItems();
     }
 
     final results = <StockItem>[];
     for (final branch in branches) {
       final id = branch.branchId.isNotEmpty ? branch.branchId : branch.id;
-      final items = await _repository.fetchStockItems(branchId: id);
+      final items = await _branchStockRepository.fetchStockItems(branchId: id);
       results.addAll(items);
     }
 
