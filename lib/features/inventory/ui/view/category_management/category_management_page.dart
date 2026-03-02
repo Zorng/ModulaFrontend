@@ -35,9 +35,7 @@ class _CategoryManagementPageState
   Widget build(BuildContext context) {
     final state = ref.watch(categoryControllerProvider);
     final stockItems = ref.watch(stockInventoryControllerProvider).items;
-    final isWide = !AppBreakpoints.isSmall(
-      MediaQuery.of(context).size.width,
-    );
+    final isWide = !AppBreakpoints.isSmall(MediaQuery.of(context).size.width);
     final query = _searchController.text.trim().toLowerCase();
     final categories = state.categories.where((category) {
       if (query.isEmpty) return true;
@@ -45,8 +43,10 @@ class _CategoryManagementPageState
     }).toList()..sort((a, b) => a.name.compareTo(b.name));
     final itemCountByCategory = <String, int>{};
     for (final item in stockItems) {
+      final categoryId = item.categoryId;
+      if (categoryId == null || categoryId.isEmpty) continue;
       itemCountByCategory.update(
-        item.category,
+        categoryId,
         (value) => value + 1,
         ifAbsent: () => 1,
       );
@@ -64,7 +64,7 @@ class _CategoryManagementPageState
               onSearchChanged: (_) => setState(() {}),
               onAddPressed: () =>
                   _openCreateCategory(context, useDialog: isWide),
-              addButtonLabel: 'Add new'
+              addButtonLabel: 'Add new',
             ),
             const SizedBox(height: 16),
             Expanded(
@@ -109,7 +109,7 @@ class _CategoryManagementPageState
                               itemBuilder: (context, index) {
                                 final category = categories[index];
                                 final stockCount =
-                                    itemCountByCategory[category.name] ?? 0;
+                                    itemCountByCategory[category.id] ?? 0;
                                 return InventoryCategoryTile(
                                   category: category,
                                   itemCount: stockCount,
@@ -194,10 +194,8 @@ class _CategoryManagementPageState
                                         final category = categories[index];
                                         final isActive = category.isActive;
                                         final stockCount =
-                                            itemCountByCategory[
-                                                  category.name
-                                                ] ??
-                                                0;
+                                            itemCountByCategory[category.id] ??
+                                            0;
                                         return DataRow(
                                           cells: [
                                             DataCell(
@@ -215,7 +213,8 @@ class _CategoryManagementPageState
                                                 children: [
                                                   Text(
                                                     category.name,
-                                                    style: AppTableTheme.cellText
+                                                    style: AppTableTheme
+                                                        .cellText
                                                         .copyWith(
                                                           fontWeight:
                                                               FontWeight.w600,
@@ -223,7 +222,8 @@ class _CategoryManagementPageState
                                                   ),
                                                   if (category.description !=
                                                           null &&
-                                                      category.description!
+                                                      category
+                                                          .description!
                                                           .isNotEmpty)
                                                     Text(
                                                       category.description!,
@@ -257,18 +257,18 @@ class _CategoryManagementPageState
                                                     ),
                                                 decoration: isActive
                                                     ? AppTableTheme
-                                                        .healthyDecoration
+                                                          .healthyDecoration
                                                     : AppTableTheme
-                                                        .dangerDecoration,
+                                                          .dangerDecoration,
                                                 child: Text(
                                                   isActive
                                                       ? 'Active'
                                                       : 'Inactive',
                                                   style: isActive
                                                       ? AppTableTheme
-                                                          .healthyText
+                                                            .healthyText
                                                       : AppTableTheme
-                                                          .dangerText,
+                                                            .dangerText,
                                                 ),
                                               ),
                                             ),

@@ -1,0 +1,30 @@
+{
+  "success": true,
+  "data": [
+    {
+      "id": "item-1",
+      "tenantId": "tenant-1",
+      "categoryId": "cat-1",
+      "name": "Whole Milk",
+      "baseUnit": "ml",
+      "image": {
+        "url": " https://cdn.example.com/inventory/item-1.jpg "
+      },
+      "lowStockThreshold": 1000,
+      "status": "ACTIVE",
+      "createdAt": "2026-02-20T00:00:00.000Z",
+      "updatedAt": "2026-02-21T00:00:00.000Z"
+    },
+    {
+      "stock_item_id": "item-2",
+      "tenant_id": "tenant-1",
+      "category_id": null,
+      "name": "Raw Sugar",
+      "unitText": "g",
+      "threshold": "500",
+      "isActive": 0,
+      "createdAt": "2026-02-20T00:00:00.000Z",
+      "updatedAt": "2026-02-21T00:00:00.000Z"
+    }
+  ]
+}

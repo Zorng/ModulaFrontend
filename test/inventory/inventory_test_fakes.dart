@@ -61,7 +61,6 @@ final testStockItems = <StockItem>[
   const StockItem(
     id: 'item-1',
     name: 'Iced Coffee',
-    category: 'Beverages',
     categoryId: 'cat-1',
     baseUnit: 'ml',
     pieceSize: 1,
@@ -70,15 +69,10 @@ final testStockItems = <StockItem>[
     onHand: 12,
     minThreshold: 3,
     isActive: true,
-    barcode: '123',
-    lastRestockDate: '2025-12-20',
-    expiryDate: '2026-01-20',
-    usageTags: ['Ingredient'],
   ),
   const StockItem(
     id: 'item-2',
     name: 'Croissant',
-    category: 'Bakery',
     categoryId: 'cat-2',
     baseUnit: 'pcs',
     pieceSize: 1,
@@ -87,9 +81,6 @@ final testStockItems = <StockItem>[
     onHand: 0,
     minThreshold: 5,
     isActive: false,
-    lastRestockDate: '2025-12-18',
-    expiryDate: '2025-12-25',
-    usageTags: ['Sellable'],
   ),
 ];
 
@@ -137,7 +128,7 @@ class FakeCategoryController extends CategoryController {
   CategoryState build() => _state;
 
   @override
-  Future<void> loadCategories() async {}
+  Future<void> loadCategories({String status = 'all'}) async {}
 
   @override
   Future<void> addCategory(

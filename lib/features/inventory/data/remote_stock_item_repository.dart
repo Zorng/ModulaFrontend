@@ -16,7 +16,11 @@ class RemoteStockItemRepository extends StockItemRepository {
 
   @override
   Future<List<StockItem>> fetchMasterStockItems({int pageSize = 200}) async {
-    final masterDtos = await _api.fetchStockItems(pageSize: pageSize);
+    final masterDtos = await _api.fetchStockItems(
+      status: 'all',
+      limit: pageSize,
+      offset: 0,
+    );
     return masterDtos
         .map(
           (dto) => _toStockItem(
@@ -42,8 +46,6 @@ class RemoteStockItemRepository extends StockItemRepository {
       'pieceSize': item.pieceSize,
       if (item.categoryId != null && item.categoryId!.isNotEmpty)
         'categoryId': item.categoryId,
-      if (item.barcode != null && item.barcode!.isNotEmpty)
-        'barcode': item.barcode,
       'isActive': item.isActive,
     };
     final dto = await _api.createStockItem(
@@ -73,8 +75,6 @@ class RemoteStockItemRepository extends StockItemRepository {
       'isActive': item.isActive,
       if (item.categoryId != null && item.categoryId!.isNotEmpty)
         'categoryId': item.categoryId,
-      if (item.barcode != null && item.barcode!.isNotEmpty)
-        'barcode': item.barcode,
     };
     final dto = await _api.updateStockItem(
       item.id,
@@ -105,7 +105,6 @@ StockItem _toStockItem({
   return StockItem(
     id: dto.id,
     name: dto.name,
-    category: '',
     categoryId: dto.categoryId,
     baseUnit: dto.baseUnit,
     pieceSize: 1,
@@ -114,10 +113,6 @@ StockItem _toStockItem({
     onHand: onHand,
     minThreshold: minThreshold,
     isActive: dto.isActive,
-    barcode: null,
     imageUrl: dto.imageUrl,
-    lastRestockDate: '',
-    expiryDate: '',
-    usageTags: const [],
   );
 }

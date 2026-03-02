@@ -1,0 +1,32 @@
+{
+  "success": true,
+  "data": [
+    {
+      "id": "je-1",
+      "tenantId": "tenant-1",
+      "branchId": "branch-1",
+      "stockItemId": "item-1",
+      "stockItemName": "Whole Milk",
+      "direction": "OUT",
+      "quantityInBaseUnit": 250,
+      "reasonCode": "SALE_DEDUCTION",
+      "sourceType": "SALE_ORDER",
+      "sourceId": "sale-1",
+      "idempotencyKey": "idem-1",
+      "occurredAt": "2026-02-21T10:00:00.000Z",
+      "actorAccountId": "acct-1",
+      "note": "POS sale deduction",
+      "createdAt": "2026-02-21T10:00:01.000Z"
+    },
+    {
+      "id": "je-2",
+      "branchId": "branch-1",
+      "itemId": "item-2",
+      "itemName": "Raw Sugar",
+      "reason": "restock",
+      "qty": 500,
+      "createdBy": "Alex",
+      "createdAt": "2026-02-21T11:00:00.000Z"
+    }
+  ]
+}

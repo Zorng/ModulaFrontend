@@ -121,7 +121,6 @@ void main() {
           StockItem(
             id: 'item-1',
             name: 'Iced Coffee',
-            category: '',
             categoryId: 'cat-1',
             baseUnit: 'ml',
             pieceSize: 1,
@@ -168,7 +167,7 @@ void main() {
 
       final state = container.read(stockInventoryControllerProvider);
       expect(state.isLoading, isFalse);
-      expect(state.items.first.category, 'Beverages');
+      expect(state.items.first.categoryId, 'cat-1');
     },
   );
 
@@ -191,7 +190,6 @@ void main() {
         StockItem(
           id: 'item-1',
           name: 'Iced Coffee',
-          category: 'Beverages',
           baseUnit: 'ml',
           pieceSize: 1,
           branchId: 'branch-1',
@@ -251,7 +249,6 @@ void main() {
         StockItem(
           id: 'item-1',
           name: 'Iced Coffee',
-          category: 'Beverages',
           baseUnit: 'ml',
           pieceSize: 1,
           branchId: '',

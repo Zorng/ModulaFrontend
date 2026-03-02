@@ -64,8 +64,7 @@ String? _readImageUrl(Map<String, dynamic> json) {
   final raw =
       json['imageUrl'] ??
       json['image_url'] ??
-      json['image'] ??
-      (json['image'] is Map ? (json['image'] as Map)['url'] : null);
+      (json['image'] is Map ? (json['image'] as Map)['url'] : json['image']);
   final trimmed = raw?.toString().trim();
   if (trimmed == null || trimmed.isEmpty) return null;
   return trimmed;

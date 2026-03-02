@@ -18,6 +18,7 @@ import 'package:modular_pos/core/widgets/media/product_image_picker.dart';
 import 'package:modular_pos/features/inventory/ui/view/stock_item_detail/stock_item_detail_utils.dart';
 import 'package:modular_pos/features/inventory/ui/view/stock_item_detail/widgets/stock_item_branch_assignment_section.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/category_controller.dart';
+import 'package:modular_pos/features/inventory/ui/viewmodels/inventory_error_mapper.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_controller.dart';
 
 enum StockItemFormMode { create, view, edit }
@@ -52,7 +53,6 @@ class _StockItemFormPageState extends ConsumerState<StockItemFormPage> {
   StockItemFormMode _mode = StockItemFormMode.create;
   StockItem? _originalItem;
   String? _categoryId;
-  String? _categoryLabel;
   String? _baseUnit;
   bool _isActive = true;
   final _selectedTypes = <String>{};
@@ -96,7 +96,6 @@ class _StockItemFormPageState extends ConsumerState<StockItemFormPage> {
     final categoryOptions = categoryState.categories;
     if (_mode == StockItemFormMode.create && categoryOptions.isEmpty) {
       _categoryId = null;
-      _categoryLabel = null;
     }
     final usageTags = _selectedTypes.isEmpty
         ? const <String>[]
@@ -401,7 +400,6 @@ class _StockItemFormPageState extends ConsumerState<StockItemFormPage> {
                     if (value == _uncategorizedValue) {
                       setState(() {
                         _categoryId = null;
-                        _categoryLabel = null;
                       });
                       return;
                     }
@@ -415,7 +413,6 @@ class _StockItemFormPageState extends ConsumerState<StockItemFormPage> {
                     );
                     setState(() {
                       _categoryId = selected.id;
-                      _categoryLabel = selected.name;
                     });
                   }
                 : null,
@@ -515,15 +512,14 @@ class _StockItemFormPageState extends ConsumerState<StockItemFormPage> {
       return;
     }
     _nameCtrl.text = item.name;
-    _barcodeCtrl.text = item.barcode ?? '';
+    _barcodeCtrl.text = '';
     _pieceSizeCtrl.text = item.pieceSize.toString();
     _categoryId = item.categoryId;
-    _categoryLabel = item.category;
     _baseUnit = item.baseUnit;
     _isActive = item.isActive;
     _selectedTypes
       ..clear()
-      ..addAll(item.usageTags);
+      ..add('Ingredient');
     _initBranchAssignments(item);
   }
 
@@ -665,112 +661,111 @@ class _StockItemFormPageState extends ConsumerState<StockItemFormPage> {
     }
 
     final pieceSize = int.tryParse(_pieceSizeCtrl.text.trim()) ?? 1;
-    final usageTags = _selectedTypes.isEmpty
-        ? <String>['Ingredient']
-        : _selectedTypes.toList();
-    final barcode = _barcodeCtrl.text.trim().isEmpty
-        ? null
-        : _barcodeCtrl.text.trim();
 
     final controller = ref.read(stockInventoryControllerProvider.notifier);
-    if (_mode == StockItemFormMode.create) {
-      final item = StockItem(
-        id: '',
-        name: _nameCtrl.text.trim(),
-        category: _categoryLabel ?? 'Uncategorized',
-        categoryId: _categoryId,
-        baseUnit: _baseUnit ?? 'pcs',
-        pieceSize: pieceSize <= 0 ? 1 : pieceSize,
-        branchId: '',
-        branchName: '',
-        onHand: 0,
-        minThreshold: 0,
-        isActive: true,
-        barcode: barcode,
-        lastRestockDate: '-',
-        expiryDate: '-',
-        usageTags: usageTags,
-      );
-      final created = await controller.addStockItem(
-        item,
-        imagePath: kIsWeb ? null : _selectedImagePath,
-        imageBytes: _selectedImageBytes,
-      );
-
-      final repo = ref.read(branchStockRepositoryProvider);
-      for (final assignment in _branchAssignments) {
-        final branchId = assignment.branchId;
-        if (branchId == null || branchId.isEmpty) continue;
-        final minThreshold =
-            int.tryParse(assignment.thresholdCtrl.text.trim()) ?? 0;
-        await repo.assignToBranch(
-          stockItemId: created.id,
-          branchId: branchId,
-          minThreshold: minThreshold < 0 ? 0 : minThreshold,
+    try {
+      if (_mode == StockItemFormMode.create) {
+        final item = StockItem(
+          id: '',
+          name: _nameCtrl.text.trim(),
+          categoryId: _categoryId,
+          baseUnit: _baseUnit ?? 'pcs',
+          pieceSize: pieceSize <= 0 ? 1 : pieceSize,
+          branchId: '',
+          branchName: '',
+          onHand: 0,
+          minThreshold: 0,
+          isActive: true,
         );
-        ref
-            .read(stockInventoryControllerProvider.notifier)
-            .updateBranchAssignment(
-              stockItemId: created.id,
-              branchId: branchId,
-              minThreshold: minThreshold < 0 ? 0 : minThreshold,
-            );
-      }
+        final created = await controller.addStockItem(
+          item,
+          imagePath: kIsWeb ? null : _selectedImagePath,
+          imageBytes: _selectedImageBytes,
+        );
 
+        final repo = ref.read(branchStockRepositoryProvider);
+        for (final assignment in _branchAssignments) {
+          final branchId = assignment.branchId;
+          if (branchId == null || branchId.isEmpty) continue;
+          final minThreshold =
+              int.tryParse(assignment.thresholdCtrl.text.trim()) ?? 0;
+          await repo.assignToBranch(
+            stockItemId: created.id,
+            branchId: branchId,
+            minThreshold: minThreshold < 0 ? 0 : minThreshold,
+          );
+          ref
+              .read(stockInventoryControllerProvider.notifier)
+              .updateBranchAssignment(
+                stockItemId: created.id,
+                branchId: branchId,
+                minThreshold: minThreshold < 0 ? 0 : minThreshold,
+              );
+        }
+
+        if (!mounted) return;
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Stock item added')));
+        Navigator.of(context).pop();
+      } else {
+        final current = _originalItem!;
+        final updated = current.copyWith(
+          name: _nameCtrl.text.trim(),
+          categoryId: _categoryId,
+          baseUnit: _baseUnit ?? current.baseUnit,
+          pieceSize: pieceSize <= 0 ? current.pieceSize : pieceSize,
+          isActive: _isActive,
+        );
+        await controller.updateStockItem(
+          updated,
+          imagePath: kIsWeb ? null : _selectedImagePath,
+          imageBytes: _selectedImageBytes,
+        );
+        final repo = ref.read(branchStockRepositoryProvider);
+        for (final assignment in _branchAssignments) {
+          final branchId = assignment.branchId;
+          if (branchId == null || branchId.isEmpty) continue;
+          final minThreshold =
+              int.tryParse(assignment.thresholdCtrl.text.trim()) ?? 0;
+          await repo.assignToBranch(
+            stockItemId: updated.id,
+            branchId: branchId,
+            minThreshold: minThreshold < 0 ? 0 : minThreshold,
+          );
+          ref
+              .read(stockInventoryControllerProvider.notifier)
+              .updateBranchAssignment(
+                stockItemId: updated.id,
+                branchId: branchId,
+                minThreshold: minThreshold < 0 ? 0 : minThreshold,
+              );
+        }
+        if (!mounted) return;
+        setState(() {
+          _originalItem = updated;
+          _mode = StockItemFormMode.view;
+          _selectedImageBytes = null;
+          _selectedImagePath = null;
+        });
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Stock item saved')));
+      }
+    } catch (e) {
       if (!mounted) return;
+      final mapped = mapInventoryError(
+        e,
+        fallbackMessage: _mode == StockItemFormMode.create
+            ? 'Failed to add stock item.'
+            : 'Failed to save stock item.',
+      );
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Stock item added')));
-      Navigator.of(context).pop();
-    } else {
-      final current = _originalItem!;
-      final updated = current.copyWith(
-        name: _nameCtrl.text.trim(),
-        category: _categoryLabel ?? current.category,
-        categoryId: _categoryId,
-        baseUnit: _baseUnit ?? current.baseUnit,
-        pieceSize: pieceSize <= 0 ? current.pieceSize : pieceSize,
-        barcode: barcode,
-        usageTags: usageTags,
-        isActive: _isActive,
-      );
-      await controller.updateStockItem(
-        updated,
-        imagePath: kIsWeb ? null : _selectedImagePath,
-        imageBytes: _selectedImageBytes,
-      );
-      final repo = ref.read(branchStockRepositoryProvider);
-      for (final assignment in _branchAssignments) {
-        final branchId = assignment.branchId;
-        if (branchId == null || branchId.isEmpty) continue;
-        final minThreshold =
-            int.tryParse(assignment.thresholdCtrl.text.trim()) ?? 0;
-        await repo.assignToBranch(
-          stockItemId: updated.id,
-          branchId: branchId,
-          minThreshold: minThreshold < 0 ? 0 : minThreshold,
-        );
-        ref
-            .read(stockInventoryControllerProvider.notifier)
-            .updateBranchAssignment(
-              stockItemId: updated.id,
-              branchId: branchId,
-              minThreshold: minThreshold < 0 ? 0 : minThreshold,
-            );
-      }
-      if (!mounted) return;
-      setState(() {
-        _originalItem = updated;
-        _mode = StockItemFormMode.view;
-        _selectedImageBytes = null;
-        _selectedImagePath = null;
-      });
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Stock item saved')));
+      ).showSnackBar(SnackBar(content: Text(mapped.message)));
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
     }
-
-    if (mounted) setState(() => _isSaving = false);
   }
 }
 

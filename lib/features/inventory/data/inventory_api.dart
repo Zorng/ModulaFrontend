@@ -1,7 +1,9 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/core/config/app_env.dart';
+import 'package:modular_pos/core/network/api_contract.dart';
 import 'package:modular_pos/core/network/dio_client.dart';
+import 'package:modular_pos/core/network/idempotency_key_store.dart';
 import 'package:modular_pos/features/inventory/data/dto/branch_stock_item_dto.dart';
 import 'package:modular_pos/features/inventory/data/dto/inventory_category_dto.dart';
 import 'package:modular_pos/features/inventory/data/dto/inventory_journal_entry_dto.dart';
@@ -20,11 +22,15 @@ class InventoryApi {
   final String _prefix;
 
   // Categories
-  Future<List<InventoryCategoryDto>> fetchCategories({bool? isActive}) async {
-    final query = <String, dynamic>{if (isActive != null) 'isActive': isActive};
+  Future<List<InventoryCategoryDto>> fetchCategories({
+    String status = 'all',
+  }) async {
+    final query = <String, dynamic>{
+      'status': _normalizeInventoryListStatus(status),
+    };
     final response = await _dio.get<Map<String, dynamic>>(
       '$_prefix/categories',
-      queryParameters: query.isEmpty ? null : query,
+      queryParameters: query,
     );
     final root = _asMap(response.data);
     final list = _pickList(root);
@@ -32,50 +38,82 @@ class InventoryApi {
   }
 
   Future<InventoryCategoryDto> createCategory(Map<String, dynamic> body) async {
-    final response = await _dio.post<Map<String, dynamic>>(
-      '$_prefix/categories',
-      data: body,
-    );
-    final json = _unwrap(_asMap(response.data));
-    return InventoryCategoryDto.fromJson(json);
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        '$_prefix/categories',
+        data: body,
+        options: _writeOptions(
+          actionKey: 'inventory.categories.create',
+          payload: body,
+        ),
+      );
+      final json = _unwrap(_asMap(response.data));
+      return InventoryCategoryDto.fromJson(json);
+    } on DioError catch (error) {
+      throw ApiClientException.fromDio(
+        error,
+        fallbackMessage: 'Failed to create category.',
+      );
+    }
   }
 
   Future<InventoryCategoryDto> updateCategory(
     String id,
     Map<String, dynamic> body,
   ) async {
-    final response = await _dio.patch<Map<String, dynamic>>(
-      '$_prefix/categories/$id',
-      data: body,
-    );
-    final json = _unwrap(_asMap(response.data));
-    return InventoryCategoryDto.fromJson(json);
+    try {
+      final response = await _dio.patch<Map<String, dynamic>>(
+        '$_prefix/categories/$id',
+        data: body,
+        options: _writeOptions(
+          actionKey: 'inventory.categories.update',
+          payload: {'categoryId': id, ...body},
+        ),
+      );
+      final json = _unwrap(_asMap(response.data));
+      return InventoryCategoryDto.fromJson(json);
+    } on DioError catch (error) {
+      throw ApiClientException.fromDio(
+        error,
+        fallbackMessage: 'Failed to update category.',
+      );
+    }
   }
 
   Future<void> deleteCategory(String id, {bool? safeMode}) async {
-    await _dio.delete(
-      '$_prefix/categories/$id',
-      queryParameters: safeMode == null ? null : {'safeMode': safeMode},
-    );
+    try {
+      await _dio.post<void>(
+        '$_prefix/categories/$id/archive',
+        options: _writeOptions(
+          actionKey: 'inventory.categories.archive',
+          payload: {'categoryId': id},
+        ),
+      );
+    } on DioError catch (error) {
+      throw ApiClientException.fromDio(
+        error,
+        fallbackMessage: 'Failed to archive category.',
+      );
+    }
   }
 
   // Stock items (master)
   Future<List<StockItemDto>> fetchStockItems({
+    String status = 'all',
     String? search,
-    bool? isActive,
     String? categoryId,
-    int page = 1,
-    int pageSize = 50,
+    int? limit,
+    int? offset,
   }) async {
     final query = <String, dynamic>{
-      'page': page,
-      'pageSize': pageSize,
+      'status': _normalizeInventoryListStatus(status),
       if (search != null && search.isNotEmpty) 'search': search,
-      if (isActive != null) 'isActive': isActive,
       if (categoryId != null && categoryId.isNotEmpty) 'categoryId': categoryId,
+      if (limit != null) 'limit': limit,
+      if (offset != null) 'offset': offset,
     };
     final response = await _dio.get<Map<String, dynamic>>(
-      '$_prefix/stock-items',
+      '$_prefix/items',
       queryParameters: query,
     );
     final root = _asMap(response.data);
@@ -330,6 +368,32 @@ dynamic _extractListValue(Map<String, dynamic> root) {
     if (nested != null) return nested;
   }
   return null;
+}
+
+String _normalizeInventoryListStatus(String raw) {
+  final normalized = raw.trim().toLowerCase();
+  switch (normalized) {
+    case 'active':
+    case 'archived':
+    case 'all':
+      return normalized;
+    default:
+      return 'all';
+  }
+}
+
+Options _writeOptions({
+  required String actionKey,
+  required Object payload,
+  String? intentId,
+}) {
+  return withIdempotency(
+    request: IdempotencyRequest(
+      actionKey: actionKey,
+      payload: payload,
+      intentId: (intentId ?? '').trim().isEmpty ? null : intentId?.trim(),
+    ),
+  );
 }
 
 InventoryJournalEntryDto? _maybeJournalEntry(Map<String, dynamic>? payload) {

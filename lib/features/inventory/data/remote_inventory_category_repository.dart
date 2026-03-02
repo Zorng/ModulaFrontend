@@ -16,8 +16,10 @@ class RemoteInventoryCategoryRepository extends InventoryCategoryRepository {
   final InventoryApi _api;
 
   @override
-  Future<List<InventoryCategory>> fetchCategories({bool? isActive}) async {
-    final data = await _api.fetchCategories(isActive: isActive);
+  Future<List<InventoryCategory>> fetchCategories({
+    String status = 'all',
+  }) async {
+    final data = await _api.fetchCategories(status: status);
     return data.map(_toDomain).toList(growable: false);
   }
 
@@ -35,12 +37,7 @@ class RemoteInventoryCategoryRepository extends InventoryCategoryRepository {
 
   @override
   Future<InventoryCategory> updateCategory(InventoryCategory category) async {
-    final body = {
-      'name': category.name,
-      'isActive': category.isActive,
-      if (category.description != null && category.description!.isNotEmpty)
-        'description': category.description,
-    };
+    final body = {'name': category.name};
     final dto = await _api.updateCategory(category.id, body);
     return _toDomain(dto);
   }

@@ -17,7 +17,7 @@ final inventoryCategoryRepositoryProvider =
 abstract class InventoryCategoryRepository {
   const InventoryCategoryRepository();
 
-  Future<List<InventoryCategory>> fetchCategories({bool? isActive});
+  Future<List<InventoryCategory>> fetchCategories({String status = 'all'});
 
   Future<InventoryCategory> createCategory(InventoryCategory category);
 

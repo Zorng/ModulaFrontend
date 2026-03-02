@@ -6,8 +6,8 @@ import 'package:modular_pos/features/inventory/data/inventory_journal_repository
 import 'package:modular_pos/features/inventory/domain/models/stock_batch.dart';
 import 'package:modular_pos/features/inventory/domain/models/on_hand_record.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
+import 'package:modular_pos/features/inventory/ui/viewmodels/inventory_error_mapper.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_state.dart';
-import 'package:modular_pos/features/inventory/ui/viewmodels/category_controller.dart';
 
 final stockInventoryControllerProvider =
     NotifierProvider<StockInventoryController, StockInventoryState>(() {
@@ -29,20 +29,12 @@ class StockInventoryController extends Notifier<StockInventoryState> {
 
   Future<void> loadStockItems({String? branchId}) async {
     try {
-      state = state.copyWith(isLoading: true, error: null);
+      state = state.copyWith(isLoading: true, error: null, errorCode: null);
       final items = await _fetchItems(branchId: branchId);
-      final categoryLookup = await _categoryLookup();
       final branchLookup = _branchLookup();
       final onHandData = await _fetchOnHand(branchId: branchId);
       final mapped = _applyOnHand(
-        items
-            .map(
-              (item) => _withBranchName(
-                _withCategoryName(item, categoryLookup),
-                branchLookup,
-              ),
-            )
-            .toList(),
+        items.map((item) => _withBranchName(item, branchLookup)).toList(),
         onHandData,
       );
       state = state.copyWith(
@@ -51,7 +43,15 @@ class StockInventoryController extends Notifier<StockInventoryState> {
         batches: const [],
       );
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      final mapped = mapInventoryError(
+        e,
+        fallbackMessage: 'Failed to load stock items.',
+      );
+      state = state.copyWith(
+        isLoading: false,
+        error: mapped.message,
+        errorCode: mapped.code,
+      );
     }
   }
 
@@ -66,14 +66,19 @@ class StockInventoryController extends Notifier<StockInventoryState> {
         imagePath: imagePath,
         imageBytes: imageBytes,
       );
-      final mapped = _withBranchName(
-        _withCategoryName(created, await _categoryLookup()),
-        _branchLookup(),
+      final mapped = _withBranchName(created, _branchLookup());
+      state = state.copyWith(
+        items: [...state.items, mapped],
+        error: null,
+        errorCode: null,
       );
-      state = state.copyWith(items: [...state.items, mapped], error: null);
       return mapped;
     } catch (e) {
-      state = state.copyWith(error: e.toString());
+      final mapped = mapInventoryError(
+        e,
+        fallbackMessage: 'Failed to create stock item.',
+      );
+      state = state.copyWith(error: mapped.message, errorCode: mapped.code);
       rethrow;
     }
   }
@@ -89,17 +94,19 @@ class StockInventoryController extends Notifier<StockInventoryState> {
         imagePath: imagePath,
         imageBytes: imageBytes,
       );
-      final mapped = _withBranchName(
-        _withCategoryName(updated, await _categoryLookup()),
-        _branchLookup(),
-      );
+      final mapped = _withBranchName(updated, _branchLookup());
       final items = [
         for (final existing in state.items)
           if (existing.id == updated.id) mapped else existing,
       ];
-      state = state.copyWith(items: items, error: null);
+      state = state.copyWith(items: items, error: null, errorCode: null);
     } catch (e) {
-      state = state.copyWith(error: e.toString());
+      final mapped = mapInventoryError(
+        e,
+        fallbackMessage: 'Failed to update stock item.',
+      );
+      state = state.copyWith(error: mapped.message, errorCode: mapped.code);
+      rethrow;
     }
   }
 
@@ -111,23 +118,32 @@ class StockInventoryController extends Notifier<StockInventoryState> {
     String? note,
     String? branchId,
   }) async {
-    final item = state.items.firstWhere((element) => element.id == itemId);
-    final targetBranch =
-        branchId ?? (item.branchId.isNotEmpty ? item.branchId : null);
-    final occurredAt = _toUtcIso(restockDate);
-    await _journalRepository.receive(
-      branchId: targetBranch ?? '',
-      stockItemId: item.id,
-      qty: baseQty,
-      note: note,
-      occurredAt: occurredAt,
-    );
-    // Refresh inventory for the relevant branch to pick up backend on-hand changes.
-    final reloadBranch =
-        (branchId != null && branchId.isNotEmpty && branchId != 'all')
-        ? branchId
-        : null;
-    await loadStockItems(branchId: reloadBranch);
+    try {
+      final item = state.items.firstWhere((element) => element.id == itemId);
+      final targetBranch =
+          branchId ?? (item.branchId.isNotEmpty ? item.branchId : null);
+      final occurredAt = _toUtcIso(restockDate);
+      await _journalRepository.receive(
+        branchId: targetBranch ?? '',
+        stockItemId: item.id,
+        qty: baseQty,
+        note: note,
+        occurredAt: occurredAt,
+      );
+      // Refresh inventory for the relevant branch to pick up backend on-hand changes.
+      final reloadBranch =
+          (branchId != null && branchId.isNotEmpty && branchId != 'all')
+          ? branchId
+          : null;
+      await loadStockItems(branchId: reloadBranch);
+    } catch (e) {
+      final mapped = mapInventoryError(
+        e,
+        fallbackMessage: 'Failed to restock inventory item.',
+      );
+      state = state.copyWith(error: mapped.message, errorCode: mapped.code);
+      rethrow;
+    }
   }
 
   Future<void> deleteStockItem(String id) async {
@@ -139,9 +155,15 @@ class StockInventoryController extends Notifier<StockInventoryState> {
             .where((batch) => batch.stockItemId != id)
             .toList(),
         error: null,
+        errorCode: null,
       );
     } catch (e) {
-      state = state.copyWith(error: e.toString());
+      final mapped = mapInventoryError(
+        e,
+        fallbackMessage: 'Failed to delete stock item.',
+      );
+      state = state.copyWith(error: mapped.message, errorCode: mapped.code);
+      rethrow;
     }
   }
 
@@ -221,16 +243,6 @@ class StockInventoryController extends Notifier<StockInventoryState> {
 
   String _todayString() => DateTime.now().toIso8601String().split('T').first;
 
-  String _resolveCategory(StockItem item, Map<String, String> categoryLookup) {
-    if (item.categoryId != null &&
-        item.categoryId!.isNotEmpty &&
-        categoryLookup[item.categoryId!] != null) {
-      return categoryLookup[item.categoryId!]!;
-    }
-    if (item.category.isNotEmpty) return item.category;
-    return 'Uncategorized';
-  }
-
   Map<String, String> _branchLookup() {
     final user = ref.read(loginControllerProvider).user;
     final branches = user?.branches ?? const [];
@@ -238,23 +250,6 @@ class StockInventoryController extends Notifier<StockInventoryState> {
       for (final b in branches)
         (b.branchId.isNotEmpty ? b.branchId : b.id): b.name,
     };
-  }
-
-  Future<Map<String, String>> _categoryLookup() async {
-    // Ensure categories are loaded so the display name is available.
-    final categoryNotifier = ref.read(categoryControllerProvider.notifier);
-    if (ref.read(categoryControllerProvider).categories.isEmpty) {
-      await categoryNotifier.loadCategories();
-    }
-    final categories = ref.read(categoryControllerProvider).categories;
-    return {for (final c in categories) c.id: c.name};
-  }
-
-  StockItem _withCategoryName(
-    StockItem item,
-    Map<String, String> categoryLookup,
-  ) {
-    return item.copyWith(category: _resolveCategory(item, categoryLookup));
   }
 
   StockItem _withBranchName(StockItem item, Map<String, String> branchLookup) {

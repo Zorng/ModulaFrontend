@@ -11,7 +11,9 @@ class MockInventoryCategoryRepository extends InventoryCategoryRepository {
   const MockInventoryCategoryRepository();
 
   @override
-  Future<List<InventoryCategory>> fetchCategories({bool? isActive}) async {
+  Future<List<InventoryCategory>> fetchCategories({
+    String status = 'all',
+  }) async {
     return const <InventoryCategory>[];
   }
 

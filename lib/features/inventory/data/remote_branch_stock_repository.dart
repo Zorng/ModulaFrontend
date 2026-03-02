@@ -28,7 +28,11 @@ class RemoteBranchStockRepository extends BranchStockRepository {
   @override
   Future<List<StockItem>> fetchStockItems({String? branchId}) async {
     // Always fetch master items so we can hydrate unit/piece info.
-    final masterDtos = await _api.fetchStockItems(pageSize: 200);
+    final masterDtos = await _api.fetchStockItems(
+      status: 'all',
+      limit: 200,
+      offset: 0,
+    );
     final masterById = {for (final dto in masterDtos) dto.id: dto};
 
     final branchDtos = await _api.fetchBranchStockItems(branchId: branchId);
@@ -110,7 +114,6 @@ StockItem _toStockItem({
   return StockItem(
     id: dto.id,
     name: dto.name,
-    category: '',
     categoryId: dto.categoryId,
     baseUnit: dto.baseUnit,
     pieceSize: 1,
@@ -119,10 +122,6 @@ StockItem _toStockItem({
     onHand: onHand,
     minThreshold: minThreshold,
     isActive: dto.isActive,
-    barcode: null,
     imageUrl: dto.imageUrl,
-    lastRestockDate: '',
-    expiryDate: '',
-    usageTags: const [],
   );
 }

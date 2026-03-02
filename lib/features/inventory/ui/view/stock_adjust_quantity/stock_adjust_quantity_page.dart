@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:modular_pos/core/feedback/user_error_message.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_journal_entry.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_batch.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
 import 'package:modular_pos/features/inventory/domain/utils/stock_quantity_formatter.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/inventory_journal_controller.dart';
+import 'package:modular_pos/features/inventory/ui/viewmodels/inventory_error_mapper.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_controller.dart';
 import 'package:modular_pos/features/inventory/ui/view/stock_adjust_quantity/stock_adjust_quantity_utils.dart';
 import 'package:modular_pos/features/inventory/ui/view/stock_adjust_quantity/widgets/adjust_quantity_inputs.dart';
@@ -67,9 +67,7 @@ class _AdjustStockQuantityPageState
           Card(
             child: ListTile(
               title: Text(item.name),
-              subtitle: Text(
-                '${item.branchName} • ${item.category} • ${_pieceLabel(item)}',
-              ),
+              subtitle: Text('${item.branchName} • ${_pieceLabel(item)}'),
               trailing: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.end,
@@ -188,9 +186,9 @@ class _AdjustStockQuantityPageState
     final effectiveBatchId =
         batchId ?? (batches.isEmpty ? widget.item.id : null);
     if (effectiveBatchId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Select a batch to adjust')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Select a batch to adjust')));
       return;
     }
     final magnitude = totalBaseQty.abs();
@@ -231,15 +229,13 @@ class _AdjustStockQuantityPageState
       context.pop();
     } catch (e) {
       if (!mounted) return;
+      final mapped = mapInventoryError(
+        e,
+        fallbackMessage: 'Failed to adjust stock.',
+      );
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(
-        SnackBar(
-          content: Text(
-            UserErrorMessage.build(context: 'Failed to adjust stock', error: e),
-          ),
-        ),
-      );
+      ).showSnackBar(SnackBar(content: Text(mapped.message)));
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
