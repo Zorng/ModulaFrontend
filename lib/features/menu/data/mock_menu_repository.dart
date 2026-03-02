@@ -1,6 +1,7 @@
 import 'package:modular_pos/features/menu/data/menu_repository.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_branch.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_category.dart';
+import 'package:modular_pos/features/menu/domain/models/menu_composition.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 
@@ -42,7 +43,31 @@ class MockMenuRepository extends MenuRepository {
   }
 
   @override
-  Future<List<ModifierGroup>> fetchModifierGroupsOnly() async {
+  Future<List<MenuComponent>> fetchMenuItemComposition(
+    String menuItemId,
+  ) async {
+    return const <MenuComponent>[];
+  }
+
+  @override
+  Future<void> upsertMenuItemComposition({
+    required String menuItemId,
+    required List<MenuComponent> baseComponents,
+  }) async {}
+
+  @override
+  Future<MenuCompositionEvaluate> evaluateMenuItemComposition({
+    required String menuItemId,
+    required List<String> selectedModifierOptionIds,
+  }) async {
+    return const MenuCompositionEvaluate(
+      menuItemId: '',
+      components: <MenuComponent>[],
+    );
+  }
+
+  @override
+  Future<List<ModifierGroup>> fetchModifierGroupsOnly({String? status}) async {
     return const <ModifierGroup>[];
   }
 

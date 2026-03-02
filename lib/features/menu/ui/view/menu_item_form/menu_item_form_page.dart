@@ -12,6 +12,7 @@ import 'package:modular_pos/features/menu/domain/models/menu_category.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 import 'package:modular_pos/features/menu/ui/components/menu_form_field_label.dart';
+import 'package:modular_pos/features/menu/ui/view/menu_item_form/menu_item_form_error_mapper.dart';
 import 'package:modular_pos/features/menu/ui/view/menu_item_form/menu_item_form_utils.dart';
 import 'package:modular_pos/features/menu/ui/view/menu_item_form/widgets/selection_chips_field.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
@@ -416,10 +417,30 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
     final valid = _formKey.currentState?.validate() ?? false;
     if (!valid) return;
 
+    final availableBranches = ref.read(menuViewModelProvider).branches;
+    if (availableBranches.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'No branch options are available. Please reload and try again.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (_selectedBranchIds.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Select at least one branch before saving.'),
+        ),
+      );
+      return;
+    }
+
     setState(() => _isSaving = true);
     try {
       final notifier = ref.read(menuViewModelProvider.notifier);
-      final allBranches = ref.read(menuViewModelProvider).branches;
       final item = MenuItem(
         id: widget.initialItem?.id ?? '',
         name: _nameController.text.trim(),
@@ -428,9 +449,7 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
         imageUrl: widget.initialItem?.imageUrl,
         modifierGroupIds: _selectedModifierGroupIds.toList(),
         description: widget.initialItem?.description ?? '',
-        branchIds: _selectedBranchIds.isNotEmpty
-            ? _selectedBranchIds.toList()
-            : allBranches.map((branch) => branch.id).toList(),
+        branchIds: _selectedBranchIds.toList(growable: false),
         isActive: _isActive,
       );
 
@@ -453,9 +472,10 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
       if (mounted) context.pop(saved);
     } catch (e) {
       if (!mounted) return;
+      final message = mapMenuItemSaveErrorMessage(e);
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Failed to save menu item: $e')));
+      ).showSnackBar(SnackBar(content: Text(message)));
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }

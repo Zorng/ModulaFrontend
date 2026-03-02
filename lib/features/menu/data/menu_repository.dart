@@ -4,6 +4,7 @@ import 'package:modular_pos/features/menu/data/mock_menu_repository.dart';
 import 'package:modular_pos/features/menu/data/remote_menu_repository.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_branch.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_category.dart';
+import 'package:modular_pos/features/menu/domain/models/menu_composition.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 
@@ -66,7 +67,19 @@ abstract class MenuRepository {
     bool retrying = false,
   });
 
-  Future<List<ModifierGroup>> fetchModifierGroupsOnly();
+  Future<List<MenuComponent>> fetchMenuItemComposition(String menuItemId);
+
+  Future<void> upsertMenuItemComposition({
+    required String menuItemId,
+    required List<MenuComponent> baseComponents,
+  });
+
+  Future<MenuCompositionEvaluate> evaluateMenuItemComposition({
+    required String menuItemId,
+    required List<String> selectedModifierOptionIds,
+  });
+
+  Future<List<ModifierGroup>> fetchModifierGroupsOnly({String? status});
 
   Future<MenuCategory> createCategory(MenuCategory category);
 

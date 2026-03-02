@@ -1,8 +1,10 @@
 import 'package:modular_pos/core/logging/app_log.dart';
 import 'package:modular_pos/features/menu/data/menu_api.dart';
+import 'package:modular_pos/features/menu/data/dto/menu_composition_dto.dart';
 import 'package:modular_pos/features/menu/data/menu_mappers.dart';
 import 'package:modular_pos/features/menu/data/menu_repository.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_category.dart';
+import 'package:modular_pos/features/menu/domain/models/menu_composition.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 
@@ -111,9 +113,55 @@ class RemoteMenuRepository extends MenuRepository {
   }
 
   @override
-  Future<List<ModifierGroup>> fetchModifierGroupsOnly() async {
-    final modifiersRaw = await _api.fetchModifierGroups();
-    return modifiersRaw.map(MenuMappers.toGroup).toList(growable: false);
+  Future<List<MenuComponent>> fetchMenuItemComposition(
+    String menuItemId,
+  ) async {
+    final response = await _api.fetchMenuItemWithModifiers(menuItemId);
+    return response.baseComponents
+        .map(MenuMappers.toCompositionComponent)
+        .toList(growable: false);
+  }
+
+  @override
+  Future<void> upsertMenuItemComposition({
+    required String menuItemId,
+    required List<MenuComponent> baseComponents,
+  }) {
+    return _api.upsertMenuItemComposition(
+      menuItemId: menuItemId,
+      baseComponents: baseComponents
+          .map(
+            (component) => MenuComponentDto(
+              stockItemId: component.stockItemId,
+              quantityInBaseUnit: component.quantityInBaseUnit,
+              trackingMode: component.trackingMode,
+            ),
+          )
+          .toList(growable: false),
+    );
+  }
+
+  @override
+  Future<MenuCompositionEvaluate> evaluateMenuItemComposition({
+    required String menuItemId,
+    required List<String> selectedModifierOptionIds,
+  }) async {
+    final dto = await _api.evaluateMenuItemComposition(
+      menuItemId: menuItemId,
+      selectedModifierOptionIds: selectedModifierOptionIds,
+    );
+    return MenuMappers.toCompositionEvaluate(dto);
+  }
+
+  @override
+  Future<List<ModifierGroup>> fetchModifierGroupsOnly({String? status}) async {
+    final requestedStatus = (status ?? '').trim().toLowerCase();
+    final normalizedStatus = requestedStatus.isEmpty ? 'active' : requestedStatus;
+    final modifiersRaw = await _api.fetchModifierGroups(status: normalizedStatus);
+    return modifiersRaw
+        .where((dto) => _matchesRequestedStatus(dto.status, normalizedStatus))
+        .map(MenuMappers.toGroup)
+        .toList(growable: false);
   }
 
   @override
@@ -157,7 +205,7 @@ class RemoteMenuRepository extends MenuRepository {
       final optionPayload = {
         'groupId': createdGroup.id,
         'label': option.name,
-        'priceDelta': option.price,
+        'priceDelta': option.priceDelta,
         'componentDeltas': option.componentDeltas
             .map((entry) => entry.toJson())
             .toList(growable: false),
@@ -212,7 +260,7 @@ class RemoteMenuRepository extends MenuRepository {
         try {
           await _api.updateModifierOption(option.id, {
             'label': option.name,
-            'priceDelta': option.price,
+            'priceDelta': option.priceDelta,
             'componentDeltas': option.componentDeltas
                 .map((entry) => entry.toJson())
                 .toList(growable: false),
@@ -228,7 +276,7 @@ class RemoteMenuRepository extends MenuRepository {
           final createdDto = await _api.addModifierOption({
             'groupId': group.id,
             'label': option.name,
-            'priceDelta': option.price,
+            'priceDelta': option.priceDelta,
             'componentDeltas': option.componentDeltas
                 .map((entry) => entry.toJson())
                 .toList(growable: false),

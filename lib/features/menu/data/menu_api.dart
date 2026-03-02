@@ -5,6 +5,7 @@ import 'package:modular_pos/core/network/dio_client.dart';
 import 'package:modular_pos/core/network/idempotency_key_store.dart';
 import 'package:modular_pos/features/menu/data/dto/menu_branch_dto.dart';
 import 'package:modular_pos/features/menu/data/dto/menu_category_dto.dart';
+import 'package:modular_pos/features/menu/data/dto/menu_composition_dto.dart';
 import 'package:modular_pos/features/menu/data/dto/menu_item_dto.dart';
 import 'package:modular_pos/features/menu/data/dto/menu_item_with_modifiers_dto.dart';
 import 'package:modular_pos/features/menu/data/dto/modifier_group_dto.dart';
@@ -22,8 +23,19 @@ class MenuApi {
   final String _menuPrefix;
 
   Future<List<MenuBranchDto>> fetchBranches() async {
-    // Branch data is sourced from the authenticated user's branch assignments.
-    return const [];
+    final dio = _requireDio();
+    try {
+      final response = await dio.get<dynamic>('/v0/auth/context/branches');
+      final raw = MenuApiHelpers.unwrap(response.data);
+      final branches = raw['branches'] ?? raw['items'] ?? raw['data'];
+      if (branches == null) return const <MenuBranchDto>[];
+      return MenuApiHelpers.parseList(
+        branches,
+        MenuBranchDto.fromJson,
+      ).where((entry) => entry.id.trim().isNotEmpty).toList(growable: false);
+    } on DioError catch (error) {
+      throw MenuApiException.fromDio(error);
+    }
   }
 
   Future<List<MenuCategoryDto>> fetchCategories({String? status}) async {
@@ -132,6 +144,48 @@ class MenuApi {
       final response = await dio.get<dynamic>('$_menuPrefix/items/$menuItemId');
       final raw = MenuApiHelpers.unwrap(response.data);
       return MenuItemWithModifiersDto.fromJson(raw);
+    } on DioError catch (error) {
+      throw MenuApiException.fromDio(error);
+    }
+  }
+
+  Future<void> upsertMenuItemComposition({
+    required String menuItemId,
+    required List<MenuComponentDto> baseComponents,
+  }) async {
+    final dio = _requireDio();
+    final body = MenuCompositionUpsertRequestDto(
+      baseComponents: baseComponents,
+    ).toJson();
+    try {
+      await dio.put<void>(
+        '$_menuPrefix/items/$menuItemId/composition',
+        data: body,
+        options: _writeOptions(
+          actionKey: 'menu.composition.upsert',
+          payload: {'menuItemId': menuItemId, ...body},
+        ),
+      );
+    } on DioError catch (error) {
+      throw MenuApiException.fromDio(error);
+    }
+  }
+
+  Future<MenuCompositionEvaluateDto> evaluateMenuItemComposition({
+    required String menuItemId,
+    required List<String> selectedModifierOptionIds,
+  }) async {
+    final dio = _requireDio();
+    final body = MenuCompositionEvaluateRequestDto(
+      selectedModifierOptionIds: selectedModifierOptionIds,
+    ).toJson();
+    try {
+      final response = await dio.post<dynamic>(
+        '$_menuPrefix/items/$menuItemId/composition/evaluate',
+        data: body,
+      );
+      final raw = MenuApiHelpers.unwrap(response.data);
+      return MenuCompositionEvaluateDto.fromJson(raw);
     } on DioError catch (error) {
       throw MenuApiException.fromDio(error);
     }
@@ -284,6 +338,27 @@ class MenuApi {
         '$_menuPrefix/modifier-groups/$resolvedGroupId/options/$optionId/archive',
         options: _writeOptions(
           actionKey: 'menu.modifierOptions.archive',
+          payload: {'groupId': resolvedGroupId, 'optionId': optionId},
+        ),
+      );
+    } on DioError catch (error) {
+      throw MenuApiException.fromDio(error);
+    }
+  }
+
+  Future<void> restoreModifierOption(String optionId, {String? groupId}) async {
+    final resolvedGroupId = (groupId ?? '').trim();
+    if (resolvedGroupId.isEmpty) {
+      throw const MenuApiException(
+        'Modifier group id is required to restore modifier option.',
+      );
+    }
+    final dio = _requireDio();
+    try {
+      await dio.post<void>(
+        '$_menuPrefix/modifier-groups/$resolvedGroupId/options/$optionId/restore',
+        options: _writeOptions(
+          actionKey: 'menu.modifierOptions.restore',
           payload: {'groupId': resolvedGroupId, 'optionId': optionId},
         ),
       );

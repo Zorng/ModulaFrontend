@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/widgets/media/product_image.dart';
+import 'package:modular_pos/features/menu/domain/models/menu_composition.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
@@ -40,9 +41,7 @@ class ViewMenuItemPage extends ConsumerWidget {
                   icon: const Icon(Icons.close),
                   onPressed: () => Navigator.of(context).maybePop(),
                 ),
-          title: Text(
-            menuItem.name.isNotEmpty ? menuItem.name : 'Menu Item',
-          ),
+          title: Text(menuItem.name.isNotEmpty ? menuItem.name : 'Menu Item'),
         ),
         body: Center(
           child: hydrationError != null
@@ -64,6 +63,31 @@ class ViewMenuItemPage extends ConsumerWidget {
     final branches = menuState.branches
         .where((branch) => latestItem.branchIds.contains(branch.id))
         .toList();
+    final compositionLoaded =
+        menuState.compositionLoadedByItem[menuItem.id] ?? false;
+    final compositionLoading =
+        menuState.compositionLoadingByItem[menuItem.id] ?? false;
+    final compositionError = menuState.compositionErrors[menuItem.id];
+    final compositionErrorCode = menuState.compositionErrorCodes[menuItem.id];
+    final baseComponents =
+        menuState.compositionByItem[menuItem.id] ?? const <MenuComponent>[];
+    final evaluatedComposition =
+        menuState.compositionEvaluationByItem[menuItem.id];
+    final previewComponents =
+        evaluatedComposition?.components ?? baseComponents;
+
+    if (!compositionLoaded && !compositionLoading) {
+      menuVm.loadItemComposition(menuItem.id);
+    }
+    if (compositionLoaded &&
+        !compositionLoading &&
+        compositionError == null &&
+        evaluatedComposition == null) {
+      menuVm.evaluateItemComposition(
+        menuItemId: menuItem.id,
+        selectedModifierOptionIds: const <String>[],
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -105,17 +129,13 @@ class ViewMenuItemPage extends ConsumerWidget {
               style: Theme.of(context).textTheme.headlineSmall,
             ),
             const SizedBox(height: 8),
-            Text(
-              categoryName,
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
+            Text(categoryName, style: Theme.of(context).textTheme.bodyMedium),
             const SizedBox(height: 16),
             Text(
               '\$${latestItem.price.toStringAsFixed(2)}',
-              style: Theme.of(context)
-                  .textTheme
-                  .headlineSmall
-                  ?.copyWith(color: Theme.of(context).primaryColor),
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                color: Theme.of(context).primaryColor,
+              ),
             ),
             const SizedBox(height: 24),
             Text('Modifiers', style: Theme.of(context).textTheme.titleMedium),
@@ -135,8 +155,10 @@ class ViewMenuItemPage extends ConsumerWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(group.name,
-                            style: Theme.of(context).textTheme.titleMedium),
+                        Text(
+                          group.name,
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
                         const Divider(),
                         ...group.options.map(
                           (option) => Padding(
@@ -175,12 +197,41 @@ class ViewMenuItemPage extends ConsumerWidget {
                 spacing: 8,
                 runSpacing: 8,
                 children: branches
-                    .map(
-                      (branch) => Chip(
-                        label: Text(branch.name),
-                      ),
-                    )
+                    .map((branch) => Chip(label: Text(branch.name)))
                     .toList(),
+              ),
+            const SizedBox(height: 24),
+            Text(
+              'Composition Preview',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            if (compositionLoading && !compositionLoaded)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: CircularProgressIndicator(),
+              )
+            else if (compositionError != null)
+              Text(
+                'Unable to load composition'
+                '${(compositionErrorCode ?? '').isNotEmpty ? ' ($compositionErrorCode)' : ''}: '
+                '$compositionError',
+                style: Theme.of(context).textTheme.bodyMedium,
+              )
+            else if (previewComponents.isEmpty)
+              Text(
+                'No base components configured.',
+                style: Theme.of(context).textTheme.bodyMedium,
+              )
+            else
+              ...previewComponents.map(
+                (component) => ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(component.stockItemId),
+                  subtitle: Text(component.trackingMode),
+                  trailing: Text(component.quantityInBaseUnit.toString()),
+                ),
               ),
           ],
         ),

@@ -5,6 +5,7 @@ import 'package:modular_pos/features/menu/data/menu_api.dart';
 import 'package:modular_pos/features/menu/data/menu_repository.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_branch.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_category.dart';
+import 'package:modular_pos/features/menu/domain/models/menu_composition.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_state.dart';
@@ -34,6 +35,63 @@ class MenuViewModel extends Notifier<MenuState> {
 
   void _clearOperationError() {
     state = state.copyWith(error: null, errorCode: null);
+  }
+
+  ({String message, String? code}) _mapCompositionError(Object error) {
+    final mapped = _mapError(error);
+    final code = (mapped.code ?? '').trim().toUpperCase();
+    switch (code) {
+      case 'ENTITLEMENT_BLOCKED':
+        return (
+          message: 'Composition is blocked by current entitlement.',
+          code: code,
+        );
+      case 'ENTITLEMENT_READ_ONLY':
+        return (
+          message: 'Composition is read-only for current entitlement.',
+          code: code,
+        );
+      case 'INVENTORY_ENTITLEMENT_REQUIRED_FOR_TRACKED_COMPONENTS':
+        return (
+          message: 'Tracked components require inventory entitlement.',
+          code: code,
+        );
+      default:
+        return (message: mapped.message, code: mapped.code);
+    }
+  }
+
+  void _setCompositionLoading(String menuItemId, bool isLoading) {
+    state = state.copyWith(
+      compositionLoadingByItem: {
+        ...state.compositionLoadingByItem,
+        menuItemId: isLoading,
+      },
+    );
+  }
+
+  void _setCompositionError(String menuItemId, Object error) {
+    final mapped = _mapCompositionError(error);
+    final compositionErrorCodes = Map<String, String>.from(
+      state.compositionErrorCodes,
+    )..remove(menuItemId);
+    final normalizedCode = (mapped.code ?? '').trim();
+    if (normalizedCode.isNotEmpty) {
+      compositionErrorCodes[menuItemId] = normalizedCode;
+    }
+    state = state.copyWith(
+      compositionErrors: {
+        ...state.compositionErrors,
+        menuItemId: mapped.message,
+      },
+      compositionLoadedByItem: {
+        ...state.compositionLoadedByItem,
+        menuItemId: true,
+      },
+      compositionErrorCodes: compositionErrorCodes,
+      error: mapped.message,
+      errorCode: mapped.code,
+    );
   }
 
   @override
@@ -166,6 +224,107 @@ class MenuViewModel extends Notifier<MenuState> {
     }
   }
 
+  Future<void> loadItemComposition(String menuItemId) async {
+    _setCompositionLoading(menuItemId, true);
+    try {
+      final baseComponents = await _menuRepository.fetchMenuItemComposition(
+        menuItemId,
+      );
+      final compositionErrors = Map<String, String>.from(
+        state.compositionErrors,
+      )..remove(menuItemId);
+      final compositionErrorCodes = Map<String, String>.from(
+        state.compositionErrorCodes,
+      )..remove(menuItemId);
+      state = state.copyWith(
+        compositionByItem: {
+          ...state.compositionByItem,
+          menuItemId: baseComponents,
+        },
+        compositionLoadedByItem: {
+          ...state.compositionLoadedByItem,
+          menuItemId: true,
+        },
+        compositionErrors: compositionErrors,
+        compositionErrorCodes: compositionErrorCodes,
+      );
+    } catch (e) {
+      _setCompositionError(menuItemId, e);
+      rethrow;
+    } finally {
+      _setCompositionLoading(menuItemId, false);
+    }
+  }
+
+  Future<void> upsertItemComposition({
+    required String menuItemId,
+    required List<MenuComponent> baseComponents,
+  }) async {
+    _setCompositionLoading(menuItemId, true);
+    try {
+      await _menuRepository.upsertMenuItemComposition(
+        menuItemId: menuItemId,
+        baseComponents: baseComponents,
+      );
+      final compositionErrors = Map<String, String>.from(
+        state.compositionErrors,
+      )..remove(menuItemId);
+      final compositionErrorCodes = Map<String, String>.from(
+        state.compositionErrorCodes,
+      )..remove(menuItemId);
+      state = state.copyWith(
+        compositionByItem: {
+          ...state.compositionByItem,
+          menuItemId: baseComponents,
+        },
+        compositionLoadedByItem: {
+          ...state.compositionLoadedByItem,
+          menuItemId: true,
+        },
+        compositionErrors: compositionErrors,
+        compositionErrorCodes: compositionErrorCodes,
+      );
+    } catch (e) {
+      _setCompositionError(menuItemId, e);
+      rethrow;
+    } finally {
+      _setCompositionLoading(menuItemId, false);
+    }
+  }
+
+  Future<MenuCompositionEvaluate> evaluateItemComposition({
+    required String menuItemId,
+    required List<String> selectedModifierOptionIds,
+  }) async {
+    _setCompositionLoading(menuItemId, true);
+    try {
+      final evaluation = await _menuRepository.evaluateMenuItemComposition(
+        menuItemId: menuItemId,
+        selectedModifierOptionIds: selectedModifierOptionIds,
+      );
+      final compositionErrors = Map<String, String>.from(
+        state.compositionErrors,
+      )..remove(menuItemId);
+      final compositionErrorCodes = Map<String, String>.from(
+        state.compositionErrorCodes,
+      )..remove(menuItemId);
+      state = state.copyWith(
+        compositionEvaluationByItem: {
+          ...state.compositionEvaluationByItem,
+          menuItemId: evaluation,
+        },
+        compositionErrors: compositionErrors,
+        compositionErrorCodes: compositionErrorCodes,
+      );
+      return evaluation;
+    } catch (e) {
+      _setCompositionError(menuItemId, e);
+      rethrow;
+    } finally {
+      _setCompositionLoading(menuItemId, false);
+    }
+  }
+
   Future<void> refreshCategories({String? status}) async {
     try {
       state = state.copyWith(isLoading: true, error: null, errorCode: null);
@@ -187,10 +346,15 @@ class MenuViewModel extends Notifier<MenuState> {
     }
   }
 
-  Future<void> refreshModifierGroups() async {
+  Future<void> refreshModifierGroups({String status = 'active'}) async {
     try {
       state = state.copyWith(isLoading: true, error: null, errorCode: null);
-      final groups = await _menuRepository.fetchModifierGroupsOnly();
+      final normalizedStatus = status.trim().isEmpty
+          ? 'active'
+          : status.trim().toLowerCase();
+      final groups = await _menuRepository.fetchModifierGroupsOnly(
+        status: normalizedStatus,
+      );
       state = state.copyWith(isLoading: false, modifierGroups: groups);
     } catch (e) {
       final mapped = _mapError(e);

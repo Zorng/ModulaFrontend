@@ -137,4 +137,38 @@ void main() {
       },
     );
   });
+
+  group('MenuApi.fetchBranches', () {
+    test('loads branch options from /v0/auth/context/branches', () async {
+      final dio = _MockDio();
+      when(() => dio.get<dynamic>('/v0/auth/context/branches')).thenAnswer(
+        (_) async => Response<dynamic>(
+          data: {
+            'success': true,
+            'data': {
+              'state': 'BRANCH_SELECTION_REQUIRED',
+              'tenantId': 'tenant-1',
+              'selectedBranchId': null,
+              'branches': [
+                {'branchId': 'branch-1', 'branchName': 'Main'},
+                {'branchId': 'branch-2', 'branchName': 'Downtown'},
+              ],
+            },
+          },
+          requestOptions: RequestOptions(path: '/v0/auth/context/branches'),
+        ),
+      );
+
+      final api = MenuApi.real(dio);
+      final branches = await api.fetchBranches();
+
+      expect(branches, hasLength(2));
+      expect(branches.first.id, 'branch-1');
+      expect(branches.first.name, 'Main');
+      expect(branches.last.id, 'branch-2');
+      expect(branches.last.name, 'Downtown');
+
+      verify(() => dio.get<dynamic>('/v0/auth/context/branches')).called(1);
+    });
+  });
 }

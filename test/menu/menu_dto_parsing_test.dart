@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:modular_pos/features/menu/data/dto/menu_branch_dto.dart';
 import 'package:modular_pos/features/menu/data/dto/menu_category_dto.dart';
 import 'package:modular_pos/features/menu/data/dto/menu_composition_dto.dart';
 import 'package:modular_pos/features/menu/data/dto/menu_item_dto.dart';
@@ -114,6 +115,16 @@ void main() {
       expect(dto.components.first.stockItemId, 'stock-1');
       expect(dto.components.first.quantityInBaseUnit, 2.5);
       expect(dto.components.first.trackingMode, 'DEDUCT');
+    });
+
+    test('MenuBranchDto supports branch context payload keys', () {
+      final dto = MenuBranchDto.fromJson({
+        'branchId': 'branch-1',
+        'branchName': 'Main',
+      });
+
+      expect(dto.id, 'branch-1');
+      expect(dto.name, 'Main');
     });
   });
 }
