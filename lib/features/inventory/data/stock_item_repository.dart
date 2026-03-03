@@ -21,6 +21,8 @@ abstract class StockItemRepository {
 
   Future<List<StockItem>> fetchMasterStockItems({int pageSize = 200});
 
+  Future<StockItem> fetchStockItemById(String id);
+
   Future<StockItem> createStockItem(
     StockItem item, {
     String? imagePath,
@@ -33,5 +35,12 @@ abstract class StockItemRepository {
     List<int>? imageBytes,
   });
 
-  Future<void> deleteStockItem(String id);
+  Future<void> archiveStockItem(String id);
+
+  @Deprecated('Use archiveStockItem')
+  Future<void> deleteStockItem(String id) {
+    return archiveStockItem(id);
+  }
+
+  Future<void> restoreStockItem(String id);
 }

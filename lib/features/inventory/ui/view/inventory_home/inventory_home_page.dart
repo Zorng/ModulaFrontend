@@ -8,9 +8,9 @@ import 'package:modular_pos/core/theme/app_table_theme.dart';
 import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/core/widgets/forms/app_search_bar.dart';
 import 'package:modular_pos/core/widgets/buttons/app_add_new_button.dart';
-import 'package:modular_pos/features/auth/domain/models/user.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
+import 'package:modular_pos/features/inventory/ui/models/inventory_branch_option.dart';
 import 'package:modular_pos/features/inventory/ui/view/inventory_stock_items/inventory_stock_items_utils.dart';
 import 'package:modular_pos/features/inventory/ui/view/inventory_stock_items/widgets/stock_item_image.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/category_controller.dart';
@@ -55,9 +55,12 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
         ref.watch(loginControllerProvider).user?.branches ?? const [];
     final items = inventoryState.items;
     final hasNoStockItems = items.isEmpty;
-    final branchEntries = _branchEntries(items, userBranches);
+    final branchEntries = buildInventoryBranchOptions(
+      items: items,
+      userBranches: userBranches,
+    );
     final effectiveBranchId =
-        branchEntries.any((entry) => entry['id'] == _selectedBranchId)
+        branchEntries.any((entry) => entry.id == _selectedBranchId)
         ? _selectedBranchId
         : 'all';
     final categoryLookup = {
@@ -169,8 +172,8 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
                   entries: branchEntries
                       .map(
                         (branch) => DropdownMenuEntry(
-                          value: branch['id']!,
-                          label: branch['name']!,
+                          value: branch.id,
+                          label: branch.name,
                         ),
                       )
                       .toList(),
@@ -560,32 +563,6 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
         ),
       ),
     );
-  }
-
-  List<Map<String, String>> _branchEntries(
-    List<StockItem> items,
-    List<UserBranch> userBranches,
-  ) {
-    final map = <String, String>{};
-    if (userBranches.isNotEmpty) {
-      for (final b in userBranches) {
-        final id = b.branchId.isNotEmpty ? b.branchId : b.id;
-        map[id] = b.name;
-      }
-    } else {
-      for (final item in items) {
-        map[item.branchId] = item.branchName;
-      }
-    }
-    final entries =
-        map.entries
-            .map((entry) => {'id': entry.key, 'name': entry.value})
-            .toList()
-          ..sort((a, b) => a['name']!.compareTo(b['name']!));
-    if (entries.every((entry) => entry['id'] != 'all')) {
-      entries.insert(0, {'id': 'all', 'name': 'All Branches'});
-    }
-    return entries;
   }
 
   List<StockItem> _aggregateItems(List<StockItem> items) {

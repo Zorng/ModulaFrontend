@@ -35,6 +35,20 @@ class _AdjustStockQuantityPageState
   bool _isSaving = false;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        await ref
+            .read(stockInventoryControllerProvider.notifier)
+            .loadRestockBatches(stockItemId: widget.item.id);
+      } catch (_) {
+        // Keep existing fallback UX when batch listing is unavailable.
+      }
+    });
+  }
+
+  @override
   void dispose() {
     _pcsCtrl.dispose();
     _baseUnitCtrl.dispose();
@@ -197,7 +211,11 @@ class _AdjustStockQuantityPageState
     try {
       await ref
           .read(stockInventoryControllerProvider.notifier)
-          .adjustBatch(batchId: effectiveBatchId, delta: delta);
+          .applyInventoryAdjustment(
+            batchId: effectiveBatchId,
+            delta: delta,
+            note: _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim(),
+          );
       final actor = ref.read(loginControllerProvider).user?.name ?? 'System';
       ref
           .read(inventoryJournalControllerProvider.notifier)

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:modular_pos/features/inventory/domain/models/inventory_journal_entry.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
+import 'package:modular_pos/features/inventory/ui/models/inventory_journal_reason_label.dart';
 
 class InventoryJournalEntryCard extends ConsumerWidget {
   const InventoryJournalEntryCard({super.key, required this.entry});
@@ -47,7 +48,7 @@ class InventoryJournalEntryCard extends ConsumerWidget {
             Row(
               children: [
                 Chip(
-                  label: Text(_resolvedReason(entry)),
+                  label: Text(inventoryJournalEntryReasonLabel(entry)),
                   backgroundColor: scheme.secondaryContainer,
                   labelStyle: TextStyle(color: scheme.onSecondaryContainer),
                 ),
@@ -85,14 +86,6 @@ class InventoryJournalEntryCard extends ConsumerWidget {
   String _formatTimestamp(DateTime value) =>
       '${value.year}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')} '
       '${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
-
-  String _resolvedReason(InventoryJournalEntry entry) {
-    final label = entry.reason.label;
-    if (label == 'Other') {
-      return entry.delta >= 0 ? 'Add' : 'Remove';
-    }
-    return label;
-  }
 
   String _resolvedActor(String actor, String? currentName) {
     final a = actor.trim();

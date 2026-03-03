@@ -49,7 +49,8 @@ class _InventoryJournalPageState extends ConsumerState<InventoryJournalPage> {
     final userBranches =
         ref.watch(loginControllerProvider).user?.branches ??
         const <UserBranch>[];
-    final entries = ref.watch(inventoryJournalControllerProvider);
+    final journalState = ref.watch(inventoryJournalControllerProvider);
+    final entries = journalState.entries;
     final branchOptions = _branchOptions(entries, userBranches);
     if (_selectedBranchId == 'all' && branchOptions.length == 2) {
       _selectedBranchId = branchOptions.first.key == 'all'
@@ -134,7 +135,11 @@ class _InventoryJournalPageState extends ConsumerState<InventoryJournalPage> {
             ),
             const SizedBox(height: 16),
             Expanded(
-              child: branchGroups.isEmpty
+              child: journalState.isLoading && entries.isEmpty
+                  ? const Center(child: CircularProgressIndicator())
+                  : journalState.error != null && entries.isEmpty
+                  ? Center(child: Text(journalState.error!))
+                  : branchGroups.isEmpty
                   ? const Center(child: Text('No journal activity yet.'))
                   : ListView.separated(
                       itemCount: branchGroups.length,

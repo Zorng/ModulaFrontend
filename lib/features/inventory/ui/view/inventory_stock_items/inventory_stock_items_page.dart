@@ -8,6 +8,7 @@ import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/core/widgets/forms/app_search_bar.dart';
 import 'package:modular_pos/core/widgets/buttons/app_add_new_button.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
+import 'package:modular_pos/features/inventory/ui/models/inventory_branch_option.dart';
 import 'package:modular_pos/features/inventory/ui/view/inventory_stock_items/inventory_stock_items_utils.dart';
 import 'package:modular_pos/features/inventory/ui/view/inventory_stock_items/widgets/stock_item_card.dart';
 import 'package:modular_pos/features/inventory/ui/view/inventory_stock_items/widgets/stock_item_image.dart';
@@ -15,7 +16,6 @@ import 'package:modular_pos/features/inventory/ui/viewmodels/category_controller
 import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_controller.dart';
 import 'package:modular_pos/features/inventory/ui/widgets/inventory_dropdown.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
-import 'package:modular_pos/features/auth/domain/models/user.dart';
 
 class InventoryStockItemsPage extends ConsumerStatefulWidget {
   const InventoryStockItemsPage({super.key});
@@ -58,9 +58,12 @@ class _InventoryStockItemsPageState
 
     final userBranches =
         ref.watch(loginControllerProvider).user?.branches ?? const [];
-    final branchEntries = _branchEntries(items, userBranches);
+    final branchEntries = buildInventoryBranchOptions(
+      items: items,
+      userBranches: userBranches,
+    );
     final effectiveBranchId =
-        branchEntries.any((entry) => entry['id'] == _selectedBranchId)
+        branchEntries.any((entry) => entry.id == _selectedBranchId)
         ? _selectedBranchId
         : 'all';
 
@@ -162,8 +165,8 @@ class _InventoryStockItemsPageState
                   entries: branchEntries
                       .map(
                         (branch) => DropdownMenuEntry(
-                          value: branch['id']!,
-                          label: branch['name']!,
+                          value: branch.id,
+                          label: branch.name,
                         ),
                       )
                       .toList(),
@@ -550,32 +553,6 @@ class _InventoryStockItemsPageState
         ),
       ),
     );
-  }
-
-  List<Map<String, String>> _branchEntries(
-    List<StockItem> items,
-    List<UserBranch> userBranches,
-  ) {
-    final map = <String, String>{};
-    if (userBranches.isNotEmpty) {
-      for (final b in userBranches) {
-        final id = b.branchId.isNotEmpty ? b.branchId : b.id;
-        map[id] = b.name;
-      }
-    } else {
-      for (final item in items) {
-        map[item.branchId] = item.branchName;
-      }
-    }
-    final entries =
-        map.entries
-            .map((entry) => {'id': entry.key, 'name': entry.value})
-            .toList()
-          ..sort((a, b) => a['name']!.compareTo(b['name']!));
-    if (entries.every((entry) => entry['id'] != 'all')) {
-      entries.insert(0, {'id': 'all', 'name': 'All Branches'});
-    }
-    return entries;
   }
 
   String _assignedBranches(StockItem item, List<StockItem> allItems) {

@@ -424,13 +424,14 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
     try {
       await ref
           .read(stockInventoryControllerProvider.notifier)
-          .restockItem(
+          .createRestockBatch(
             itemId: item.id,
             baseQty: baseQty,
             restockDate: _dateCtrl.text.isEmpty
                 ? formatYyyyMmDd(DateTime.now())
                 : _dateCtrl.text,
             expiryDate: _expiryCtrl.text.isEmpty ? null : _expiryCtrl.text,
+            purchaseCostUsd: price,
             note: _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim(),
             branchId: _selectedBranchId,
           );

@@ -1,0 +1,22 @@
+{
+  "success": true,
+  "data": [
+    {
+      "id": "branch-1:item-1",
+      "tenantId": "tenant-1",
+      "branchId": "branch-1",
+      "stockItemId": "item-1",
+      "onHandInBaseUnit": 6400,
+      "lastMovementAt": "2026-03-03T00:00:00.000Z",
+      "updatedAt": "2026-03-03T00:00:00.000Z"
+    },
+    {
+      "tenantId": "tenant-1",
+      "branchId": "branch-2",
+      "stockItemId": "item-2",
+      "resultingOnHandInBaseUnit": 120,
+      "occurredAt": "2026-03-03T01:00:00.000Z",
+      "updatedAt": "2026-03-03T01:00:00.000Z"
+    }
+  ]
+}

@@ -1,8 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/features/inventory/data/dto/inventory_journal_entry_dto.dart';
+import 'package:modular_pos/features/inventory/data/dto/restock_batch_dto.dart';
 import 'package:modular_pos/features/inventory/data/inventory_api.dart';
 import 'package:modular_pos/features/inventory/data/inventory_journal_repository.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_journal_entry.dart';
+import 'package:modular_pos/features/inventory/domain/models/stock_batch.dart';
 
 final remoteInventoryJournalRepositoryProvider =
     Provider<InventoryJournalRepository>((ref) {
@@ -16,19 +18,24 @@ class RemoteInventoryJournalRepository extends InventoryJournalRepository {
   final InventoryApi _api;
 
   @override
-  Future<InventoryJournalEntry?> receive({
+  Future<InventoryJournalEntry?> createRestockBatch({
     required String branchId,
     required String stockItemId,
     required num qty,
     String? note,
-    String? occurredAt,
+    String? receivedAt,
+    String? expiryDate,
+    String? supplierName,
+    num? purchaseCostUsd,
   }) async {
-    final dto = await _api.receiveStock(
-      branchId: branchId,
+    final dto = await _api.createRestockBatch(
       stockItemId: stockItemId,
-      qty: qty,
+      quantityInBaseUnit: qty.toInt(),
+      receivedAt: receivedAt,
+      expiryDate: expiryDate,
+      supplierName: supplierName,
+      purchaseCostUsd: purchaseCostUsd,
       note: note,
-      occurredAt: occurredAt,
     );
     return _maybeEntry(dto, fallbackReason: InventoryJournalReason.restock);
   }
@@ -70,23 +77,36 @@ class RemoteInventoryJournalRepository extends InventoryJournalRepository {
   }
 
   @override
+  Future<int?> applyAdjustment({
+    required String stockItemId,
+    required String style,
+    int? deltaInBaseUnit,
+    int? countedOnHandInBaseUnit,
+    required String reasonCode,
+    String? note,
+  }) {
+    return _api.applyAdjustment(
+      stockItemId: stockItemId,
+      style: style,
+      deltaInBaseUnit: deltaInBaseUnit,
+      countedOnHandInBaseUnit: countedOnHandInBaseUnit,
+      reasonCode: reasonCode,
+      note: note,
+    );
+  }
+
+  @override
   Future<List<InventoryJournalEntry>> fetch({
-    String? branchId,
     String? stockItemId,
     InventoryJournalReason? reason,
-    String? fromDate,
-    String? toDate,
-    int page = 1,
-    int pageSize = 50,
+    int limit = 50,
+    int offset = 0,
   }) async {
     final items = await _api.fetchJournal(
-      branchId: branchId,
       stockItemId: stockItemId,
-      reason: reason != null ? _reasonToApi(reason) : null,
-      fromDate: fromDate,
-      toDate: toDate,
-      page: page,
-      pageSize: pageSize,
+      reasonCode: reason != null ? _reasonToApi(reason) : null,
+      limit: limit,
+      offset: offset,
     );
     return items.map((dto) => _toDomain(dto)).toList(growable: false);
   }
@@ -95,6 +115,45 @@ class RemoteInventoryJournalRepository extends InventoryJournalRepository {
   Future<List<InventoryJournalEntry>> lowStockAlerts({String? branchId}) async {
     final items = await _api.fetchLowStockAlerts(branchId: branchId);
     return items.map(_toDomain).toList(growable: false);
+  }
+
+  @override
+  Future<List<StockBatch>> fetchRestockBatches({
+    String status = 'all',
+    String? stockItemId,
+    int? limit,
+    int? offset,
+  }) async {
+    final rows = await _api.fetchRestockBatches(
+      status: status,
+      stockItemId: stockItemId,
+      limit: limit,
+      offset: offset,
+    );
+    return rows.map(_toBatch).toList(growable: false);
+  }
+
+  @override
+  Future<StockBatch> updateRestockBatchMetadata({
+    required String batchId,
+    String? expiryDate,
+    String? supplierName,
+    num? purchaseCostUsd,
+    String? note,
+  }) async {
+    final dto = await _api.updateRestockBatchMetadata(
+      batchId: batchId,
+      expiryDate: expiryDate,
+      supplierName: supplierName,
+      purchaseCostUsd: purchaseCostUsd,
+      note: note,
+    );
+    return _toBatch(dto);
+  }
+
+  @override
+  Future<void> archiveRestockBatch({required String batchId}) {
+    return _api.archiveRestockBatch(batchId: batchId);
   }
 
   InventoryJournalEntry? _maybeEntry(
@@ -106,21 +165,36 @@ class RemoteInventoryJournalRepository extends InventoryJournalRepository {
   }
 
   String _reasonToApi(InventoryJournalReason reason) => switch (reason) {
-    InventoryJournalReason.restock => 'receive',
-    InventoryJournalReason.add => 'receive',
-    InventoryJournalReason.remove => 'waste',
-    InventoryJournalReason.sale => 'sale',
-    InventoryJournalReason.voided => 'void',
-    InventoryJournalReason.reopen => 'reopen',
-    InventoryJournalReason.unknown => '',
+    InventoryJournalReason.restock => 'RESTOCK',
+    InventoryJournalReason.add => 'ADJUSTMENT',
+    InventoryJournalReason.remove => 'ADJUSTMENT',
+    InventoryJournalReason.sale => 'SALE_DEDUCTION',
+    InventoryJournalReason.voided => 'VOID_REVERSAL',
+    InventoryJournalReason.reopen => 'OTHER',
+    InventoryJournalReason.unknown => 'OTHER',
   };
+}
+
+StockBatch _toBatch(RestockBatchDto dto) {
+  return StockBatch(
+    id: dto.id,
+    stockItemId: dto.stockItemId,
+    branchId: dto.branchId,
+    onHand: dto.quantityInBaseUnit,
+    receivedDate: _toDateOnly(dto.receivedAt),
+    expiryDate: dto.expiryDate,
+  );
 }
 
 InventoryJournalEntry _toDomain(
   InventoryJournalEntryDto dto, {
   InventoryJournalReason? fallbackReason,
 }) {
-  final reason = _reasonFromApi(dto.reason, fallback: fallbackReason);
+  final reason = _reasonFromApi(
+    dto.reason,
+    delta: dto.delta,
+    fallback: fallbackReason,
+  );
   final actor = dto.actorName.isNotEmpty ? dto.actorName : dto.actorId;
   return InventoryJournalEntry(
     id: dto.id,
@@ -137,22 +211,46 @@ InventoryJournalEntry _toDomain(
   );
 }
 
+String _toDateOnly(String raw) {
+  final parsed = DateTime.tryParse(raw);
+  if (parsed != null) {
+    final date = parsed.toUtc();
+    final month = date.month.toString().padLeft(2, '0');
+    final day = date.day.toString().padLeft(2, '0');
+    return '${date.year}-$month-$day';
+  }
+  final normalized = raw.trim();
+  if (normalized.contains('T')) {
+    return normalized.split('T').first;
+  }
+  return normalized;
+}
+
 InventoryJournalReason _reasonFromApi(
   String reason, {
+  required int delta,
   InventoryJournalReason? fallback,
 }) {
   switch (reason.trim().toLowerCase()) {
-    case 'receive':
     case 'restock':
+    case 'receive':
       return InventoryJournalReason.restock;
+    case 'adjustment':
+      return delta < 0
+          ? InventoryJournalReason.remove
+          : InventoryJournalReason.add;
     case 'waste':
       return InventoryJournalReason.remove;
+    case 'sale_deduction':
     case 'sale':
       return InventoryJournalReason.sale;
+    case 'void_reversal':
     case 'void':
       return InventoryJournalReason.voided;
     case 'reopen':
       return InventoryJournalReason.reopen;
+    case 'other':
+      return InventoryJournalReason.unknown;
     default:
       return fallback ?? InventoryJournalReason.unknown;
   }

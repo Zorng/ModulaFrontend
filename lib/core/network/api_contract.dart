@@ -34,7 +34,21 @@ class ApiContract {
   }
 
   static String? errorCode(dynamic body) {
-    return asJsonMap(body)['code']?.toString();
+    final raw = asJsonMap(body);
+    final details = asJsonMap(raw['details']);
+    final candidates = <dynamic>[
+      raw['code'],
+      raw['reasonCode'],
+      raw['reason_code'],
+      details['code'],
+      details['reasonCode'],
+      details['reason_code'],
+    ];
+    for (final candidate in candidates) {
+      final code = candidate?.toString().trim() ?? '';
+      if (code.isNotEmpty) return code;
+    }
+    return null;
   }
 
   static String? errorMessage(dynamic body) {

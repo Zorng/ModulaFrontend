@@ -107,6 +107,15 @@ class _StockItemFormPageState extends ConsumerState<StockItemFormPage> {
         title: Text(_title()),
         centerTitle: false,
         actions: [
+          if (_mode == StockItemFormMode.view && !_isActive)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: TextButton.icon(
+                onPressed: _isSaving ? null : _restoreItem,
+                icon: const Icon(Icons.restore_outlined, size: 18),
+                label: const Text('Restore'),
+              ),
+            ),
           if (_mode == StockItemFormMode.view)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -115,15 +124,20 @@ class _StockItemFormPageState extends ConsumerState<StockItemFormPage> {
                       width: 120,
                       child: FilledButton.icon(
                         style: AppTheme.editActionButtonStyle,
-                        onPressed: () =>
-                            setState(() => _mode = StockItemFormMode.edit),
+                        onPressed: _isSaving
+                            ? null
+                            : () => setState(
+                                () => _mode = StockItemFormMode.edit,
+                              ),
                         icon: const Icon(Icons.edit_outlined, size: 18),
                         label: const Text('Edit'),
                       ),
                     )
                   : TextButton(
-                      onPressed: () =>
-                          setState(() => _mode = StockItemFormMode.edit),
+                      onPressed: _isSaving
+                          ? null
+                          : () =>
+                                setState(() => _mode = StockItemFormMode.edit),
                       child: const Text('Edit'),
                     ),
             ),
@@ -759,6 +773,36 @@ class _StockItemFormPageState extends ConsumerState<StockItemFormPage> {
         fallbackMessage: _mode == StockItemFormMode.create
             ? 'Failed to add stock item.'
             : 'Failed to save stock item.',
+      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(mapped.message)));
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  Future<void> _restoreItem() async {
+    final current = _originalItem;
+    if (current == null || current.id.isEmpty) return;
+    setState(() => _isSaving = true);
+    try {
+      await ref
+          .read(stockInventoryControllerProvider.notifier)
+          .restoreStockItem(current.id);
+      if (!mounted) return;
+      setState(() {
+        _isActive = true;
+        _originalItem = current.copyWith(isActive: true);
+      });
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Stock item restored')));
+    } catch (e) {
+      if (!mounted) return;
+      final mapped = mapInventoryError(
+        e,
+        fallbackMessage: 'Failed to restore stock item.',
       );
       ScaffoldMessenger.of(
         context,

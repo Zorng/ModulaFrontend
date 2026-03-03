@@ -13,6 +13,7 @@ import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/category_controller.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/category_state.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/inventory_journal_controller.dart';
+import 'package:modular_pos/features/inventory/ui/viewmodels/inventory_journal_state.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_controller.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_state.dart';
 
@@ -156,6 +157,11 @@ class FakeStockInventoryController extends StockInventoryController {
   Future<void> loadStockItems({String? branchId}) async {}
 
   @override
+  Future<StockItem> loadStockItemDetail(String id) async {
+    return _state.items.firstWhere((item) => item.id == id);
+  }
+
+  @override
   Future<StockItem> addStockItem(
     StockItem draft, {
     String? imagePath,
@@ -172,32 +178,37 @@ class FakeStockInventoryController extends StockInventoryController {
   }) async {}
 
   @override
-  Future<void> restockItem({
+  Future<void> createRestockBatch({
     required String itemId,
     required int baseQty,
     String? restockDate,
     String? expiryDate,
+    num? purchaseCostUsd,
     String? note,
     String? branchId,
   }) async {}
 
   @override
-  Future<void> deleteStockItem(String id) async {}
+  Future<void> archiveStockItem(String id) async {}
 
   @override
-  Future<void> adjustBatch({
+  Future<void> restoreStockItem(String id) async {}
+
+  @override
+  Future<void> applyInventoryAdjustment({
     required String batchId,
     required int delta,
+    String? note,
   }) async {}
 }
 
 class FakeInventoryJournalController extends InventoryJournalController {
-  FakeInventoryJournalController(this._entries);
+  FakeInventoryJournalController(this._state);
 
-  final List<InventoryJournalEntry> _entries;
+  final InventoryJournalState _state;
 
   @override
-  List<InventoryJournalEntry> build() => _entries;
+  InventoryJournalState build() => _state;
 
   @override
   Future<void> load({String? branchId, String? stockItemId}) async {}
@@ -211,6 +222,13 @@ class FakeStockItemRepository extends StockItemRepository {
   @override
   Future<List<StockItem>> fetchMasterStockItems({int pageSize = 200}) async {
     return _items.take(pageSize).toList(growable: false);
+  }
+
+  @override
+  Future<StockItem> fetchStockItemById(String id) async {
+    final match = _items.where((item) => item.id == id);
+    if (match.isNotEmpty) return match.first;
+    throw StateError('Stock item not found: $id');
   }
 
   @override
@@ -232,7 +250,10 @@ class FakeStockItemRepository extends StockItemRepository {
   }
 
   @override
-  Future<void> deleteStockItem(String id) async {}
+  Future<void> archiveStockItem(String id) async {}
+
+  @override
+  Future<void> restoreStockItem(String id) async {}
 }
 
 class FakeBranchStockRepository extends BranchStockRepository {
@@ -279,6 +300,7 @@ List<Override> inventoryOverrides({
   CategoryState? categoryState,
   StockInventoryState? stockInventoryState,
   List<InventoryJournalEntry>? journalEntries,
+  InventoryJournalState? journalState,
   StockItemRepository? stockItemRepository,
   BranchStockRepository? branchStockRepository,
 }) {
@@ -298,8 +320,12 @@ List<Override> inventoryOverrides({
       ),
     ),
     inventoryJournalControllerProvider.overrideWith(
-      () =>
-          FakeInventoryJournalController(journalEntries ?? testJournalEntries),
+      () => FakeInventoryJournalController(
+        journalState ??
+            InventoryJournalState(
+              entries: journalEntries ?? testJournalEntries,
+            ),
+      ),
     ),
     if (stockItemRepository != null)
       stockItemRepositoryProvider.overrideWithValue(stockItemRepository),

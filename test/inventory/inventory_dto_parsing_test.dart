@@ -1,8 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:modular_pos/features/inventory/data/dto/branch_stock_item_dto.dart';
+import 'package:modular_pos/features/inventory/data/dto/branch_stock_projection_dto.dart';
 import 'package:modular_pos/features/inventory/data/dto/inventory_category_dto.dart';
 import 'package:modular_pos/features/inventory/data/dto/inventory_journal_entry_dto.dart';
 import 'package:modular_pos/features/inventory/data/dto/on_hand_record_dto.dart';
+import 'package:modular_pos/features/inventory/data/dto/restock_batch_dto.dart';
 import 'package:modular_pos/features/inventory/data/dto/stock_item_dto.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_status.dart';
 
@@ -90,6 +92,86 @@ void main() {
       expect(second.branchId, 'branch-1');
       expect(second.onHand, 120);
       expect(second.minThreshold, 200);
+    });
+
+    test('BranchStockProjectionDto parses canonical projection fields', () {
+      final rows = readInventoryDataListFixture(
+        'branch_stock_projections_v0.json',
+      );
+      final first = BranchStockProjectionDto.fromJson(rows.first);
+      final second = BranchStockProjectionDto.fromJson(rows[1]);
+
+      expect(first.id, 'branch-1:item-1');
+      expect(first.tenantId, 'tenant-1');
+      expect(first.branchId, 'branch-1');
+      expect(first.stockItemId, 'item-1');
+      expect(first.onHandInBaseUnit, 6400);
+      expect(first.lastMovementAt, '2026-03-03T00:00:00.000Z');
+      expect(first.updatedAt, '2026-03-03T00:00:00.000Z');
+
+      expect(second.id, 'branch-2:item-2');
+      expect(second.tenantId, 'tenant-1');
+      expect(second.branchId, 'branch-2');
+      expect(second.stockItemId, 'item-2');
+      expect(second.onHandInBaseUnit, 120);
+      expect(second.lastMovementAt, '2026-03-03T01:00:00.000Z');
+      expect(second.updatedAt, '2026-03-03T01:00:00.000Z');
+    });
+
+    test('RestockBatchDto parses contract restock-batches payload', () {
+      final rows = readInventoryDataListFixture('restock_batches_list_v0.json');
+      final first = RestockBatchDto.fromJson(rows.first);
+      final second = RestockBatchDto.fromJson(rows[1]);
+
+      expect(first.id, 'batch-1');
+      expect(first.branchId, 'branch-1');
+      expect(first.stockItemId, 'item-1');
+      expect(first.quantityInBaseUnit, 2400);
+      expect(first.status, InventoryStatus.active);
+      expect(first.expiryDate, '2026-03-20');
+      expect(first.supplierName, 'Supplier X');
+      expect(first.purchaseCostUsd, 15.75);
+      expect(first.note, 'Morning restock');
+      expect(first.isActive, isTrue);
+
+      expect(second.id, 'batch-2');
+      expect(second.status, InventoryStatus.archived);
+      expect(second.expiryDate, isNull);
+      expect(second.supplierName, isNull);
+      expect(second.purchaseCostUsd, isNull);
+      expect(second.note, isNull);
+      expect(second.isActive, isFalse);
+    });
+
+    test('RestockBatchDto normalizes legacy isActive fallback into status', () {
+      final archivedLegacy = RestockBatchDto.fromJson({
+        'id': 'legacy-1',
+        'tenantId': 'tenant-1',
+        'branchId': 'branch-1',
+        'stockItemId': 'item-1',
+        'quantityInBaseUnit': 100,
+        'isActive': false,
+        'receivedAt': '2026-03-03T00:00:00.000Z',
+        'createdByAccountId': 'acct-1',
+        'createdAt': '2026-03-03T00:00:00.000Z',
+        'updatedAt': '2026-03-03T00:00:00.000Z',
+      });
+      final defaultLegacy = RestockBatchDto.fromJson({
+        'id': 'legacy-2',
+        'tenantId': 'tenant-1',
+        'branchId': 'branch-1',
+        'stockItemId': 'item-1',
+        'quantityInBaseUnit': 100,
+        'receivedAt': '2026-03-03T00:00:00.000Z',
+        'createdByAccountId': 'acct-1',
+        'createdAt': '2026-03-03T00:00:00.000Z',
+        'updatedAt': '2026-03-03T00:00:00.000Z',
+      });
+
+      expect(archivedLegacy.status, InventoryStatus.archived);
+      expect(archivedLegacy.isActive, isFalse);
+      expect(defaultLegacy.status, InventoryStatus.active);
+      expect(defaultLegacy.isActive, isTrue);
     });
 
     test(

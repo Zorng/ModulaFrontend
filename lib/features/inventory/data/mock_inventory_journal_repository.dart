@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/features/inventory/data/inventory_journal_repository.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_journal_entry.dart';
+import 'package:modular_pos/features/inventory/domain/models/stock_batch.dart';
 
 final mockInventoryJournalRepositoryProvider =
     Provider<InventoryJournalRepository>((ref) {
@@ -13,12 +14,15 @@ class MockInventoryJournalRepository extends InventoryJournalRepository {
   final List<InventoryJournalEntry> _entries = <InventoryJournalEntry>[];
 
   @override
-  Future<InventoryJournalEntry?> receive({
+  Future<InventoryJournalEntry?> createRestockBatch({
     required String branchId,
     required String stockItemId,
     required num qty,
     String? note,
-    String? occurredAt,
+    String? receivedAt,
+    String? expiryDate,
+    String? supplierName,
+    num? purchaseCostUsd,
   }) async {
     final entry = _createEntry(
       branchId: branchId,
@@ -26,7 +30,7 @@ class MockInventoryJournalRepository extends InventoryJournalRepository {
       qtyDelta: qty,
       reason: InventoryJournalReason.restock,
       note: note,
-      occurredAt: occurredAt,
+      occurredAt: receivedAt,
     );
     _entries.insert(0, entry);
     return entry;
@@ -73,23 +77,30 @@ class MockInventoryJournalRepository extends InventoryJournalRepository {
   }
 
   @override
+  Future<int?> applyAdjustment({
+    required String stockItemId,
+    required String style,
+    int? deltaInBaseUnit,
+    int? countedOnHandInBaseUnit,
+    required String reasonCode,
+    String? note,
+  }) async {
+    if (style.trim().toUpperCase() == 'SET_TO_COUNT') {
+      return countedOnHandInBaseUnit;
+    }
+    return null;
+  }
+
+  @override
   Future<List<InventoryJournalEntry>> fetch({
-    String? branchId,
     String? stockItemId,
     InventoryJournalReason? reason,
-    String? fromDate,
-    String? toDate,
-    int page = 1,
-    int pageSize = 50,
+    int limit = 50,
+    int offset = 0,
   }) async {
     var filtered =
         _entries
             .where((entry) {
-              if (branchId != null &&
-                  branchId.isNotEmpty &&
-                  entry.branchId != branchId) {
-                return false;
-              }
               if (stockItemId != null &&
                   stockItemId.isNotEmpty &&
                   entry.itemId != stockItemId) {
@@ -98,32 +109,18 @@ class MockInventoryJournalRepository extends InventoryJournalRepository {
               if (reason != null && entry.reason != reason) {
                 return false;
               }
-              if (fromDate != null && fromDate.isNotEmpty) {
-                final from = DateTime.tryParse(fromDate);
-                if (from != null && entry.occurredAt.isBefore(from)) {
-                  return false;
-                }
-              }
-              if (toDate != null && toDate.isNotEmpty) {
-                final to = DateTime.tryParse(toDate);
-                if (to != null && entry.occurredAt.isAfter(to)) {
-                  return false;
-                }
-              }
               return true;
             })
             .toList(growable: false)
           ..sort((a, b) => b.occurredAt.compareTo(a.occurredAt));
 
-    final start =
-        ((page <= 1 ? 1 : page) - 1) * (pageSize <= 0 ? 50 : pageSize);
+    final safeOffset = offset < 0 ? 0 : offset;
+    final safeLimit = limit <= 0 ? 50 : limit;
+    final start = safeOffset;
     if (start >= filtered.length) {
       return const <InventoryJournalEntry>[];
     }
-    final end = (start + (pageSize <= 0 ? 50 : pageSize)).clamp(
-      0,
-      filtered.length,
-    );
+    final end = (start + safeLimit).clamp(0, filtered.length);
     filtered = filtered.sublist(start, end);
 
     return filtered;
@@ -133,6 +130,37 @@ class MockInventoryJournalRepository extends InventoryJournalRepository {
   Future<List<InventoryJournalEntry>> lowStockAlerts({String? branchId}) async {
     return const <InventoryJournalEntry>[];
   }
+
+  @override
+  Future<List<StockBatch>> fetchRestockBatches({
+    String status = 'all',
+    String? stockItemId,
+    int? limit,
+    int? offset,
+  }) async {
+    return const <StockBatch>[];
+  }
+
+  @override
+  Future<StockBatch> updateRestockBatchMetadata({
+    required String batchId,
+    String? expiryDate,
+    String? supplierName,
+    num? purchaseCostUsd,
+    String? note,
+  }) async {
+    return StockBatch(
+      id: batchId,
+      stockItemId: '',
+      branchId: '',
+      onHand: 0,
+      receivedDate: DateTime.now().toIso8601String().split('T').first,
+      expiryDate: expiryDate,
+    );
+  }
+
+  @override
+  Future<void> archiveRestockBatch({required String batchId}) async {}
 
   InventoryJournalEntry _createEntry({
     required String branchId,

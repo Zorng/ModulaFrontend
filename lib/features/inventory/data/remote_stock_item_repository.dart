@@ -35,6 +35,18 @@ class RemoteStockItemRepository extends StockItemRepository {
   }
 
   @override
+  Future<StockItem> fetchStockItemById(String id) async {
+    final dto = await _api.fetchStockItemById(id);
+    return _toStockItem(
+      dto: dto,
+      branchId: '',
+      branchName: '',
+      onHand: 0,
+      minThreshold: dto.lowStockThreshold ?? 0,
+    );
+  }
+
+  @override
   Future<StockItem> createStockItem(
     StockItem item, {
     String? imagePath,
@@ -42,11 +54,10 @@ class RemoteStockItemRepository extends StockItemRepository {
   }) async {
     final body = {
       'name': item.name,
-      'unitText': item.baseUnit,
-      'pieceSize': item.pieceSize,
+      'baseUnit': item.baseUnit,
       if (item.categoryId != null && item.categoryId!.isNotEmpty)
         'categoryId': item.categoryId,
-      'isActive': item.isActive,
+      if (item.minThreshold > 0) 'lowStockThreshold': item.minThreshold,
     };
     final dto = await _api.createStockItem(
       body,
@@ -70,11 +81,9 @@ class RemoteStockItemRepository extends StockItemRepository {
   }) async {
     final body = {
       'name': item.name,
-      'unitText': item.baseUnit,
-      'pieceSize': item.pieceSize,
-      'isActive': item.isActive,
-      if (item.categoryId != null && item.categoryId!.isNotEmpty)
-        'categoryId': item.categoryId,
+      'categoryId': item.categoryId,
+      'lowStockThreshold': item.minThreshold,
+      'imageUrl': item.imageUrl,
     };
     final dto = await _api.updateStockItem(
       item.id,
@@ -92,7 +101,10 @@ class RemoteStockItemRepository extends StockItemRepository {
   }
 
   @override
-  Future<void> deleteStockItem(String id) => _api.deactivateStockItem(id);
+  Future<void> archiveStockItem(String id) => _api.archiveStockItem(id);
+
+  @override
+  Future<void> restoreStockItem(String id) => _api.restoreStockItem(id);
 }
 
 StockItem _toStockItem({

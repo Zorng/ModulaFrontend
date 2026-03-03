@@ -2,8 +2,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/features/inventory/data/branch_stock_repository.dart';
 import 'package:modular_pos/features/inventory/data/dto/branch_stock_item_dto.dart';
 import 'package:modular_pos/features/inventory/data/dto/on_hand_record_dto.dart';
+import 'package:modular_pos/features/inventory/data/dto/stock_aggregate_item_dto.dart';
 import 'package:modular_pos/features/inventory/data/dto/stock_item_dto.dart';
 import 'package:modular_pos/features/inventory/data/inventory_api.dart';
+import 'package:modular_pos/features/inventory/domain/models/inventory_status.dart';
 import 'package:modular_pos/features/inventory/domain/models/on_hand_record.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
 
@@ -21,8 +23,16 @@ class RemoteBranchStockRepository extends BranchStockRepository {
 
   @override
   Future<List<OnHandRecord>> fetchOnHand({String? branchId}) async {
-    final records = await _api.fetchOnHand(branchId: branchId);
-    return records.map(_toOnHandDomain).toList(growable: false);
+    final records = await _api.fetchOnHand(includeArchivedItems: true);
+    final mapped = records
+        .map((dto) => _toOnHandDomain(dto, branchIdHint: branchId))
+        .toList(growable: false);
+    if (branchId == null || branchId.isEmpty) return mapped;
+    return mapped
+        .where(
+          (record) => record.branchId.isEmpty || record.branchId == branchId,
+        )
+        .toList(growable: false);
   }
 
   @override
@@ -35,7 +45,25 @@ class RemoteBranchStockRepository extends BranchStockRepository {
     );
     final masterById = {for (final dto in masterDtos) dto.id: dto};
 
-    final branchDtos = await _api.fetchBranchStockItems(branchId: branchId);
+    if (branchId == null || branchId.isEmpty) {
+      final aggregateDtos = await _api.fetchAggregateStock(
+        includeArchivedItems: true,
+      );
+      if (aggregateDtos.isNotEmpty) {
+        return aggregateDtos
+            .map(
+              (aggregate) => _toStockItemFromAggregate(
+                aggregate: aggregate,
+                masterById: masterById,
+              ),
+            )
+            .toList(growable: false);
+      }
+    }
+
+    final branchDtos = await _api.fetchBranchStockItems(
+      includeArchivedItems: true,
+    );
 
     if (branchDtos.isNotEmpty) {
       return branchDtos
@@ -77,10 +105,13 @@ class RemoteBranchStockRepository extends BranchStockRepository {
   }
 }
 
-OnHandRecord _toOnHandDomain(OnHandRecordDto dto) {
+OnHandRecord _toOnHandDomain(OnHandRecordDto dto, {String? branchIdHint}) {
+  final resolvedBranchId = dto.branchId.isNotEmpty
+      ? dto.branchId
+      : (branchIdHint ?? '');
   return OnHandRecord(
     stockItemId: dto.stockItemId,
-    branchId: dto.branchId,
+    branchId: resolvedBranchId,
     onHand: dto.onHand,
     minThreshold: dto.minThreshold,
   );
@@ -101,6 +132,33 @@ StockItem _toStockItemFromBranchAssignment({
     branchName: '',
     onHand: assignment.onHand ?? 0,
     minThreshold: assignment.minThreshold ?? 0,
+  );
+}
+
+StockItem _toStockItemFromAggregate({
+  required StockAggregateItemDto aggregate,
+  required Map<String, StockItemDto> masterById,
+}) {
+  final base =
+      masterById[aggregate.stockItemId] ??
+      StockItemDto(
+        id: aggregate.stockItemId,
+        tenantId: '',
+        categoryId: null,
+        name: aggregate.stockItemName,
+        baseUnit: aggregate.baseUnit,
+        imageUrl: null,
+        lowStockThreshold: null,
+        status: InventoryStatus.active,
+        createdAt: '',
+        updatedAt: '',
+      );
+  return _toStockItem(
+    dto: base,
+    branchId: 'all',
+    branchName: 'All Branches',
+    onHand: aggregate.totalOnHandInBaseUnit,
+    minThreshold: base.lowStockThreshold ?? 0,
   );
 }
 

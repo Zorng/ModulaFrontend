@@ -4,6 +4,7 @@ import 'package:modular_pos/features/inventory/data/remote_inventory_journal_rep
 import 'package:modular_pos/features/inventory/data/stock_item_repository.dart'
     show useMockInventoryRepositoryProvider;
 import 'package:modular_pos/features/inventory/domain/models/inventory_journal_entry.dart';
+import 'package:modular_pos/features/inventory/domain/models/stock_batch.dart';
 
 final inventoryJournalRepositoryProvider = Provider<InventoryJournalRepository>(
   (ref) {
@@ -18,13 +19,39 @@ final inventoryJournalRepositoryProvider = Provider<InventoryJournalRepository>(
 abstract class InventoryJournalRepository {
   const InventoryJournalRepository();
 
+  Future<InventoryJournalEntry?> createRestockBatch({
+    required String branchId,
+    required String stockItemId,
+    required num qty,
+    String? note,
+    String? receivedAt,
+    String? expiryDate,
+    String? supplierName,
+    num? purchaseCostUsd,
+  });
+
+  @Deprecated('Use createRestockBatch')
   Future<InventoryJournalEntry?> receive({
     required String branchId,
     required String stockItemId,
     required num qty,
     String? note,
-    String? occurredAt,
-  });
+    String? receivedAt,
+    String? expiryDate,
+    String? supplierName,
+    num? purchaseCostUsd,
+  }) {
+    return createRestockBatch(
+      branchId: branchId,
+      stockItemId: stockItemId,
+      qty: qty,
+      note: note,
+      receivedAt: receivedAt,
+      expiryDate: expiryDate,
+      supplierName: supplierName,
+      purchaseCostUsd: purchaseCostUsd,
+    );
+  }
 
   Future<InventoryJournalEntry?> waste({
     required String branchId,
@@ -42,15 +69,38 @@ abstract class InventoryJournalRepository {
     String? occurredAt,
   });
 
+  Future<int?> applyAdjustment({
+    required String stockItemId,
+    required String style,
+    int? deltaInBaseUnit,
+    int? countedOnHandInBaseUnit,
+    required String reasonCode,
+    String? note,
+  });
+
   Future<List<InventoryJournalEntry>> fetch({
-    String? branchId,
     String? stockItemId,
     InventoryJournalReason? reason,
-    String? fromDate,
-    String? toDate,
-    int page = 1,
-    int pageSize = 50,
+    int limit = 50,
+    int offset = 0,
   });
 
   Future<List<InventoryJournalEntry>> lowStockAlerts({String? branchId});
+
+  Future<List<StockBatch>> fetchRestockBatches({
+    String status = 'all',
+    String? stockItemId,
+    int? limit,
+    int? offset,
+  });
+
+  Future<StockBatch> updateRestockBatchMetadata({
+    required String batchId,
+    String? expiryDate,
+    String? supplierName,
+    num? purchaseCostUsd,
+    String? note,
+  });
+
+  Future<void> archiveRestockBatch({required String batchId});
 }

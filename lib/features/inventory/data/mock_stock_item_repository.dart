@@ -17,6 +17,13 @@ class MockStockItemRepository extends StockItemRepository {
   }
 
   @override
+  Future<StockItem> fetchStockItemById(String id) async {
+    final match = _items.where((item) => item.id == id);
+    if (match.isNotEmpty) return match.first;
+    throw StateError('Stock item not found: $id');
+  }
+
+  @override
   Future<StockItem> createStockItem(
     StockItem item, {
     String? imagePath,
@@ -55,7 +62,15 @@ class MockStockItemRepository extends StockItemRepository {
   }
 
   @override
-  Future<void> deleteStockItem(String id) async {
+  Future<void> archiveStockItem(String id) async {
     _items.removeWhere((item) => item.id == id);
+  }
+
+  @override
+  Future<void> restoreStockItem(String id) async {
+    final index = _items.indexWhere((item) => item.id == id);
+    if (index < 0) return;
+    final current = _items[index];
+    _items[index] = current.copyWith(isActive: true);
   }
 }

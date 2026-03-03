@@ -25,6 +25,16 @@ void main() {
       expect(ApiContract.errorCode(payload), 'INVALID_INPUT');
       expect(ApiContract.errorDetails(payload), {'field': 'phone'});
     });
+
+    test('errorCode falls back to reasonCode fields', () {
+      final payload = {
+        'success': false,
+        'error': 'Item inactive',
+        'details': {'reasonCode': 'INVENTORY_STOCK_ITEM_INACTIVE'},
+      };
+
+      expect(ApiContract.errorCode(payload), 'INVENTORY_STOCK_ITEM_INACTIVE');
+    });
   });
 
   group('ApiClientException', () {
@@ -50,6 +60,29 @@ void main() {
       expect(mapped.message, 'Conflict');
       expect(mapped.code, 'IDEMPOTENCY_CONFLICT');
       expect(mapped.statusCode, 409);
+    });
+
+    test('maps reasonCode fallback when code is absent', () {
+      final requestOptions = RequestOptions(path: '/v0/test');
+      final response = Response(
+        requestOptions: requestOptions,
+        statusCode: 400,
+        data: {
+          'success': false,
+          'error': 'Invalid adjustment.',
+          'reasonCode': 'INVENTORY_ADJUSTMENT_INVALID',
+        },
+      );
+
+      final exception = DioError(
+        requestOptions: requestOptions,
+        response: response,
+        type: DioErrorType.badResponse,
+      );
+
+      final mapped = ApiClientException.fromDio(exception);
+      expect(mapped.code, 'INVENTORY_ADJUSTMENT_INVALID');
+      expect(mapped.statusCode, 400);
     });
   });
 }
