@@ -1,4 +1,4 @@
-﻿import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,6 +12,7 @@ import 'package:modular_pos/features/menu/domain/models/menu_category.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 import 'package:modular_pos/features/menu/ui/components/menu_form_field_label.dart';
+import 'package:modular_pos/features/menu/ui/view/menu_item_form/menu_item_form_error_mapper.dart';
 import 'package:modular_pos/features/menu/ui/view/menu_item_form/menu_item_form_utils.dart';
 import 'package:modular_pos/features/menu/ui/view/menu_item_form/widgets/selection_chips_field.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
@@ -66,13 +67,17 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
       ref.read(menuViewModelProvider.notifier).loadMenu();
     });
 
-    _nameController = TextEditingController(text: widget.initialItem?.name ?? '');
+    _nameController = TextEditingController(
+      text: widget.initialItem?.name ?? '',
+    );
     _priceController = TextEditingController(
       text: widget.initialItem?.price.toStringAsFixed(2) ?? '',
     );
 
     _selectedCategoryId = widget.initialItem?.categoryId;
-    _selectedModifierGroupIds.addAll(widget.initialItem?.modifierGroupIds ?? const []);
+    _selectedModifierGroupIds.addAll(
+      widget.initialItem?.modifierGroupIds ?? const [],
+    );
     _selectedBranchIds.addAll(widget.initialItem?.branchIds ?? const []);
     _hasInitializedBranchSelection = _selectedBranchIds.isNotEmpty;
     _existingImageUrl = widget.initialItem?.imageUrl;
@@ -94,7 +99,9 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
     final branches = state.branches;
     final isWide = !AppBreakpoints.isSmall(MediaQuery.of(context).size.width);
 
-    if (!_hasInitializedBranchSelection && _selectedBranchIds.isEmpty && branches.isNotEmpty) {
+    if (!_hasInitializedBranchSelection &&
+        _selectedBranchIds.isEmpty &&
+        branches.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted || _selectedBranchIds.isNotEmpty) return;
         setState(() {
@@ -104,8 +111,12 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
       });
     }
 
-    final branchNameLookup = {for (final branch in branches) branch.id: branch.name};
-    final modifierNameLookup = {for (final group in modifierGroups) group.id: group.name};
+    final branchNameLookup = {
+      for (final branch in branches) branch.id: branch.name,
+    };
+    final modifierNameLookup = {
+      for (final group in modifierGroups) group.id: group.name,
+    };
 
     return Scaffold(
       appBar: AppBar(
@@ -191,16 +202,18 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
                               size: const Size(220, 220),
                               borderRadius: 16,
                               imageBytes: _selectedImageBytes,
-                              imageUrl: _selectedImageBytes == null ? _existingImageUrl : null,
+                              imageUrl: _selectedImageBytes == null
+                                  ? _existingImageUrl
+                                  : null,
                               readOnly: !isEditing,
                               onPickImage: _pickImage,
                               onClearLocalSelection: _selectedImageBytes != null
                                   ? isEditing
-                                      ? () => setState(() {
-                                      _selectedImageBytes = null;
-                                      _selectedImagePath = null;
-                                    })
-                                      : null
+                                        ? () => setState(() {
+                                            _selectedImageBytes = null;
+                                            _selectedImagePath = null;
+                                          })
+                                        : null
                                   : null,
                             ),
                           ),
@@ -210,7 +223,10 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
                       _MenuSectionCard(
                         title: 'Item details',
                         description: 'Basic information about the menu item.',
-                        children: _buildItemDetailFields(categories, isWide: false),
+                        children: _buildItemDetailFields(
+                          categories,
+                          isWide: false,
+                        ),
                       ),
                     ],
                   );
@@ -225,15 +241,19 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
                   if (branches.isEmpty)
                     Text(
                       'No branches available.',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodyMedium?.copyWith(color: Colors.grey),
                     )
                   else
                     SelectionChipsField(
                       selectedIds: _selectedBranchIds,
                       addButtonLabel: 'Select branches',
-                      labelResolver: (id) => branchNameLookup[id] ?? 'Unknown branch',
+                      labelResolver: (id) =>
+                          branchNameLookup[id] ?? 'Unknown branch',
                       onAddTap: () => _showBranchSelection(branches),
-                      onRemove: (id) => setState(() => _selectedBranchIds.remove(id)),
+                      onRemove: (id) =>
+                          setState(() => _selectedBranchIds.remove(id)),
                       editable: isEditing,
                     ),
                 ],
@@ -247,15 +267,19 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
                   if (modifierGroups.isEmpty)
                     Text(
                       'No modifier groups. Add one first.',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodyMedium?.copyWith(color: Colors.grey),
                     )
                   else
                     SelectionChipsField(
                       selectedIds: _selectedModifierGroupIds,
                       addButtonLabel: 'Add modifier',
-                      labelResolver: (id) => modifierNameLookup[id] ?? 'Unknown',
+                      labelResolver: (id) =>
+                          modifierNameLookup[id] ?? 'Unknown',
                       onAddTap: () => _showModifierSelection(modifierGroups),
-                      onRemove: (id) => setState(() => _selectedModifierGroupIds.remove(id)),
+                      onRemove: (id) =>
+                          setState(() => _selectedModifierGroupIds.remove(id)),
                       editable: isEditing,
                     ),
                 ],
@@ -265,7 +289,9 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
               _SectionSpacer(
                 child: Card(
                   color: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                   child: Padding(
                     padding: const EdgeInsets.all(16),
                     child: _MenuActionRow(
@@ -391,10 +417,30 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
     final valid = _formKey.currentState?.validate() ?? false;
     if (!valid) return;
 
+    final availableBranches = ref.read(menuViewModelProvider).branches;
+    if (availableBranches.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'No branch options are available. Please reload and try again.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (_selectedBranchIds.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Select at least one branch before saving.'),
+        ),
+      );
+      return;
+    }
+
     setState(() => _isSaving = true);
     try {
       final notifier = ref.read(menuViewModelProvider.notifier);
-      final allBranches = ref.read(menuViewModelProvider).branches;
       final item = MenuItem(
         id: widget.initialItem?.id ?? '',
         name: _nameController.text.trim(),
@@ -403,9 +449,7 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
         imageUrl: widget.initialItem?.imageUrl,
         modifierGroupIds: _selectedModifierGroupIds.toList(),
         description: widget.initialItem?.description ?? '',
-        branchIds: _selectedBranchIds.isNotEmpty
-            ? _selectedBranchIds.toList()
-            : allBranches.map((branch) => branch.id).toList(),
+        branchIds: _selectedBranchIds.toList(growable: false),
         isActive: _isActive,
       );
 
@@ -428,9 +472,10 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
       if (mounted) context.pop(saved);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to save menu item: $e')),
-      );
+      final message = mapMenuItemSaveErrorMessage(e);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -492,29 +537,20 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
       final confirmed = await _confirmArchive();
       if (!confirmed) return;
     }
-    final nextActive = !_isActive;
     setState(() => _isSaving = true);
     try {
       final notifier = ref.read(menuViewModelProvider.notifier);
-      final updated = await notifier.updateMenuItem(
-        current.copyWith(
-          isActive: nextActive,
-          name: _nameController.text.trim().isEmpty
-              ? current.name
-              : _nameController.text.trim(),
-          categoryId: _selectedCategoryId ?? '',
-          price: double.tryParse(_priceController.text.trim()) ?? current.price,
-          modifierGroupIds: _selectedModifierGroupIds.toList(),
-          branchIds: _selectedBranchIds.toList(),
-          imageUrl: _existingImageUrl,
-        ),
-      );
+      if (_isActive) {
+        await notifier.archiveMenuItem(current.id);
+      } else {
+        await notifier.restoreMenuItem(current.id);
+      }
       if (!mounted) return;
-      setState(() => _isActive = updated.isActive);
+      setState(() => _isActive = !_isActive);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            updated.isActive ? 'Menu item restored' : 'Menu item archived',
+            _isActive ? 'Menu item restored' : 'Menu item archived',
           ),
         ),
       );
@@ -533,7 +569,9 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
       context: context,
       builder: (context) {
         return Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           child: Padding(
             padding: const EdgeInsets.all(20),
             child: Column(
@@ -660,10 +698,7 @@ class _ViewActionBar extends StatelessWidget {
           onToggleActive();
         },
         itemBuilder: (context) => [
-          const PopupMenuItem(
-            value: _ViewAction.edit,
-            child: Text('Edit'),
-          ),
+          const PopupMenuItem(value: _ViewAction.edit, child: Text('Edit')),
           PopupMenuItem(
             value: _ViewAction.toggleActive,
             child: Text(isActive ? 'Archive' : 'Restore'),
@@ -710,8 +745,12 @@ class _ViewActionBar extends StatelessWidget {
             width: 120,
             child: FilledButton(
               style: FilledButton.styleFrom(
-                backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
-                foregroundColor: Theme.of(context).colorScheme.onSecondaryContainer,
+                backgroundColor: Theme.of(
+                  context,
+                ).colorScheme.secondaryContainer,
+                foregroundColor: Theme.of(
+                  context,
+                ).colorScheme.onSecondaryContainer,
               ),
               onPressed: isBusy ? null : (isActive ? onToggleActive : onEdit),
               child: Row(
@@ -777,10 +816,7 @@ class _SectionSpacer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: child,
-    );
+    return Padding(padding: const EdgeInsets.only(bottom: 16), child: child);
   }
 }
 

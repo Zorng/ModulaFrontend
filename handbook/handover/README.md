@@ -5,6 +5,7 @@ This folder is the single place to onboard a new teammate or AI agent to the fro
 Recommended reading order:
 1) **Quickstart**
    - `handbook/handover/runbook.md` (how to run/debug)
+   - `handbook/handover/dart_define_run_guide.md` (runtime config with `--dart-define`)
    - `handbook/handover/toolchain.md` (pinning Flutter/Dart + deps)
    - `handbook/handover/demo_accounts.md` (demo credentials + tenant/branch IDs)
 

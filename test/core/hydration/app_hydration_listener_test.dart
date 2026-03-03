@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/core/hydration/app_hydration_listener.dart';
+import 'package:modular_pos/core/hydration/context_scoped_runtime_resource.dart';
 import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
 import 'package:modular_pos/features/auth/domain/auth_tenant_provider.dart';
 import 'package:modular_pos/features/auth/domain/auth_token_provider.dart';
+import 'package:modular_pos/features/auth/domain/workspace_context_provider.dart';
 import 'package:modular_pos/features/auth/domain/models/auth_session.dart';
 import 'package:modular_pos/features/auth/domain/models/tenant_membership.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
@@ -82,6 +84,27 @@ class _TestCashSessionViewModel extends CashSessionViewModel {
   }
 }
 
+class _TestContextScopedResource implements ContextScopedRuntimeResource {
+  int clearedCount = 0;
+  int reboundCount = 0;
+  final List<(String token, String tenantId, String branchId)> rebinds = [];
+
+  @override
+  Future<void> onContextCleared() async {
+    clearedCount += 1;
+  }
+
+  @override
+  Future<void> onContextChanged({
+    required String accessToken,
+    required String tenantId,
+    required String branchId,
+  }) async {
+    reboundCount += 1;
+    rebinds.add((accessToken, tenantId, branchId));
+  }
+}
+
 AuthSession _buildSession({
   required String tenantId,
   required String accessToken,
@@ -115,84 +138,185 @@ AuthSession _buildSession({
 }
 
 void main() {
-  testWidgets('hydrates token/tenant and refreshes policy/cash session per branch', (
-    tester,
-  ) async {
-    final container = createTestContainer(
-      overrides: [
-        loginControllerProvider.overrideWith(_TestLoginController.new),
-        policyNotifierProvider.overrideWith(_TestPolicyNotifier.new),
-        cashSessionViewModelProvider.overrideWith(_TestCashSessionViewModel.new),
-      ],
-    );
-
-    await tester.pumpWidget(
-      _TestHarness(
-        container: container,
-        child: const AppHydrationListener(child: SizedBox.shrink()),
-      ),
-    );
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 1));
-
-    final policy =
-        container.read(policyNotifierProvider.notifier) as _TestPolicyNotifier;
-    final cash = container.read(cashSessionViewModelProvider.notifier)
-        as _TestCashSessionViewModel;
-
-    expect(container.read(authAccessTokenProvider), isNull);
-    expect(container.read(authTenantIdProvider), isNull);
-    expect(container.read(authActiveBranchOverrideProvider), isNull);
-    expect(policy.resetCount, 1);
-    expect(cash.resetCount, 1);
-
-    final login = container.read(loginControllerProvider.notifier) as _TestLoginController;
-    login.setSession(
-      _buildSession(
-        tenantId: 'tenant-1',
-        accessToken: 'token-1',
-        branches: const [
-          UserBranch(
-            id: 'assign-a',
-            name: 'Branch A',
-            role: 'admin',
-            active: true,
-            branchId: 'branch-a',
+  testWidgets(
+    'hydrates token/tenant and refreshes policy/cash session per branch',
+    (tester) async {
+      final runtimeResource = _TestContextScopedResource();
+      final container = createTestContainer(
+        overrides: [
+          loginControllerProvider.overrideWith(_TestLoginController.new),
+          policyNotifierProvider.overrideWith(_TestPolicyNotifier.new),
+          cashSessionViewModelProvider.overrideWith(
+            _TestCashSessionViewModel.new,
           ),
-          UserBranch(
-            id: 'assign-b',
-            name: 'Branch B',
-            role: 'admin',
-            active: false,
-            branchId: 'branch-b',
-          ),
+          contextScopedRuntimeResourcesProvider.overrideWithValue([
+            runtimeResource,
+          ]),
         ],
-      ),
-    );
-    await tester.pump();
+      );
 
-    expect(container.read(authAccessTokenProvider), 'token-1');
-    expect(container.read(authTenantIdProvider), 'tenant-1');
-    expect(policy.loadCount, 1);
-    expect(policy.loadedBranchIds, ['branch-a']);
-    expect(cash.loadCount, 1);
-    expect(cash.loadedBranchIds, ['branch-a']);
+      await tester.pumpWidget(
+        _TestHarness(
+          container: container,
+          child: const AppHydrationListener(child: SizedBox.shrink()),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 1));
 
-    container.read(authActiveBranchOverrideProvider.notifier).setOverride('branch-b');
-    await tester.pump();
+      final policy =
+          container.read(policyNotifierProvider.notifier)
+              as _TestPolicyNotifier;
+      final cash =
+          container.read(cashSessionViewModelProvider.notifier)
+              as _TestCashSessionViewModel;
 
-    expect(policy.loadCount, 2);
-    expect(policy.loadedBranchIds, ['branch-a', 'branch-b']);
-    expect(cash.loadCount, 2);
-    expect(cash.loadedBranchIds, ['branch-a', 'branch-b']);
+      expect(container.read(authAccessTokenProvider), isNull);
+      expect(container.read(authTenantIdProvider), isNull);
+      expect(container.read(authActiveBranchOverrideProvider), isNull);
+      expect(policy.resetCount, 1);
+      expect(cash.resetCount, 1);
+      expect(runtimeResource.clearedCount, 1);
+      expect(runtimeResource.reboundCount, 0);
 
-    login.setSession(null);
-    await tester.pump();
+      final login =
+          container.read(loginControllerProvider.notifier)
+              as _TestLoginController;
+      login.setSession(
+        _buildSession(
+          tenantId: 'tenant-1',
+          accessToken: 'token-1',
+          branches: const [
+            UserBranch(
+              id: 'assign-a',
+              name: 'Branch A',
+              role: 'admin',
+              active: true,
+              branchId: 'branch-a',
+            ),
+            UserBranch(
+              id: 'assign-b',
+              name: 'Branch B',
+              role: 'admin',
+              active: false,
+              branchId: 'branch-b',
+            ),
+          ],
+        ),
+      );
+      await tester.pump();
 
-    expect(container.read(authAccessTokenProvider), isNull);
-    expect(container.read(authTenantIdProvider), isNull);
-    expect(container.read(authActiveBranchOverrideProvider), isNull);
-    expect(policy.resetCount, 2);
-    expect(cash.resetCount, 2);
-  });
+      expect(container.read(authAccessTokenProvider), 'token-1');
+      expect(container.read(authTenantIdProvider), 'tenant-1');
+      expect(policy.loadCount, 1);
+      expect(policy.loadedBranchIds, ['branch-a']);
+      expect(cash.loadCount, 1);
+      expect(cash.loadedBranchIds, ['branch-a']);
+      expect(runtimeResource.reboundCount, 1);
+      expect(runtimeResource.rebinds, [('token-1', 'tenant-1', 'branch-a')]);
+
+      container
+          .read(authActiveBranchOverrideProvider.notifier)
+          .setOverride('branch-b');
+      await tester.pump();
+
+      expect(policy.loadCount, 2);
+      expect(policy.loadedBranchIds, ['branch-a', 'branch-b']);
+      expect(cash.loadCount, 2);
+      expect(cash.loadedBranchIds, ['branch-a', 'branch-b']);
+      expect(runtimeResource.reboundCount, 2);
+      expect(runtimeResource.rebinds, [
+        ('token-1', 'tenant-1', 'branch-a'),
+        ('token-1', 'tenant-1', 'branch-b'),
+      ]);
+
+      login.setSession(null);
+      await tester.pump();
+
+      expect(container.read(authAccessTokenProvider), isNull);
+      expect(container.read(authTenantIdProvider), isNull);
+      expect(container.read(authActiveBranchOverrideProvider), isNull);
+      expect(policy.resetCount, 2);
+      expect(cash.resetCount, 2);
+      expect(runtimeResource.clearedCount, 2);
+    },
+  );
+
+  testWidgets(
+    'resets on global workspace and reloads when branch workspace resumes',
+    (tester) async {
+      final runtimeResource = _TestContextScopedResource();
+      final container = createTestContainer(
+        overrides: [
+          loginControllerProvider.overrideWith(_TestLoginController.new),
+          policyNotifierProvider.overrideWith(_TestPolicyNotifier.new),
+          cashSessionViewModelProvider.overrideWith(
+            _TestCashSessionViewModel.new,
+          ),
+          contextScopedRuntimeResourcesProvider.overrideWithValue([
+            runtimeResource,
+          ]),
+        ],
+      );
+
+      await tester.pumpWidget(
+        _TestHarness(
+          container: container,
+          child: const AppHydrationListener(child: SizedBox.shrink()),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 1));
+
+      final policy =
+          container.read(policyNotifierProvider.notifier)
+              as _TestPolicyNotifier;
+      final cash =
+          container.read(cashSessionViewModelProvider.notifier)
+              as _TestCashSessionViewModel;
+      final login =
+          container.read(loginControllerProvider.notifier)
+              as _TestLoginController;
+
+      login.setSession(
+        _buildSession(
+          tenantId: 'tenant-1',
+          accessToken: 'token-1',
+          branches: const [
+            UserBranch(
+              id: 'assign-a',
+              name: 'Branch A',
+              role: 'admin',
+              active: true,
+              branchId: 'branch-a',
+            ),
+          ],
+        ),
+      );
+      await tester.pump();
+
+      expect(policy.loadCount, 1);
+      expect(cash.loadCount, 1);
+      expect(runtimeResource.reboundCount, 1);
+
+      container.read(workspaceContextProvider.notifier).setGlobalManagement();
+      await tester.pump();
+
+      expect(policy.resetCount, 2);
+      expect(cash.resetCount, 2);
+      expect(runtimeResource.clearedCount, 2);
+
+      container
+          .read(workspaceContextProvider.notifier)
+          .setBranchPos(activeBranchId: 'branch-a');
+      await tester.pump();
+
+      expect(policy.loadCount, 2);
+      expect(policy.loadedBranchIds.last, 'branch-a');
+      expect(cash.loadCount, 2);
+      expect(cash.loadedBranchIds.last, 'branch-a');
+      expect(runtimeResource.reboundCount, 2);
+      expect(runtimeResource.rebinds.last, ('token-1', 'tenant-1', 'branch-a'));
+    },
+  );
 }

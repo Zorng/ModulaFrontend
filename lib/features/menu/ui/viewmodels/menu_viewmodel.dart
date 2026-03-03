@@ -1,55 +1,120 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:modular_pos/core/network/api_contract.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
+import 'package:modular_pos/features/menu/data/menu_api.dart';
 import 'package:modular_pos/features/menu/data/menu_repository.dart';
-import 'package:modular_pos/features/menu/domain/models/menu_category.dart';
-import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_branch.dart';
+import 'package:modular_pos/features/menu/domain/models/menu_category.dart';
+import 'package:modular_pos/features/menu/domain/models/menu_composition.dart';
+import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_state.dart';
 
 /// Provider for the menu viewmodel.
-final menuViewModelProvider =
-    NotifierProvider<MenuViewModel, MenuState>(MenuViewModel.new);
+final menuViewModelProvider = NotifierProvider<MenuViewModel, MenuState>(
+  MenuViewModel.new,
+);
 
 class MenuViewModel extends Notifier<MenuState> {
   MenuRepository get _menuRepository => ref.read(menuRepositoryProvider);
+
+  ({String message, String? code}) _mapError(Object error) {
+    if (error is ApiClientException) {
+      return (message: error.message, code: error.code);
+    }
+    if (error is MenuApiException) {
+      return (message: error.message, code: error.code);
+    }
+    return (message: error.toString(), code: null);
+  }
+
+  void _setOperationError(Object error) {
+    final mapped = _mapError(error);
+    state = state.copyWith(error: mapped.message, errorCode: mapped.code);
+  }
+
+  void _clearOperationError() {
+    state = state.copyWith(error: null, errorCode: null);
+  }
+
+  ({String message, String? code}) _mapCompositionError(Object error) {
+    final mapped = _mapError(error);
+    final code = (mapped.code ?? '').trim().toUpperCase();
+    switch (code) {
+      case 'ENTITLEMENT_BLOCKED':
+        return (
+          message: 'Composition is blocked by current entitlement.',
+          code: code,
+        );
+      case 'ENTITLEMENT_READ_ONLY':
+        return (
+          message: 'Composition is read-only for current entitlement.',
+          code: code,
+        );
+      case 'INVENTORY_ENTITLEMENT_REQUIRED_FOR_TRACKED_COMPONENTS':
+        return (
+          message: 'Tracked components require inventory entitlement.',
+          code: code,
+        );
+      default:
+        return (message: mapped.message, code: mapped.code);
+    }
+  }
+
+  void _setCompositionLoading(String menuItemId, bool isLoading) {
+    state = state.copyWith(
+      compositionLoadingByItem: {
+        ...state.compositionLoadingByItem,
+        menuItemId: isLoading,
+      },
+    );
+  }
+
+  void _setCompositionError(String menuItemId, Object error) {
+    final mapped = _mapCompositionError(error);
+    final compositionErrorCodes = Map<String, String>.from(
+      state.compositionErrorCodes,
+    )..remove(menuItemId);
+    final normalizedCode = (mapped.code ?? '').trim();
+    if (normalizedCode.isNotEmpty) {
+      compositionErrorCodes[menuItemId] = normalizedCode;
+    }
+    state = state.copyWith(
+      compositionErrors: {
+        ...state.compositionErrors,
+        menuItemId: mapped.message,
+      },
+      compositionLoadedByItem: {
+        ...state.compositionLoadedByItem,
+        menuItemId: true,
+      },
+      compositionErrorCodes: compositionErrorCodes,
+      error: mapped.message,
+      errorCode: mapped.code,
+    );
+  }
 
   @override
   MenuState build() {
     return const MenuState();
   }
 
-  Future<void> loadMenu({
-    String? branchId,
-  }) async {
+  Future<void> loadMenu({String? branchId}) async {
     try {
-      state = state.copyWith(isLoading: true, error: null);
+      state = state.copyWith(isLoading: true, error: null, errorCode: null);
       final userBranches = _resolveUserBranches();
-      final fallbackBranchId =
-          userBranches.isNotEmpty ? userBranches.first.id : null;
-      final isExplicitAll = branchId == 'all';
-      final wasAllPreviously =
-          branchId == null && state.selectedBranchId == 'all';
-      final noAssignedBranches = userBranches.isEmpty;
-      final shouldFetchAll = isExplicitAll ||
-          wasAllPreviously ||
-          (noAssignedBranches && branchId == null);
-      final requestedBranchId = shouldFetchAll
+      final requestedBranchFilter = (branchId ?? state.selectedBranchId).trim();
+      final branchIdFilter =
+          requestedBranchFilter.isEmpty || requestedBranchFilter == 'all'
           ? null
-          : branchId ??
-              (state.selectedBranchId != 'all' ? state.selectedBranchId : null) ??
-              fallbackBranchId;
+          : requestedBranchFilter;
       final bundle = await _menuRepository.fetchMenuData(
-        branchId: requestedBranchId,
-        branchIdsForHydration: shouldFetchAll
-            ? userBranches.map((b) => b.id).toList()
-            : null,
+        readLane: MenuReadLane.management,
+        status: 'active',
+        branchIdFilter: branchIdFilter,
       );
-      final branches =
-          userBranches.isNotEmpty ? userBranches : bundle.branches;
-      final selectedBranch = shouldFetchAll
-          ? 'all'
-          : requestedBranchId ?? (branches.isNotEmpty ? branches.first.id : 'all');
+      final branches = userBranches.isNotEmpty ? userBranches : bundle.branches;
+      final selectedBranch = branchIdFilter ?? 'all';
 
       // Preserve modifier attachments if bulk fetch doesn't carry them.
       final previousItems = state.allItems;
@@ -84,7 +149,12 @@ class MenuViewModel extends Notifier<MenuState> {
         selectedBranchId: selectedBranch,
       );
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      final mapped = _mapError(e);
+      state = state.copyWith(
+        isLoading: false,
+        error: mapped.message,
+        errorCode: mapped.code,
+      );
     }
   }
 
@@ -119,8 +189,9 @@ class MenuViewModel extends Notifier<MenuState> {
         final mergedGroups = groupMap.values.toList();
         final hydratedItems = Map<String, MenuItem>.from(state.hydratedItems)
           ..[item.id] = item;
-        final hydratedModifierGroups =
-            Map<String, ModifierGroup>.from(state.hydratedModifierGroups);
+        final hydratedModifierGroups = Map<String, ModifierGroup>.from(
+          state.hydratedModifierGroups,
+        );
         for (final g in groups) {
           hydratedModifierGroups[g.id] = g;
         }
@@ -137,11 +208,14 @@ class MenuViewModel extends Notifier<MenuState> {
         return (item, groups);
       } catch (e) {
         if (attempt > retries) {
+          final mapped = _mapError(e);
           state = state.copyWith(
             hydrationErrors: {
               ...state.hydrationErrors,
-              menuItemId: e.toString(),
+              menuItemId: mapped.message,
             },
+            error: mapped.message,
+            errorCode: mapped.code,
           );
           rethrow;
         }
@@ -150,31 +224,145 @@ class MenuViewModel extends Notifier<MenuState> {
     }
   }
 
-  Future<void> refreshCategories({bool? isActive}) async {
+  Future<void> loadItemComposition(String menuItemId) async {
+    _setCompositionLoading(menuItemId, true);
     try {
-      state = state.copyWith(isLoading: true, error: null);
-      final categories =
-          await _menuRepository.fetchCategoriesOnly(isActive: isActive);
+      final baseComponents = await _menuRepository.fetchMenuItemComposition(
+        menuItemId,
+      );
+      final compositionErrors = Map<String, String>.from(
+        state.compositionErrors,
+      )..remove(menuItemId);
+      final compositionErrorCodes = Map<String, String>.from(
+        state.compositionErrorCodes,
+      )..remove(menuItemId);
+      state = state.copyWith(
+        compositionByItem: {
+          ...state.compositionByItem,
+          menuItemId: baseComponents,
+        },
+        compositionLoadedByItem: {
+          ...state.compositionLoadedByItem,
+          menuItemId: true,
+        },
+        compositionErrors: compositionErrors,
+        compositionErrorCodes: compositionErrorCodes,
+      );
+    } catch (e) {
+      _setCompositionError(menuItemId, e);
+      rethrow;
+    } finally {
+      _setCompositionLoading(menuItemId, false);
+    }
+  }
+
+  Future<void> upsertItemComposition({
+    required String menuItemId,
+    required List<MenuComponent> baseComponents,
+  }) async {
+    _setCompositionLoading(menuItemId, true);
+    try {
+      await _menuRepository.upsertMenuItemComposition(
+        menuItemId: menuItemId,
+        baseComponents: baseComponents,
+      );
+      final compositionErrors = Map<String, String>.from(
+        state.compositionErrors,
+      )..remove(menuItemId);
+      final compositionErrorCodes = Map<String, String>.from(
+        state.compositionErrorCodes,
+      )..remove(menuItemId);
+      state = state.copyWith(
+        compositionByItem: {
+          ...state.compositionByItem,
+          menuItemId: baseComponents,
+        },
+        compositionLoadedByItem: {
+          ...state.compositionLoadedByItem,
+          menuItemId: true,
+        },
+        compositionErrors: compositionErrors,
+        compositionErrorCodes: compositionErrorCodes,
+      );
+    } catch (e) {
+      _setCompositionError(menuItemId, e);
+      rethrow;
+    } finally {
+      _setCompositionLoading(menuItemId, false);
+    }
+  }
+
+  Future<MenuCompositionEvaluate> evaluateItemComposition({
+    required String menuItemId,
+    required List<String> selectedModifierOptionIds,
+  }) async {
+    _setCompositionLoading(menuItemId, true);
+    try {
+      final evaluation = await _menuRepository.evaluateMenuItemComposition(
+        menuItemId: menuItemId,
+        selectedModifierOptionIds: selectedModifierOptionIds,
+      );
+      final compositionErrors = Map<String, String>.from(
+        state.compositionErrors,
+      )..remove(menuItemId);
+      final compositionErrorCodes = Map<String, String>.from(
+        state.compositionErrorCodes,
+      )..remove(menuItemId);
+      state = state.copyWith(
+        compositionEvaluationByItem: {
+          ...state.compositionEvaluationByItem,
+          menuItemId: evaluation,
+        },
+        compositionErrors: compositionErrors,
+        compositionErrorCodes: compositionErrorCodes,
+      );
+      return evaluation;
+    } catch (e) {
+      _setCompositionError(menuItemId, e);
+      rethrow;
+    } finally {
+      _setCompositionLoading(menuItemId, false);
+    }
+  }
+
+  Future<void> refreshCategories({String? status}) async {
+    try {
+      state = state.copyWith(isLoading: true, error: null, errorCode: null);
+      final categories = await _menuRepository.fetchCategoriesOnly(
+        status: status,
+      );
       state = state.copyWith(
         isLoading: false,
         categories: categories,
         filteredItems: _applyFilters(items: state.allItems),
       );
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      final mapped = _mapError(e);
+      state = state.copyWith(
+        isLoading: false,
+        error: mapped.message,
+        errorCode: mapped.code,
+      );
     }
   }
 
-  Future<void> refreshModifierGroups() async {
+  Future<void> refreshModifierGroups({String status = 'active'}) async {
     try {
-      state = state.copyWith(isLoading: true, error: null);
-      final groups = await _menuRepository.fetchModifierGroupsOnly();
+      state = state.copyWith(isLoading: true, error: null, errorCode: null);
+      final normalizedStatus = status.trim().isEmpty
+          ? 'active'
+          : status.trim().toLowerCase();
+      final groups = await _menuRepository.fetchModifierGroupsOnly(
+        status: normalizedStatus,
+      );
+      state = state.copyWith(isLoading: false, modifierGroups: groups);
+    } catch (e) {
+      final mapped = _mapError(e);
       state = state.copyWith(
         isLoading: false,
-        modifierGroups: groups,
+        error: mapped.message,
+        errorCode: mapped.code,
       );
-    } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
     }
   }
 
@@ -188,10 +376,7 @@ class MenuViewModel extends Notifier<MenuState> {
 
   void searchItems(String query) {
     final filtered = _applyFilters(query: query);
-    state = state.copyWith(
-      searchQuery: query,
-      filteredItems: filtered,
-    );
+    state = state.copyWith(searchQuery: query, filteredItems: filtered);
   }
 
   Future<void> filterByBranch(String branchId) async {
@@ -203,89 +388,150 @@ class MenuViewModel extends Notifier<MenuState> {
     String description = '',
     bool isActive = true,
   }) async {
-    final branchId = state.selectedBranchId == 'all' ? null : state.selectedBranchId;
+    _clearOperationError();
+    final branchId = state.selectedBranchId == 'all'
+        ? null
+        : state.selectedBranchId;
     final category = MenuCategory(
       id: '',
       name: name,
+      status: isActive ? 'ACTIVE' : 'ARCHIVED',
       description: description,
-      isActive: isActive,
     );
-    final created = await _menuRepository.createCategory(category);
-    final categories = [...state.categories, created];
-    state = state.copyWith(categories: categories);
-    await loadMenu(branchId: branchId);
+    try {
+      final created = await _menuRepository.createCategory(category);
+      final categories = [...state.categories, created];
+      state = state.copyWith(categories: categories);
+      await loadMenu(branchId: branchId);
+    } catch (e) {
+      _setOperationError(e);
+      rethrow;
+    }
   }
 
   Future<void> updateCategory(MenuCategory category) async {
-    final branchId = state.selectedBranchId == 'all' ? null : state.selectedBranchId;
-    final updated = await _menuRepository.updateCategory(category);
-    final categories = [
-      for (final existing in state.categories)
-        if (existing.id == updated.id) updated else existing,
-    ];
-    state = state.copyWith(categories: categories);
-    await loadMenu(branchId: branchId);
+    _clearOperationError();
+    final branchId = state.selectedBranchId == 'all'
+        ? null
+        : state.selectedBranchId;
+    try {
+      final updated = await _menuRepository.updateCategory(category);
+      final categories = [
+        for (final existing in state.categories)
+          if (existing.id == updated.id) updated else existing,
+      ];
+      state = state.copyWith(categories: categories);
+      await loadMenu(branchId: branchId);
+    } catch (e) {
+      _setOperationError(e);
+      rethrow;
+    }
   }
 
-  Future<void> deleteCategory(String categoryId) async {
-    final branchId = state.selectedBranchId == 'all' ? null : state.selectedBranchId;
-    await _menuRepository.deleteCategory(categoryId);
-    final categories =
-        state.categories.where((category) => category.id != categoryId).toList();
-    final items =
-        state.allItems.where((item) => item.categoryId != categoryId).toList();
-    state = state.copyWith(
-      categories: categories,
-      allItems: items,
-      filteredItems: _applyFilters(items: items),
-    );
-    await loadMenu(branchId: branchId);
+  Future<void> archiveCategory(String categoryId) async {
+    _clearOperationError();
+    final branchId = state.selectedBranchId == 'all'
+        ? null
+        : state.selectedBranchId;
+    try {
+      await _menuRepository.archiveCategory(categoryId);
+      final categories = state.categories
+          .where((category) => category.id != categoryId)
+          .toList();
+      final items = state.allItems
+          .where((item) => item.categoryId != categoryId)
+          .toList();
+      state = state.copyWith(
+        categories: categories,
+        allItems: items,
+        filteredItems: _applyFilters(items: items),
+      );
+      await loadMenu(branchId: branchId);
+    } catch (e) {
+      _setOperationError(e);
+      rethrow;
+    }
+  }
+
+  Future<void> deleteCategory(String categoryId) {
+    return archiveCategory(categoryId);
   }
 
   Future<void> addModifierGroup(ModifierGroup group) async {
-    final branchId = state.selectedBranchId == 'all' ? null : state.selectedBranchId;
-    final created = await _menuRepository.createModifierGroup(group);
-    final modifierGroups = [...state.modifierGroups, created];
-    state = state.copyWith(modifierGroups: modifierGroups);
-    await loadMenu(branchId: branchId);
+    _clearOperationError();
+    final branchId = state.selectedBranchId == 'all'
+        ? null
+        : state.selectedBranchId;
+    try {
+      final created = await _menuRepository.createModifierGroup(group);
+      final modifierGroups = [...state.modifierGroups, created];
+      state = state.copyWith(modifierGroups: modifierGroups);
+      await loadMenu(branchId: branchId);
+    } catch (e) {
+      _setOperationError(e);
+      rethrow;
+    }
   }
 
   Future<void> updateModifierGroup(ModifierGroup group) async {
-    final branchId = state.selectedBranchId == 'all' ? null : state.selectedBranchId;
-    final previous = state.modifierGroups
-        .firstWhere((existing) => existing.id == group.id, orElse: () => group);
-    final updated = await _menuRepository.updateModifierGroup(
-      group,
-      previous: previous,
+    _clearOperationError();
+    final branchId = state.selectedBranchId == 'all'
+        ? null
+        : state.selectedBranchId;
+    final previous = state.modifierGroups.firstWhere(
+      (existing) => existing.id == group.id,
+      orElse: () => group,
     );
-    final groups = [
-      for (final existing in state.modifierGroups)
-        if (existing.id == updated.id) updated else existing,
-    ];
-    state = state.copyWith(modifierGroups: groups);
-    await loadMenu(branchId: branchId);
+    try {
+      final updated = await _menuRepository.updateModifierGroup(
+        group,
+        previous: previous,
+      );
+      final groups = [
+        for (final existing in state.modifierGroups)
+          if (existing.id == updated.id) updated else existing,
+      ];
+      state = state.copyWith(modifierGroups: groups);
+      await loadMenu(branchId: branchId);
+    } catch (e) {
+      _setOperationError(e);
+      rethrow;
+    }
   }
 
-  Future<void> deleteModifierGroup(String groupId) async {
-    final branchId = state.selectedBranchId == 'all' ? null : state.selectedBranchId;
-    await _menuRepository.deleteModifierGroup(groupId);
-    final groups =
-        state.modifierGroups.where((group) => group.id != groupId).toList();
-    final items = state.allItems
-        .map(
-          (item) => item.copyWith(
-            modifierGroupIds: item.modifierGroupIds
-                .where((id) => id != groupId)
-                .toList(),
-          ),
-        )
-        .toList();
-    state = state.copyWith(
-      modifierGroups: groups,
-      allItems: items,
-      filteredItems: _applyFilters(items: items),
-    );
-    await loadMenu(branchId: branchId);
+  Future<void> archiveModifierGroup(String groupId) async {
+    _clearOperationError();
+    final branchId = state.selectedBranchId == 'all'
+        ? null
+        : state.selectedBranchId;
+    try {
+      await _menuRepository.archiveModifierGroup(groupId);
+      final groups = state.modifierGroups
+          .where((group) => group.id != groupId)
+          .toList();
+      final items = state.allItems
+          .map(
+            (item) => item.copyWith(
+              modifierGroupIds: item.modifierGroupIds
+                  .where((id) => id != groupId)
+                  .toList(),
+            ),
+          )
+          .toList();
+      state = state.copyWith(
+        modifierGroups: groups,
+        allItems: items,
+        filteredItems: _applyFilters(items: items),
+      );
+      await loadMenu(branchId: branchId);
+    } catch (e) {
+      _setOperationError(e);
+      rethrow;
+    }
+  }
+
+  Future<void> deleteModifierGroup(String groupId) {
+    return archiveModifierGroup(groupId);
   }
 
   Future<MenuItem> addMenuItem(
@@ -293,22 +539,27 @@ class MenuViewModel extends Notifier<MenuState> {
     String? imagePath,
     List<int>? imageBytes,
   }) async {
-    final branchId = state.selectedBranchId == 'all' ? null : state.selectedBranchId;
-    final created =
-        await _menuRepository.createMenuItem(
-      item,
-      imagePath: imagePath,
-      imageBytes: imageBytes,
-    );
-    final items = [created, ...state.allItems];
-    state = state.copyWith(
-      allItems: items,
-      filteredItems: _applyFilters(
-        items: items,
-      ),
-    );
-    await loadMenu(branchId: branchId);
-    return created;
+    _clearOperationError();
+    final branchId = state.selectedBranchId == 'all'
+        ? null
+        : state.selectedBranchId;
+    try {
+      final created = await _menuRepository.createMenuItem(
+        item,
+        imagePath: imagePath,
+        imageBytes: imageBytes,
+      );
+      final items = [created, ...state.allItems];
+      state = state.copyWith(
+        allItems: items,
+        filteredItems: _applyFilters(items: items),
+      );
+      await loadMenu(branchId: branchId);
+      return created;
+    } catch (e) {
+      _setOperationError(e);
+      rethrow;
+    }
   }
 
   Future<MenuItem> updateMenuItem(
@@ -316,40 +567,107 @@ class MenuViewModel extends Notifier<MenuState> {
     String? imagePath,
     List<int>? imageBytes,
   }) async {
-    final branchId = state.selectedBranchId == 'all' ? null : state.selectedBranchId;
-    final previous = state.allItems
-        .firstWhere((existing) => existing.id == item.id, orElse: () => item);
-    final updated =
-        await _menuRepository.updateMenuItem(
-      item,
-      imagePath: imagePath,
-      imageBytes: imageBytes,
-      previous: previous,
+    _clearOperationError();
+    final branchId = state.selectedBranchId == 'all'
+        ? null
+        : state.selectedBranchId;
+    final previous = state.allItems.firstWhere(
+      (existing) => existing.id == item.id,
+      orElse: () => item,
     );
-    final items = [
-      for (final existing in state.allItems)
-        if (existing.id == updated.id) updated else existing,
-    ];
-    state = state.copyWith(
-      allItems: items,
-      filteredItems: _applyFilters(
-        items: items,
-      ),
-    );
-    await loadMenu(branchId: branchId);
-    return updated;
+    try {
+      final updated = await _menuRepository.updateMenuItem(
+        item,
+        imagePath: imagePath,
+        imageBytes: imageBytes,
+        previous: previous,
+      );
+      final items = [
+        for (final existing in state.allItems)
+          if (existing.id == updated.id) updated else existing,
+      ];
+      state = state.copyWith(
+        allItems: items,
+        filteredItems: _applyFilters(items: items),
+      );
+      await loadMenu(branchId: branchId);
+      return updated;
+    } catch (e) {
+      _setOperationError(e);
+      rethrow;
+    }
   }
 
-  Future<void> deleteMenuItem(String menuItemId) async {
-    final branchId = state.selectedBranchId == 'all' ? null : state.selectedBranchId;
-    await _menuRepository.deleteMenuItem(menuItemId);
-    final items =
-        state.allItems.where((item) => item.id != menuItemId).toList();
-    state = state.copyWith(
-      allItems: items,
-      filteredItems: _applyFilters(items: items),
-    );
-    await loadMenu(branchId: branchId);
+  Future<void> archiveMenuItem(String menuItemId) async {
+    _clearOperationError();
+    final branchId = state.selectedBranchId == 'all'
+        ? null
+        : state.selectedBranchId;
+    try {
+      await _menuRepository.archiveMenuItem(menuItemId);
+      final items = state.allItems
+          .where((item) => item.id != menuItemId)
+          .toList();
+      state = state.copyWith(
+        allItems: items,
+        filteredItems: _applyFilters(items: items),
+      );
+      await loadMenu(branchId: branchId);
+    } catch (e) {
+      _setOperationError(e);
+      rethrow;
+    }
+  }
+
+  Future<void> restoreMenuItem(String menuItemId) async {
+    _clearOperationError();
+    final branchId = state.selectedBranchId == 'all'
+        ? null
+        : state.selectedBranchId;
+    try {
+      await _menuRepository.restoreMenuItem(menuItemId);
+      await loadMenu(branchId: branchId);
+    } catch (e) {
+      _setOperationError(e);
+      rethrow;
+    }
+  }
+
+  Future<void> deleteMenuItem(String menuItemId) {
+    return archiveMenuItem(menuItemId);
+  }
+
+  Future<void> setMenuItemVisibility({
+    required String menuItemId,
+    required List<String> visibleBranchIds,
+  }) async {
+    _clearOperationError();
+    final branchId = state.selectedBranchId == 'all'
+        ? null
+        : state.selectedBranchId;
+    try {
+      await _menuRepository.setMenuItemVisibility(
+        menuItemId: menuItemId,
+        visibleBranchIds: visibleBranchIds,
+      );
+      final updatedItems = state.allItems
+          .map((item) {
+            if (item.id != menuItemId) return item;
+            return item.copyWith(
+              visibleBranchIds: visibleBranchIds,
+              branchIds: visibleBranchIds,
+            );
+          })
+          .toList(growable: false);
+      state = state.copyWith(
+        allItems: updatedItems,
+        filteredItems: _applyFilters(items: updatedItems),
+      );
+      await loadMenu(branchId: branchId);
+    } catch (e) {
+      _setOperationError(e);
+      rethrow;
+    }
   }
 
   List<MenuItem> _applyFilters({
@@ -361,7 +679,8 @@ class MenuViewModel extends Notifier<MenuState> {
     final source = items ?? state.allItems;
     final activeCategory = categoryId ?? state.selectedCategoryId;
     final activeBranch = branchId ?? state.selectedBranchId;
-    final search = query?.trim().toLowerCase() ?? state.searchQuery.toLowerCase();
+    final search =
+        query?.trim().toLowerCase() ?? state.searchQuery.toLowerCase();
 
     return source.where((item) {
       final matchesCategory =
@@ -378,9 +697,7 @@ class MenuViewModel extends Notifier<MenuState> {
     final loginState = ref.read(loginControllerProvider);
     final assignments = loginState.session?.user.branches ?? const [];
     return assignments
-        .where((branch) =>
-            branch.active &&
-            (branch.branchId.isNotEmpty || branch.id.isNotEmpty))
+        .where((branch) => (branch.branchId.isNotEmpty || branch.id.isNotEmpty))
         .map(
           (branch) => MenuBranch(
             id: branch.branchId.isNotEmpty ? branch.branchId : branch.id,

@@ -1,6 +1,6 @@
 import 'package:dio/dio.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:modular_pos/core/config/app_env.dart';
 import 'package:modular_pos/core/network/dio_client.dart';
 import 'package:modular_pos/features/cash_session/data/dto/cash_register_dto.dart';
 import 'package:modular_pos/features/cash_session/data/dto/cash_session_dto.dart';
@@ -11,8 +11,7 @@ final cashSessionApiProvider = Provider<CashSessionApi>((ref) {
 });
 
 class CashSessionApi {
-  CashSessionApi(this._dio)
-    : _prefix = dotenv.env['CASH_API_PREFIX'] ?? '/v1/cash';
+  CashSessionApi(this._dio) : _prefix = AppEnv.cashApiPrefix;
 
   final Dio _dio;
   final String _prefix;
@@ -101,12 +100,11 @@ class CashSessionApi {
     );
     final data = response.data;
     if (data == null) return const [];
-    final list =
-        (data['data'] is List)
-            ? (data['data'] as List)
-            : (data['items'] is List)
-                ? (data['items'] as List)
-                : const [];
+    final list = (data['data'] is List)
+        ? (data['data'] as List)
+        : (data['items'] is List)
+        ? (data['items'] as List)
+        : const [];
     return list
         .whereType<Map>()
         .map((e) => CashRegisterDto.fromJson(Map<String, dynamic>.from(e)))

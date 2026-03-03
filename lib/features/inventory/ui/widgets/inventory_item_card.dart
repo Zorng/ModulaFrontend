@@ -7,11 +7,13 @@ class InventoryItemCard extends StatelessWidget {
   const InventoryItemCard({
     super.key,
     required this.item,
+    required this.categoryLabel,
     required this.onTap,
     this.showState = true,
   });
 
   final StockItem item;
+  final String categoryLabel;
   final VoidCallback onTap;
   final bool showState;
 
@@ -75,7 +77,7 @@ class InventoryItemCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(999),
                       ),
                       child: Text(
-                        item.category,
+                        categoryLabel,
                         style: Theme.of(context).textTheme.labelSmall?.copyWith(
                           color: colorScheme.onSurfaceVariant,
                         ),

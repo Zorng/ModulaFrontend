@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:modular_pos/core/feedback/user_error_message.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_journal_entry.dart';
@@ -14,6 +13,7 @@ import 'package:modular_pos/features/inventory/ui/view/restock_stock_item/widget
 import 'package:modular_pos/features/inventory/ui/view/restock_stock_item/widgets/restock_stock_item_autocomplete.dart';
 import 'package:modular_pos/features/inventory/ui/view/restock_stock_item/widgets/restock_stock_summary.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/inventory_journal_controller.dart';
+import 'package:modular_pos/features/inventory/ui/viewmodels/inventory_error_mapper.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_controller.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_state.dart';
 
@@ -424,13 +424,14 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
     try {
       await ref
           .read(stockInventoryControllerProvider.notifier)
-          .restockItem(
+          .createRestockBatch(
             itemId: item.id,
             baseQty: baseQty,
             restockDate: _dateCtrl.text.isEmpty
                 ? formatYyyyMmDd(DateTime.now())
                 : _dateCtrl.text,
             expiryDate: _expiryCtrl.text.isEmpty ? null : _expiryCtrl.text,
+            purchaseCostUsd: price,
             note: _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim(),
             branchId: _selectedBranchId,
           );
@@ -471,16 +472,13 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
       context.pop();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            UserErrorMessage.build(
-              context: 'Failed to record restock',
-              error: e,
-            ),
-          ),
-        ),
+      final mapped = mapInventoryError(
+        e,
+        fallbackMessage: 'Failed to record restock.',
       );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(mapped.message)));
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }

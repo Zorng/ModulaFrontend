@@ -1,59 +1,73 @@
+import 'package:modular_pos/features/inventory/domain/models/inventory_status.dart';
+
 class StockItemDto {
   const StockItemDto({
     required this.id,
-    required this.name,
+    required this.tenantId,
     required this.categoryId,
-    required this.unitText,
-    required this.pieceSize,
-    required this.barcode,
+    required this.name,
+    required this.baseUnit,
     required this.imageUrl,
-    required this.isActive,
-    required this.usageTags,
+    required this.lowStockThreshold,
+    required this.status,
+    required this.createdAt,
+    required this.updatedAt,
   });
 
   final String id;
-  final String name;
+  final String tenantId;
   final String? categoryId;
-  final String unitText;
-  final int pieceSize;
-  final String? barcode;
+  final String name;
+  final String baseUnit;
   final String? imageUrl;
-  final bool isActive;
-  final List<String> usageTags;
+  final int? lowStockThreshold;
+  final InventoryStatus status;
+  final String createdAt;
+  final String updatedAt;
+
+  bool get isActive => status.isActive;
 
   factory StockItemDto.fromJson(Map<String, dynamic> json) {
-    final id = (json['stockItemId'] ??
-            json['stock_item_id'] ??
-            json['id'] ??
-            '')
-        .toString();
-    final imageUrl = (() {
-      final raw = json['imageUrl'] ??
-          json['image_url'] ??
-          json['image'] ??
-          (json['image'] is Map ? (json['image'] as Map)['url'] : null);
-      final trimmed = raw?.toString().trim();
-      return (trimmed == null || trimmed.isEmpty) ? null : trimmed;
-    })();
-    final categoryId = json['categoryId']?.toString() ?? json['category_id']?.toString();
-    final tags = (json['usageTags'] as List<dynamic>? ?? const [])
-        .map((e) => e.toString())
-        .where((e) => e.isNotEmpty)
-        .toList(growable: false);
+    final id =
+        (json['id'] ?? json['stockItemId'] ?? json['stock_item_id'] ?? '')
+            .toString();
+    final categoryId =
+        json['categoryId']?.toString() ?? json['category_id']?.toString();
+
+    final statusRaw =
+        json['status']?.toString() ??
+        (_asBool(json['isActive'], fallback: true) ? 'ACTIVE' : 'ARCHIVED');
 
     return StockItemDto(
       id: id,
+      tenantId:
+          json['tenantId']?.toString() ?? json['tenant_id']?.toString() ?? '',
+      categoryId: (categoryId == null || categoryId.isEmpty)
+          ? null
+          : categoryId,
       name: json['name']?.toString() ?? 'Item',
-      categoryId: (categoryId != null && categoryId.isNotEmpty) ? categoryId : null,
-      unitText:
-          json['unitText']?.toString() ?? json['baseUnit']?.toString() ?? 'pcs',
-      pieceSize: _asInt(json['pieceSize']) ?? 1,
-      barcode: json['barcode']?.toString(),
-      imageUrl: imageUrl,
-      isActive: _asBool(json['isActive'], fallback: true),
-      usageTags: tags,
+      baseUnit:
+          json['baseUnit']?.toString() ?? json['unitText']?.toString() ?? 'pcs',
+      imageUrl: _readImageUrl(json),
+      lowStockThreshold:
+          _asInt(json['lowStockThreshold']) ??
+          _asInt(json['minThreshold']) ??
+          _asInt(json['threshold']),
+      status: inventoryStatusFromRaw(statusRaw),
+      createdAt: json['createdAt']?.toString() ?? '',
+      updatedAt: json['updatedAt']?.toString() ?? '',
     );
   }
+}
+
+String? _readImageUrl(Map<String, dynamic> json) {
+  final raw =
+      json['imageUrl'] ??
+      json['image_url'] ??
+      (json['image'] is Map ? (json['image'] as Map)['url'] : json['image']);
+  final trimmed = raw?.toString().trim();
+  if (trimmed == null || trimmed.isEmpty) return null;
+  return trimmed;
 }
 
 bool _asBool(dynamic value, {required bool fallback}) {
@@ -72,4 +86,3 @@ int? _asInt(dynamic value) {
   if (value is num) return value.toInt();
   return int.tryParse(value?.toString() ?? '');
 }
-

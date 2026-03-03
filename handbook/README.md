@@ -15,6 +15,7 @@ Handover note:
 Architecture:
 - `handbook/architecture/overview.md`
 - `handbook/architecture/navigation.md`
+- `handbook/architecture/navigation_workspace_system.md`
 - `handbook/architecture/providers.md`
 - `handbook/architecture/widgets.md`
 - `handbook/architecture/theme.md`

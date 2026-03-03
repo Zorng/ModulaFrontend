@@ -5,6 +5,7 @@ import 'package:modular_pos/features/inventory/data/stock_item_repository.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_journal_entry.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_journal_summary.dart';
 import 'package:modular_pos/core/widgets/navigation/app_back_button.dart';
+import 'package:modular_pos/features/inventory/ui/models/inventory_journal_reason_label.dart';
 import 'package:modular_pos/features/inventory/ui/view/inventory_journal_detail/widgets/inventory_journal_entry_card.dart';
 import 'package:modular_pos/features/inventory/ui/view/inventory_journal_detail/widgets/inventory_journal_search_autocomplete.dart';
 
@@ -75,7 +76,7 @@ class _InventoryJournalDetailPageState
                   .where((reason) => reason != InventoryJournalReason.unknown)
                   .map(
                     (reason) => FilterChip(
-                      label: Text(reason.label),
+                      label: Text(inventoryJournalReasonLabel(reason)),
                       selected: _selectedReasons.contains(reason),
                       onSelected: (selected) {
                         setState(() {

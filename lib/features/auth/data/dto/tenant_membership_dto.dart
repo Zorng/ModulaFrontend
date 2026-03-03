@@ -2,18 +2,25 @@ import 'package:modular_pos/features/auth/data/dto/user_branch_dto.dart';
 
 class TenantMembershipDto {
   const TenantMembershipDto({
+    this.membershipId = '',
     required this.tenantId,
     required this.tenantName,
     required this.role,
     required this.branches,
   });
 
+  final String membershipId;
   final String tenantId;
   final String tenantName;
   final String role;
   final List<UserBranchDto> branches;
 
   factory TenantMembershipDto.fromJson(Map<String, dynamic> json) {
+    final membershipId =
+        json['membershipId']?.toString() ??
+        json['membership_id']?.toString() ??
+        json['id']?.toString() ??
+        '';
     final tenantObject = json['tenant'];
     final tenantId = json['tenantId']?.toString() ??
         json['tenant_id']?.toString() ??
@@ -53,6 +60,7 @@ class TenantMembershipDto {
         .toList(growable: false);
 
     return TenantMembershipDto(
+      membershipId: membershipId,
       tenantId: tenantId,
       tenantName: tenantName,
       role: json['role']?.toString() ?? json['memberRole']?.toString() ?? '',
@@ -60,4 +68,3 @@ class TenantMembershipDto {
     );
   }
 }
-

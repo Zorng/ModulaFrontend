@@ -19,13 +19,22 @@ class ModifiersManagementPage extends ConsumerStatefulWidget {
 class _ModifiersManagementPageState
     extends ConsumerState<ModifiersManagementPage> {
   String _searchQuery = '';
+  String _selectedStatusFilter = 'active';
+
+  static const List<DropdownMenuEntry<String>> _statusFilterEntries = [
+    DropdownMenuEntry<String>(value: 'active', label: 'Active'),
+    DropdownMenuEntry<String>(value: 'archived', label: 'Archived'),
+    DropdownMenuEntry<String>(value: 'all', label: 'All'),
+  ];
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      ref.read(menuViewModelProvider.notifier).refreshModifierGroups();
+      ref.read(menuViewModelProvider.notifier).refreshModifierGroups(
+        status: _selectedStatusFilter,
+      );
     });
   }
 
@@ -51,6 +60,25 @@ class _ModifiersManagementPageState
               onAddPressed: () {
                 context.push(AppRoute.adminMenuAddModifierGroup.path);
               },
+            ),
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: SizedBox(
+                width: 220,
+                child: DropdownMenu<String>(
+                  initialSelection: _selectedStatusFilter,
+                  label: const Text('Status'),
+                  dropdownMenuEntries: _statusFilterEntries,
+                  onSelected: (value) async {
+                    if (value == null || value == _selectedStatusFilter) return;
+                    setState(() => _selectedStatusFilter = value);
+                    await ref
+                        .read(menuViewModelProvider.notifier)
+                        .refreshModifierGroups(status: value);
+                  },
+                ),
+              ),
             ),
             const SizedBox(height: 16),
             Expanded(

@@ -1,6 +1,6 @@
 import 'package:dio/dio.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:modular_pos/core/config/app_env.dart';
 import 'package:modular_pos/core/network/dio_client.dart';
 import 'package:modular_pos/features/reporting/data/dto/x_report_dto.dart';
 import 'package:modular_pos/features/reporting/data/dto/z_report_dto.dart';
@@ -11,8 +11,7 @@ final reportingApiProvider = Provider<ReportingApi>((ref) {
 });
 
 class ReportingApi {
-  ReportingApi(this._dio)
-    : _prefix = dotenv.env['REPORTING_API_PREFIX'] ?? '/v1/reports';
+  ReportingApi(this._dio) : _prefix = AppEnv.reportingApiPrefix;
 
   final Dio _dio;
   final String _prefix;
@@ -80,8 +79,7 @@ class ReportingApiException implements Exception {
 
   factory ReportingApiException.fromDio(DioError exception) {
     final data = exception.response?.data;
-    final message =
-        data is Map ? data['message']?.toString() : null;
+    final message = data is Map ? data['message']?.toString() : null;
     return ReportingApiException(
       message ?? exception.message ?? 'Reporting API error',
       exception.response?.statusCode,

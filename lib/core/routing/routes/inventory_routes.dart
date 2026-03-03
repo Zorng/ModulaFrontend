@@ -82,9 +82,7 @@ List<RouteBase> buildInventoryRoutes() {
         final category = extra is InventoryCategory
             ? extra
             : extra is Map
-            ? InventoryCategory.fromJson(
-                Map<String, dynamic>.from(extra),
-              )
+            ? _inventoryCategoryFromRouteMap(Map<String, dynamic>.from(extra))
             : throw ArgumentError(
                 'Invalid category route data type: ${extra.runtimeType}',
               );
@@ -103,7 +101,6 @@ List<RouteBase> buildInventoryRoutes() {
             : const StockItem(
                 id: 'unknown',
                 name: 'Unknown item',
-                category: 'Uncategorized',
                 baseUnit: 'pcs',
                 pieceSize: 1,
                 branchId: 'main',
@@ -137,4 +134,20 @@ List<RouteBase> buildInventoryRoutes() {
       },
     ),
   ];
+}
+
+InventoryCategory _inventoryCategoryFromRouteMap(Map<String, dynamic> json) {
+  final isActiveRaw = json['isActive'];
+  final isActive = switch (isActiveRaw) {
+    bool b => b,
+    num n => n != 0,
+    String s => s.trim().toLowerCase() == 'true' || s.trim() == '1',
+    _ => true,
+  };
+  return InventoryCategory(
+    id: json['id']?.toString() ?? '',
+    name: json['name']?.toString() ?? 'Category',
+    isActive: isActive,
+    description: json['description']?.toString(),
+  );
 }

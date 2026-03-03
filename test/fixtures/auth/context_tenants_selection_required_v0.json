@@ -1,0 +1,21 @@
+{
+  "success": true,
+  "data": {
+    "state": "TENANT_SELECTION_REQUIRED",
+    "selectedTenantId": null,
+    "memberships": [
+      {
+        "membershipId": "m-1",
+        "tenantId": "tenant-1",
+        "tenantName": "X Cafe",
+        "roleKey": "OWNER"
+      },
+      {
+        "membershipId": "m-2",
+        "tenantId": "tenant-2",
+        "tenantName": "Y Cafe",
+        "roleKey": "OWNER"
+      }
+    ]
+  }
+}

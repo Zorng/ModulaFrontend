@@ -28,17 +28,41 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       previous,
       next,
     ) {
+      if (!mounted) return;
+
+      final pendingPhone = (next.pendingVerificationPhone ?? '').trim();
+      if (_requiresPhoneVerification(next) && pendingPhone.isNotEmpty) {
+        final route =
+            '${AppRoute.otpVerification.path}?phone=${Uri.encodeQueryComponent(pendingPhone)}';
+        if (_lastRoute == route) return;
+        _lastRoute = route;
+        context.go(route);
+        return;
+      }
+
       final session = next.session;
       final user = next.user;
-      if (!mounted || session == null || user == null) return;
+      if (session == null || user == null) return;
 
       final route = session.requiresTenantSelection
           ? AppRoute.tenantSelection.path
+          : next.requiresBranchSelection
+          ? AppRoute.branchSelection.path
           : AppRoute.portal.path;
       if (_lastRoute == route) return;
       _lastRoute = route;
       context.go(route);
     });
+  }
+
+  bool _requiresPhoneVerification(LoginState state) {
+    if (state.errorStatusCode != 403) return false;
+    final code = (state.errorCode ?? '').trim().toUpperCase();
+    final message = (state.error ?? '').trim().toUpperCase();
+    return code.contains('PHONE_NOT_VERIFIED') ||
+        code.contains('PHONE_UNVERIFIED') ||
+        message.contains('PHONE NOT VERIFIED') ||
+        message.contains('NOT VERIFIED');
   }
 
   @override
@@ -176,6 +200,15 @@ class _MobileLoginForm extends StatelessWidget {
           child: state.isLoading
               ? const CircularProgressIndicator(strokeWidth: 2.5)
               : const Text('Login'),
+        ),
+        const SizedBox(height: 8),
+        TextButton(
+          onPressed: state.isLoading
+              ? null
+              : () {
+                  context.go(AppRoute.signup.path);
+                },
+          child: const Text('Create account'),
         ),
         const SizedBox(height: 8),
         Text(

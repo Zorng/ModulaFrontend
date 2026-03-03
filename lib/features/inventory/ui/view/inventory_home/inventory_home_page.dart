@@ -8,9 +8,9 @@ import 'package:modular_pos/core/theme/app_table_theme.dart';
 import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/core/widgets/forms/app_search_bar.dart';
 import 'package:modular_pos/core/widgets/buttons/app_add_new_button.dart';
-import 'package:modular_pos/features/auth/domain/models/user.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
+import 'package:modular_pos/features/inventory/ui/models/inventory_branch_option.dart';
 import 'package:modular_pos/features/inventory/ui/view/inventory_stock_items/inventory_stock_items_utils.dart';
 import 'package:modular_pos/features/inventory/ui/view/inventory_stock_items/widgets/stock_item_image.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/category_controller.dart';
@@ -55,10 +55,12 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
         ref.watch(loginControllerProvider).user?.branches ?? const [];
     final items = inventoryState.items;
     final hasNoStockItems = items.isEmpty;
-    final branchEntries = _branchEntries(items, userBranches);
-    final effectiveBranchId = branchEntries.any(
-      (entry) => entry['id'] == _selectedBranchId,
-    )
+    final branchEntries = buildInventoryBranchOptions(
+      items: items,
+      userBranches: userBranches,
+    );
+    final effectiveBranchId =
+        branchEntries.any((entry) => entry.id == _selectedBranchId)
         ? _selectedBranchId
         : 'all';
     final categoryLookup = {
@@ -105,7 +107,10 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
                   MediaQuery.of(context).size.width,
                 );
                 final availableWidth = constraints.maxWidth;
-                final contentWidth = (availableWidth - 32).clamp(0.0, double.infinity);
+                final contentWidth = (availableWidth - 32).clamp(
+                  0.0,
+                  double.infinity,
+                );
                 final desktopFilterWidth = (availableWidth * 0.16).clamp(
                   170.0,
                   220.0,
@@ -116,14 +121,10 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
                   onPressed: hasNoStockItems
                       ? null
                       : () async {
-                          await context.push(
-                            AppRoute.inventoryRestock.path,
-                          );
+                          await context.push(AppRoute.inventoryRestock.path);
                           if (!mounted) return;
                           ref
-                              .read(
-                                stockInventoryControllerProvider.notifier,
-                              )
+                              .read(stockInventoryControllerProvider.notifier)
                               .loadStockItems(
                                 branchId: effectiveBranchId == 'all'
                                     ? null
@@ -137,10 +138,8 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
                   initialValue: _categoryFilter,
                   entries: categories
                       .map(
-                        (category) => DropdownMenuEntry(
-                          value: category,
-                          label: category,
-                        ),
+                        (category) =>
+                            DropdownMenuEntry(value: category, label: category),
                       )
                       .toList(),
                   onSelected: (value) => setState(
@@ -164,9 +163,8 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
                       label: 'Out of stock',
                     ),
                   ],
-                  onSelected: (value) => setState(
-                    () => _stockStatus = value ?? _StockStatus.all,
-                  ),
+                  onSelected: (value) =>
+                      setState(() => _stockStatus = value ?? _StockStatus.all),
                 );
 
                 final branchFilter = InventoryDropdown<String>(
@@ -174,8 +172,8 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
                   entries: branchEntries
                       .map(
                         (branch) => DropdownMenuEntry(
-                          value: branch['id']!,
-                          label: branch['name']!,
+                          value: branch.id,
+                          label: branch.name,
                         ),
                       )
                       .toList(),
@@ -207,15 +205,9 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
                         child: categoryFilter,
                       ),
                       const SizedBox(width: 12),
-                      SizedBox(
-                        width: desktopFilterWidth,
-                        child: statusFilter,
-                      ),
+                      SizedBox(width: desktopFilterWidth, child: statusFilter),
                       const SizedBox(width: 12),
-                      SizedBox(
-                        width: desktopFilterWidth,
-                        child: branchFilter,
-                      ),
+                      SizedBox(width: desktopFilterWidth, child: branchFilter),
                       const SizedBox(width: 12),
                       SizedBox(width: desktopButtonWidth, child: button),
                     ],
@@ -248,13 +240,7 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
                       ],
                     ),
                     const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: branchFilter,
-                        ),
-                      ],
-                    ),
+                    Row(children: [Expanded(child: branchFilter)]),
                   ],
                 );
               },
@@ -315,8 +301,9 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
                                 SizedBox(
                                   width: 220,
                                   child: AppAddNewButton(
-                                    onPressed: () =>
-                                        context.push(AppRoute.inventoryAddItem.path),
+                                    onPressed: () => context.push(
+                                      AppRoute.inventoryAddItem.path,
+                                    ),
                                     label: 'Create Stock Item',
                                   ),
                                 ),
@@ -337,6 +324,10 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
                                 final item = displayed[index];
                                 return InventoryItemCard(
                                   item: item,
+                                  categoryLabel: categoryLabel(
+                                    item,
+                                    categoryLookup,
+                                  ),
                                   showState: effectiveBranchId != 'all',
                                   onTap: () {
                                     if (item.branchId == 'all') {
@@ -381,7 +372,9 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
                                     headingRowColor: WidgetStateProperty.all(
                                       AppTableTheme.headerBackground,
                                     ),
-                                    dataRowColor: WidgetStatePropertyAll(AppTableTheme.background),
+                                    dataRowColor: WidgetStatePropertyAll(
+                                      AppTableTheme.background,
+                                    ),
                                     dividerThickness: 1,
                                     border: const TableBorder(
                                       top: BorderSide(
@@ -450,8 +443,7 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
                                           item,
                                           items,
                                         );
-                                          
-                                  
+
                                         return DataRow(
                                           cells: [
                                             DataCell(
@@ -460,26 +452,28 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
                                                 style: AppTableTheme.cellText,
                                               ),
                                             ),
-                                  
+
                                             DataCell(
                                               Row(
                                                 children: [
-                                                  StockItemImage(imageUrl: item.imageUrl),
-                                                  const SizedBox(width: 12,),
+                                                  StockItemImage(
+                                                    imageUrl: item.imageUrl,
+                                                  ),
+                                                  const SizedBox(width: 12),
                                                   Flexible(
-                                                      child: Text(
-                                                        item.name,
-                                                        style: Theme.of(
-                                                          context,
-                                                        ).textTheme.bodyMedium,
-                                                        overflow:
-                                                            TextOverflow.ellipsis,
-                                                      ),
+                                                    child: Text(
+                                                      item.name,
+                                                      style: Theme.of(
+                                                        context,
+                                                      ).textTheme.bodyMedium,
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
                                                     ),
+                                                  ),
                                                 ],
-                                              )
+                                              ),
                                             ),
-                                  
+
                                             DataCell(
                                               Container(
                                                 padding:
@@ -490,27 +484,30 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
                                                 decoration: AppTableTheme
                                                     .categoryPillDecoration,
                                                 child: Text(
-                                                  item.category,
+                                                  categoryLabel(
+                                                    item,
+                                                    categoryLookup,
+                                                  ),
                                                   style: AppTableTheme
                                                       .categoryPillText,
                                                 ),
                                               ),
                                             ),
-                                  
+
                                             DataCell(
                                               Text(
                                                 '${item.onHand} ${item.baseUnit}',
                                                 style: AppTableTheme.cellText,
                                               ),
                                             ),
-                                  
+
                                             DataCell(
                                               Text(
                                                 assigned,
                                                 style: AppTableTheme.cellText,
                                               ),
                                             ),
-                                  
+
                                             DataCell(
                                               Container(
                                                 padding:
@@ -528,12 +525,14 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
                                                       ? 'Healthy'
                                                       : 'Out of stock',
                                                   style: isHealthy
-                                                      ? AppTableTheme.healthyText
-                                                      : AppTableTheme.dangerText,
+                                                      ? AppTableTheme
+                                                            .healthyText
+                                                      : AppTableTheme
+                                                            .dangerText,
                                                 ),
                                               ),
                                             ),
-                                  
+
                                             DataCell(
                                               ElevatedButton(
                                                 style: AppTableTheme
@@ -566,37 +565,11 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
     );
   }
 
-  List<Map<String, String>> _branchEntries(
-    List<StockItem> items,
-    List<UserBranch> userBranches,
-  ) {
-    final map = <String, String>{};
-    if (userBranches.isNotEmpty) {
-      for (final b in userBranches) {
-        final id = b.branchId.isNotEmpty ? b.branchId : b.id;
-        map[id] = b.name;
-      }
-    } else {
-      for (final item in items) {
-        map[item.branchId] = item.branchName;
-      }
-    }
-    final entries =
-        map.entries
-            .map((entry) => {'id': entry.key, 'name': entry.value})
-            .toList()
-          ..sort((a, b) => a['name']!.compareTo(b['name']!));
-    if (entries.every((entry) => entry['id'] != 'all')) {
-      entries.insert(0, {'id': 'all', 'name': 'All Branches'});
-    }
-    return entries;
-  }
-
   List<StockItem> _aggregateItems(List<StockItem> items) {
     final grouped = <String, List<StockItem>>{};
     for (final item in items) {
       final key =
-          '${item.name}|${item.category}|${item.baseUnit}|${item.pieceSize}|${item.barcode ?? ''}';
+          '${item.name}|${item.categoryId ?? ''}|${item.baseUnit}|${item.pieceSize}';
       grouped.putIfAbsent(key, () => []).add(item);
     }
 
@@ -610,28 +583,21 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
         0,
         (sum, item) => sum + item.minThreshold,
       );
-      final mergedTags = <String>{};
-      for (final item in entry.value) {
-        mergedTags.addAll(item.usageTags);
-      }
       return first.copyWith(
         id: '${entry.key}_aggregate',
         branchId: 'all',
         branchName: 'All Branches',
         onHand: totalOnHand,
         minThreshold: totalThreshold,
-        lastRestockDate: '-',
-        expiryDate: '-',
-        usageTags: mergedTags.toList(),
       );
     }).toList();
   }
 
-    String _assignedBranches(StockItem item, List<StockItem> allItems) {
+  String _assignedBranches(StockItem item, List<StockItem> allItems) {
     final branches = <String>{};
 
     for (final it in allItems) {
-      if (it.name == item.name && it.category == item.category) {
+      if (it.name == item.name && it.categoryId == item.categoryId) {
         branches.add(it.branchName);
       }
     }

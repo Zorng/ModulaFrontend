@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
+import 'package:modular_pos/features/auth/domain/workspace_context_provider.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 
 /// Resolves the current active branch assignment for the logged-in user.
@@ -12,12 +13,32 @@ final authActiveBranchOverrideProvider =
       AuthActiveBranchOverrideNotifier.new,
     );
 
+final authActiveBranchNameOverrideProvider =
+    NotifierProvider<AuthActiveBranchNameOverrideNotifier, String?>(
+      AuthActiveBranchNameOverrideNotifier.new,
+    );
+
 class AuthActiveBranchOverrideNotifier extends Notifier<String?> {
   @override
   String? build() => null;
 
   void setOverride(String? branchId) {
+    // Branch context is selected from the branch-selection flow and locked
+    // once a workspace context exists.
+    if (ref.read(workspaceContextProvider) != null) return;
     final trimmed = (branchId ?? '').trim();
+    state = trimmed.isEmpty ? null : trimmed;
+  }
+
+  void clear() => state = null;
+}
+
+class AuthActiveBranchNameOverrideNotifier extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  void setName(String? branchName) {
+    final trimmed = (branchName ?? '').trim();
     state = trimmed.isEmpty ? null : trimmed;
   }
 

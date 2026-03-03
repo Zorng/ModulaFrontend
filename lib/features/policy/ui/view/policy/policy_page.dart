@@ -13,6 +13,7 @@ import 'package:modular_pos/features/policy/ui/widgets/policy_section.dart';
 import 'package:modular_pos/features/policy/ui/widgets/policy_branch_banner.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
+import 'package:modular_pos/features/auth/domain/auth_role.dart';
 
 /// Mobile-first Policy screen backed by policy API.
 class PolicyPage extends ConsumerStatefulWidget {
@@ -129,8 +130,8 @@ class _PolicyPageState extends ConsumerState<PolicyPage> {
   }
 
   bool _isReadOnly(LoginState state) {
-    final role = (state.user?.role ?? 'cashier').trim().toLowerCase();
-    return role != 'admin';
+    final role = resolveSessionAuthRole(state.session);
+    return role != AuthRole.admin && role != AuthRole.owner;
   }
 
   @override
@@ -139,156 +140,157 @@ class _PolicyPageState extends ConsumerState<PolicyPage> {
     final policyState = ref.watch(policyNotifierProvider);
     final isLoading = policyState.isLoading;
     final toggleValues = _composeToggleValues(policyState);
-    
-         final selectorValues = _composeSelectorValues(policyState);
+
+    final selectorValues = _composeSelectorValues(policyState);
     final isReadOnly = _isReadOnly(loginState);
     final portalPath = AppRoute.portal.path;
     final activeBranch = ref.watch(authActiveBranchProvider);
     final branchName = activeBranch?.name ?? 'Branch';
 
     return LayoutBuilder(
-        builder: (context, constraints) {
-          final width = constraints.maxWidth;
-          final isCompact = width < AppBreakpoints.compact;
-          final isSmall = AppBreakpoints.isSmall(width);
-          final isMedium = AppBreakpoints.isMedium(width);
-          final isLarge = AppBreakpoints.isLarge(width);
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final isCompact = width < AppBreakpoints.compact;
+        final isSmall = AppBreakpoints.isSmall(width);
+        final isMedium = AppBreakpoints.isMedium(width);
+        final isLarge = AppBreakpoints.isLarge(width);
 
-          // Responsive values based on breakpoints
-          final horizontalPadding = isLarge ? 32.0 : (isMedium ? 24.0 : 16.0);
-          final showAppBar = !isLarge;
-          final showBackButton = isSmall;
+        // Responsive values based on breakpoints
+        final horizontalPadding = isLarge ? 32.0 : (isMedium ? 24.0 : 16.0);
+        final showAppBar = !isLarge;
+        final showBackButton = isSmall;
 
-          final filteredSections = _sections
-              .map(
-                (section) => PolicySectionData(
-                  title: section.title,
-                  items: section.items
-                      .where(
-                        (item) =>
-                            _search.isEmpty ||
-                            item.title.toLowerCase().contains(_search) ||
-                            (item.subtitle?.toLowerCase().contains(_search) ??
-                                false),
-                      )
-                      .toList(),
-                ),
-              )
-              .where((section) => section.items.isNotEmpty)
-              .toList();
+        final filteredSections = _sections
+            .map(
+              (section) => PolicySectionData(
+                title: section.title,
+                items: section.items
+                    .where(
+                      (item) =>
+                          _search.isEmpty ||
+                          item.title.toLowerCase().contains(_search) ||
+                          (item.subtitle?.toLowerCase().contains(_search) ??
+                              false),
+                    )
+                    .toList(),
+              ),
+            )
+            .where((section) => section.items.isNotEmpty)
+            .toList();
 
-          return Scaffold(
-            appBar: showAppBar
-                ? AppBar(
-                    automaticallyImplyLeading: false,
-                    leading: showBackButton
-                        ? AppBackButton(
-                            icon: Icons.home_outlined,
-                            tooltip: 'Home',
-                            onPressed: () => context.go(portalPath),
-                          )
-                        : null,
-                    titleSpacing: 0,
-                    centerTitle: false,
-                    title: const Text('Policy'),
-                  )
-                : null,
-            body: Column(
-              children: [
-                if (isLarge)
-                  Container(
-                    width: double.infinity,
-                    color: Theme.of(context).colorScheme.surface,
-                    padding: EdgeInsets.fromLTRB(
-                      horizontalPadding,
-                      24,
-                      horizontalPadding,
-                      24,
-                    ),
-                    child: Text(
-                      'Policy',
-                      style: Theme.of(context).textTheme.headlineMedium
-                          ?.copyWith(fontWeight: FontWeight.w600),
+        return Scaffold(
+          appBar: showAppBar
+              ? AppBar(
+                  automaticallyImplyLeading: false,
+                  leading: showBackButton
+                      ? AppBackButton(
+                          icon: Icons.home_outlined,
+                          tooltip: 'Home',
+                          onPressed: () => context.go(portalPath),
+                        )
+                      : null,
+                  titleSpacing: 0,
+                  centerTitle: false,
+                  title: const Text('Policy'),
+                )
+              : null,
+          body: Column(
+            children: [
+              if (isLarge)
+                Container(
+                  width: double.infinity,
+                  color: Theme.of(context).colorScheme.surface,
+                  padding: EdgeInsets.fromLTRB(
+                    horizontalPadding,
+                    24,
+                    horizontalPadding,
+                    24,
+                  ),
+                  child: Text(
+                    'Policy',
+                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-                Expanded(
-                  child: Padding(
-                    padding: EdgeInsets.fromLTRB(
-                      horizontalPadding,
-                      isLarge ? 16 : 0,
-                      horizontalPadding,
-                      24,
-                    ),
-                    child: ListView(
-                      children: [
-                        if (isLarge) ...[
-                          PolicyBranchBanner(
-                            branchName: branchName,
-                            isSubtle: false,
-                          ),
-                          const SizedBox(height: 16),
-                        ],
-                        if (!isLarge) ...[
-                          PolicyBranchBanner(
-                            branchName: branchName,
-                            isSubtle: true,
-                          ),
-                          const SizedBox(height: 16),
-                        ],
-                        AppSearchBar(
-                          hintText: 'Search',
-                          onChanged: (value) =>
-                              setState(() => _search = value.toLowerCase()),
+                ),
+              Expanded(
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    horizontalPadding,
+                    isLarge ? 16 : 0,
+                    horizontalPadding,
+                    24,
+                  ),
+                  child: ListView(
+                    children: [
+                      if (isLarge) ...[
+                        PolicyBranchBanner(
+                          branchName: branchName,
+                          isSubtle: false,
                         ),
                         const SizedBox(height: 16),
-                        if (isLoading)
-                          const LinearProgressIndicator(minHeight: 2),
-                        if (isReadOnly && showAppBar)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 8, bottom: 4),
-                            child: Text(
-                              'Read-only: contact an admin to update policies.',
-                              style: Theme.of(context).textTheme.labelMedium
-                                  ?.copyWith(
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.onSurfaceVariant,
-                                  ),
-                            ),
-                          ),
-                        const SizedBox(height: 4),
-                        ...filteredSections.map(
-                          (section) => Padding(
-                            padding: const EdgeInsets.only(bottom: 16),
-                            child: PolicySection(
-                              title: section.title,
-                              items: section.items,
-                              isCompact: isCompact || isSmall,
-                              toggleValues: toggleValues,
-                              selectorValues: selectorValues,
-                              readOnly: isReadOnly,
-                              onItemTap: (item, value) =>
-                                  _openPolicyDetail(context, item, value),
-                            ),
+                      ],
+                      if (!isLarge) ...[
+                        PolicyBranchBanner(
+                          branchName: branchName,
+                          isSubtle: true,
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+                      AppSearchBar(
+                        hintText: 'Search',
+                        onChanged: (value) =>
+                            setState(() => _search = value.toLowerCase()),
+                      ),
+                      const SizedBox(height: 16),
+                      if (isLoading)
+                        const LinearProgressIndicator(minHeight: 2),
+                      if (isReadOnly && showAppBar)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8, bottom: 4),
+                          child: Text(
+                            'Read-only: contact an admin to update policies.',
+                            style: Theme.of(context).textTheme.labelMedium
+                                ?.copyWith(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
+                                ),
                           ),
                         ),
-                        if (filteredSections.isEmpty)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 32),
-                            child: Text(
-                              'No settings match "$_search".',
-                              style: Theme.of(context).textTheme.bodyMedium,
-                              textAlign: TextAlign.center,
-                            ),
+                      const SizedBox(height: 4),
+                      ...filteredSections.map(
+                        (section) => Padding(
+                          padding: const EdgeInsets.only(bottom: 16),
+                          child: PolicySection(
+                            title: section.title,
+                            items: section.items,
+                            isCompact: isCompact || isSmall,
+                            toggleValues: toggleValues,
+                            selectorValues: selectorValues,
+                            readOnly: isReadOnly,
+                            onItemTap: (item, value) =>
+                                _openPolicyDetail(context, item, value),
                           ),
-                      ],
-                    ),
+                        ),
+                      ),
+                      if (filteredSections.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 32),
+                          child: Text(
+                            'No settings match "$_search".',
+                            style: Theme.of(context).textTheme.bodyMedium,
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                    ],
                   ),
                 ),
-              ],
-            ),
-          );
-          },
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 

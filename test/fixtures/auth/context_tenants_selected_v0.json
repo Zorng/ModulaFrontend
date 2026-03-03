@@ -1,0 +1,15 @@
+{
+  "success": true,
+  "data": {
+    "state": "TENANT_SELECTED",
+    "selectedTenantId": "tenant-1",
+    "memberships": [
+      {
+        "membershipId": "m-1",
+        "tenantId": "tenant-1",
+        "tenantName": "X Cafe",
+        "roleKey": "ADMIN"
+      }
+    ]
+  }
+}

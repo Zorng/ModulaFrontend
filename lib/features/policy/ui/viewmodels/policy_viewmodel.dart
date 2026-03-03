@@ -1,5 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
+import 'package:modular_pos/features/auth/domain/active_branch_context_provider.dart';
 import 'package:modular_pos/features/policy/data/policy_repository.dart';
 import 'package:modular_pos/features/policy/domain/models/policy.dart';
 
@@ -51,7 +51,7 @@ class PolicyNotifier extends Notifier<PolicyState> {
     return const PolicyState(isLoading: false);
   }
 
-  String? get _branchId => ref.read(authActiveBranchIdProvider);
+  String? get _branchId => ref.read(activeBranchContextIdProvider);
 
   Future<void> load({String? branchId}) async {
     state = state.copyWith(isLoading: true, error: null);

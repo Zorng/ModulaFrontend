@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
+import 'package:modular_pos/features/auth/domain/auth_role.dart';
 
 class NavDestination {
   const NavDestination({
@@ -21,8 +22,7 @@ class NavSection {
 }
 
 List<NavSection> navSectionsForRole(String role) {
-  final normalized = role.trim().toLowerCase();
-  if (normalized == 'admin') {
+  if (isAdminOrOwnerRole(role)) {
     return [
       NavSection(
         label: 'Global',

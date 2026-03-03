@@ -1,55 +1,27 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:modular_pos/features/inventory/data/inventory_api.dart';
-import 'package:modular_pos/features/inventory/data/dto/inventory_category_dto.dart';
+import 'package:modular_pos/features/inventory/data/mock_inventory_category_repository.dart';
+import 'package:modular_pos/features/inventory/data/remote_inventory_category_repository.dart';
+import 'package:modular_pos/features/inventory/data/stock_item_repository.dart'
+    show useMockInventoryRepositoryProvider;
 import 'package:modular_pos/features/inventory/domain/models/inventory_category.dart';
 
 final inventoryCategoryRepositoryProvider =
     Provider<InventoryCategoryRepository>((ref) {
-      final api = ref.watch(inventoryApiProvider);
-      return InventoryCategoryRepository(api);
+      final useMock = ref.watch(useMockInventoryRepositoryProvider);
+      if (useMock) {
+        return ref.watch(mockInventoryCategoryRepositoryProvider);
+      }
+      return ref.watch(remoteInventoryCategoryRepositoryProvider);
     });
 
-class InventoryCategoryRepository {
-  const InventoryCategoryRepository(this._api);
+abstract class InventoryCategoryRepository {
+  const InventoryCategoryRepository();
 
-  final InventoryApi _api;
+  Future<List<InventoryCategory>> fetchCategories({String status = 'all'});
 
-  Future<List<InventoryCategory>> fetchCategories({bool? isActive}) async {
-    final data = await _api.fetchCategories(isActive: isActive);
-    return data.map(_toDomain).toList(growable: false);
-  }
+  Future<InventoryCategory> createCategory(InventoryCategory category);
 
-  Future<InventoryCategory> createCategory(InventoryCategory category) async {
-    final body = {
-      'name': category.name,
-      'isActive': category.isActive,
-      if (category.description != null && category.description!.isNotEmpty)
-        'description': category.description,
-    };
-    final dto = await _api.createCategory(body);
-    return _toDomain(dto);
-  }
+  Future<InventoryCategory> updateCategory(InventoryCategory category);
 
-  Future<InventoryCategory> updateCategory(InventoryCategory category) async {
-    final body = {
-      'name': category.name,
-      'isActive': category.isActive,
-      if (category.description != null && category.description!.isNotEmpty)
-        'description': category.description,
-    };
-    final dto = await _api.updateCategory(category.id, body);
-    return _toDomain(dto);
-  }
-
-  Future<void> deleteCategory(String id, {bool? safeMode}) =>
-      _api.deleteCategory(id, safeMode: safeMode);
-}
-
-InventoryCategory _toDomain(InventoryCategoryDto dto) {
-  return InventoryCategory(
-    id: dto.id,
-    name: dto.name,
-    isActive: dto.isActive,
-    description: dto.description,
-  );
+  Future<void> deleteCategory(String id, {bool? safeMode});
 }

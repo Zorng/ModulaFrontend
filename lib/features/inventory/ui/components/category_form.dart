@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:modular_pos/features/inventory/domain/models/inventory_category.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/category_controller.dart';
+import 'package:modular_pos/features/inventory/ui/viewmodels/inventory_error_mapper.dart';
 
 enum CategoryFormMode { create, view, edit }
 
@@ -76,7 +77,8 @@ class _CategoryFormBodyState extends ConsumerState<CategoryFormBody> {
                 IconButton(
                   tooltip: 'Close',
                   icon: const Icon(Icons.close),
-                  onPressed: widget.onClose ?? () => Navigator.of(context).pop(),
+                  onPressed:
+                      widget.onClose ?? () => Navigator.of(context).pop(),
                 ),
               ],
             ),
@@ -207,21 +209,37 @@ class _CategoryFormBodyState extends ConsumerState<CategoryFormBody> {
     final description = _descriptionCtrl.text.trim();
     final descriptionValue = description.isEmpty ? null : description;
 
-    if (_mode == CategoryFormMode.create) {
-      await ref.read(categoryControllerProvider.notifier).addCategory(
-            name,
-            description: descriptionValue,
-            isActive: _isActive,
-          );
-    } else {
-      final current = widget.category!;
-      await ref.read(categoryControllerProvider.notifier).updateCategory(
-            current.copyWith(
-              name: name,
+    try {
+      if (_mode == CategoryFormMode.create) {
+        await ref
+            .read(categoryControllerProvider.notifier)
+            .addCategory(
+              name,
               description: descriptionValue,
               isActive: _isActive,
-            ),
-          );
+            );
+      } else {
+        final current = widget.category!;
+        await ref
+            .read(categoryControllerProvider.notifier)
+            .updateCategory(
+              current.copyWith(
+                name: name,
+                description: descriptionValue,
+                isActive: _isActive,
+              ),
+            );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      final mapped = mapInventoryError(
+        e,
+        fallbackMessage: 'Failed to save category.',
+      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(mapped.message)));
+      return;
     }
 
     if (!mounted) return;

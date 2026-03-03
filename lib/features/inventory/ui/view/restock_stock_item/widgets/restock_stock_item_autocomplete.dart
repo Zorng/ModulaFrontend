@@ -56,8 +56,7 @@ class _RestockStockItemAutocompleteState
             if (query.isEmpty) return widget.items;
             return widget.items.where((item) {
               final name = item.name.toLowerCase();
-              final barcode = item.barcode?.toLowerCase() ?? '';
-              return name.contains(query) || barcode.contains(query);
+              return name.contains(query);
             });
           },
           fieldViewBuilder:
@@ -120,7 +119,7 @@ class _RestockStockItemAutocompleteState
                       return ListTile(
                         title: Text(option.name),
                         subtitle: Text(
-                          '${option.category} • ${option.branchName}',
+                          '${option.baseUnit} • ${option.branchName}',
                         ),
                         onTap: () {
                           onSelected(option);

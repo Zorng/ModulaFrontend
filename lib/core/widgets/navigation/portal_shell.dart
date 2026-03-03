@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/widgets/navigation/portal_action.dart';
 import 'package:modular_pos/core/widgets/navigation/tenant_profile_header.dart';
 
@@ -70,6 +72,7 @@ class _PortalShellState extends State<PortalShell> {
                 initial:
                     widget.tenantInitial ??
                     (widget.tenantName?.characters.first.toUpperCase() ?? '?'),
+                onBackPressed: () => context.go(AppRoute.branchSelection.path),
               ),
               const Spacer(),
               IconButton(

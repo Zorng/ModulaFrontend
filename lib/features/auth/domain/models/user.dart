@@ -61,7 +61,7 @@ class User {
       if (branchList.isNotEmpty && branchList.first.role.isNotEmpty) {
         return branchList.first.role;
       }
-      return 'cashier';
+      return '';
     })();
 
     return User(

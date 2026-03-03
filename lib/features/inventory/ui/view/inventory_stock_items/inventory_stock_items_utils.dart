@@ -10,7 +10,5 @@ String categoryLabel(StockItem item, Map<String, String> categoryLookup) {
     final label = categoryLookup[item.categoryId!];
     if (label != null && label.isNotEmpty) return label;
   }
-  if (item.category.isNotEmpty) return item.category;
   return 'Uncategorized';
 }
-

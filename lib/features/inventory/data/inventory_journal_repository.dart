@@ -1,33 +1,56 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:modular_pos/features/inventory/data/inventory_api.dart';
-import 'package:modular_pos/features/inventory/data/dto/inventory_journal_entry_dto.dart';
+import 'package:modular_pos/features/inventory/data/mock_inventory_journal_repository.dart';
+import 'package:modular_pos/features/inventory/data/remote_inventory_journal_repository.dart';
+import 'package:modular_pos/features/inventory/data/stock_item_repository.dart'
+    show useMockInventoryRepositoryProvider;
 import 'package:modular_pos/features/inventory/domain/models/inventory_journal_entry.dart';
+import 'package:modular_pos/features/inventory/domain/models/stock_batch.dart';
 
-final inventoryJournalRepositoryProvider = Provider<InventoryJournalRepository>((ref) {
-  final api = ref.watch(inventoryApiProvider);
-  return InventoryJournalRepository(api);
-});
+final inventoryJournalRepositoryProvider = Provider<InventoryJournalRepository>(
+  (ref) {
+    final useMock = ref.watch(useMockInventoryRepositoryProvider);
+    if (useMock) {
+      return ref.watch(mockInventoryJournalRepositoryProvider);
+    }
+    return ref.watch(remoteInventoryJournalRepositoryProvider);
+  },
+);
 
-class InventoryJournalRepository {
-  const InventoryJournalRepository(this._api);
+abstract class InventoryJournalRepository {
+  const InventoryJournalRepository();
 
-  final InventoryApi _api;
+  Future<InventoryJournalEntry?> createRestockBatch({
+    required String branchId,
+    required String stockItemId,
+    required num qty,
+    String? note,
+    String? receivedAt,
+    String? expiryDate,
+    String? supplierName,
+    num? purchaseCostUsd,
+  });
 
+  @Deprecated('Use createRestockBatch')
   Future<InventoryJournalEntry?> receive({
     required String branchId,
     required String stockItemId,
     required num qty,
     String? note,
-    String? occurredAt,
-  }) async {
-    final dto = await _api.receiveStock(
+    String? receivedAt,
+    String? expiryDate,
+    String? supplierName,
+    num? purchaseCostUsd,
+  }) {
+    return createRestockBatch(
       branchId: branchId,
       stockItemId: stockItemId,
       qty: qty,
       note: note,
-      occurredAt: occurredAt,
+      receivedAt: receivedAt,
+      expiryDate: expiryDate,
+      supplierName: supplierName,
+      purchaseCostUsd: purchaseCostUsd,
     );
-    return _maybeEntry(dto, fallbackReason: InventoryJournalReason.restock);
   }
 
   Future<InventoryJournalEntry?> waste({
@@ -36,16 +59,7 @@ class InventoryJournalRepository {
     required num qty,
     required String note,
     String? occurredAt,
-  }) async {
-    final dto = await _api.wasteStock(
-      branchId: branchId,
-      stockItemId: stockItemId,
-      qty: qty,
-      note: note,
-      occurredAt: occurredAt,
-    );
-    return _maybeEntry(dto, fallbackReason: InventoryJournalReason.remove);
-  }
+  });
 
   Future<InventoryJournalEntry?> correct({
     required String branchId,
@@ -53,102 +67,40 @@ class InventoryJournalRepository {
     required num delta,
     required String note,
     String? occurredAt,
-  }) async {
-    final dto = await _api.correctStock(
-      branchId: branchId,
-      stockItemId: stockItemId,
-      delta: delta,
-      note: note,
-      occurredAt: occurredAt,
-    );
-    return _maybeEntry(dto, fallbackReason: InventoryJournalReason.add);
-  }
+  });
+
+  Future<int?> applyAdjustment({
+    required String stockItemId,
+    required String style,
+    int? deltaInBaseUnit,
+    int? countedOnHandInBaseUnit,
+    required String reasonCode,
+    String? note,
+  });
 
   Future<List<InventoryJournalEntry>> fetch({
-    String? branchId,
     String? stockItemId,
     InventoryJournalReason? reason,
-    String? fromDate,
-    String? toDate,
-    int page = 1,
-    int pageSize = 50,
-  }) async {
-    final items = await _api.fetchJournal(
-      branchId: branchId,
-      stockItemId: stockItemId,
-      reason: reason != null ? _reasonToApi(reason) : null,
-      fromDate: fromDate,
-      toDate: toDate,
-      page: page,
-      pageSize: pageSize,
-    );
-    return items
-        .map((dto) => _toDomain(dto))
-        .toList(growable: false);
-  }
+    int limit = 50,
+    int offset = 0,
+  });
 
-  Future<List<InventoryJournalEntry>> lowStockAlerts({String? branchId}) async {
-    final items = await _api.fetchLowStockAlerts(branchId: branchId);
-    return items.map(_toDomain).toList(growable: false);
-  }
+  Future<List<InventoryJournalEntry>> lowStockAlerts({String? branchId});
 
-  InventoryJournalEntry? _maybeEntry(
-    InventoryJournalEntryDto? dto, {
-    InventoryJournalReason? fallbackReason,
-  }) {
-    if (dto == null) return null;
-    return _toDomain(dto, fallbackReason: fallbackReason);
-  }
+  Future<List<StockBatch>> fetchRestockBatches({
+    String status = 'all',
+    String? stockItemId,
+    int? limit,
+    int? offset,
+  });
 
-  String _reasonToApi(InventoryJournalReason reason) => switch (reason) {
-        InventoryJournalReason.restock => 'receive',
-        InventoryJournalReason.add => 'receive',
-        InventoryJournalReason.remove => 'waste',
-        InventoryJournalReason.sale => 'sale',
-        InventoryJournalReason.voided => 'void',
-        InventoryJournalReason.reopen => 'reopen',
-        InventoryJournalReason.unknown => '',
-      };
-}
+  Future<StockBatch> updateRestockBatchMetadata({
+    required String batchId,
+    String? expiryDate,
+    String? supplierName,
+    num? purchaseCostUsd,
+    String? note,
+  });
 
-InventoryJournalEntry _toDomain(
-  InventoryJournalEntryDto dto, {
-  InventoryJournalReason? fallbackReason,
-}) {
-  final reason = _reasonFromApi(dto.reason, fallback: fallbackReason);
-  final actor = dto.actorName.isNotEmpty ? dto.actorName : dto.actorId;
-  return InventoryJournalEntry(
-    id: dto.id,
-    itemId: dto.stockItemId,
-    itemName: dto.stockItemName,
-    branchId: dto.branchId,
-    branchName: dto.branchName,
-    reason: reason,
-    delta: dto.delta,
-    note: dto.note,
-    actor: actor,
-    createdAt: dto.createdAt,
-    occurredAt: dto.occurredAt,
-  );
-}
-
-InventoryJournalReason _reasonFromApi(
-  String reason, {
-  InventoryJournalReason? fallback,
-}) {
-  switch (reason.trim().toLowerCase()) {
-    case 'receive':
-    case 'restock':
-      return InventoryJournalReason.restock;
-    case 'waste':
-      return InventoryJournalReason.remove;
-    case 'sale':
-      return InventoryJournalReason.sale;
-    case 'void':
-      return InventoryJournalReason.voided;
-    case 'reopen':
-      return InventoryJournalReason.reopen;
-    default:
-      return fallback ?? InventoryJournalReason.unknown;
-  }
+  Future<void> archiveRestockBatch({required String batchId});
 }

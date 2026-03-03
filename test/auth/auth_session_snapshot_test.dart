@@ -4,7 +4,7 @@ import 'package:modular_pos/features/auth/domain/models/tenant_membership.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
 
 void main() {
-  test('AuthSession snapshot round-trips user/memberships (tokens excluded)', () {
+  test('AuthSession snapshot round-trips user/memberships/tokens', () {
     const branches = [
       UserBranch(
         id: 'assign-1',
@@ -17,6 +17,7 @@ void main() {
     ];
 
     const membership = TenantMembership(
+      membershipId: 'membership-1',
       tenantId: 'tenant-1',
       tenantName: 'tenant-1',
       role: 'ADMIN',
@@ -39,13 +40,15 @@ void main() {
       refreshToken: 'refresh',
       accessTokenExpiresAt: DateTime(2025, 1, 1),
       refreshTokenExpiresAt: DateTime(2025, 1, 2),
+      tenantSelectionToken: 'selection-token',
     );
 
     final json = session.toJson();
     final roundTrip = AuthSession.fromJson(json);
 
-    expect(roundTrip.accessToken, isEmpty);
-    expect(roundTrip.refreshToken, isEmpty);
+    expect(roundTrip.accessToken, 'access');
+    expect(roundTrip.refreshToken, 'refresh');
+    expect(roundTrip.tenantSelectionToken, 'selection-token');
 
     expect(roundTrip.user.id, 'user-1');
     expect(roundTrip.user.name, 'Demo User');
@@ -65,6 +68,7 @@ void main() {
     expect(roundTrip.activeTenantId, 'tenant-1');
 
     final roundTripMembership = roundTrip.memberships.first;
+    expect(roundTripMembership.membershipId, 'membership-1');
     expect(roundTripMembership.tenantId, 'tenant-1');
     expect(roundTripMembership.tenantName, 'tenant-1');
     expect(roundTripMembership.role, 'ADMIN');

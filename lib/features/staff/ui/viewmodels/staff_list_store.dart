@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:modular_pos/features/auth/domain/auth_role.dart';
 import 'package:modular_pos/features/staff/domain/models/staff_model.dart';
 import 'package:modular_pos/features/staff/data/staff_management_repository.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
@@ -57,7 +58,10 @@ class StaffListState {
 class StaffListAsyncNotifier extends AsyncNotifier<StaffListState> {
   @override
   Future<StaffListState> build() async {
-    final user = ref.watch(loginControllerProvider).user;
+    final loginState = ref.watch(loginControllerProvider);
+    final user = loginState.user;
+    final role = resolveSessionAuthRole(loginState.session);
+    final isAdminOrOwner = role == AuthRole.admin || role == AuthRole.owner;
     final branches = user?.branches ?? const [];
     final options = branches
         .map((b) => b.name)
@@ -66,14 +70,12 @@ class StaffListAsyncNotifier extends AsyncNotifier<StaffListState> {
 
     final initialState = StaffListState(
       branchOptions: options,
-      selectedBranch: user?.role.toLowerCase() != 'admin' && options.isNotEmpty
+      selectedBranch: !isAdminOrOwner && options.isNotEmpty
           ? options.first
           : null,
     );
 
-    final user2 = ref.read(loginControllerProvider).user;
-    final isAdmin = user2?.role.toLowerCase() == 'admin';
-    final branchId = isAdmin
+    final branchId = isAdminOrOwner
         ? null
         : _branchIdForName(initialState.selectedBranch);
     final repo = ref.read(staffManagementRepositoryProvider);
@@ -146,9 +148,10 @@ class StaffListAsyncNotifier extends AsyncNotifier<StaffListState> {
     final currentState = state.value;
     state = const AsyncLoading();
     try {
-      final user = ref.read(loginControllerProvider).user;
-      final isAdmin = user?.role.toLowerCase() == 'admin';
-      final branchId = isAdmin
+      final loginState = ref.read(loginControllerProvider);
+      final role = resolveSessionAuthRole(loginState.session);
+      final isAdminOrOwner = role == AuthRole.admin || role == AuthRole.owner;
+      final branchId = isAdminOrOwner
           ? null
           : _branchIdForName(currentState?.selectedBranch);
       final repo = ref.read(staffManagementRepositoryProvider);

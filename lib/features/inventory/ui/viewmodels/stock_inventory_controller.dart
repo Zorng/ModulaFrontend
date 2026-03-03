@@ -1,12 +1,13 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
+import 'package:modular_pos/features/inventory/data/branch_stock_repository.dart';
 import 'package:modular_pos/features/inventory/data/stock_item_repository.dart';
 import 'package:modular_pos/features/inventory/data/inventory_journal_repository.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_batch.dart';
 import 'package:modular_pos/features/inventory/domain/models/on_hand_record.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
+import 'package:modular_pos/features/inventory/ui/viewmodels/inventory_error_mapper.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_state.dart';
-import 'package:modular_pos/features/inventory/ui/viewmodels/category_controller.dart';
 
 final stockInventoryControllerProvider =
     NotifierProvider<StockInventoryController, StockInventoryState>(() {
@@ -15,31 +16,25 @@ final stockInventoryControllerProvider =
 
 class StockInventoryController extends Notifier<StockInventoryState> {
   late final StockItemRepository _repository;
+  late final BranchStockRepository _branchStockRepository;
   late final InventoryJournalRepository _journalRepository;
 
   @override
   StockInventoryState build() {
     _repository = ref.read(stockItemRepositoryProvider);
+    _branchStockRepository = ref.read(branchStockRepositoryProvider);
     _journalRepository = ref.read(inventoryJournalRepositoryProvider);
     return const StockInventoryState();
   }
 
   Future<void> loadStockItems({String? branchId}) async {
     try {
-      state = state.copyWith(isLoading: true, error: null);
+      state = state.copyWith(isLoading: true, error: null, errorCode: null);
       final items = await _fetchItems(branchId: branchId);
-      final categoryLookup = await _categoryLookup();
       final branchLookup = _branchLookup();
       final onHandData = await _fetchOnHand(branchId: branchId);
       final mapped = _applyOnHand(
-        items
-            .map(
-              (item) => _withBranchName(
-                _withCategoryName(item, categoryLookup),
-                branchLookup,
-              ),
-            )
-            .toList(),
+        items.map((item) => _withBranchName(item, branchLookup)).toList(),
         onHandData,
       );
       state = state.copyWith(
@@ -48,7 +43,97 @@ class StockInventoryController extends Notifier<StockInventoryState> {
         batches: const [],
       );
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      final mapped = mapInventoryError(
+        e,
+        fallbackMessage: 'Failed to load stock items.',
+      );
+      state = state.copyWith(
+        isLoading: false,
+        error: mapped.message,
+        errorCode: mapped.code,
+      );
+    }
+  }
+
+  Future<void> loadRestockBatches({
+    String status = 'active',
+    String? stockItemId,
+    int limit = 200,
+    int offset = 0,
+  }) async {
+    try {
+      final batches = await _journalRepository.fetchRestockBatches(
+        status: status,
+        stockItemId: stockItemId,
+        limit: limit,
+        offset: offset,
+      );
+      state = state.copyWith(batches: batches, error: null, errorCode: null);
+    } catch (e) {
+      final mapped = mapInventoryError(
+        e,
+        fallbackMessage: 'Failed to load restock batches.',
+      );
+      state = state.copyWith(error: mapped.message, errorCode: mapped.code);
+      rethrow;
+    }
+  }
+
+  Future<void> updateRestockBatchMetadata({
+    required String batchId,
+    String? expiryDate,
+    String? supplierName,
+    num? purchaseCostUsd,
+    String? note,
+  }) async {
+    try {
+      final updated = await _journalRepository.updateRestockBatchMetadata(
+        batchId: batchId,
+        expiryDate: expiryDate,
+        supplierName: supplierName,
+        purchaseCostUsd: purchaseCostUsd,
+        note: note,
+      );
+      final hasExisting = state.batches.any((batch) => batch.id == batchId);
+      final nextBatches = hasExisting
+          ? [
+              for (final batch in state.batches)
+                if (batch.id == batchId)
+                  batch.copyWith(expiryDate: updated.expiryDate)
+                else
+                  batch,
+            ]
+          : [...state.batches, updated];
+      state = state.copyWith(
+        batches: nextBatches,
+        error: null,
+        errorCode: null,
+      );
+    } catch (e) {
+      final mapped = mapInventoryError(
+        e,
+        fallbackMessage: 'Failed to update restock batch.',
+      );
+      state = state.copyWith(error: mapped.message, errorCode: mapped.code);
+      rethrow;
+    }
+  }
+
+  Future<void> archiveRestockBatch({required String batchId}) async {
+    try {
+      await _journalRepository.archiveRestockBatch(batchId: batchId);
+      state = state.copyWith(
+        batches: state.batches.where((batch) => batch.id != batchId).toList(),
+        error: null,
+        errorCode: null,
+      );
+    } catch (e) {
+      final mapped = mapInventoryError(
+        e,
+        fallbackMessage: 'Failed to archive restock batch.',
+      );
+      state = state.copyWith(error: mapped.message, errorCode: mapped.code);
+      rethrow;
     }
   }
 
@@ -63,14 +148,19 @@ class StockInventoryController extends Notifier<StockInventoryState> {
         imagePath: imagePath,
         imageBytes: imageBytes,
       );
-      final mapped = _withBranchName(
-        _withCategoryName(created, await _categoryLookup()),
-        _branchLookup(),
+      final mapped = _withBranchName(created, _branchLookup());
+      state = state.copyWith(
+        items: [...state.items, mapped],
+        error: null,
+        errorCode: null,
       );
-      state = state.copyWith(items: [...state.items, mapped], error: null);
       return mapped;
     } catch (e) {
-      state = state.copyWith(error: e.toString());
+      final mapped = mapInventoryError(
+        e,
+        fallbackMessage: 'Failed to create stock item.',
+      );
+      state = state.copyWith(error: mapped.message, errorCode: mapped.code);
       rethrow;
     }
   }
@@ -86,59 +176,121 @@ class StockInventoryController extends Notifier<StockInventoryState> {
         imagePath: imagePath,
         imageBytes: imageBytes,
       );
-      final mapped = _withBranchName(
-        _withCategoryName(updated, await _categoryLookup()),
-        _branchLookup(),
-      );
+      final mapped = _withBranchName(updated, _branchLookup());
       final items = [
         for (final existing in state.items)
           if (existing.id == updated.id) mapped else existing,
       ];
-      state = state.copyWith(items: items, error: null);
+      state = state.copyWith(items: items, error: null, errorCode: null);
     } catch (e) {
-      state = state.copyWith(error: e.toString());
+      final mapped = mapInventoryError(
+        e,
+        fallbackMessage: 'Failed to update stock item.',
+      );
+      state = state.copyWith(error: mapped.message, errorCode: mapped.code);
+      rethrow;
     }
   }
 
+  Future<void> createRestockBatch({
+    required String itemId,
+    required int baseQty,
+    String? restockDate,
+    String? expiryDate,
+    num? purchaseCostUsd,
+    String? note,
+    String? branchId,
+  }) async {
+    try {
+      final item = state.items.firstWhere((element) => element.id == itemId);
+      final targetBranch =
+          branchId ?? (item.branchId.isNotEmpty ? item.branchId : null);
+      final occurredAt = _toUtcIso(restockDate);
+      await _journalRepository.createRestockBatch(
+        branchId: targetBranch ?? '',
+        stockItemId: item.id,
+        qty: baseQty,
+        receivedAt: occurredAt,
+        expiryDate: expiryDate,
+        purchaseCostUsd: purchaseCostUsd,
+        note: note,
+      );
+      // Refresh inventory for the relevant branch to pick up backend on-hand changes.
+      final reloadBranch =
+          (branchId != null && branchId.isNotEmpty && branchId != 'all')
+          ? branchId
+          : null;
+      await loadStockItems(branchId: reloadBranch);
+    } catch (e) {
+      final mapped = mapInventoryError(
+        e,
+        fallbackMessage: 'Failed to restock inventory item.',
+      );
+      state = state.copyWith(error: mapped.message, errorCode: mapped.code);
+      rethrow;
+    }
+  }
+
+  @Deprecated('Use createRestockBatch')
   Future<void> restockItem({
     required String itemId,
     required int baseQty,
     String? restockDate,
     String? expiryDate,
+    num? purchaseCostUsd,
     String? note,
     String? branchId,
-  }) async {
-    final item = state.items.firstWhere((element) => element.id == itemId);
-    final targetBranch =
-        branchId ?? (item.branchId.isNotEmpty ? item.branchId : null);
-    final occurredAt = _toUtcIso(restockDate);
-    await _journalRepository.receive(
-      branchId: targetBranch ?? '',
-      stockItemId: item.id,
-      qty: baseQty,
+  }) {
+    return createRestockBatch(
+      itemId: itemId,
+      baseQty: baseQty,
+      restockDate: restockDate,
+      expiryDate: expiryDate,
+      purchaseCostUsd: purchaseCostUsd,
       note: note,
-      occurredAt: occurredAt,
+      branchId: branchId,
     );
-    // Refresh inventory for the relevant branch to pick up backend on-hand changes.
-    final reloadBranch =
-        (branchId != null && branchId.isNotEmpty && branchId != 'all')
-        ? branchId
-        : null;
-    await loadStockItems(branchId: reloadBranch);
   }
 
-  Future<void> deleteStockItem(String id) async {
+  Future<void> archiveStockItem(String id) async {
     try {
-      await _repository.deleteStockItem(id);
+      await _repository.archiveStockItem(id);
       state = state.copyWith(
         items: state.items.where((item) => item.id != id).toList(),
         batches: state.batches
             .where((batch) => batch.stockItemId != id)
             .toList(),
         error: null,
+        errorCode: null,
       );
     } catch (e) {
-      state = state.copyWith(error: e.toString());
+      final mapped = mapInventoryError(
+        e,
+        fallbackMessage: 'Failed to delete stock item.',
+      );
+      state = state.copyWith(error: mapped.message, errorCode: mapped.code);
+      rethrow;
+    }
+  }
+
+  @Deprecated('Use archiveStockItem')
+  Future<void> deleteStockItem(String id) => archiveStockItem(id);
+
+  Future<void> restoreStockItem(String id) async {
+    try {
+      await _repository.restoreStockItem(id);
+      final items = [
+        for (final item in state.items)
+          if (item.id == id) item.copyWith(isActive: true) else item,
+      ];
+      state = state.copyWith(items: items, error: null, errorCode: null);
+    } catch (e) {
+      final mapped = mapInventoryError(
+        e,
+        fallbackMessage: 'Failed to restore stock item.',
+      );
+      state = state.copyWith(error: mapped.message, errorCode: mapped.code);
+      rethrow;
     }
   }
 
@@ -147,6 +299,39 @@ class StockInventoryController extends Notifier<StockInventoryState> {
       return state.items.firstWhere((item) => item.id == id);
     } catch (_) {
       return null;
+    }
+  }
+
+  Future<StockItem> loadStockItemDetail(String id) async {
+    try {
+      final detail = await _repository.fetchStockItemById(id);
+      final existing = findById(id);
+      final merged = existing == null
+          ? detail
+          : detail.copyWith(
+              branchId: existing.branchId,
+              branchName: existing.branchName,
+              onHand: existing.onHand,
+              minThreshold: existing.minThreshold,
+            );
+      final items = [
+        for (final item in state.items)
+          if (item.id == merged.id) merged else item,
+      ];
+      final hasMerged = items.any((item) => item.id == merged.id);
+      state = state.copyWith(
+        items: hasMerged ? items : [...state.items, merged],
+        error: null,
+        errorCode: null,
+      );
+      return merged;
+    } catch (e) {
+      final mapped = mapInventoryError(
+        e,
+        fallbackMessage: 'Failed to load stock item detail.',
+      );
+      state = state.copyWith(error: mapped.message, errorCode: mapped.code);
+      rethrow;
     }
   }
 
@@ -162,38 +347,81 @@ class StockInventoryController extends Notifier<StockInventoryState> {
     return batches;
   }
 
+  Future<void> applyInventoryAdjustment({
+    required String batchId,
+    required int delta,
+    String? note,
+  }) async {
+    try {
+      final batch = state.batches.firstWhere(
+        (element) => element.id == batchId,
+        orElse: () => state.batches.isNotEmpty
+            ? state.batches.first
+            : StockBatch(
+                id: batchId,
+                stockItemId: batchId,
+                branchId: 'all',
+                onHand: 0,
+                receivedDate: _todayString(),
+              ),
+      );
+      final item = state.items.firstWhere(
+        (element) => element.id == batch.stockItemId || element.id == batchId,
+        orElse: () => state.items.first,
+      );
+      final expectedOnHand = item.onHand + delta;
+      if (expectedOnHand < 0) {
+        throw StateError('Adjustment exceeds available quantity');
+      }
+      final resultingOnHand = await _journalRepository.applyAdjustment(
+        stockItemId: item.id,
+        style: 'DELTA',
+        deltaInBaseUnit: delta,
+        reasonCode: delta < 0 ? 'WASTE' : 'COUNT_CORRECTION',
+        note: note,
+      );
+      final resolvedOnHand = resultingOnHand ?? expectedOnHand;
+      final nextItems = [
+        for (final existing in state.items)
+          if (existing.id == item.id)
+            existing.copyWith(onHand: resolvedOnHand)
+          else
+            existing,
+      ];
+      final nextBatches = [
+        for (final existing in state.batches)
+          if (existing.id == batchId)
+            existing.copyWith(
+              onHand: (existing.onHand + delta) < 0
+                  ? 0
+                  : existing.onHand + delta,
+            )
+          else
+            existing,
+      ];
+      state = state.copyWith(
+        items: nextItems,
+        batches: nextBatches,
+        error: null,
+        errorCode: null,
+      );
+    } catch (e) {
+      final mapped = mapInventoryError(
+        e,
+        fallbackMessage: 'Failed to adjust inventory item.',
+      );
+      state = state.copyWith(error: mapped.message, errorCode: mapped.code);
+      rethrow;
+    }
+  }
+
+  @Deprecated('Use applyInventoryAdjustment')
   Future<void> adjustBatch({
     required String batchId,
     required int delta,
-  }) async {
-    final batch = state.batches.firstWhere(
-      (element) => element.id == batchId,
-      orElse: () => state.batches.isNotEmpty
-          ? state.batches.first
-          : StockBatch(
-              id: batchId,
-              stockItemId: batchId,
-              branchId: 'all',
-              onHand: 0,
-              receivedDate: _todayString(),
-            ),
-    );
-    final item = state.items.firstWhere(
-      (element) => element.id == batch.stockItemId || element.id == batchId,
-      orElse: () => state.items.first,
-    );
-    final newQty = item.onHand + delta;
-    if (newQty < 0) {
-      throw StateError('Adjustment exceeds available quantity');
-    }
-    await _journalRepository.correct(
-      branchId: item.branchId,
-      stockItemId: item.id,
-      delta: delta,
-      note: 'Manual adjustment',
-    );
-    final updatedItem = item.copyWith(onHand: newQty);
-    await updateStockItem(updatedItem);
+    String? note,
+  }) {
+    return applyInventoryAdjustment(batchId: batchId, delta: delta, note: note);
   }
 
   void updateBranchAssignment({
@@ -218,16 +446,6 @@ class StockInventoryController extends Notifier<StockInventoryState> {
 
   String _todayString() => DateTime.now().toIso8601String().split('T').first;
 
-  String _resolveCategory(StockItem item, Map<String, String> categoryLookup) {
-    if (item.categoryId != null &&
-        item.categoryId!.isNotEmpty &&
-        categoryLookup[item.categoryId!] != null) {
-      return categoryLookup[item.categoryId!]!;
-    }
-    if (item.category.isNotEmpty) return item.category;
-    return 'Uncategorized';
-  }
-
   Map<String, String> _branchLookup() {
     final user = ref.read(loginControllerProvider).user;
     final branches = user?.branches ?? const [];
@@ -235,23 +453,6 @@ class StockInventoryController extends Notifier<StockInventoryState> {
       for (final b in branches)
         (b.branchId.isNotEmpty ? b.branchId : b.id): b.name,
     };
-  }
-
-  Future<Map<String, String>> _categoryLookup() async {
-    // Ensure categories are loaded so the display name is available.
-    final categoryNotifier = ref.read(categoryControllerProvider.notifier);
-    if (ref.read(categoryControllerProvider).categories.isEmpty) {
-      await categoryNotifier.loadCategories();
-    }
-    final categories = ref.read(categoryControllerProvider).categories;
-    return {for (final c in categories) c.id: c.name};
-  }
-
-  StockItem _withCategoryName(
-    StockItem item,
-    Map<String, String> categoryLookup,
-  ) {
-    return item.copyWith(category: _resolveCategory(item, categoryLookup));
   }
 
   StockItem _withBranchName(StockItem item, Map<String, String> branchLookup) {
@@ -287,74 +488,66 @@ class StockInventoryController extends Notifier<StockInventoryState> {
   }
 
   Future<List<OnHandRecord>> _fetchOnHand({String? branchId}) async {
-    // If a specific branch is selected, fetch on-hand once.
-    if (branchId != null && branchId.isNotEmpty && branchId != 'all') {
-      final data = await _repository.fetchOnHand(branchId: branchId);
+    final targetBranch =
+        (branchId != null && branchId.isNotEmpty && branchId != 'all')
+        ? branchId
+        : null;
+    if (targetBranch == null) {
+      // All-branch mode uses aggregate stock endpoint values directly.
+      return const [];
+    }
+    try {
+      final data = await _branchStockRepository.fetchOnHand(
+        branchId: targetBranch,
+      );
       return data
-          .map((record) => record.branchId.isEmpty
-              ? OnHandRecord(
-                  stockItemId: record.stockItemId,
-                  branchId: branchId,
-                  onHand: record.onHand,
-                  minThreshold: record.minThreshold,
-                )
-              : record)
-          .where((record) => record.branchId == branchId)
+          .map(
+            (record) => record.branchId.isEmpty
+                ? OnHandRecord(
+                    stockItemId: record.stockItemId,
+                    branchId: targetBranch,
+                    onHand: record.onHand,
+                    minThreshold: record.minThreshold,
+                  )
+                : record,
+          )
+          .where(
+            (record) =>
+                record.branchId.isEmpty || record.branchId == targetBranch,
+          )
           .toList(growable: false);
+    } catch (_) {
+      // Branch stock projection is non-critical for rendering the catalog list.
+      return const [];
     }
-    // Aggregate on-hand across all user branches.
-    final branches =
-        ref.read(loginControllerProvider).user?.branches ?? const [];
-    if (branches.isEmpty) return const [];
-    final aggregated = <String, OnHandRecord>{};
-    for (final branch in branches) {
-      final id = branch.branchId.isNotEmpty ? branch.branchId : branch.id;
-      final data = await _repository.fetchOnHand(branchId: id);
-      for (final record in data) {
-        if (record.stockItemId.isEmpty) continue;
-        final key = '${record.stockItemId}|$id';
-        aggregated[key] = record.branchId.isEmpty
-            ? OnHandRecord(
-                stockItemId: record.stockItemId,
-                branchId: id,
-                onHand: record.onHand,
-                minThreshold: record.minThreshold,
-              )
-            : record;
-      }
-    }
-    return aggregated.values.toList();
   }
 
   Future<List<StockItem>> _fetchItems({String? branchId}) async {
-    // If a specific branch is selected, fetch only that branch.
-    if (branchId != null && branchId.isNotEmpty && branchId != 'all') {
-      return _repository.fetchStockItems(branchId: branchId);
+    final targetBranch =
+        (branchId != null && branchId.isNotEmpty && branchId != 'all')
+        ? branchId
+        : null;
+    try {
+      final items = await _branchStockRepository.fetchStockItems(
+        branchId: targetBranch,
+      );
+      if (items.isNotEmpty) return items;
+    } catch (_) {
+      // Fall back to master stock-item catalog when branch stock read fails.
     }
-
-    final branches =
-        ref.read(loginControllerProvider).user?.branches ?? const [];
-    if (branches.isEmpty) {
-      return _repository.fetchStockItems();
-    }
-
-    final results = <StockItem>[];
-    for (final branch in branches) {
-      final id = branch.branchId.isNotEmpty ? branch.branchId : branch.id;
-      final items = await _repository.fetchStockItems(branchId: id);
-      results.addAll(items);
-    }
-
-    // Deduplicate by stock item id + branch.
-    final seen = <String>{};
-    final deduped = <StockItem>[];
-    for (final item in results) {
-      final key = '${item.id}|${item.branchId}';
-      if (seen.add(key)) {
-        deduped.add(item);
-      }
-    }
-    return deduped;
+    final master = await _repository.fetchMasterStockItems();
+    final branchName = targetBranch != null
+        ? (_branchLookup()[targetBranch] ?? '')
+        : '';
+    return master
+        .map(
+          (item) => item.copyWith(
+            branchId: targetBranch ?? item.branchId,
+            branchName: targetBranch != null ? branchName : item.branchName,
+            onHand: 0,
+          ),
+        )
+        .toList(growable: false);
   }
 }
 

@@ -1,18 +1,19 @@
-import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:modular_pos/features/auth/domain/models/auth_session.dart';
 import 'package:modular_pos/features/auth/domain/models/tenant_membership.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
-import 'package:modular_pos/features/inventory/data/inventory_api.dart';
+import 'package:modular_pos/features/inventory/data/branch_stock_repository.dart';
 import 'package:modular_pos/features/inventory/data/stock_item_repository.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_category.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_journal_entry.dart';
+import 'package:modular_pos/features/inventory/domain/models/on_hand_record.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_batch.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/category_controller.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/category_state.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/inventory_journal_controller.dart';
+import 'package:modular_pos/features/inventory/ui/viewmodels/inventory_journal_state.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_controller.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_state.dart';
 
@@ -61,7 +62,6 @@ final testStockItems = <StockItem>[
   const StockItem(
     id: 'item-1',
     name: 'Iced Coffee',
-    category: 'Beverages',
     categoryId: 'cat-1',
     baseUnit: 'ml',
     pieceSize: 1,
@@ -70,15 +70,10 @@ final testStockItems = <StockItem>[
     onHand: 12,
     minThreshold: 3,
     isActive: true,
-    barcode: '123',
-    lastRestockDate: '2025-12-20',
-    expiryDate: '2026-01-20',
-    usageTags: ['Ingredient'],
   ),
   const StockItem(
     id: 'item-2',
     name: 'Croissant',
-    category: 'Bakery',
     categoryId: 'cat-2',
     baseUnit: 'pcs',
     pieceSize: 1,
@@ -87,9 +82,6 @@ final testStockItems = <StockItem>[
     onHand: 0,
     minThreshold: 5,
     isActive: false,
-    lastRestockDate: '2025-12-18',
-    expiryDate: '2025-12-25',
-    usageTags: ['Sellable'],
   ),
 ];
 
@@ -137,7 +129,7 @@ class FakeCategoryController extends CategoryController {
   CategoryState build() => _state;
 
   @override
-  Future<void> loadCategories() async {}
+  Future<void> loadCategories({String status = 'all'}) async {}
 
   @override
   Future<void> addCategory(
@@ -165,6 +157,11 @@ class FakeStockInventoryController extends StockInventoryController {
   Future<void> loadStockItems({String? branchId}) async {}
 
   @override
+  Future<StockItem> loadStockItemDetail(String id) async {
+    return _state.items.firstWhere((item) => item.id == id);
+  }
+
+  @override
   Future<StockItem> addStockItem(
     StockItem draft, {
     String? imagePath,
@@ -181,46 +178,121 @@ class FakeStockInventoryController extends StockInventoryController {
   }) async {}
 
   @override
-  Future<void> restockItem({
+  Future<void> createRestockBatch({
     required String itemId,
     required int baseQty,
     String? restockDate,
     String? expiryDate,
+    num? purchaseCostUsd,
     String? note,
     String? branchId,
   }) async {}
 
   @override
-  Future<void> deleteStockItem(String id) async {}
+  Future<void> archiveStockItem(String id) async {}
 
   @override
-  Future<void> adjustBatch({
+  Future<void> restoreStockItem(String id) async {}
+
+  @override
+  Future<void> applyInventoryAdjustment({
     required String batchId,
     required int delta,
+    String? note,
   }) async {}
 }
 
 class FakeInventoryJournalController extends InventoryJournalController {
-  FakeInventoryJournalController(this._entries);
+  FakeInventoryJournalController(this._state);
 
-  final List<InventoryJournalEntry> _entries;
+  final InventoryJournalState _state;
 
   @override
-  List<InventoryJournalEntry> build() => _entries;
+  InventoryJournalState build() => _state;
 
   @override
   Future<void> load({String? branchId, String? stockItemId}) async {}
 }
 
 class FakeStockItemRepository extends StockItemRepository {
-  FakeStockItemRepository(this._items) : super(InventoryApi(Dio()));
+  FakeStockItemRepository(this._items);
 
   final List<StockItem> _items;
 
   @override
   Future<List<StockItem>> fetchMasterStockItems({int pageSize = 200}) async {
-    return _items;
+    return _items.take(pageSize).toList(growable: false);
   }
+
+  @override
+  Future<StockItem> fetchStockItemById(String id) async {
+    final match = _items.where((item) => item.id == id);
+    if (match.isNotEmpty) return match.first;
+    throw StateError('Stock item not found: $id');
+  }
+
+  @override
+  Future<StockItem> createStockItem(
+    StockItem item, {
+    String? imagePath,
+    List<int>? imageBytes,
+  }) async {
+    return item;
+  }
+
+  @override
+  Future<StockItem> updateStockItem(
+    StockItem item, {
+    String? imagePath,
+    List<int>? imageBytes,
+  }) async {
+    return item;
+  }
+
+  @override
+  Future<void> archiveStockItem(String id) async {}
+
+  @override
+  Future<void> restoreStockItem(String id) async {}
+}
+
+class FakeBranchStockRepository extends BranchStockRepository {
+  FakeBranchStockRepository(this._items);
+
+  final List<StockItem> _items;
+
+  @override
+  Future<List<OnHandRecord>> fetchOnHand({String? branchId}) async {
+    return _items
+        .where(
+          (item) =>
+              branchId == null || branchId.isEmpty || item.branchId == branchId,
+        )
+        .map(
+          (item) => OnHandRecord(
+            stockItemId: item.id,
+            branchId: item.branchId,
+            onHand: item.onHand,
+            minThreshold: item.minThreshold,
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  @override
+  Future<List<StockItem>> fetchStockItems({String? branchId}) async {
+    if (branchId == null || branchId.isEmpty) return _items;
+    return _items
+        .where((item) => item.branchId == branchId)
+        .toList(growable: false);
+  }
+
+  @override
+  Future<void> assignToBranch({
+    required String stockItemId,
+    required String branchId,
+    required int minThreshold,
+  }) async {}
 }
 
 List<Override> inventoryOverrides({
@@ -228,13 +300,13 @@ List<Override> inventoryOverrides({
   CategoryState? categoryState,
   StockInventoryState? stockInventoryState,
   List<InventoryJournalEntry>? journalEntries,
+  InventoryJournalState? journalState,
   StockItemRepository? stockItemRepository,
+  BranchStockRepository? branchStockRepository,
 }) {
   return [
     loginControllerProvider.overrideWith(
-      () => FakeLoginController(
-        loginState ?? LoginState(session: testSession),
-      ),
+      () => FakeLoginController(loginState ?? LoginState(session: testSession)),
     ),
     categoryControllerProvider.overrideWith(
       () => FakeCategoryController(
@@ -249,10 +321,15 @@ List<Override> inventoryOverrides({
     ),
     inventoryJournalControllerProvider.overrideWith(
       () => FakeInventoryJournalController(
-        journalEntries ?? testJournalEntries,
+        journalState ??
+            InventoryJournalState(
+              entries: journalEntries ?? testJournalEntries,
+            ),
       ),
     ),
     if (stockItemRepository != null)
       stockItemRepositoryProvider.overrideWithValue(stockItemRepository),
+    if (branchStockRepository != null)
+      branchStockRepositoryProvider.overrideWithValue(branchStockRepository),
   ];
 }

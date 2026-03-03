@@ -3,12 +3,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/theme/responsive.dart';
-import 'package:modular_pos/core/widgets/navigation/nav_destinations.dart';
 import 'package:modular_pos/core/widgets/navigation/tenant_profile_header.dart';
+import 'package:modular_pos/features/auth/domain/active_branch_context_provider.dart';
 import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
+import 'package:modular_pos/features/auth/domain/auth_role.dart';
 import 'package:modular_pos/features/auth/domain/models/auth_session.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
+import 'package:modular_pos/features/auth/domain/workspace_context_provider.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
+import 'package:modular_pos/features/branchV2/domain/models/branch_models.dart';
+import 'package:modular_pos/features/branchV2/ui/viewmodels/branch_controller.dart';
+import 'package:modular_pos/core/widgets/navigation/workspace_nav_config.dart';
 
 class AppScaffoldShell extends ConsumerWidget {
   const AppScaffoldShell({
@@ -28,22 +33,32 @@ class AppScaffoldShell extends ConsumerWidget {
         if (!isWide) return child;
 
         final session = ref.watch(loginControllerProvider).session;
-        final role = (session?.user.role ?? 'cashier').trim().toLowerCase();
+        final role = resolveSessionAuthRole(session);
+        final workspaceContext = ref.watch(workspaceContextProvider);
         final tenantName = _resolveTenantName(session);
-        final branchName = _resolveBranchName(
-          ref.watch(authActiveBranchProvider),
-          session?.user.branches ?? const <UserBranch>[],
+        final activeBranchId = ref.watch(activeBranchContextIdProvider);
+        final activeBranchNameOverride = ref.watch(
+          authActiveBranchNameOverrideProvider,
         );
+        final knownBranches = ref.watch(
+          branchControllerProvider.select((state) => state.branches),
+        );
+        final branchName = workspaceContext?.isGlobal == true
+            ? 'Global Management'
+            : _resolveBranchName(
+                ref.watch(authActiveBranchProvider),
+                session?.user.branches ?? const <UserBranch>[],
+                activeBranchId: activeBranchId,
+                activeBranchNameOverride: activeBranchNameOverride,
+                knownBranches: knownBranches,
+              );
         final tenantInitial = tenantName.isNotEmpty
             ? tenantName.characters.first.toUpperCase()
             : '?';
-        final branches = session?.user.branches ?? const <UserBranch>[];
-        final activeBranch = ref.watch(authActiveBranchProvider);
-        final selectedBranchId =
-            _branchKey(activeBranch) ??
-            (branches.isNotEmpty ? _branchKey(branches.first) : null);
-
-        final sections = navSectionsForRole(role);
+        final sections = buildWorkspaceNavSections(
+          role: role,
+          workspaceContext: workspaceContext,
+        );
         final hasMatch = _hasMatch(currentPath, sections);
 
         return SafeArea(
@@ -60,23 +75,22 @@ class AppScaffoldShell extends ConsumerWidget {
                         tenantName: tenantName,
                         branchName: branchName,
                         tenantInitial: tenantInitial,
+                        onBackPressed: () =>
+                            context.go(AppRoute.branchSelection.path),
                       ),
                       const SizedBox(height: 16),
                       for (final section in sections) ...[
-                        if (section.destinations.isNotEmpty)
+                        if (section.items.isNotEmpty)
                           _RailSectionHeader(label: section.label),
-                        if (section.label == 'Branch')
-                          _RailBranchSelector(
-                            branches: branches,
-                            selectedBranchId: selectedBranchId,
-                          ),
-                        for (final destination in section.destinations)
+                        for (final item in section.items)
                           _RailDestinationTile(
-                            destination: destination,
+                            item: item,
                             selected:
-                                _matchesDestination(currentPath, destination) ||
-                                (!hasMatch &&
-                                    destination.path == AppRoute.sale.path),
+                                workspaceNavItemMatchesPath(
+                                  currentPath,
+                                  item,
+                                ) ||
+                                (!hasMatch && item.route == AppRoute.sale),
                           ),
                         const SizedBox(height: 8),
                       ],
@@ -94,24 +108,13 @@ class AppScaffoldShell extends ConsumerWidget {
   }
 }
 
-bool _matchesDestination(String path, NavDestination destination) {
-  return path.startsWith(destination.path);
-}
-
-bool _hasMatch(String path, List<NavSection> sections) {
+bool _hasMatch(String path, List<WorkspaceNavSection> sections) {
   for (final section in sections) {
-    for (final destination in section.destinations) {
-      if (_matchesDestination(path, destination)) return true;
+    for (final item in section.items) {
+      if (workspaceNavItemMatchesPath(path, item)) return true;
     }
   }
   return false;
-}
-
-String? _branchKey(UserBranch? branch) {
-  if (branch == null) return null;
-  if (branch.branchId.isNotEmpty) return branch.branchId;
-  if (branch.id.isNotEmpty) return branch.id;
-  return null;
 }
 
 String _resolveTenantName(AuthSession? session) {
@@ -126,14 +129,43 @@ String _resolveTenantName(AuthSession? session) {
   return 'Tenant name';
 }
 
-String _resolveBranchName(UserBranch? active, List<UserBranch> branches) {
-  final branch =
-      active ??
-      (branches.isNotEmpty
-          ? branches.first
-          : const UserBranch(id: '', name: '', role: '', active: false));
-  if (branch.name.isNotEmpty) return branch.name;
-  return 'Branch name';
+String _resolveBranchName(
+  UserBranch? active,
+  List<UserBranch> branches, {
+  required String? activeBranchId,
+  required String? activeBranchNameOverride,
+  required List<BranchListItem> knownBranches,
+}) {
+  final overriddenName = (activeBranchNameOverride ?? '').trim();
+  if (overriddenName.isNotEmpty) return overriddenName;
+
+  final activeName = active?.name.trim() ?? '';
+  if (activeName.isNotEmpty) return activeName;
+
+  final normalizedActiveId = (activeBranchId ?? '').trim();
+  if (normalizedActiveId.isNotEmpty) {
+    for (final branch in knownBranches) {
+      if (branch.branchId == normalizedActiveId &&
+          branch.branchName.trim().isNotEmpty) {
+        return branch.branchName.trim();
+      }
+    }
+
+    for (final branch in branches) {
+      final matchesId =
+          branch.branchId.trim() == normalizedActiveId ||
+          branch.id.trim() == normalizedActiveId;
+      if (matchesId && branch.name.trim().isNotEmpty) {
+        return branch.name.trim();
+      }
+    }
+  }
+
+  for (final branch in branches) {
+    if (branch.name.trim().isNotEmpty) return branch.name.trim();
+  }
+
+  return 'Branch';
 }
 
 class _RailHeader extends ConsumerWidget {
@@ -141,11 +173,13 @@ class _RailHeader extends ConsumerWidget {
     required this.tenantName,
     required this.branchName,
     required this.tenantInitial,
+    this.onBackPressed,
   });
 
   final String tenantName;
   final String branchName;
   final String tenantInitial;
+  final VoidCallback? onBackPressed;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -156,6 +190,7 @@ class _RailHeader extends ConsumerWidget {
           tenantName: tenantName,
           branchName: branchName,
           initial: tenantInitial,
+          onBackPressed: onBackPressed,
         ),
       ],
     );
@@ -183,95 +218,38 @@ class _RailSectionHeader extends StatelessWidget {
   }
 }
 
-class _RailBranchSelector extends ConsumerWidget {
-  const _RailBranchSelector({
-    required this.branches,
-    required this.selectedBranchId,
-  });
+class _RailDestinationTile extends ConsumerWidget {
+  const _RailDestinationTile({required this.item, required this.selected});
 
-  final List<UserBranch> branches;
-  final String? selectedBranchId;
-
-  String _branchKey(UserBranch branch) =>
-      branch.branchId.isNotEmpty ? branch.branchId : branch.id;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    if (branches.isEmpty) return const SizedBox.shrink();
-    final hasMultipleBranches = branches.length > 1;
-    final selectedBranch = branches.firstWhere(
-      (b) => _branchKey(b) == selectedBranchId,
-      orElse: () => branches.first,
-    );
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: hasMultipleBranches
-          ? DropdownButtonHideUnderline(
-              child: DropdownButtonFormField<String>(
-                initialValue: selectedBranchId,
-                isExpanded: true,
-                decoration: const InputDecoration(
-                  isDense: true,
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 10,
-                  ),
-                  border: OutlineInputBorder(),
-                ),
-                items: branches
-                    .map(
-                      (b) => DropdownMenuItem(
-                        value: _branchKey(b),
-                        child: Text(b.name),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (value) {
-                  ref
-                      .read(authActiveBranchOverrideProvider.notifier)
-                      .setOverride(value);
-                },
-              ),
-            )
-          : Row(
-              children: [
-                const Icon(Icons.store_mall_directory_outlined, size: 16),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    selectedBranch.name,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                ),
-              ],
-            ),
-    );
-  }
-}
-
-class _RailDestinationTile extends StatelessWidget {
-  const _RailDestinationTile({
-    required this.destination,
-    required this.selected,
-  });
-
-  final NavDestination destination;
+  final WorkspaceNavItem item;
   final bool selected;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final color = selected ? theme.colorScheme.primary : theme.iconTheme.color;
+    final onTap = switch (item.type) {
+      WorkspaceNavItemType.route =>
+        selected || item.route == null
+            ? null
+            : () => context.go(item.route!.path),
+      WorkspaceNavItemType.enterPosMode => () {
+        final branchId = ref.read(activeBranchContextIdProvider);
+        if (branchId == null || branchId.trim().isEmpty) return;
+        ref
+            .read(workspaceContextProvider.notifier)
+            .setBranchPos(activeBranchId: branchId);
+        context.go(AppRoute.sale.path);
+      },
+    };
     return ListTile(
       selected: selected,
       selectedTileColor: theme.colorScheme.primary.withValues(alpha: 0.08),
-      leading: Icon(destination.icon, color: color),
-      title: Text(destination.label),
+      leading: Icon(item.icon, color: color),
+      title: Text(item.label),
       dense: true,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      onTap: selected ? null : () => context.go(destination.path),
+      onTap: onTap,
     );
   }
 }

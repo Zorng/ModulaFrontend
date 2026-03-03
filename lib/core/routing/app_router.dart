@@ -1,9 +1,13 @@
 enum AppRoute {
   login,
+  signup,
+  otpVerification,
   tenantSelection,
+  branchSelection,
   portal,
   branch,
   branchDetail,
+  branchSubscription,
   adminMenu,
   adminMenuCategories,
   adminMenuAddCategory,
@@ -54,10 +58,14 @@ enum AppRoute {
 extension AppRoutePath on AppRoute {
   String get path => switch (this) {
     AppRoute.login => '/login',
+    AppRoute.signup => '/signup',
+    AppRoute.otpVerification => '/verify-otp',
     AppRoute.tenantSelection => '/select-tenant',
+    AppRoute.branchSelection => '/select-branch',
     AppRoute.portal => '/portal',
     AppRoute.branch => '/branches',
     AppRoute.branchDetail => '/branches/:id',
+    AppRoute.branchSubscription => '/branches/subscription',
     AppRoute.adminMenu => '/menu',
     AppRoute.adminMenuCategories => '/menu/categories',
     AppRoute.adminMenuAddCategory => '/menu/categories/add',
@@ -107,10 +115,14 @@ extension AppRoutePath on AppRoute {
 
   String get name => switch (this) {
     AppRoute.login => 'login',
+    AppRoute.signup => 'signup',
+    AppRoute.otpVerification => 'otpVerification',
     AppRoute.tenantSelection => 'tenantSelection',
+    AppRoute.branchSelection => 'branchSelection',
     AppRoute.portal => 'portal',
     AppRoute.branch => 'branch',
     AppRoute.branchDetail => 'branchDetail',
+    AppRoute.branchSubscription => 'branchSubscription',
     AppRoute.adminMenu => 'adminMenu',
     AppRoute.adminMenuCategories => 'adminMenuCategories',
     AppRoute.adminMenuAddCategory => 'adminMenuAddCategory',

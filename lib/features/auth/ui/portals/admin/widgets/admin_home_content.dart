@@ -176,6 +176,16 @@ class _AdminBranchSectionState extends ConsumerState<AdminBranchSection> {
               ref
                   .read(authActiveBranchOverrideProvider.notifier)
                   .setOverride(value);
+              final selectedName = widget.branches
+                  .firstWhere(
+                    (branch) => _branchKey(branch) == value,
+                    orElse: () =>
+                        const UserBranch(id: '', name: '', role: '', active: false),
+                  )
+                  .name;
+              ref
+                  .read(authActiveBranchNameOverrideProvider.notifier)
+                  .setName(selectedName);
             },
           )
         : InkWell(
@@ -272,6 +282,9 @@ class _AdminBranchSectionState extends ConsumerState<AdminBranchSection> {
       ref
           .read(authActiveBranchOverrideProvider.notifier)
           .setOverride(_branchKey(selected));
+      ref
+          .read(authActiveBranchNameOverrideProvider.notifier)
+          .setName(selected.name);
     }
   }
 }

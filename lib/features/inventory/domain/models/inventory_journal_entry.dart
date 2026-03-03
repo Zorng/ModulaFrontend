@@ -10,18 +10,6 @@ enum InventoryJournalReason {
   unknown,
 }
 
-extension InventoryJournalReasonLabel on InventoryJournalReason {
-  String get label => switch (this) {
-    InventoryJournalReason.restock => 'Restock',
-    InventoryJournalReason.add => 'Add',
-    InventoryJournalReason.remove => 'Remove',
-    InventoryJournalReason.sale => 'Sale',
-    InventoryJournalReason.voided => 'Void',
-    InventoryJournalReason.reopen => 'Reopen',
-    InventoryJournalReason.unknown => 'Other',
-  };
-}
-
 class InventoryJournalEntry extends Equatable {
   const InventoryJournalEntry({
     required this.id,
@@ -48,47 +36,6 @@ class InventoryJournalEntry extends Equatable {
   final String actor;
   final DateTime createdAt;
   final DateTime occurredAt;
-
-  factory InventoryJournalEntry.fromJson(
-    Map<String, dynamic> json, {
-    InventoryJournalReason? fallbackReason,
-  }) {
-    final reasonString = (json['reason'] ?? json['type'] ?? '').toString();
-    final reason = _reasonFromApi(reasonString, fallback: fallbackReason);
-    final deltaRaw = json['delta'] ??
-        json['qty'] ??
-        json['quantity'] ??
-        json['qtyDeducted'] ??
-        0;
-    final deltaNum = _asNum(deltaRaw) ?? 0;
-    final ts = json['timestamp'] ??
-        json['createdAt'] ??
-        json['date'] ??
-        json['created_at'] ??
-        DateTime.now().toIso8601String();
-    final occurredRaw = json['occurredAt'] ?? json['occurred_at'];
-    final occurredAt = occurredRaw != null ? _asDateTime(occurredRaw) : _asDateTime(ts);
-    return InventoryJournalEntry(
-      id: json['id']?.toString() ?? '',
-      itemId: json['stockItemId']?.toString() ??
-          json['itemId']?.toString() ??
-          '',
-      itemName: json['stockItemName']?.toString() ??
-          json['itemName']?.toString() ??
-          'Item',
-      branchId: json['branchId']?.toString() ?? '',
-      branchName: json['branchName']?.toString() ?? '',
-      reason: reason,
-      delta: deltaNum.toInt(),
-      note: json['note']?.toString() ?? '',
-      actor: json['actor']?.toString() ??
-          json['createdBy']?.toString() ??
-          json['userName']?.toString() ??
-          '',
-      createdAt: _asDateTime(ts),
-      occurredAt: occurredAt,
-    );
-  }
 
   InventoryJournalEntry copyWith({
     String? id,
@@ -132,40 +79,4 @@ class InventoryJournalEntry extends Equatable {
     createdAt,
     occurredAt,
   ];
-}
-
-InventoryJournalReason _reasonFromApi(
-  String value, {
-  InventoryJournalReason? fallback,
-}) {
-  final v = value.toLowerCase();
-  if (v == 'receive' || v == 'restock' || v == 'add') {
-    return InventoryJournalReason.restock;
-  }
-  if (v == 'waste' || v == 'remove') return InventoryJournalReason.remove;
-  if (v == 'sale') return InventoryJournalReason.sale;
-  if (v == 'void' || v == 'voided') return InventoryJournalReason.voided;
-  if (v == 'reopen') return InventoryJournalReason.reopen;
-  return fallback ?? InventoryJournalReason.unknown;
-}
-
-num? _asNum(dynamic value) {
-  if (value == null) return null;
-  if (value is num) return value;
-  return num.tryParse(value.toString());
-}
-
-DateTime _asDateTime(dynamic value) {
-  if (value is DateTime) return value;
-  if (value is int) {
-    // Assume millis since epoch if large number, seconds if smaller.
-    if (value > 1000000000000) {
-      return DateTime.fromMillisecondsSinceEpoch(value, isUtc: true).toLocal();
-    }
-    return DateTime.fromMillisecondsSinceEpoch(value * 1000, isUtc: true)
-        .toLocal();
-  }
-  final parsed = DateTime.tryParse(value.toString());
-  if (parsed != null) return parsed.toLocal();
-  return DateTime.now();
 }

@@ -1,0 +1,35 @@
+{
+  "success": true,
+  "data": [
+    {
+      "stockItemId": "item-1",
+      "stockItemName": "Whole Milk",
+      "baseUnit": "ml",
+      "branchId": "branch-1",
+      "onHandInBaseUnit": 6400,
+      "lowStockThreshold": 1000,
+      "isLowStock": false,
+      "updatedAt": "2026-02-21T00:00:00.000Z",
+      "stockItem": {
+        "id": "item-1",
+        "tenantId": "tenant-1",
+        "categoryId": "cat-1",
+        "name": "Whole Milk",
+        "baseUnit": "ml",
+        "imageUrl": "https://cdn.example.com/inventory/item-1.jpg",
+        "lowStockThreshold": 1000,
+        "status": "ACTIVE",
+        "createdAt": "2026-02-20T00:00:00.000Z",
+        "updatedAt": "2026-02-21T00:00:00.000Z"
+      }
+    },
+    {
+      "id": "item-2",
+      "name": "Raw Sugar",
+      "unitText": "g",
+      "onHandInBaseUnit": 220,
+      "lowStockThreshold": 500,
+      "updatedAt": "2026-02-21T00:00:00.000Z"
+    }
+  ]
+}

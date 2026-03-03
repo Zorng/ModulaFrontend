@@ -43,7 +43,7 @@ class AuthUserDto {
       if (branches.isNotEmpty && branches.first.role.isNotEmpty) {
         return branches.first.role;
       }
-      return 'cashier';
+      return '';
     })();
 
     return AuthUserDto(
@@ -57,4 +57,3 @@ class AuthUserDto {
     );
   }
 }
-
