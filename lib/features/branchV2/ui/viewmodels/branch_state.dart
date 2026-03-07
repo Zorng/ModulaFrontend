@@ -11,8 +11,13 @@ enum BranchCreateFlowStatus {
 
 enum BranchNavigationIntent {
   none,
-  globalManagement,
-  branchWorkspace,
+  tenantSelection,
+}
+
+enum BranchSelectionResult {
+  success,
+  tenantSelectionRequired,
+  failed,
 }
 
 class BranchState {
@@ -63,15 +68,17 @@ class BranchState {
     final query = searchQuery.trim().toLowerCase();
     if (query.isEmpty) return branches;
 
-    return branches.where((item) {
-      final haystack = [
-        item.branchName,
-        item.branchId,
-        item.branchAddress ?? '',
-        item.contactNumber ?? '',
-      ].join('|').toLowerCase();
-      return haystack.contains(query);
-    }).toList(growable: false);
+    return branches
+        .where((item) {
+          final haystack = [
+            item.branchName,
+            item.branchId,
+            item.branchAddress ?? '',
+            item.contactNumber ?? '',
+          ].join('|').toLowerCase();
+          return haystack.contains(query);
+        })
+        .toList(growable: false);
   }
 
   BranchState copyWith({

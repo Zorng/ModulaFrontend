@@ -37,17 +37,20 @@ List<RouteBase> buildCashRoutes() {
             GoRoute(
               path: AppRoute.xReport.path,
               name: AppRoute.xReport.name,
-              builder: (context, state) =>
-                  const XReportPage(showAppBar: false),
+              builder: (context, state) => const XReportPage(showAppBar: false),
+            ),
+          ],
+        ),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: AppRoute.zReport.path,
+              name: AppRoute.zReport.name,
+              builder: (context, state) => const ZReportPage(),
             ),
           ],
         ),
       ],
-    ),
-    GoRoute(
-      path: AppRoute.zReport.path,
-      name: AppRoute.zReport.name,
-      builder: (context, state) => const ZReportPage(),
     ),
   ];
 }

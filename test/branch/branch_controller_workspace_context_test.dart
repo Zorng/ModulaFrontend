@@ -3,8 +3,6 @@ import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
 import 'package:modular_pos/features/auth/domain/models/auth_session.dart';
 import 'package:modular_pos/features/auth/domain/models/tenant_membership.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
-import 'package:modular_pos/features/auth/domain/workspace_context.dart';
-import 'package:modular_pos/features/auth/domain/workspace_context_provider.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/branchV2/data/branch_repository.dart';
 import 'package:modular_pos/features/branchV2/domain/models/branch_models.dart';
@@ -16,7 +14,20 @@ import '../test_utils/riverpod_test_utils.dart';
 class _StubBranchRepository implements BranchRepository {
   @override
   Future<List<BranchListItem>> loadAccessibleBranches() {
-    return Future.value(const <BranchListItem>[]);
+    return Future.value(const <BranchListItem>[
+      BranchListItem(
+        branchId: 'branch-a',
+        tenantId: 'tenant-1',
+        branchName: 'Branch A',
+        status: 'ACTIVE',
+      ),
+      BranchListItem(
+        branchId: 'branch-b',
+        tenantId: 'tenant-1',
+        branchName: 'Branch B',
+        status: 'ACTIVE',
+      ),
+    ]);
   }
 
   @override
@@ -43,15 +54,26 @@ class _StubBranchRepository implements BranchRepository {
 }
 
 class _TestLoginController extends LoginController {
-  _TestLoginController(this._initialSession);
+  _TestLoginController(this._initialSession, {this.branchError});
 
   final AuthSession _initialSession;
+  final String? branchError;
 
   @override
   LoginState build() => LoginState(session: _initialSession);
 
   @override
   Future<void> selectBranch(String branchId) async {
+    if ((branchError ?? '').trim().isNotEmpty) {
+      state = state.copyWith(
+        error: branchError,
+        errorCode: branchError,
+        errorStatusCode: 409,
+        isLoading: false,
+      );
+      return;
+    }
+
     final current = state.session;
     if (current == null) return;
     final resolved = branchId.trim();
@@ -83,12 +105,12 @@ class _TestLoginController extends LoginController {
 }
 
 AuthSession _session({required String role, required String membershipRole}) {
-  final branches = const [
+  const branches = [
     UserBranch(
       id: 'assign-a',
       name: 'Branch A',
       role: 'admin',
-      active: true,
+      active: false,
       branchId: 'branch-a',
     ),
     UserBranch(
@@ -125,119 +147,157 @@ AuthSession _session({required String role, required String membershipRole}) {
   );
 }
 
+AuthSession _sessionWithoutMatchingUserBranches({
+  required String role,
+  required String membershipRole,
+}) {
+  const membershipBranches = [
+    UserBranch(
+      id: 'assign-a',
+      name: 'Branch A',
+      role: 'admin',
+      active: false,
+      branchId: 'branch-a',
+    ),
+    UserBranch(
+      id: 'assign-b',
+      name: 'Branch B',
+      role: 'admin',
+      active: false,
+      branchId: 'branch-b',
+    ),
+  ];
+
+  return AuthSession(
+    user: User(
+      id: 'user-1',
+      name: 'Tester',
+      role: role,
+      tenantId: 'tenant-1',
+      branches: const [],
+    ),
+    memberships: [
+      TenantMembership(
+        membershipId: 'membership-1',
+        tenantId: 'tenant-1',
+        tenantName: 'Tenant 1',
+        role: membershipRole,
+        branches: membershipBranches,
+      ),
+    ],
+    activeTenantId: 'tenant-1',
+    accessToken: 'access-1',
+    refreshToken: 'refresh-1',
+    accessTokenExpiresAt: DateTime.now().add(const Duration(hours: 1)),
+    refreshTokenExpiresAt: DateTime.now().add(const Duration(days: 7)),
+  );
+}
+
 void main() {
   test(
-    'global management tap sets global workspace context for admin',
+    'loadInitial redirects to tenant selection when tenant context is missing',
     () async {
+      final session = AuthSession(
+        user: User(
+          id: 'user-1',
+          name: 'Tester',
+          role: '',
+          tenantId: '',
+          branches: [],
+        ),
+        memberships: const [
+          TenantMembership(
+            membershipId: 'membership-1',
+            tenantId: 'tenant-1',
+            tenantName: 'Tenant 1',
+            role: 'CASHIER',
+            branches: [],
+          ),
+        ],
+        activeTenantId: null,
+        tenantSelectionToken: 'selection-token-123',
+        accessToken: 'access-1',
+        refreshToken: 'refresh-1',
+        accessTokenExpiresAt: DateTime.now().add(const Duration(hours: 1)),
+        refreshTokenExpiresAt: DateTime.now().add(const Duration(days: 7)),
+      );
+
       final container = createTestContainer(
         overrides: [
           loginControllerProvider.overrideWith(
-            () => _TestLoginController(
-              _session(role: 'admin', membershipRole: 'ADMIN'),
-            ),
+            () => _TestLoginController(session),
           ),
           branchRepositoryProvider.overrideWithValue(_StubBranchRepository()),
         ],
       );
 
-      await container
-          .read(branchControllerProvider.notifier)
-          .onGlobalManagementTap();
+      await container.read(branchControllerProvider.notifier).loadInitial();
 
       expect(
-        container.read(workspaceContextProvider),
-        WorkspaceContext.globalManagement,
-      );
-      expect(
         container.read(branchControllerProvider).navigationIntent,
-        BranchNavigationIntent.globalManagement,
+        BranchNavigationIntent.tenantSelection,
       );
     },
   );
 
   test(
-    'global management tap sets global workspace context for store role',
+    'branch tap returns tenantSelectionRequired when login selection reports tenant error',
     () async {
       final container = createTestContainer(
         overrides: [
           loginControllerProvider.overrideWith(
             () => _TestLoginController(
-              _session(role: '', membershipRole: 'store'),
+              _session(role: 'cashier', membershipRole: 'CASHIER'),
+              branchError: 'TENANT_CONTEXT_REQUIRED',
             ),
           ),
           branchRepositoryProvider.overrideWithValue(_StubBranchRepository()),
         ],
       );
 
-      final stateBeforeTap = container.read(branchControllerProvider);
-      expect(stateBeforeTap.canManageTenant, isTrue);
-
-      await container
+      await container.read(branchControllerProvider.notifier).loadInitial();
+      final result = await container
           .read(branchControllerProvider.notifier)
-          .onGlobalManagementTap();
+          .onBranchTileTap(branchId: 'branch-a');
 
-      expect(
-        container.read(workspaceContextProvider),
-        WorkspaceContext.globalManagement,
-      );
+      expect(result, BranchSelectionResult.tenantSelectionRequired);
       expect(
         container.read(branchControllerProvider).navigationIntent,
-        BranchNavigationIntent.globalManagement,
+        BranchNavigationIntent.tenantSelection,
       );
     },
   );
 
-  test('branch tap sets branch management workspace for admin', () async {
-    final container = createTestContainer(
-      overrides: [
-        loginControllerProvider.overrideWith(
-          () => _TestLoginController(
-            _session(role: 'admin', membershipRole: 'ADMIN'),
+  test(
+    'branch tap still establishes active branch context when session branch list is empty',
+    () async {
+      final container = createTestContainer(
+        overrides: [
+          loginControllerProvider.overrideWith(
+            () => _TestLoginController(
+              _sessionWithoutMatchingUserBranches(
+                role: 'admin',
+                membershipRole: 'ADMIN',
+              ),
+            ),
           ),
-        ),
-        branchRepositoryProvider.overrideWithValue(_StubBranchRepository()),
-      ],
-    );
+          branchRepositoryProvider.overrideWithValue(_StubBranchRepository()),
+        ],
+      );
 
-    await container
-        .read(branchControllerProvider.notifier)
-        .onBranchTileTap(branchId: 'branch-b');
+      await container.read(branchControllerProvider.notifier).loadInitial();
+      final result = await container
+          .read(branchControllerProvider.notifier)
+          .onBranchTileTap(branchId: 'branch-b');
 
-    final context = container.read(workspaceContextProvider);
-    expect(context?.scope, WorkspaceScope.branch);
-    expect(context?.mode, WorkspaceMode.management);
-    expect(context?.activeBranchId, 'branch-b');
-    expect(container.read(authActiveBranchOverrideProvider), 'branch-b');
-    expect(
-      container.read(branchControllerProvider).navigationIntent,
-      BranchNavigationIntent.branchWorkspace,
-    );
-  });
-
-  test('branch tap sets branch POS workspace for cashier', () async {
-    final container = createTestContainer(
-      overrides: [
-        loginControllerProvider.overrideWith(
-          () => _TestLoginController(
-            _session(role: 'cashier', membershipRole: 'CASHIER'),
-          ),
-        ),
-        branchRepositoryProvider.overrideWithValue(_StubBranchRepository()),
-      ],
-    );
-
-    await container
-        .read(branchControllerProvider.notifier)
-        .onBranchTileTap(branchId: 'branch-a');
-
-    final context = container.read(workspaceContextProvider);
-    expect(context?.scope, WorkspaceScope.branch);
-    expect(context?.mode, WorkspaceMode.pos);
-    expect(context?.activeBranchId, 'branch-a');
-    expect(container.read(authActiveBranchOverrideProvider), 'branch-a');
-    expect(
-      container.read(branchControllerProvider).navigationIntent,
-      BranchNavigationIntent.branchWorkspace,
-    );
-  });
+      expect(result, BranchSelectionResult.success);
+      expect(container.read(authActiveBranchOverrideProvider), 'branch-b');
+      expect(container.read(authActiveBranchNameOverrideProvider), 'Branch B');
+      expect(container.read(authActiveBranchIdProvider), 'branch-b');
+      expect(
+        container.read(branchControllerProvider).selectedBranchId,
+        'branch-b',
+      );
+    },
+  );
 }

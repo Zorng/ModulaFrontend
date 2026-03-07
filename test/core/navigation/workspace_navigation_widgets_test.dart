@@ -1,23 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:modular_pos/core/widgets/navigation/app_navigation_config.dart';
+import 'package:modular_pos/core/widgets/navigation/app_navigation_portal_content.dart';
 import 'package:modular_pos/core/widgets/navigation/app_wide_navigation_rail_shell.dart';
-import 'package:modular_pos/core/widgets/navigation/workspace_portal_content.dart';
 import 'package:modular_pos/features/auth/domain/models/auth_session.dart';
 import 'package:modular_pos/features/auth/domain/models/tenant_membership.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
-import 'package:modular_pos/features/auth/domain/workspace_context.dart';
-import 'package:modular_pos/features/auth/domain/workspace_context_provider.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
-
-class _FixedWorkspaceContextNotifier extends WorkspaceContextNotifier {
-  _FixedWorkspaceContextNotifier(this._context);
-
-  final WorkspaceContext? _context;
-
-  @override
-  WorkspaceContext? build() => _context;
-}
 
 class _StaticLoginController extends LoginController {
   _StaticLoginController(this._session);
@@ -28,17 +18,10 @@ class _StaticLoginController extends LoginController {
   LoginState build() => LoginState(session: _session);
 }
 
-AuthSession _session({required String role}) {
-  final branches = const [
-    UserBranch(
-      id: 'assign-a',
-      name: 'Branch A',
-      role: 'admin',
-      active: true,
-      branchId: 'branch-a',
-    ),
-  ];
-
+AuthSession _session({
+  required String role,
+  required List<UserBranch> branches,
+}) {
   return AuthSession(
     user: User(
       id: 'user-1',
@@ -49,6 +32,7 @@ AuthSession _session({required String role}) {
     ),
     memberships: [
       TenantMembership(
+        membershipId: 'membership-1',
         tenantId: 'tenant-1',
         tenantName: 'Tenant 1',
         role: role,
@@ -65,33 +49,25 @@ AuthSession _session({required String role}) {
 
 Widget _portalHarness({
   required AuthSession session,
-  required WorkspaceContext context,
+  required AppNavigationLayer layer,
 }) {
   return ProviderScope(
     overrides: [
       loginControllerProvider.overrideWith(
         () => _StaticLoginController(session),
       ),
-      workspaceContextProvider.overrideWith(
-        () => _FixedWorkspaceContextNotifier(context),
-      ),
     ],
-    child: const MaterialApp(home: Scaffold(body: WorkspacePortalContent())),
+    child: MaterialApp(
+      home: Scaffold(body: AppNavigationPortalContent(layer: layer)),
+    ),
   );
 }
 
-Widget _railHarness({
-  required AuthSession session,
-  required WorkspaceContext context,
-  required String path,
-}) {
+Widget _railHarness({required AuthSession session, required String path}) {
   return ProviderScope(
     overrides: [
       loginControllerProvider.overrideWith(
         () => _StaticLoginController(session),
-      ),
-      workspaceContextProvider.overrideWith(
-        () => _FixedWorkspaceContextNotifier(context),
       ),
     ],
     child: MaterialApp(
@@ -111,98 +87,176 @@ void _resetViewport(WidgetTester tester) {
 }
 
 void main() {
-  testWidgets('portal shows global workspace cards for admin', (tester) async {
+  const noActiveBranches = [
+    UserBranch(
+      id: 'assign-a',
+      name: 'Branch A',
+      role: 'admin',
+      active: false,
+      branchId: 'branch-a',
+    ),
+    UserBranch(
+      id: 'assign-b',
+      name: 'Branch B',
+      role: 'admin',
+      active: false,
+      branchId: 'branch-b',
+    ),
+  ];
+
+  const activeBranch = [
+    UserBranch(
+      id: 'assign-a',
+      name: 'Branch A',
+      role: 'admin',
+      active: true,
+      branchId: 'branch-a',
+    ),
+  ];
+
+  testWidgets('owner/admin tenant portal shows tenant destinations only', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       _portalHarness(
-        session: _session(role: 'admin'),
-        context: WorkspaceContext.globalManagement,
+        session: _session(role: 'admin', branches: noActiveBranches),
+        layer: AppNavigationLayer.tenant,
       ),
     );
     await tester.pumpAndSettle();
 
+    expect(find.text('Tenant'), findsOneWidget);
+    expect(find.text('Branches'), findsOneWidget);
     expect(find.text('Menu'), findsOneWidget);
     expect(find.text('Inventory'), findsOneWidget);
     expect(find.text('Staff'), findsOneWidget);
+    expect(find.text('Branch'), findsNothing);
+    expect(find.text('Cash Sessions'), findsNothing);
     expect(find.text('Policy'), findsNothing);
+    expect(find.text('Sale'), findsNothing);
   });
 
-  testWidgets('portal shows POS cards for cashier', (tester) async {
+  testWidgets('owner/admin branch portal shows branch destinations only', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       _portalHarness(
-        session: _session(role: 'cashier'),
-        context: WorkspaceContext.branchPos(activeBranchId: 'branch-a'),
+        session: _session(role: 'admin', branches: activeBranch),
+        layer: AppNavigationLayer.branch,
       ),
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Sale'), findsOneWidget);
+    expect(find.text('Branch'), findsOneWidget);
     expect(find.text('Cash Sessions'), findsOneWidget);
-    expect(find.text('Attendance'), findsOneWidget);
-    expect(find.text('Policy'), findsNothing);
+    expect(find.text('Policy'), findsOneWidget);
+    expect(find.text('Sale'), findsOneWidget);
+    expect(find.text('Tenant'), findsNothing);
+    expect(find.text('Branches'), findsNothing);
+    expect(find.text('Inventory'), findsNothing);
   });
 
-  testWidgets('wide rail shows branch-management destinations', (tester) async {
-    _setWideViewport(tester);
-    addTearDown(() => _resetViewport(tester));
-
+  testWidgets('cashier branch portal shows operations only', (tester) async {
     await tester.pumpWidget(
-      _railHarness(
-        session: _session(role: 'admin'),
-        context: WorkspaceContext.branchManagement(activeBranchId: 'branch-a'),
-        path: '/policy',
+      _portalHarness(
+        session: _session(role: 'cashier', branches: activeBranch),
+        layer: AppNavigationLayer.branch,
       ),
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Policy'), findsOneWidget);
-    expect(find.text('Branch Subscription'), findsOneWidget);
-    expect(find.text('POS Mode'), findsOneWidget);
+    expect(find.text('Operations'), findsOneWidget);
+    expect(find.text('Cash Sessions'), findsOneWidget);
+    expect(find.text('Sale'), findsOneWidget);
+    expect(find.text('Attendance'), findsOneWidget);
+    expect(find.text('Tenant'), findsNothing);
+    expect(find.text('Branch'), findsNothing);
     expect(find.text('Branches'), findsNothing);
-
-    final policyTile = tester.widget<ListTile>(
-      find.widgetWithText(ListTile, 'Policy'),
-    );
-    expect(policyTile.selected, isTrue);
   });
 
-  testWidgets('wide rail keeps selection correct after mode switch', (
+  testWidgets('wide rail shows tenant layer only for owner/admin', (
     tester,
   ) async {
     _setWideViewport(tester);
     addTearDown(() => _resetViewport(tester));
 
-    final session = _session(role: 'admin');
-
     await tester.pumpWidget(
       _railHarness(
-        session: session,
-        context: WorkspaceContext.branchManagement(activeBranchId: 'branch-a'),
-        path: '/policy',
+        session: _session(role: 'admin', branches: noActiveBranches),
+        path: '/branches',
       ),
     );
     await tester.pumpAndSettle();
 
-    final managementTile = tester.widget<ListTile>(
-      find.widgetWithText(ListTile, 'Policy'),
-    );
-    expect(managementTile.selected, isTrue);
+    expect(find.text('TENANT'), findsOneWidget);
+    expect(find.text('BRANCH'), findsNothing);
+    expect(find.text('Branches'), findsOneWidget);
+    expect(find.text('Menu'), findsOneWidget);
+    expect(find.text('Inventory'), findsOneWidget);
+    expect(find.text('Staff'), findsOneWidget);
+    expect(find.text('Cash Sessions'), findsNothing);
+    expect(find.byIcon(Icons.arrow_back), findsOneWidget);
+    expect(find.byIcon(Icons.person_outline), findsNothing);
+    expect(find.byIcon(Icons.settings_outlined), findsNothing);
+    expect(find.text('No branch selected'), findsOneWidget);
 
-    await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pump();
+    final branchesTile = tester.widget<ListTile>(
+      find.widgetWithText(ListTile, 'Branches'),
+    );
+    expect(branchesTile.selected, isTrue);
+  });
+
+  testWidgets('wide rail shows branch layer only for owner/admin', (
+    tester,
+  ) async {
+    _setWideViewport(tester);
+    addTearDown(() => _resetViewport(tester));
 
     await tester.pumpWidget(
       _railHarness(
-        session: session,
-        context: WorkspaceContext.branchPos(activeBranchId: 'branch-a'),
-        path: '/sale',
+        session: _session(role: 'admin', branches: activeBranch),
+        path: '/cash/session',
       ),
     );
     await tester.pumpAndSettle();
 
-    final posTile = tester.widget<ListTile>(
-      find.widgetWithText(ListTile, 'Sale'),
+    expect(find.text('TENANT'), findsNothing);
+    expect(find.text('BRANCH'), findsOneWidget);
+    expect(find.text('Cash Sessions'), findsOneWidget);
+    expect(find.text('Policy'), findsOneWidget);
+    expect(find.text('Sale'), findsOneWidget);
+    expect(find.text('Branches'), findsNothing);
+    expect(find.byIcon(Icons.arrow_back), findsOneWidget);
+    expect(find.byIcon(Icons.person_outline), findsNothing);
+    expect(find.byIcon(Icons.settings_outlined), findsNothing);
+    expect(find.text('Branch A'), findsWidgets);
+
+    final cashTile = tester.widget<ListTile>(
+      find.widgetWithText(ListTile, 'Cash Sessions'),
     );
-    expect(posTile.selected, isTrue);
-    expect(find.text('Policy'), findsNothing);
+    expect(cashTile.selected, isTrue);
+  });
+
+  testWidgets('wide rail shows staff branch operations with branch back', (
+    tester,
+  ) async {
+    _setWideViewport(tester);
+    addTearDown(() => _resetViewport(tester));
+
+    await tester.pumpWidget(
+      _railHarness(
+        session: _session(role: 'manager', branches: activeBranch),
+        path: '/attendance',
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('OPERATIONS'), findsOneWidget);
+    expect(find.text('Cash Sessions'), findsOneWidget);
+    expect(find.text('Sale'), findsOneWidget);
+    expect(find.text('Attendance'), findsOneWidget);
+    expect(find.text('Attendance Management'), findsOneWidget);
+    expect(find.text('Branches'), findsNothing);
+    expect(find.byIcon(Icons.arrow_back), findsOneWidget);
   });
 }

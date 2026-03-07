@@ -5,8 +5,6 @@ import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/core/widgets/navigation/app_bottom_nav_shell_scaffold.dart';
 import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
-import 'package:modular_pos/features/auth/domain/workspace_context.dart';
-import 'package:modular_pos/features/auth/domain/workspace_context_provider.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/sale/ui/view/sale_cart/widgets/sale_cart_panel.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_access_gate.dart';
@@ -62,7 +60,8 @@ class _SaleBottomNavShellPageState
     final authBranchId = (ref.read(authActiveBranchIdProvider) ?? '').trim();
 
     final needsAuthBranchSelection =
-        loginState.requiresBranchSelection || authBranchId != normalizedBranchId;
+        loginState.requiresBranchSelection ||
+        authBranchId != normalizedBranchId;
 
     if (needsAuthBranchSelection) {
       if (mounted) {
@@ -86,18 +85,6 @@ class _SaleBottomNavShellPageState
         }
       }
     }
-
-    final workspaceContext = ref.read(workspaceContextProvider);
-    final needsPosContext =
-        workspaceContext == null ||
-        workspaceContext.scope != WorkspaceScope.branch ||
-        workspaceContext.mode != WorkspaceMode.pos ||
-        workspaceContext.activeBranchId?.trim() != normalizedBranchId;
-    if (!needsPosContext) return;
-
-    ref
-        .read(workspaceContextProvider.notifier)
-        .setBranchPos(activeBranchId: normalizedBranchId);
   }
 
   @override
@@ -116,11 +103,7 @@ class _SaleBottomNavShellPageState
         !loginState.isLoading;
 
     if (!branchContextReady) {
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     return LayoutBuilder(

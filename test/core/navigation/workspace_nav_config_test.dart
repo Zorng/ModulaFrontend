@@ -1,54 +1,62 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:modular_pos/core/widgets/navigation/workspace_nav_config.dart';
+import 'package:modular_pos/core/widgets/navigation/app_navigation_config.dart';
 import 'package:modular_pos/features/auth/domain/auth_role.dart';
-import 'package:modular_pos/features/auth/domain/workspace_context.dart';
 
 void main() {
-  List<String> labels(List<WorkspaceNavSection> sections) {
+  List<String> labels(List<AppNavigationSection> sections) {
     return [
       for (final section in sections)
-        for (final item in section.items) item.label,
+        for (final destination in section.destinations) destination.label,
     ];
   }
 
-  test('admin in global workspace sees menu inventory and staff only', () {
-    final sections = buildWorkspaceNavSections(
+  test('owner/admin tenant layer shows tenant destinations only', () {
+    final sections = buildAppNavigationSections(
       role: AuthRole.admin,
-      workspaceContext: WorkspaceContext.globalManagement,
+      layer: AppNavigationLayer.tenant,
     );
 
-    expect(labels(sections), ['Menu', 'Inventory', 'Staff']);
+    expect(labels(sections), ['Branches', 'Menu', 'Inventory', 'Staff']);
   });
 
-  test(
-    'admin in branch management sees policy subscription and POS mode entry',
-    () {
-      final sections = buildWorkspaceNavSections(
-        role: AuthRole.admin,
-        workspaceContext: WorkspaceContext.branchManagement(
-          activeBranchId: 'branch-1',
-        ),
-      );
-
-      expect(labels(sections), ['Policy', 'Branch Subscription', 'POS Mode']);
-    },
-  );
-
-  test('admin in branch POS mode sees sale and cash sessions', () {
-    final sections = buildWorkspaceNavSections(
+  test('owner/admin branch layer shows branch destinations only', () {
+    final sections = buildAppNavigationSections(
       role: AuthRole.admin,
-      workspaceContext: WorkspaceContext.branchPos(activeBranchId: 'branch-1'),
+      layer: AppNavigationLayer.branch,
     );
 
-    expect(labels(sections), ['Sale', 'Cash Sessions']);
+    expect(labels(sections), ['Cash Sessions', 'Policy', 'Sale']);
   });
 
-  test('cashier in branch POS mode sees sale cash sessions and attendance', () {
-    final sections = buildWorkspaceNavSections(
+  test('cashier branch layer shows branch operations only', () {
+    final sections = buildAppNavigationSections(
       role: AuthRole.cashier,
-      workspaceContext: WorkspaceContext.branchPos(activeBranchId: 'branch-1'),
+      layer: AppNavigationLayer.branch,
     );
 
-    expect(labels(sections), ['Sale', 'Cash Sessions', 'Attendance']);
+    expect(labels(sections), ['Cash Sessions', 'Sale', 'Attendance']);
+  });
+
+  test('manager branch layer includes attendance management', () {
+    final sections = buildAppNavigationSections(
+      role: AuthRole.manager,
+      layer: AppNavigationLayer.branch,
+    );
+
+    expect(labels(sections), [
+      'Cash Sessions',
+      'Sale',
+      'Attendance',
+      'Attendance Management',
+    ]);
+  });
+
+  test('staff tenant layer is empty', () {
+    final sections = buildAppNavigationSections(
+      role: AuthRole.cashier,
+      layer: AppNavigationLayer.tenant,
+    );
+
+    expect(sections, isEmpty);
   });
 }

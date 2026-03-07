@@ -2,49 +2,51 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
-import 'package:modular_pos/core/widgets/navigation/portal_action.dart';
+import 'package:modular_pos/core/widgets/navigation/app_navigation_config.dart';
+import 'package:modular_pos/core/widgets/navigation/app_navigation_portal_content.dart';
 import 'package:modular_pos/core/widgets/navigation/portal_shell.dart';
-import 'package:modular_pos/core/widgets/navigation/workspace_portal_content.dart';
 import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
-import 'package:modular_pos/features/auth/domain/workspace_context_provider.dart';
 import 'package:modular_pos/features/auth/domain/models/auth_session.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 
 class AdminPortal extends ConsumerWidget {
-  const AdminPortal({super.key});
+  const AdminPortal({super.key, this.layer = AppNavigationLayer.tenant});
+
+  final AppNavigationLayer layer;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final session = ref.watch(loginControllerProvider).session;
     final user = session?.user;
     final activeBranch = ref.watch(authActiveBranchProvider);
-    final workspaceContext = ref.watch(workspaceContextProvider);
     final tenantName = _resolveTenantName(session);
-    final branchName = workspaceContext?.isGlobal == true
-        ? 'Global Management'
-        : _resolveBranchName(activeBranch, user?.branches ?? const []);
-    final actions = <PortalAction>[
-      PortalAction(
-        id: 'dashboard',
-        label: 'Dashboard',
-        icon: Icons.dashboard_outlined,
-        builder: (context) => const WorkspacePortalContent(),
-      ),
-    ];
+    final branchName = _resolveBranchName(
+      activeBranch,
+      user?.branches ?? const [],
+    );
 
     return PortalShell(
       title: 'Admin Portal',
       subtitle: 'Full access',
+      body: AppNavigationPortalContent(layer: layer),
       tenantName: tenantName,
       branchName: branchName,
       tenantInitial: tenantName.isNotEmpty
           ? tenantName.characters.first.toUpperCase()
           : 'T',
-      actions: actions,
-      initialActionId: 'dashboard',
-      onProfileTap: () => context.push(AppRoute.account.path),
-      onSettingsTap: () => context.push(AppRoute.settings.path),
+      onTenantBackPressed: layer == AppNavigationLayer.branch
+          ? () => context.go(AppRoute.branch.path)
+          : () => context.go('${AppRoute.tenantSelection.path}?switch=1'),
+      tenantBackTooltip: layer == AppNavigationLayer.branch
+          ? 'Back to tenant'
+          : 'Back to tenant selection',
+      onProfileTap: layer == AppNavigationLayer.branch
+          ? () => context.go(AppRoute.account.path)
+          : null,
+      onSettingsTap: layer == AppNavigationLayer.branch
+          ? () => context.go(AppRoute.settings.path)
+          : null,
     );
   }
 }
@@ -62,11 +64,6 @@ String _resolveTenantName(AuthSession? session) {
 }
 
 String _resolveBranchName(UserBranch? active, List<UserBranch> branches) {
-  final branch =
-      active ??
-      (branches.isNotEmpty
-          ? branches.first
-          : const UserBranch(id: '', name: '', role: '', active: false));
-  if (branch.name.isNotEmpty) return branch.name;
-  return 'Branch name';
+  if ((active?.name ?? '').trim().isNotEmpty) return active!.name.trim();
+  return 'No branch selected';
 }

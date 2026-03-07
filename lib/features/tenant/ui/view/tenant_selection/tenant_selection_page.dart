@@ -3,11 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/theme/responsive.dart';
+import 'package:modular_pos/features/auth/domain/auth_role.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/tenant/ui/view/tenant_selection/widgets/create_tenant.dart';
 import 'package:modular_pos/features/tenant/ui/view/tenant_selection/widgets/tenant_selection_tile.dart';
 import 'package:modular_pos/features/tenant/ui/viewmodels/tenant_selection/tenant_selection_controller.dart';
-import 'package:modular_pos/features/tenant/ui/viewmodels/tenant_selection/tenant_selection_state.dart';
 
 class TenantSelectionPage extends ConsumerWidget {
   const TenantSelectionPage({super.key});
@@ -21,6 +21,14 @@ class TenantSelectionPage extends ConsumerWidget {
     );
     final loginController = ref.read(loginControllerProvider.notifier);
     final user = loginState.user;
+    final hasMemberships = tenantState.memberships.isNotEmpty;
+    final hasVisibleMemberships = tenantState.visibleMemberships.isNotEmpty;
+
+    Future<void> handleLogout() async {
+      await loginController.logout();
+      if (!context.mounted) return;
+      context.go(AppRoute.login.path);
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -60,6 +68,11 @@ class TenantSelectionPage extends ConsumerWidget {
             onPressed: () {},
             icon: const Icon(Icons.settings_outlined),
           ),
+          IconButton(
+            tooltip: 'Log out',
+            onPressed: loginState.isLoading ? null : handleLogout,
+            icon: const Icon(Icons.logout),
+          ),
         ],
       ),
       body: Padding(
@@ -78,30 +91,13 @@ class TenantSelectionPage extends ConsumerWidget {
                     prefixIcon: Icon(Icons.search),
                   ),
                 );
-                final filterDropdown =
-                    DropdownButtonFormField<TenantRoleFilter>(
-                      initialValue: tenantState.selectedRoleFilter,
-                      decoration: const InputDecoration(
-                        prefixIcon: Icon(Icons.filter_list),
-                      ),
-                      items: tenantState.availableRoleFilters
-                          .map(
-                            (role) => DropdownMenuItem<TenantRoleFilter>(
-                              value: role,
-                              child: Text(role.label),
-                            ),
-                          )
-                          .toList(growable: false),
-                      onChanged: (value) {
-                        if (value == null) return;
-                        tenantController.setRoleFilter(value);
-                      },
-                    );
                 final createButton = FilledButton.icon(
-                  onPressed: () {
-                    tenantController.clearCreateTenantFeedback();
-                    showCreateTenantDialog(context);
-                  },
+                  onPressed: loginState.isLoading
+                      ? null
+                      : () {
+                          tenantController.clearCreateTenantFeedback();
+                          showCreateTenantDialog(context);
+                        },
                   icon: const Icon(Icons.add),
                   label: const Text('Create Tenant'),
                 );
@@ -112,8 +108,6 @@ class TenantSelectionPage extends ConsumerWidget {
                     children: [
                       searchField,
                       const SizedBox(height: 12),
-                      filterDropdown,
-                      const SizedBox(height: 12),
                       createButton,
                     ],
                   );
@@ -122,8 +116,6 @@ class TenantSelectionPage extends ConsumerWidget {
                 return Row(
                   children: [
                     Expanded(child: searchField),
-                    const SizedBox(width: 12),
-                    SizedBox(width: 200, child: filterDropdown),
                     const SizedBox(width: 12),
                     SizedBox(width: 170, child: createButton),
                   ],
@@ -142,8 +134,20 @@ class TenantSelectionPage extends ConsumerWidget {
                 ),
               ),
             Expanded(
-              child: tenantState.visibleMemberships.isEmpty
-                  ? const Center(child: Text('No tenant found.'))
+              child: !hasMemberships
+                  ? const Center(
+                      child: Text(
+                        'No tenant memberships found. Create a tenant to continue.',
+                        textAlign: TextAlign.center,
+                      ),
+                    )
+                  : !hasVisibleMemberships
+                  ? const Center(
+                      child: Text(
+                        'No tenant matches your search.',
+                        textAlign: TextAlign.center,
+                      ),
+                    )
                   : ListView.separated(
                       itemCount: tenantState.visibleMemberships.length,
                       separatorBuilder: (_, __) => const SizedBox(height: 8),
@@ -159,7 +163,18 @@ class TenantSelectionPage extends ConsumerWidget {
                             );
                             if (!success) return;
                             if (!context.mounted) return;
-                            context.go(AppRoute.branchSelection.path);
+                            final nextState = ref.read(loginControllerProvider);
+                            final nextSession = nextState.session;
+                            final nextRole = resolveSessionAuthRole(
+                              nextSession,
+                            );
+                            final route = nextState.requiresBranchSelection
+                                ? AppRoute.branchSelection.path
+                                : (nextRole == AuthRole.admin ||
+                                      nextRole == AuthRole.owner)
+                                ? AppRoute.portal.path
+                                : AppRoute.cashSession.path;
+                            context.go(route);
                           },
                         );
                       },

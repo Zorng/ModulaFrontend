@@ -486,41 +486,19 @@ class AuthApi {
         data['requires_tenant_selection'] == true ||
         data['requiresTenantSelection'] == true;
     if (requiresTenantSelection) {
-      final selectionToken =
-          data['selection_token']?.toString() ??
-          data['selectionToken']?.toString() ??
-          '';
       final accessToken = data['accessToken']?.toString() ?? '';
       final refreshToken = data['refreshToken']?.toString() ?? '';
-
-      final rawMemberships = data['memberships'];
-      final memberships = rawMemberships is List
-          ? rawMemberships
-                .map(_asMap)
-                .map(TenantMembershipDto.fromJson)
-                .where((m) => m.tenantId.isNotEmpty)
-                .toList(growable: false)
-          : const <TenantMembershipDto>[];
-      final tenantSelectionUser = _parseTenantSelectionUser(
-        data: data,
-        fallbackPhone: username,
-        memberships: memberships,
-        accessToken: accessToken,
-      );
-
       return AuthLoginResponseDto(
-        tenantSelection: TenantSelectionRequiredDto(
-          selectionToken: selectionToken,
-          memberships: memberships,
-          user: tenantSelectionUser,
-          accessToken: accessToken.isEmpty ? null : accessToken,
-          refreshToken: refreshToken.isEmpty ? null : refreshToken,
-          accessTokenExpiresAt: accessToken.isEmpty
-              ? null
-              : _accessTokenExpiry(accessToken),
-          refreshTokenExpiresAt: refreshToken.isEmpty
-              ? null
-              : DateTime.now().toUtc().add(const Duration(hours: 72)),
+        tenantSelection: _buildTenantSelectionRequired(
+          data: data,
+          fallbackPhone: username,
+          selectionToken:
+              data['selection_token']?.toString() ??
+              data['selectionToken']?.toString() ??
+              '',
+          accessToken: accessToken,
+          refreshToken: refreshToken,
+          memberships: _membershipsFromLoginPayload(data),
         ),
         established: null,
       );
@@ -546,51 +524,61 @@ class AuthApi {
     }
 
     final options = await listTenantContexts(accessTokenOverride: accessToken);
-    final memberships = _toMembershipDtosFromContext(options);
-    final context = _asMap(data['context']);
-    final contextTenantId = context['tenantId']?.toString().trim() ?? '';
-    final selectedTenantId = options.selectedTenantId ?? contextTenantId;
-    final effectiveTenantId = selectedTenantId.isNotEmpty
-        ? selectedTenantId
-        : (memberships.length == 1 ? memberships.first.tenantId : '');
-    final needsTenantSelection =
-        options.requiresSelection ||
-        (effectiveTenantId.isEmpty && memberships.length > 1);
-
-    if (needsTenantSelection) {
-      final refreshToken = data['refreshToken']?.toString() ?? '';
-      final accessToken = data['accessToken']?.toString() ?? '';
-      final tenantSelectionUser = _parseTenantSelectionUser(
+    return AuthLoginResponseDto(
+      // Login only authenticates the account. Tenant context must always be
+      // explicitly established through tenant selection, even for a single
+      // membership account.
+      tenantSelection: _buildTenantSelectionRequired(
         data: data,
         fallbackPhone: username,
-        memberships: memberships,
+        selectionToken: 'v0-context-selection',
         accessToken: accessToken,
-      );
-      return AuthLoginResponseDto(
-        tenantSelection: TenantSelectionRequiredDto(
-          selectionToken: 'v0-context-selection',
-          memberships: memberships,
-          user: tenantSelectionUser,
-          accessToken: accessToken,
-          refreshToken: refreshToken.isEmpty ? null : refreshToken,
-          accessTokenExpiresAt: accessToken.isEmpty
-              ? null
-              : _accessTokenExpiry(accessToken),
-          refreshTokenExpiresAt: refreshToken.isEmpty
-              ? null
-              : DateTime.now().toUtc().add(const Duration(hours: 72)),
-        ),
-        established: null,
-      );
-    }
-
-    return AuthLoginResponseDto(
-      tenantSelection: null,
-      established: _parseV0EstablishedSession(
-        data: data,
-        memberships: memberships,
-        activeTenantId: effectiveTenantId.isEmpty ? null : effectiveTenantId,
+        refreshToken: data['refreshToken']?.toString() ?? '',
+        memberships: _toMembershipDtosFromContext(options),
       ),
+      established: null,
+    );
+  }
+
+  List<TenantMembershipDto> _membershipsFromLoginPayload(
+    Map<String, dynamic> data,
+  ) {
+    final rawMemberships = data['memberships'];
+    if (rawMemberships is! List) return const <TenantMembershipDto>[];
+    return rawMemberships
+        .map(_asMap)
+        .map(TenantMembershipDto.fromJson)
+        .where((m) => m.tenantId.isNotEmpty)
+        .toList(growable: false);
+  }
+
+  TenantSelectionRequiredDto _buildTenantSelectionRequired({
+    required Map<String, dynamic> data,
+    required String fallbackPhone,
+    required String selectionToken,
+    required String accessToken,
+    required String refreshToken,
+    required List<TenantMembershipDto> memberships,
+  }) {
+    final tenantSelectionUser = _parseTenantSelectionUser(
+      data: data,
+      fallbackPhone: fallbackPhone,
+      memberships: memberships,
+      accessToken: accessToken,
+    );
+
+    return TenantSelectionRequiredDto(
+      selectionToken: selectionToken,
+      memberships: memberships,
+      user: tenantSelectionUser,
+      accessToken: accessToken.isEmpty ? null : accessToken,
+      refreshToken: refreshToken.isEmpty ? null : refreshToken,
+      accessTokenExpiresAt: accessToken.isEmpty
+          ? null
+          : _accessTokenExpiry(accessToken),
+      refreshTokenExpiresAt: refreshToken.isEmpty
+          ? null
+          : DateTime.now().toUtc().add(const Duration(hours: 72)),
     );
   }
 

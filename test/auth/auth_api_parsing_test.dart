@@ -168,7 +168,7 @@ void main() {
   );
 
   test(
-    'AuthApi.login parses established v0 session when tenant selected',
+    'AuthApi.login still requires explicit tenant selection for v0 sessions with a selected tenant',
     () async {
       final loginPayload = readJsonMapFixture(
         'test/fixtures/auth/login_v0_tenant_selected.json',
@@ -204,19 +204,21 @@ void main() {
         password: 'pw',
       );
 
-      expect(response.requiresTenantSelection, isFalse);
-      expect(response.established, isNotNull);
-      final session = response.established!;
-      expect(session.activeTenantId, 'tenant-1');
-      expect(session.accessToken, isNotEmpty);
-      expect(session.memberships, hasLength(1));
-      expect(session.memberships.first.membershipId, 'm-1');
-      expect(session.user.tenantId, 'tenant-1');
+      expect(response.requiresTenantSelection, isTrue);
+      expect(response.established, isNull);
+      final selection = response.tenantSelection!;
+      expect(selection.selectionToken, 'v0-context-selection');
+      expect(selection.accessToken, isNotEmpty);
+      expect(selection.refreshToken, 'refresh-v0-2');
+      expect(selection.memberships, hasLength(1));
+      expect(selection.memberships.first.membershipId, 'm-1');
+      expect(selection.user, isNotNull);
+      expect(selection.user!.tenantId, isEmpty);
     },
   );
 
   test(
-    'AuthApi.login derives user.role from selected membership when token has no role claim',
+    'AuthApi.login keeps tenant-selection user.role empty when token has no role claim',
     () async {
       final loginPayload = <String, dynamic>{
         'success': true,
@@ -265,9 +267,11 @@ void main() {
         password: 'pw',
       );
 
-      expect(response.requiresTenantSelection, isFalse);
-      expect(response.established, isNotNull);
-      expect(response.established!.user.role, 'ADMIN');
+      expect(response.requiresTenantSelection, isTrue);
+      expect(response.established, isNull);
+      expect(response.tenantSelection, isNotNull);
+      expect(response.tenantSelection!.user, isNotNull);
+      expect(response.tenantSelection!.user!.role, isEmpty);
     },
   );
 

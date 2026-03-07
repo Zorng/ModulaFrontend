@@ -208,16 +208,7 @@ void main() {
     final api = InventoryApi(dio);
     await api.createStockItem(
       {'name': 'Whole Milk', 'baseUnit': 'ml', 'categoryId': 'cat-1'},
-      imageBytes: const [
-        0x89,
-        0x50,
-        0x4E,
-        0x47,
-        0x0D,
-        0x0A,
-        0x1A,
-        0x0A,
-      ],
+      imageBytes: const [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A],
     );
 
     final uploadCaptured =
@@ -238,7 +229,9 @@ void main() {
     expect(uploadCaptured.files.single.value.filename, 'upload.png');
     expect(
       uploadCaptured.files.single.value.contentType,
-      MediaType('image', 'png'),
+      isA<MediaType>()
+          .having((mediaType) => mediaType.type, 'type', 'image')
+          .having((mediaType) => mediaType.subtype, 'subtype', 'png'),
     );
 
     verify(
@@ -299,16 +292,7 @@ void main() {
     final api = InventoryApi(dio);
     await api.createStockItem(
       {'name': 'Whole Milk', 'baseUnit': 'ml'},
-      imageBytes: const [
-        0x89,
-        0x50,
-        0x4E,
-        0x47,
-        0x0D,
-        0x0A,
-        0x1A,
-        0x0A,
-      ],
+      imageBytes: const [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A],
     );
 
     final uploadCaptured =
@@ -322,7 +306,9 @@ void main() {
     expect(uploadCaptured.files.single.value.filename, 'upload.png');
     expect(
       uploadCaptured.files.single.value.contentType,
-      MediaType('image', 'png'),
+      isA<MediaType>()
+          .having((mediaType) => mediaType.type, 'type', 'image')
+          .having((mediaType) => mediaType.subtype, 'subtype', 'png'),
     );
   });
 

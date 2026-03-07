@@ -2,18 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
+import 'package:modular_pos/core/routing/workspace_route_guard.dart';
 import 'package:modular_pos/core/theme/responsive.dart';
+import 'package:modular_pos/core/widgets/navigation/app_navigation_config.dart';
 import 'package:modular_pos/core/widgets/navigation/tenant_profile_header.dart';
 import 'package:modular_pos/features/auth/domain/active_branch_context_provider.dart';
 import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
 import 'package:modular_pos/features/auth/domain/auth_role.dart';
 import 'package:modular_pos/features/auth/domain/models/auth_session.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
-import 'package:modular_pos/features/auth/domain/workspace_context_provider.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
-import 'package:modular_pos/features/branchV2/domain/models/branch_models.dart';
-import 'package:modular_pos/features/branchV2/ui/viewmodels/branch_controller.dart';
-import 'package:modular_pos/core/widgets/navigation/workspace_nav_config.dart';
 
 class AppScaffoldShell extends ConsumerWidget {
   const AppScaffoldShell({
@@ -34,32 +32,42 @@ class AppScaffoldShell extends ConsumerWidget {
 
         final session = ref.watch(loginControllerProvider).session;
         final role = resolveSessionAuthRole(session);
-        final workspaceContext = ref.watch(workspaceContextProvider);
+        final isAdminOrOwner = role == AuthRole.admin || role == AuthRole.owner;
+        final isBranchLayer = _isBranchScopedPath(currentPath);
+        final layer = isBranchLayer
+            ? AppNavigationLayer.branch
+            : AppNavigationLayer.tenant;
+        final sections = buildAppNavigationSections(role: role, layer: layer);
         final tenantName = _resolveTenantName(session);
         final activeBranchId = ref.watch(activeBranchContextIdProvider);
         final activeBranchNameOverride = ref.watch(
           authActiveBranchNameOverrideProvider,
         );
-        final knownBranches = ref.watch(
-          branchControllerProvider.select((state) => state.branches),
+        final branchName = _resolveBranchName(
+          ref.watch(authActiveBranchProvider),
+          session?.user.branches ?? const <UserBranch>[],
+          activeBranchId: activeBranchId,
+          activeBranchNameOverride: activeBranchNameOverride,
         );
-        final branchName = workspaceContext?.isGlobal == true
-            ? 'Global Management'
-            : _resolveBranchName(
-                ref.watch(authActiveBranchProvider),
-                session?.user.branches ?? const <UserBranch>[],
-                activeBranchId: activeBranchId,
-                activeBranchNameOverride: activeBranchNameOverride,
-                knownBranches: knownBranches,
-              );
         final tenantInitial = tenantName.isNotEmpty
             ? tenantName.characters.first.toUpperCase()
             : '?';
-        final sections = buildWorkspaceNavSections(
-          role: role,
-          workspaceContext: workspaceContext,
-        );
         final hasMatch = _hasMatch(currentPath, sections);
+        final defaultRoute = _defaultRoute(
+          role: role,
+          hasActiveBranchContext: (activeBranchId ?? '').trim().isNotEmpty,
+        );
+        final showFallbackSelection = _shouldUseFallbackSelection(currentPath);
+        final layerBackTarget = _resolveLayerBackTarget(
+          role: role,
+          currentPath: currentPath,
+          isBranchLayer: isBranchLayer,
+        );
+        final layerBackTooltip = _resolveLayerBackTooltip(
+          role: role,
+          currentPath: currentPath,
+          isBranchLayer: isBranchLayer,
+        );
 
         return SafeArea(
           child: Row(
@@ -67,7 +75,7 @@ class AppScaffoldShell extends ConsumerWidget {
               Material(
                 color: Theme.of(context).colorScheme.surface,
                 child: SizedBox(
-                  width: 260,
+                  width: 280,
                   child: ListView(
                     padding: const EdgeInsets.all(16),
                     children: [
@@ -75,22 +83,31 @@ class AppScaffoldShell extends ConsumerWidget {
                         tenantName: tenantName,
                         branchName: branchName,
                         tenantInitial: tenantInitial,
-                        onBackPressed: () =>
-                            context.go(AppRoute.branchSelection.path),
+                        currentPath: currentPath,
+                        allowQuickSwitch: isAdminOrOwner && isBranchLayer,
+                        availableBranches: _branchOptions(
+                          session?.user.branches ?? const <UserBranch>[],
+                        ),
+                        onLayerBackPressed: layerBackTarget == null
+                            ? null
+                            : () => context.go(layerBackTarget),
+                        layerBackTooltip: layerBackTooltip,
                       ),
                       const SizedBox(height: 16),
                       for (final section in sections) ...[
-                        if (section.items.isNotEmpty)
+                        if (section.destinations.isNotEmpty)
                           _RailSectionHeader(label: section.label),
-                        for (final item in section.items)
+                        for (final destination in section.destinations)
                           _RailDestinationTile(
-                            item: item,
+                            destination: destination,
                             selected:
-                                workspaceNavItemMatchesPath(
+                                appNavigationDestinationMatchesPath(
                                   currentPath,
-                                  item,
+                                  destination,
                                 ) ||
-                                (!hasMatch && item.route == AppRoute.sale),
+                                (!hasMatch &&
+                                    showFallbackSelection &&
+                                    destination.route == defaultRoute),
                           ),
                         const SizedBox(height: 8),
                       ],
@@ -108,13 +125,62 @@ class AppScaffoldShell extends ConsumerWidget {
   }
 }
 
-bool _hasMatch(String path, List<WorkspaceNavSection> sections) {
+bool _hasMatch(String path, List<AppNavigationSection> sections) {
   for (final section in sections) {
-    for (final item in section.items) {
-      if (workspaceNavItemMatchesPath(path, item)) return true;
+    for (final destination in section.destinations) {
+      if (appNavigationDestinationMatchesPath(path, destination)) {
+        return true;
+      }
     }
   }
   return false;
+}
+
+AppRoute _defaultRoute({
+  required AuthRole role,
+  required bool hasActiveBranchContext,
+}) {
+  if (role == AuthRole.admin || role == AuthRole.owner) {
+    return hasActiveBranchContext ? AppRoute.cashSession : AppRoute.branch;
+  }
+  return AppRoute.cashSession;
+}
+
+bool _shouldUseFallbackSelection(String currentPath) {
+  return currentPath != AppRoute.account.path &&
+      currentPath != AppRoute.settings.path;
+}
+
+String? _resolveLayerBackTarget({
+  required AuthRole role,
+  required String currentPath,
+  required bool isBranchLayer,
+}) {
+  if (currentPath == AppRoute.account.path ||
+      currentPath == AppRoute.settings.path) {
+    return null;
+  }
+  if (role == AuthRole.admin || role == AuthRole.owner) {
+    return isBranchLayer
+        ? AppRoute.branch.path
+        : '${AppRoute.tenantSelection.path}?switch=1';
+  }
+  return '${AppRoute.branchSelection.path}?switch=1';
+}
+
+String? _resolveLayerBackTooltip({
+  required AuthRole role,
+  required String currentPath,
+  required bool isBranchLayer,
+}) {
+  if (currentPath == AppRoute.account.path ||
+      currentPath == AppRoute.settings.path) {
+    return null;
+  }
+  if (role == AuthRole.admin || role == AuthRole.owner) {
+    return isBranchLayer ? 'Back to tenant' : 'Back to tenant selection';
+  }
+  return 'Back to branch selection';
 }
 
 String _resolveTenantName(AuthSession? session) {
@@ -134,7 +200,6 @@ String _resolveBranchName(
   List<UserBranch> branches, {
   required String? activeBranchId,
   required String? activeBranchNameOverride,
-  required List<BranchListItem> knownBranches,
 }) {
   final overriddenName = (activeBranchNameOverride ?? '').trim();
   if (overriddenName.isNotEmpty) return overriddenName;
@@ -144,13 +209,6 @@ String _resolveBranchName(
 
   final normalizedActiveId = (activeBranchId ?? '').trim();
   if (normalizedActiveId.isNotEmpty) {
-    for (final branch in knownBranches) {
-      if (branch.branchId == normalizedActiveId &&
-          branch.branchName.trim().isNotEmpty) {
-        return branch.branchName.trim();
-      }
-    }
-
     for (final branch in branches) {
       final matchesId =
           branch.branchId.trim() == normalizedActiveId ||
@@ -161,11 +219,21 @@ String _resolveBranchName(
     }
   }
 
-  for (final branch in branches) {
-    if (branch.name.trim().isNotEmpty) return branch.name.trim();
-  }
+  return 'No branch selected';
+}
 
-  return 'Branch';
+List<_BranchOption> _branchOptions(List<UserBranch> branches) {
+  final seen = <String>{};
+  final options = <_BranchOption>[];
+  for (final branch in branches) {
+    final id = branch.branchId.trim().isNotEmpty
+        ? branch.branchId.trim()
+        : branch.id.trim();
+    final name = branch.name.trim();
+    if (id.isEmpty || name.isEmpty || !seen.add(id)) continue;
+    options.add(_BranchOption(id: id, name: name));
+  }
+  return options;
 }
 
 class _RailHeader extends ConsumerWidget {
@@ -173,13 +241,21 @@ class _RailHeader extends ConsumerWidget {
     required this.tenantName,
     required this.branchName,
     required this.tenantInitial,
-    this.onBackPressed,
+    required this.currentPath,
+    required this.allowQuickSwitch,
+    required this.availableBranches,
+    this.onLayerBackPressed,
+    this.layerBackTooltip,
   });
 
   final String tenantName;
   final String branchName;
   final String tenantInitial;
-  final VoidCallback? onBackPressed;
+  final String currentPath;
+  final bool allowQuickSwitch;
+  final List<_BranchOption> availableBranches;
+  final VoidCallback? onLayerBackPressed;
+  final String? layerBackTooltip;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -190,10 +266,123 @@ class _RailHeader extends ConsumerWidget {
           tenantName: tenantName,
           branchName: branchName,
           initial: tenantInitial,
-          onBackPressed: onBackPressed,
+          onTap: () => context.go('${AppRoute.tenantSelection.path}?switch=1'),
+          onBackPressed: onLayerBackPressed,
+          backTooltip: layerBackTooltip,
         ),
+        if (allowQuickSwitch && availableBranches.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          _BranchQuickSwitchButton(
+            currentPath: currentPath,
+            branchName: branchName,
+            branches: availableBranches,
+          ),
+        ],
       ],
     );
+  }
+}
+
+class _BranchOption {
+  const _BranchOption({required this.id, required this.name});
+
+  final String id;
+  final String name;
+}
+
+class _BranchQuickSwitchButton extends ConsumerWidget {
+  const _BranchQuickSwitchButton({
+    required this.currentPath,
+    required this.branchName,
+    required this.branches,
+  });
+
+  final String currentPath;
+  final String branchName;
+  final List<_BranchOption> branches;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final displayLabel = branchName == 'No branch selected'
+        ? 'Choose branch'
+        : branchName;
+
+    return PopupMenuButton<String>(
+      tooltip: 'Switch branch',
+      onSelected: (branchId) => _selectBranch(context, ref, branchId),
+      itemBuilder: (context) => [
+        for (final branch in branches)
+          PopupMenuItem<String>(value: branch.id, child: Text(branch.name)),
+      ],
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: Theme.of(context).colorScheme.outlineVariant,
+          ),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.store_mall_directory_outlined, size: 18),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                displayLabel,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Icon(Icons.expand_more, size: 18),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _selectBranch(
+    BuildContext context,
+    WidgetRef ref,
+    String branchId,
+  ) async {
+    final selectedBranch = branches.firstWhere(
+      (branch) => branch.id == branchId,
+      orElse: () => const _BranchOption(id: '', name: ''),
+    );
+    if (selectedBranch.id.isEmpty) return;
+
+    await ref.read(loginControllerProvider.notifier).selectBranch(branchId);
+    final loginState = ref.read(loginControllerProvider);
+    if (!context.mounted) return;
+
+    if (loginState.error != null && loginState.error!.trim().isNotEmpty) {
+      final errorCode = (loginState.errorCode ?? '').trim().toUpperCase();
+      if (errorCode == 'TENANT_CONTEXT_REQUIRED') {
+        context.go(AppRoute.tenantSelection.path);
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(loginState.error!)));
+      return;
+    }
+
+    ref
+        .read(authActiveBranchOverrideProvider.notifier)
+        .setOverride(selectedBranch.id);
+    ref
+        .read(authActiveBranchNameOverrideProvider.notifier)
+        .setName(selectedBranch.name);
+
+    if (_isBranchScopedPath(currentPath)) {
+      context.go(currentPath);
+      return;
+    }
+    if (isPathInGroup(currentPath, AppRoute.branch.path)) {
+      context.go(AppRoute.cashSession.path);
+    }
   }
 }
 
@@ -219,51 +408,60 @@ class _RailSectionHeader extends StatelessWidget {
 }
 
 class _RailDestinationTile extends ConsumerWidget {
-  const _RailDestinationTile({required this.item, required this.selected});
+  const _RailDestinationTile({
+    required this.destination,
+    required this.selected,
+  });
 
-  final WorkspaceNavItem item;
+  final AppNavigationDestination destination;
   final bool selected;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final color = selected ? theme.colorScheme.primary : theme.iconTheme.color;
-    final onTap = switch (item.type) {
-      WorkspaceNavItemType.route =>
-        selected || item.route == null
-            ? null
-            : () => context.go(item.route!.path),
-      WorkspaceNavItemType.enterPosMode => () async {
-        final branchId = ref.read(activeBranchContextIdProvider);
-        if (branchId == null || branchId.trim().isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Select a branch first.')),
-          );
-          return;
-        }
-        await ref.read(loginControllerProvider.notifier).selectBranch(branchId);
-        final loginState = ref.read(loginControllerProvider);
-        if (!context.mounted) return;
-        if (loginState.error != null && loginState.error!.trim().isNotEmpty) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text(loginState.error!)));
-          return;
-        }
-        ref
-            .read(workspaceContextProvider.notifier)
-            .setBranchPos(activeBranchId: branchId);
-        context.go(AppRoute.sale.path);
-      },
-    };
+    final hasActiveBranchContext =
+        (ref.watch(activeBranchContextIdProvider) ?? '').trim().isNotEmpty;
+    final role = resolveSessionAuthRole(
+      ref.watch(loginControllerProvider.select((state) => state.session)),
+    );
+    final onTap = selected
+        ? null
+        : () {
+            if (destination.requiresBranchContext && !hasActiveBranchContext) {
+              context.go(
+                buildBranchScopedRedirectForRole(
+                  role: role,
+                  continuePath: destination.route.path,
+                  reasonCode: branchContextRequiredReasonCode,
+                ),
+              );
+              return;
+            }
+            context.go(destination.route.path);
+          };
     return ListTile(
       selected: selected,
       selectedTileColor: theme.colorScheme.primary.withValues(alpha: 0.08),
-      leading: Icon(item.icon, color: color),
-      title: Text(item.label),
+      leading: Icon(destination.icon, color: color),
+      title: Text(destination.label),
+      subtitle: destination.requiresBranchContext && !hasActiveBranchContext
+          ? const Text('Select branch')
+          : null,
       dense: true,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       onTap: onTap,
     );
   }
+}
+
+bool _isBranchScopedPath(String path) {
+  return isPathInGroup(path, AppRoute.branchSubscription.path) ||
+      isPathInGroup(path, AppRoute.cashSession.path) ||
+      isPathInGroup(path, AppRoute.policy.path) ||
+      isPathInGroup(path, AppRoute.sale.path) ||
+      isPathInGroup(path, AppRoute.attendance.path) ||
+      isPathInGroup(path, AppRoute.xReport.path) ||
+      isPathInGroup(path, AppRoute.zReport.path) ||
+      path == AppRoute.attendanceManagement.path;
 }

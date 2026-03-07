@@ -268,7 +268,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   test(
-    'login marks branch selection required when backend requires it',
+    'login normalizes authenticated session into tenant-selection state',
     () async {
       SharedPreferences.setMockInitialValues({});
       final prefs = await SharedPreferences.getInstance();
@@ -304,9 +304,13 @@ void main() {
       final state = container.read(loginControllerProvider);
 
       expect(state.session, isNotNull);
-      expect(state.requiresBranchSelection, isTrue);
-      expect(state.branchOptions, hasLength(1));
-      expect(state.branchOptions.first.branchId, 'branch-1');
+      expect(state.requiresBranchSelection, isFalse);
+      expect(state.branchOptions, isEmpty);
+      expect(state.session!.activeTenantId, isNull);
+      expect(state.session!.tenantSelectionToken, 'v0-context-selection');
+      expect(state.session!.user.tenantId, isEmpty);
+      expect(state.session!.user.role, isEmpty);
+      expect(state.session!.user.branches, isEmpty);
     },
   );
 
@@ -447,7 +451,7 @@ void main() {
       expect(state.session!.user.id, 'user-1');
       expect(state.session!.user.name, 'Tester');
       expect(state.session!.user.phone, '+8551');
-      expect(state.requiresBranchSelection, isTrue);
+      expect(state.requiresBranchSelection, isFalse);
       expect(state.branchOptions, hasLength(1));
       expect(capturedTenantProfileToken, 'access-tenant-2');
       expect(persisted, isNotNull);
@@ -673,7 +677,7 @@ void main() {
   );
 
   test(
-    'selectTenant falls back to branch selection when branch context listing returns recoverable tenant-context error',
+    'selectTenant fails when branch context listing still reports tenant-context required',
     () async {
       SharedPreferences.setMockInitialValues({});
       final prefs = await SharedPreferences.getInstance();
@@ -729,17 +733,15 @@ void main() {
       final state = container.read(loginControllerProvider);
       final persisted = await store.load();
 
-      expect(success, isTrue);
-      expect(state.error, isNull);
-      expect(state.errorCode, isNull);
-      expect(state.requiresBranchSelection, isTrue);
+      expect(success, isFalse);
+      expect(state.errorCode, 'TENANT_CONTEXT_REQUIRED');
+      expect(state.errorStatusCode, 403);
+      expect(state.requiresBranchSelection, isFalse);
       expect(state.branchOptions, isEmpty);
       expect(state.session, isNotNull);
-      expect(state.session!.activeTenantId, 'tenant-2');
-      expect(state.session!.accessToken, 'access-tenant-2');
-      expect(persisted, isNotNull);
-      expect(persisted!.activeTenantId, 'tenant-2');
-      expect(persisted.accessToken, 'access-tenant-2');
+      expect(state.session!.activeTenantId, isNull);
+      expect(state.session!.tenantSelectionToken, 'selection-token-123');
+      expect(persisted, isNull);
     },
   );
 
@@ -816,7 +818,7 @@ void main() {
 
       expect(success, isTrue);
       expect(autoSelectBranchCalled, isFalse);
-      expect(state.requiresBranchSelection, isTrue);
+      expect(state.requiresBranchSelection, isFalse);
       expect(state.branchOptions, hasLength(1));
       expect(state.branchOptions.first.branchId, 'branch-2');
     },
