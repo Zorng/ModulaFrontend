@@ -1,9 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:modular_pos/features/cash_session/data/cash_session_movement_repository.dart';
+import 'package:modular_pos/features/cash_session/data/cash_session_repository.dart';
 import 'package:modular_pos/features/cash_session/domain/models/cash_register.dart';
 import 'package:modular_pos/features/cash_session/domain/models/cash_session.dart';
 
 /// Mock repository for testing cash session features without backend
-class MockCashSessionRepository {
+class MockCashSessionRepository
+    implements CashSessionRepository, CashSessionMovementRepository {
   // In-memory state
   CashSession? _activeSession;
   final List<CashRegister> _registers = [
@@ -15,11 +18,10 @@ class MockCashSessionRepository {
   double _totalPaidInUsd = 0.0;
   double _totalPaidOutUsd = 0.0;
 
-  bool get isSessionOpen => _activeSession?.status.toLowerCase() == 'open';
+  bool get isSessionOpen => _activeSession?.status == CashSessionStatuses.open;
 
+  @override
   Future<CashSession> openSession({
-    String? registerId,
-    String? branchId,
     required double openingFloatUsd,
     required double openingFloatKhr,
     String? note,
@@ -30,14 +32,18 @@ class MockCashSessionRepository {
     // Create new session
     _activeSession = CashSession(
       id: 'session-${DateTime.now().millisecondsSinceEpoch}',
-      status: 'open',
+      tenantId: 'mock-tenant-001',
+      branchId: 'mock-branch-001',
+      openedByAccountId: '',
       openedAt: DateTime.now(),
-      closedAt: null,
+      status: CashSessionStatuses.open,
       openingFloatUsd: openingFloatUsd,
       openingFloatKhr: openingFloatKhr,
+      closedAt: null,
+      closedByAccountId: null,
+      closeNote: note,
       totalPaidInUsd: 0.0,
       totalPaidOutUsd: 0.0,
-      ownerId: null, // Use null to bypass owner check in viewmodel
     );
 
     // Reset movement totals
@@ -47,6 +53,7 @@ class MockCashSessionRepository {
     return _activeSession!;
   }
 
+  @override
   Future<CashSession> forceCloseSession({
     required String sessionId,
     required double countedCashUsd,
@@ -62,19 +69,24 @@ class MockCashSessionRepository {
 
     _activeSession = CashSession(
       id: _activeSession!.id,
-      status: 'closed',
+      tenantId: _activeSession!.tenantId,
+      branchId: _activeSession!.branchId,
+      openedByAccountId: _activeSession!.openedByAccountId,
       openedAt: _activeSession!.openedAt,
-      closedAt: DateTime.now(),
+      status: CashSessionStatuses.forceClosed,
       openingFloatUsd: _activeSession!.openingFloatUsd,
       openingFloatKhr: _activeSession!.openingFloatKhr,
+      closedAt: DateTime.now(),
+      closedByAccountId: '',
+      closeNote: note ?? reason,
       totalPaidInUsd: _totalPaidInUsd,
       totalPaidOutUsd: _totalPaidOutUsd,
-      ownerId: _activeSession!.ownerId,
     );
 
     return _activeSession!;
   }
 
+  @override
   Future<CashSession> closeSession({
     required String sessionId,
     required double countedCashUsd,
@@ -89,44 +101,52 @@ class MockCashSessionRepository {
 
     _activeSession = CashSession(
       id: _activeSession!.id,
-      status: 'closed',
+      tenantId: _activeSession!.tenantId,
+      branchId: _activeSession!.branchId,
+      openedByAccountId: _activeSession!.openedByAccountId,
       openedAt: _activeSession!.openedAt,
-      closedAt: DateTime.now(),
+      status: CashSessionStatuses.closed,
       openingFloatUsd: _activeSession!.openingFloatUsd,
       openingFloatKhr: _activeSession!.openingFloatKhr,
+      closedAt: DateTime.now(),
+      closedByAccountId: '',
+      closeNote: note,
       totalPaidInUsd: _totalPaidInUsd,
       totalPaidOutUsd: _totalPaidOutUsd,
-      ownerId: _activeSession!.ownerId,
     );
 
     return _activeSession!;
   }
 
-  Future<CashSession?> getActiveSession({
-    String? registerId,
-    String? branchId,
-  }) async {
+  @override
+  Future<CashSession?> getActiveSession() async {
     await Future.delayed(const Duration(milliseconds: 300));
 
     // Return active session if it exists and is open
-    if (_activeSession != null && _activeSession!.status == 'open') {
+    if (_activeSession != null &&
+        _activeSession!.status == CashSessionStatuses.open) {
       // Update with current movement totals
       return CashSession(
         id: _activeSession!.id,
-        status: _activeSession!.status,
+        tenantId: _activeSession!.tenantId,
+        branchId: _activeSession!.branchId,
+        openedByAccountId: _activeSession!.openedByAccountId,
         openedAt: _activeSession!.openedAt,
-        closedAt: _activeSession!.closedAt,
+        status: _activeSession!.status,
         openingFloatUsd: _activeSession!.openingFloatUsd,
         openingFloatKhr: _activeSession!.openingFloatKhr,
+        closedAt: _activeSession!.closedAt,
+        closedByAccountId: _activeSession!.closedByAccountId,
+        closeNote: _activeSession!.closeNote,
         totalPaidInUsd: _totalPaidInUsd,
         totalPaidOutUsd: _totalPaidOutUsd,
-        ownerId: _activeSession!.ownerId,
       );
     }
 
     return null;
   }
 
+  @override
   Future<void> recordMovement({
     required String sessionId,
     required String type,
@@ -148,6 +168,7 @@ class MockCashSessionRepository {
     }
   }
 
+  @override
   Future<List<CashRegister>> fetchRegisters({
     bool includeInactive = false,
   }) async {
@@ -160,6 +181,7 @@ class MockCashSessionRepository {
     return _registers.where((r) => r.status == 'active').toList();
   }
 
+  @override
   Future<CashRegister> createRegister(String name) async {
     await Future.delayed(const Duration(milliseconds: 300));
 

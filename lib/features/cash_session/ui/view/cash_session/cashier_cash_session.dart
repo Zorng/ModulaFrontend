@@ -1,17 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:modular_pos/core/feedback/user_error_message.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/core/widgets/navigation/app_back_button.dart';
-import 'package:modular_pos/features/cash_session/data/cash_session_repository.dart';
+import 'package:modular_pos/features/cash_session/ui/viewmodels/cash_session_error_message.dart';
 import 'package:modular_pos/features/cash_session/ui/viewmodels/cash_session_viewmodel.dart';
-import 'package:modular_pos/features/cash_session/ui/widgets/guidelines_card.dart';
 import 'package:modular_pos/features/cash_session/ui/widgets/session_overview_card.dart';
 import 'package:modular_pos/features/cash_session/ui/widgets/start_session_card.dart';
 import 'package:modular_pos/features/cash_session/ui/widgets/cash_session_details_card.dart';
 import 'package:modular_pos/features/cash_session/ui/widgets/close_session_modal.dart';
+import 'package:modular_pos/features/cash_session/ui/widgets/force_close_session_modal.dart';
 
 class CashSessionScreen extends ConsumerWidget {
   const CashSessionScreen({super.key, this.showAppBar = true});
@@ -22,13 +21,15 @@ class CashSessionScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final sessionState = ref.watch(cashSessionViewModelProvider);
     final notifier = ref.read(cashSessionViewModelProvider.notifier);
-    
+
     // Use screen width to determine navigation rail presence
     final screenWidth = MediaQuery.of(context).size.width;
     final hasNavigationRail = AppBreakpoints.isLarge(screenWidth);
-    
+
     final isSessionOpen = sessionState.sessionStatus == SessionStatus.open;
-    final isSessionClosed = sessionState.sessionStatus == SessionStatus.closed;
+    final isSessionClosed =
+        sessionState.sessionStatus == SessionStatus.closed ||
+        sessionState.sessionStatus == SessionStatus.forceClosed;
     final isNoSession = sessionState.sessionStatus == SessionStatus.notStarted;
 
     return Scaffold(
@@ -82,8 +83,6 @@ class CashSessionScreen extends ConsumerWidget {
         if (sessionState.error != null) _buildErrorBanner(sessionState),
         const SessionOverviewCard(),
         const SizedBox(height: 16),
-        const GuidelinesCard(),
-        const SizedBox(height: 16),
         if (isNoSession)
           _buildStartSessionCard(context, notifier)
         else if (isSessionOpen || isSessionClosed)
@@ -113,16 +112,10 @@ class CashSessionScreen extends ConsumerWidget {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Left column: Session Overview and Guidelines
+            // Left column: Session Overview
             Expanded(
               flex: 1,
-              child: Column(
-                children: const [
-                  SessionOverviewCard(),
-                  SizedBox(height: 16),
-                  GuidelinesCard(),
-                ],
-              ),
+              child: const SessionOverviewCard(),
             ),
             const SizedBox(width: 24),
             // Right column: Start Session or Session Details
@@ -153,18 +146,16 @@ class CashSessionScreen extends ConsumerWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       color: Colors.red.shade50,
-      padding: const EdgeInsets.symmetric(
-        horizontal: 16,
-        vertical: 12,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
         children: [
           Icon(Icons.error_outline, color: Colors.red.shade700),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              UserErrorMessage.build(
+              mapCashSessionErrorMessage(
                 context: 'Failed to load cash session',
+                errorCode: sessionState.errorCode,
                 error: sessionState.error,
               ),
               style: TextStyle(
@@ -182,30 +173,9 @@ class CashSessionScreen extends ConsumerWidget {
     BuildContext context,
     CashSessionViewModel notifier,
   ) {
-    return Consumer(
-      builder: (context, ref, child) {
-        // In mock mode, auto-approve to bypass admin approval workflow
-        final useMock = ref.watch(useMockCashSessionProvider);
-        final sessionStatus = useMock
-            ? SessionRequestStatus.approved
-            : SessionRequestStatus.noShift; // TODO: Get from state in API mode
-        
-        return StartSessionCard(
-          sessionRequestStatus: sessionStatus,
-          onSessionStarted: (usd, khr, note) {
-            notifier.startSession(
-              usdAmount: usd,
-              khrAmount: khr,
-              note: note,
-            );
-          },
-          onRequestSession: () {
-            // TODO: Implement request session logic
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Request sent to admin')),
-            );
-          },
-        );
+    return StartSessionCard(
+      onSessionStarted: (usd, khr, note) {
+        notifier.startSession(usdAmount: usd, khrAmount: khr, note: note);
       },
     );
   }
@@ -223,44 +193,91 @@ class CashSessionScreen extends ConsumerWidget {
         openFloatKhr: sessionState.openFloatKhr,
         startTime: sessionState.startTime ?? DateTime.now(),
         endTime: sessionState.endTime,
-        status: isSessionClosed ? 'Closed' : 'Open',
+        status: switch (sessionState.sessionStatus) {
+          SessionStatus.forceClosed => 'Force Closed',
+          SessionStatus.closed => 'Closed',
+          _ => 'Open',
+        },
       ),
       const SizedBox(height: 16),
       if (isSessionOpen)
-        SizedBox(
-          width: double.infinity,
-          child: FilledButton(
-            onPressed: sessionState.isLoading
-                ? null
-                : () {
-                    showModalBottomSheet(
-                      context: context,
-                      isScrollControlled: true,
-                      shape: const RoundedRectangleBorder(
-                        borderRadius: BorderRadius.vertical(
-                          top: Radius.circular(16),
-                        ),
-                      ),
-                      builder: (modalContext) {
-                        return CloseSessionModal(
-                          onSessionClosed: (usd, khr, note) {
-                            Navigator.of(modalContext).pop();
-                            notifier.closeSession(
-                              countedUsd: usd,
-                              countedKhr: khr,
-                              note: note,
+        Column(
+          children: [
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: sessionState.isLoading
+                    ? null
+                    : () {
+                        showModalBottomSheet(
+                          context: context,
+                          isScrollControlled: true,
+                          shape: const RoundedRectangleBorder(
+                            borderRadius: BorderRadius.vertical(
+                              top: Radius.circular(16),
+                            ),
+                          ),
+                          builder: (modalContext) {
+                            return CloseSessionModal(
+                              onSessionClosed: (usd, khr, note) {
+                                Navigator.of(modalContext).pop();
+                                notifier.closeSession(
+                                  countedUsd: usd,
+                                  countedKhr: khr,
+                                  note: note,
+                                );
+                              },
                             );
                           },
                         );
                       },
-                    );
-                  },
-            style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFFED533C),
-              foregroundColor: Colors.white,
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFFED533C),
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Close Cash Session'),
+              ),
             ),
-            child: const Text('Close Cash Session'),
-          ),
+            if (sessionState.canForceClose) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: sessionState.isLoading
+                      ? null
+                      : () {
+                          showModalBottomSheet(
+                            context: context,
+                            isScrollControlled: true,
+                            shape: const RoundedRectangleBorder(
+                              borderRadius: BorderRadius.vertical(
+                                top: Radius.circular(16),
+                              ),
+                            ),
+                            builder: (modalContext) {
+                              return ForceCloseSessionModal(
+                                onForceClosed: (usd, khr, reason, note) {
+                                  Navigator.of(modalContext).pop();
+                                  notifier.forceCloseSession(
+                                    countedUsd: usd,
+                                    countedKhr: khr,
+                                    reason: reason,
+                                    note: note,
+                                  );
+                                },
+                              );
+                            },
+                          );
+                        },
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFFB45309),
+                    side: const BorderSide(color: Color(0xFFB45309)),
+                  ),
+                  child: const Text('Force Close Session'),
+                ),
+              ),
+            ],
+          ],
         ),
     ];
   }

@@ -16,18 +16,17 @@ class SessionOverviewCard extends ConsumerWidget {
     final branch = ref.watch(authActiveBranchProvider);
     final sessionState = ref.watch(cashSessionViewModelProvider);
     final branchName = branch?.name ?? 'No Branch';
+    final (statusText, statusColor) = switch (sessionState.sessionStatus) {
+      SessionStatus.open => ('Active', const Color(0xFF10B981)),
+      SessionStatus.closed => ('Closed', const Color(0xFFED533C)),
+      SessionStatus.forceClosed => ('Force Closed', const Color(0xFFB45309)),
+      SessionStatus.notStarted => ('No Active Session', Colors.grey),
+    };
 
-    // Determine status based on session status
-    final isActive = sessionState.sessionStatus == SessionStatus.open;
-    final statusText = isActive ? 'Active' : 'Inactive';
-    final statusColor = isActive ? const Color(0xFF10B981) : Colors.red;
-    
     return Card(
       color: Colors.white,
       elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(

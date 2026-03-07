@@ -48,6 +48,9 @@ class AppEnv {
   static const _policyRepositoryModeDefine = String.fromEnvironment(
     'POLICY_REPOSITORY_MODE',
   );
+  static const _cashSessionRepositoryModeDefine = String.fromEnvironment(
+    'CASH_SESSION_REPOSITORY_MODE',
+  );
 
   static String get apiBaseUrl => _readString(
     primary: _apiBaseUrlDefine,
@@ -177,6 +180,15 @@ class AppEnv {
       primary: _policyRepositoryModeDefine,
       dotenvKey: 'POLICY_REPOSITORY_MODE',
       defaultValue: 'api',
+    );
+    return mode.trim().toLowerCase() == 'mock';
+  }
+
+  static bool get useMockCashSessionRepository {
+    final mode = _readString(
+      primary: _cashSessionRepositoryModeDefine,
+      dotenvKey: 'CASH_SESSION_REPOSITORY_MODE',
+      defaultValue: 'mock',
     );
     return mode.trim().toLowerCase() == 'mock';
   }

@@ -1,31 +1,31 @@
+import 'package:modular_pos/features/cash_session/domain/models/cash_session.dart';
+
 class CashSessionDto {
   const CashSessionDto({
     required this.id,
-    required this.status,
+    required this.tenantId,
+    required this.branchId,
+    required this.openedByAccountId,
     required this.openedAt,
-    required this.closedAt,
+    required this.status,
     required this.openingFloatUsd,
     required this.openingFloatKhr,
-    required this.totalPaidInUsd,
-    required this.totalPaidOutUsd,
-    required this.openedBy,
-    required this.createdBy,
-    required this.actorId,
-    required this.createdAt,
+    required this.closedAt,
+    required this.closedByAccountId,
+    required this.closeNote,
   });
 
   final String id;
-  final String status;
+  final String tenantId;
+  final String branchId;
+  final String openedByAccountId;
   final DateTime? openedAt;
-  final DateTime? closedAt;
+  final String status;
   final double openingFloatUsd;
   final double openingFloatKhr;
-  final double totalPaidInUsd;
-  final double totalPaidOutUsd;
-  final String? openedBy;
-  final String? createdBy;
-  final String? actorId;
-  final DateTime? createdAt;
+  final DateTime? closedAt;
+  final String? closedByAccountId;
+  final String? closeNote;
 
   factory CashSessionDto.fromJson(Map<String, dynamic> json) {
     DateTime? parseDate(String key) {
@@ -37,22 +37,17 @@ class CashSessionDto {
     double numOrZero(dynamic value) => (value is num) ? value.toDouble() : 0.0;
 
     return CashSessionDto(
-      id: json['id']?.toString() ?? json['sessionId']?.toString() ?? '',
-      status: json['status']?.toString() ?? '',
-      openedAt:
-          parseDate('openedAt') ??
-          parseDate('startedAt') ??
-          parseDate('createdAt'),
-      closedAt: parseDate('closedAt'),
+      id: json['id']?.toString() ?? '',
+      tenantId: json['tenantId']?.toString() ?? '',
+      branchId: json['branchId']?.toString() ?? '',
+      openedByAccountId: json['openedByAccountId']?.toString() ?? '',
+      openedAt: parseDate('openedAt'),
+      status: CashSessionStatuses.normalize(json['status']?.toString()),
       openingFloatUsd: numOrZero(json['openingFloatUsd']),
       openingFloatKhr: numOrZero(json['openingFloatKhr']),
-      totalPaidInUsd: numOrZero(json['totalPaidInUsd'] ?? json['totalPaidIn']),
-      totalPaidOutUsd:
-          numOrZero(json['totalPaidOutUsd'] ?? json['totalPaidOut']),
-      openedBy: json['openedBy']?.toString(),
-      createdBy: json['createdBy']?.toString(),
-      actorId: json['actorId']?.toString(),
-      createdAt: parseDate('createdAt'),
+      closedAt: parseDate('closedAt'),
+      closedByAccountId: json['closedByAccountId']?.toString(),
+      closeNote: json['closeNote']?.toString(),
     );
   }
 }

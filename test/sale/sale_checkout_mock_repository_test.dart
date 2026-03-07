@@ -343,7 +343,6 @@ void main() {
     );
 
     await cashSessionRepo.openSession(
-      branchId: 'branch-1',
       openingFloatUsd: 10,
       openingFloatKhr: 40000,
     );

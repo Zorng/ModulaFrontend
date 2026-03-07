@@ -156,11 +156,7 @@ class _AppHydrationListenerState extends ConsumerState<AppHydrationListener> {
     );
 
     unawaited(ref.read(policyNotifierProvider.notifier).load());
-    unawaited(
-      ref
-          .read(cashSessionViewModelProvider.notifier)
-          .load(branchIdOverride: branchId),
-    );
+    unawaited(ref.read(cashSessionViewModelProvider.notifier).load());
   }
 
   void _notifyContextClearedResources() {

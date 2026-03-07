@@ -1,0 +1,340 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:modular_pos/core/network/api_contract.dart';
+import 'package:modular_pos/features/auth/domain/models/auth_session.dart';
+import 'package:modular_pos/features/auth/domain/models/tenant_membership.dart';
+import 'package:modular_pos/features/auth/domain/models/user.dart';
+import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
+import 'package:modular_pos/features/cash_session/data/cash_session_error_codes.dart';
+import 'package:modular_pos/features/cash_session/data/cash_session_repository.dart';
+import 'package:modular_pos/features/cash_session/domain/models/cash_session.dart';
+import 'package:modular_pos/features/cash_session/ui/viewmodels/cash_session_viewmodel.dart';
+
+import '../test_utils/riverpod_test_utils.dart';
+
+class _MockCashSessionRepository extends Mock
+    implements CashSessionRepository {}
+
+class _TestLoginController extends LoginController {
+  @override
+  LoginState build() => const LoginState();
+
+  void setSession(AuthSession? session) {
+    state = LoginState(session: session);
+  }
+}
+
+AuthSession _buildSession({required String userId, required String role}) {
+  return AuthSession(
+    user: User(id: userId, name: 'Test User', role: role, tenantId: 'tenant-1'),
+    memberships: [
+      TenantMembership(
+        tenantId: 'tenant-1',
+        tenantName: 'Tenant 1',
+        role: role,
+        branches: const [],
+      ),
+    ],
+    activeTenantId: 'tenant-1',
+    accessToken: 'token-1',
+    refreshToken: 'refresh-1',
+    accessTokenExpiresAt: DateTime.now().add(const Duration(hours: 1)),
+    refreshTokenExpiresAt: DateTime.now().add(const Duration(days: 1)),
+  );
+}
+
+CashSession _buildCashSession({
+  String id = 'session-1',
+  String openedByAccountId = 'user-1',
+  String status = CashSessionStatuses.open,
+}) {
+  return CashSession(
+    id: id,
+    tenantId: 'tenant-1',
+    branchId: 'branch-1',
+    openedByAccountId: openedByAccountId,
+    openedAt: DateTime.utc(2026, 3, 7, 9),
+    status: status,
+    openingFloatUsd: 25,
+    openingFloatKhr: 100000,
+    closedAt: status == CashSessionStatuses.open
+        ? null
+        : DateTime.utc(2026, 3, 7, 17),
+    closedByAccountId: status == CashSessionStatuses.open ? null : 'closer-1',
+    closeNote: status == CashSessionStatuses.open ? null : 'Closed',
+    totalPaidInUsd: 5,
+    totalPaidOutUsd: 2,
+  );
+}
+
+void main() {
+  test('load clears state when there is no active session', () async {
+    final repo = _MockCashSessionRepository();
+    when(() => repo.getActiveSession()).thenAnswer((_) async => null);
+
+    final container = createTestContainer(
+      overrides: [
+        cashSessionRepositoryProvider.overrideWithValue(repo),
+        loginControllerProvider.overrideWith(_TestLoginController.new),
+      ],
+    );
+
+    final notifier = container.read(cashSessionViewModelProvider.notifier);
+    await notifier.load();
+
+    final state = container.read(cashSessionViewModelProvider);
+    expect(state.sessionStatus, SessionStatus.notStarted);
+    expect(state.session, isNull);
+    expect(state.error, isNull);
+  });
+
+  test('load keeps branch session even when opened by another user', () async {
+    final repo = _MockCashSessionRepository();
+    when(() => repo.getActiveSession()).thenAnswer(
+      (_) async => _buildCashSession(openedByAccountId: 'another-user'),
+    );
+
+    final container = createTestContainer(
+      overrides: [
+        cashSessionRepositoryProvider.overrideWithValue(repo),
+        loginControllerProvider.overrideWith(_TestLoginController.new),
+      ],
+    );
+
+    final login =
+        container.read(loginControllerProvider.notifier)
+            as _TestLoginController;
+    login.setSession(_buildSession(userId: 'current-user', role: 'cashier'));
+
+    final notifier = container.read(cashSessionViewModelProvider.notifier);
+    await notifier.load();
+
+    final state = container.read(cashSessionViewModelProvider);
+    expect(state.sessionId, 'session-1');
+    expect(state.sessionStatus, SessionStatus.open);
+    expect(state.error, isNull);
+  });
+
+  test('load sets canForceClose for manager on open session', () async {
+    final repo = _MockCashSessionRepository();
+    when(
+      () => repo.getActiveSession(),
+    ).thenAnswer((_) async => _buildCashSession());
+
+    final container = createTestContainer(
+      overrides: [
+        cashSessionRepositoryProvider.overrideWithValue(repo),
+        loginControllerProvider.overrideWith(_TestLoginController.new),
+      ],
+    );
+
+    final login =
+        container.read(loginControllerProvider.notifier)
+            as _TestLoginController;
+    login.setSession(_buildSession(userId: 'manager-1', role: 'manager'));
+
+    final notifier = container.read(cashSessionViewModelProvider.notifier);
+    await notifier.load();
+
+    final state = container.read(cashSessionViewModelProvider);
+    expect(state.canForceClose, isTrue);
+    expect(state.session?.openedByAccountId, 'user-1');
+  });
+
+  test(
+    'closeSession preserves session and stores backend error code',
+    () async {
+      final repo = _MockCashSessionRepository();
+      when(
+        () => repo.getActiveSession(),
+      ).thenAnswer((_) async => _buildCashSession());
+      when(
+        () => repo.closeSession(
+          sessionId: 'session-1',
+          countedCashUsd: 25,
+          countedCashKhr: 100000,
+          note: null,
+        ),
+      ).thenThrow(
+        const ApiClientException(
+          message: 'Unpaid tickets must be settled first.',
+          code: CashSessionErrorCodes.cashSessionUnpaidTicketsExist,
+        ),
+      );
+
+      final container = createTestContainer(
+        overrides: [
+          cashSessionRepositoryProvider.overrideWithValue(repo),
+          loginControllerProvider.overrideWith(_TestLoginController.new),
+        ],
+      );
+
+      final login =
+          container.read(loginControllerProvider.notifier)
+              as _TestLoginController;
+      login.setSession(_buildSession(userId: 'manager-1', role: 'manager'));
+
+      final notifier = container.read(cashSessionViewModelProvider.notifier);
+      await notifier.load();
+      await notifier.closeSession(countedUsd: 25, countedKhr: 100000);
+
+      final state = container.read(cashSessionViewModelProvider);
+      expect(state.sessionId, 'session-1');
+      expect(
+        state.errorCode,
+        CashSessionErrorCodes.cashSessionUnpaidTicketsExist,
+      );
+      expect(state.isLoading, isFalse);
+    },
+  );
+
+  test('startSession stores the opened branch session', () async {
+    final repo = _MockCashSessionRepository();
+    when(
+      () => repo.openSession(
+        openingFloatUsd: 25,
+        openingFloatKhr: 100000,
+        note: 'Shift start',
+      ),
+    ).thenAnswer((_) async => _buildCashSession());
+
+    final container = createTestContainer(
+      overrides: [
+        cashSessionRepositoryProvider.overrideWithValue(repo),
+        loginControllerProvider.overrideWith(_TestLoginController.new),
+      ],
+    );
+
+    final notifier = container.read(cashSessionViewModelProvider.notifier);
+    await notifier.startSession(
+      usdAmount: 25,
+      khrAmount: 100000,
+      note: 'Shift start',
+    );
+
+    final state = container.read(cashSessionViewModelProvider);
+    expect(state.sessionStatus, SessionStatus.open);
+    expect(state.sessionId, 'session-1');
+    expect(state.error, isNull);
+  });
+
+  test('startSession stores already-open conflict reason code', () async {
+    final repo = _MockCashSessionRepository();
+    when(
+      () => repo.openSession(
+        openingFloatUsd: 25,
+        openingFloatKhr: 100000,
+        note: 'Shift start',
+      ),
+    ).thenThrow(
+      const ApiClientException(
+        message: 'A session is already open.',
+        code: CashSessionErrorCodes.cashSessionAlreadyOpen,
+      ),
+    );
+
+    final container = createTestContainer(
+      overrides: [
+        cashSessionRepositoryProvider.overrideWithValue(repo),
+        loginControllerProvider.overrideWith(_TestLoginController.new),
+      ],
+    );
+
+    final notifier = container.read(cashSessionViewModelProvider.notifier);
+    await notifier.startSession(
+      usdAmount: 25,
+      khrAmount: 100000,
+      note: 'Shift start',
+    );
+
+    final state = container.read(cashSessionViewModelProvider);
+    expect(state.sessionStatus, SessionStatus.notStarted);
+    expect(state.errorCode, CashSessionErrorCodes.cashSessionAlreadyOpen);
+    expect(state.isLoading, isFalse);
+  });
+
+  test('closeSession updates state to closed on success', () async {
+    final repo = _MockCashSessionRepository();
+    when(
+      () => repo.getActiveSession(),
+    ).thenAnswer((_) async => _buildCashSession());
+    when(
+      () => repo.closeSession(
+        sessionId: 'session-1',
+        countedCashUsd: 25,
+        countedCashKhr: 100000,
+        note: 'End of shift',
+      ),
+    ).thenAnswer(
+      (_) async => _buildCashSession(status: CashSessionStatuses.closed),
+    );
+
+    final container = createTestContainer(
+      overrides: [
+        cashSessionRepositoryProvider.overrideWithValue(repo),
+        loginControllerProvider.overrideWith(_TestLoginController.new),
+      ],
+    );
+
+    final login =
+        container.read(loginControllerProvider.notifier)
+            as _TestLoginController;
+    login.setSession(_buildSession(userId: 'manager-1', role: 'manager'));
+
+    final notifier = container.read(cashSessionViewModelProvider.notifier);
+    await notifier.load();
+    await notifier.closeSession(
+      countedUsd: 25,
+      countedKhr: 100000,
+      note: 'End of shift',
+    );
+
+    final state = container.read(cashSessionViewModelProvider);
+    expect(state.sessionStatus, SessionStatus.closed);
+    expect(state.endTime, isNotNull);
+    expect(state.error, isNull);
+  });
+
+  test('forceCloseSession updates state to force closed', () async {
+    final repo = _MockCashSessionRepository();
+    when(
+      () => repo.getActiveSession(),
+    ).thenAnswer((_) async => _buildCashSession());
+    when(
+      () => repo.forceCloseSession(
+        sessionId: 'session-1',
+        countedCashUsd: 25,
+        countedCashKhr: 100000,
+        reason: 'Supervisor override',
+        note: null,
+      ),
+    ).thenAnswer(
+      (_) async => _buildCashSession(status: CashSessionStatuses.forceClosed),
+    );
+
+    final container = createTestContainer(
+      overrides: [
+        cashSessionRepositoryProvider.overrideWithValue(repo),
+        loginControllerProvider.overrideWith(_TestLoginController.new),
+      ],
+    );
+
+    final login =
+        container.read(loginControllerProvider.notifier)
+            as _TestLoginController;
+    login.setSession(_buildSession(userId: 'manager-1', role: 'manager'));
+
+    final notifier = container.read(cashSessionViewModelProvider.notifier);
+    await notifier.load();
+    await notifier.forceCloseSession(
+      countedUsd: 25,
+      countedKhr: 100000,
+      reason: 'Supervisor override',
+    );
+
+    final state = container.read(cashSessionViewModelProvider);
+    expect(state.sessionStatus, SessionStatus.forceClosed);
+    expect(state.canForceClose, isFalse);
+    expect(state.error, isNull);
+  });
+}

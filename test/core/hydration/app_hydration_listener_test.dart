@@ -72,9 +72,9 @@ class _TestCashSessionViewModel extends CashSessionViewModel {
   CashSessionState build() => const CashSessionState();
 
   @override
-  Future<void> load({String? registerId, String? branchIdOverride}) {
+  Future<void> load() {
     loadCount += 1;
-    loadedBranchIds.add(branchIdOverride);
+    loadedBranchIds.add(ref.read(activeBranchContextIdProvider));
     return Future.value();
   }
 
@@ -240,6 +240,65 @@ void main() {
       expect(policy.resetCount, 2);
       expect(cash.resetCount, 2);
       expect(runtimeResource.clearedCount, 2);
+    },
+  );
+
+  testWidgets(
+    'does not re-trigger cash session refresh when the active branch is unchanged',
+    (tester) async {
+      final container = createTestContainer(
+        overrides: [
+          loginControllerProvider.overrideWith(_TestLoginController.new),
+          policyNotifierProvider.overrideWith(_TestPolicyNotifier.new),
+          cashSessionViewModelProvider.overrideWith(
+            _TestCashSessionViewModel.new,
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        _TestHarness(
+          container: container,
+          child: const AppHydrationListener(child: SizedBox.shrink()),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 1));
+
+      final login =
+          container.read(loginControllerProvider.notifier)
+              as _TestLoginController;
+      final cash =
+          container.read(cashSessionViewModelProvider.notifier)
+              as _TestCashSessionViewModel;
+
+      login.setSession(
+        _buildSession(
+          tenantId: 'tenant-1',
+          accessToken: 'token-1',
+          branches: const [
+            UserBranch(
+              id: 'assign-a',
+              name: 'Branch A',
+              role: 'admin',
+              active: true,
+              branchId: 'branch-a',
+            ),
+          ],
+        ),
+      );
+      await tester.pump();
+
+      expect(cash.loadCount, 1);
+      expect(cash.loadedBranchIds, ['branch-a']);
+
+      container
+          .read(authActiveBranchOverrideProvider.notifier)
+          .setOverride('branch-a');
+      await tester.pump();
+
+      expect(cash.loadCount, 1);
+      expect(cash.loadedBranchIds, ['branch-a']);
     },
   );
 

@@ -3,22 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/features/cash_session/ui/viewmodels/modal_form_state_provider.dart';
 import 'package:modular_pos/features/cash_session/ui/viewmodels/unsaved_input_provider.dart';
 
-/// Card for starting a cash session with three states:
-/// 1. No scheduled shift - needs request
-/// 2. Request pending - waiting for approval
-/// 3. Approved to start - can start session
+/// Card for starting a branch-scoped cash session with the contract fields only.
 class StartSessionCard extends ConsumerStatefulWidget {
-  const StartSessionCard({
-    super.key,
-    required this.onSessionStarted,
-    required this.onRequestSession,
-    this.sessionRequestStatus = SessionRequestStatus.noShift,
-  });
+  const StartSessionCard({super.key, required this.onSessionStarted});
 
   final void Function(double usdAmount, double khrAmount, String note)
   onSessionStarted;
-  final VoidCallback onRequestSession;
-  final SessionRequestStatus sessionRequestStatus;
 
   @override
   ConsumerState<StartSessionCard> createState() => _StartSessionCardState();
@@ -93,13 +83,6 @@ class _StartSessionCardState extends ConsumerState<StartSessionCard> {
     final textTheme = theme.textTheme;
     final colorScheme = theme.colorScheme;
 
-    final isApproved =
-        widget.sessionRequestStatus == SessionRequestStatus.approved;
-    final isPending =
-        widget.sessionRequestStatus == SessionRequestStatus.pending;
-    final isNoShift =
-        widget.sessionRequestStatus == SessionRequestStatus.noShift;
-
     return Card(
       color: Colors.white,
       elevation: 0,
@@ -117,11 +100,6 @@ class _StartSessionCardState extends ConsumerState<StartSessionCard> {
             ),
             const SizedBox(height: 16),
 
-            // Status Banner
-            _buildStatusBanner(textTheme, colorScheme),
-
-            const SizedBox(height: 16),
-
             // Opening Float (USD)
             Text(
               'Opening Float (USD)',
@@ -132,7 +110,6 @@ class _StartSessionCardState extends ConsumerState<StartSessionCard> {
             const SizedBox(height: 8),
             TextField(
               controller: _usdController,
-              enabled: isApproved,
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
               ),
@@ -142,7 +119,7 @@ class _StartSessionCardState extends ConsumerState<StartSessionCard> {
                   color: colorScheme.outline,
                 ),
                 filled: true,
-                fillColor: isApproved ? Colors.white : const Color(0xFFF7F7F7),
+                fillColor: Colors.white,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
                   borderSide: BorderSide(
@@ -186,7 +163,6 @@ class _StartSessionCardState extends ConsumerState<StartSessionCard> {
             const SizedBox(height: 8),
             TextField(
               controller: _khrController,
-              enabled: isApproved,
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
               ),
@@ -196,7 +172,7 @@ class _StartSessionCardState extends ConsumerState<StartSessionCard> {
                   color: colorScheme.outline,
                 ),
                 filled: true,
-                fillColor: isApproved ? Colors.white : const Color(0xFFF7F7F7),
+                fillColor: Colors.white,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
                   borderSide: BorderSide(
@@ -240,7 +216,6 @@ class _StartSessionCardState extends ConsumerState<StartSessionCard> {
             const SizedBox(height: 8),
             TextField(
               controller: _noteController,
-              enabled: isApproved,
               maxLines: 3,
               decoration: InputDecoration(
                 hintText: 'Enter note',
@@ -248,7 +223,7 @@ class _StartSessionCardState extends ConsumerState<StartSessionCard> {
                   color: colorScheme.outline,
                 ),
                 filled: true,
-                fillColor: isApproved ? Colors.white : const Color(0xFFF7F7F7),
+                fillColor: Colors.white,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
                   borderSide: BorderSide(
@@ -286,196 +261,54 @@ class _StartSessionCardState extends ConsumerState<StartSessionCard> {
             SizedBox(
               width: double.infinity,
               child: FilledButton(
-                onPressed: isApproved
-                    ? () {
-                        final usdText = _usdController.text.trim();
-                        final khrText = _khrController.text.trim();
+                onPressed: () {
+                  final usdText = _usdController.text.trim();
+                  final khrText = _khrController.text.trim();
 
-                        // Validate: at least one field must have a valid value
-                        final usd = double.tryParse(usdText);
-                        final khr = double.tryParse(khrText);
+                  final usd = double.tryParse(usdText);
+                  final khr = double.tryParse(khrText);
 
-                        if (usd == null && khr == null) {
-                          // Both fields are empty or invalid
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Please enter a valid opening float for at least one currency (USD or KHR)',
-                              ),
-                              backgroundColor: Color(0xFFED533C),
-                            ),
-                          );
-                          return;
-                        }
+                  if (usd == null && khr == null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Please enter a valid opening float for at least one currency (USD or KHR)',
+                        ),
+                        backgroundColor: Color(0xFFED533C),
+                      ),
+                    );
+                    return;
+                  }
 
-                        // Use 0.0 as default for empty fields
-                        final finalUsd = usd ?? 0.0;
-                        final finalKhr = khr ?? 0.0;
-                        final note = _noteController.text;
+                  final finalUsd = usd ?? 0.0;
+                  final finalKhr = khr ?? 0.0;
+                  final note = _noteController.text;
 
-                        // Clear form state and unsaved status
-                        ref.read(startSessionFormProvider.notifier).clear();
-                        ref
-                            .read(unsavedInputProvider.notifier)
-                            .markStartSessionUnsaved(false);
+                  ref.read(startSessionFormProvider.notifier).clear();
+                  ref
+                      .read(unsavedInputProvider.notifier)
+                      .markStartSessionUnsaved(false);
 
-                        widget.onSessionStarted(finalUsd, finalKhr, note);
-                      }
-                    : null,
+                  widget.onSessionStarted(finalUsd, finalKhr, note);
+                },
                 style: FilledButton.styleFrom(
-                  backgroundColor: isApproved
-                      ? Theme.of(context).colorScheme.primary
-                      : const Color(0xFFFFECE8),
-                  foregroundColor: isApproved
-                      ? Theme.of(context).colorScheme.onPrimary
-                      : const Color(0xFFB33F2E),
-                  disabledBackgroundColor: const Color(0xFFFFECE8),
-                  disabledForegroundColor: const Color(0xFFB33F2E),
+                  backgroundColor: Theme.of(context).colorScheme.primary,
+                  foregroundColor: Theme.of(context).colorScheme.onPrimary,
                   minimumSize: const Size.fromHeight(48),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
                   textStyle: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                    letterSpacing: 0.1,
+                    fontSize: 16,
                   ),
                 ),
 
                 child: const Text('Start Cash Session'),
               ),
             ),
-
-            // Request Button (only show when not approved)
-            if (!isApproved) ...[
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton(
-                  onPressed: isNoShift ? widget.onRequestSession : null,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: isPending
-                        ? colorScheme.onSurfaceVariant
-                        : colorScheme.primary,
-                    side: BorderSide(
-                      color: isPending
-                          ? colorScheme.outlineVariant
-                          : colorScheme.primary,
-                      width: 1,
-                    ),
-                    backgroundColor: Colors.transparent,
-                    minimumSize: const Size.fromHeight(48),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      if (isPending)
-                        Icon(
-                          Icons.check_circle_outline,
-                          size: 20,
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                      if (isPending) const SizedBox(width: 8),
-                      if (isNoShift)
-                        Icon(
-                          Icons.send_outlined,
-                          size: 20,
-                          color: colorScheme.primary,
-                        ),
-                      if (isNoShift) const SizedBox(width: 8),
-                      Text(
-                        isPending
-                            ? 'Request Sent'
-                            : 'Request to Open Cash Session',
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
           ],
         ),
       ),
     );
   }
-
-  Widget _buildStatusBanner(TextTheme textTheme, ColorScheme colorScheme) {
-    final status = widget.sessionRequestStatus;
-
-    final Map<SessionRequestStatus, Map<String, dynamic>> statusConfig = {
-      SessionRequestStatus.noShift: {
-        'icon': Icons.schedule_outlined,
-        'title': 'No scheduled shift',
-        'message': 'Send a request to open the cash session',
-        'bgColor': const Color(0xFFFFF5F2),
-        'iconColor': const Color(0xFFED533C),
-        'titleColor': const Color(0xFFED533C),
-        'borderColor': const Color(0xFFF5D2CB),
-        'messageColor': const Color(0xFFC14A37),
-      },
-      SessionRequestStatus.pending: {
-        'icon': Icons.pending_outlined,
-        'title': 'Request Pending',
-        'message': 'Waiting for admin approval to open cash session.',
-        'bgColor': const Color(0xFFFFF7ED),
-        'iconColor': const Color(0xFFF59E0B),
-        'titleColor': const Color(0xFFF59E0B),
-        'borderColor': const Color(0xFFFAD7A0),
-        'messageColor': const Color(0xFFD08A0A),
-      },
-      SessionRequestStatus.approved: {
-        'icon': Icons.check_circle_outline,
-        'title': 'Approved to Start',
-        'message': 'You can now start the cash session.',
-        'bgColor': const Color(0xFFECFDF5),
-        'iconColor': const Color(0xFF10B981),
-        'titleColor': const Color(0xFF10B981),
-        'borderColor': const Color(0xFFA7EBD3),
-        'messageColor': const Color(0xFF0E9A6D),
-      },
-    };
-
-    final config = statusConfig[status]!;
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: config['bgColor'],
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: config['borderColor'], width: 1),
-      ),
-      child: Row(
-        children: [
-          Icon(config['icon'], size: 20, color: config['iconColor']),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  config['title'],
-                  style: textTheme.labelLarge?.copyWith(
-                    color: config['titleColor'],
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  config['message'],
-                  style: textTheme.bodySmall?.copyWith(
-                    color: config['messageColor'],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
-
-enum SessionRequestStatus { noShift, pending, approved }

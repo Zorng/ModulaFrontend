@@ -20,7 +20,20 @@ class CashSessionDetailsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isClosed = status == 'Closed';
+    final statusStyle = switch (status) {
+      'Force Closed' => (
+        textColor: const Color(0xFFB45309),
+        backgroundColor: const Color(0xFFFFF7ED),
+      ),
+      'Closed' => (
+        textColor: const Color(0xFFED533C),
+        backgroundColor: const Color(0xFFFFF5F2),
+      ),
+      _ => (
+        textColor: const Color(0xFF529E86),
+        backgroundColor: const Color(0xFFE3F8ED),
+      ),
+    };
 
     return Card(
       color: Colors.white,
@@ -45,29 +58,45 @@ class CashSessionDetailsCard extends StatelessWidget {
               label: 'Open Float (KHR)',
               value: _khrFormatter.format(openFloatKhr),
             ),
-        const SizedBox(height: 8),
-        _buildInfoRow(
-          label: 'Start Cash Session',
-          value: DateFormat('hh:mm a').format(startTime.toLocal()),
-        ),
-        const SizedBox(height: 8),
-        _buildInfoRow(
-          label: 'End Cash Session',
-          value: endTime != null
-              ? DateFormat('hh:mm a').format(endTime!.toLocal())
-              : '--:--',
-        ),
+            const SizedBox(height: 8),
+            _buildInfoRow(
+              label: 'Start Cash Session',
+              value: DateFormat('hh:mm a').format(startTime.toLocal()),
+            ),
+            const SizedBox(height: 8),
+            _buildInfoRow(
+              label: 'End Cash Session',
+              value: endTime != null
+                  ? DateFormat('hh:mm a').format(endTime!.toLocal())
+                  : '--:--',
+            ),
             const SizedBox(height: 8),
             _buildStatusDisplay(
               label: 'Current Status',
               statusText: status,
-              statusTextColor: isClosed
-                  ? const Color(0xFFED533C)
-                  : const Color(0xFF529E86),
-              statusBackgroundColor: isClosed
-                  ? const Color(0xFFFFF5F2)
-                  : const Color(0xFFE3F8ED),
+              statusTextColor: statusStyle.textColor,
+              statusBackgroundColor: statusStyle.backgroundColor,
             ),
+            if (status == 'Force Closed') ...[
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF7ED),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFFF5C58A)),
+                ),
+                child: const Text(
+                  'This session was force closed and should be reviewed before opening a new branch session.',
+                  style: TextStyle(
+                    color: Color(0xFFB45309),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),

@@ -46,7 +46,7 @@ class CashSessionBottomActionArea extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           Text(
-            message ?? 'Manage your cash session for the selected register.',
+            message ?? 'Manage your cash session for the selected branch.',
             style: const TextStyle(fontSize: 12, color: Color(0xB2393838)),
           ),
         ],
