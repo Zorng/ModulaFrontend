@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http_parser/http_parser.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:modular_pos/core/network/api_contract.dart';
 import 'package:modular_pos/core/network/idempotency_key_store.dart';
@@ -207,7 +208,16 @@ void main() {
     final api = InventoryApi(dio);
     await api.createStockItem(
       {'name': 'Whole Milk', 'baseUnit': 'ml', 'categoryId': 'cat-1'},
-      imageBytes: [1, 2, 3],
+      imageBytes: const [
+        0x89,
+        0x50,
+        0x4E,
+        0x47,
+        0x0D,
+        0x0A,
+        0x1A,
+        0x0A,
+      ],
     );
 
     final uploadCaptured =
@@ -225,6 +235,11 @@ void main() {
       isTrue,
     );
     expect(uploadCaptured.files.single.key, 'image');
+    expect(uploadCaptured.files.single.value.filename, 'upload.png');
+    expect(
+      uploadCaptured.files.single.value.contentType,
+      MediaType('image', 'png'),
+    );
 
     verify(
       () => dio.post<Map<String, dynamic>>(
@@ -238,6 +253,77 @@ void main() {
         options: any(named: 'options'),
       ),
     ).called(1);
+  });
+
+  test('createStockItem infers multipart image type from bytes', () async {
+    final dio = _MockDio();
+    when(
+      () => dio.post<dynamic>(
+        '/v0/media/images/upload',
+        data: any(named: 'data'),
+      ),
+    ).thenAnswer(
+      (_) async => Response<dynamic>(
+        requestOptions: RequestOptions(path: '/v0/media/images/upload'),
+        data: {
+          'success': true,
+          'data': {'imageUrl': 'https://cdn.example.com/stock-item.jpg'},
+        },
+      ),
+    );
+    when(
+      () => dio.post<Map<String, dynamic>>(
+        '/v0/inventory/items',
+        data: any(named: 'data'),
+        options: any(named: 'options'),
+      ),
+    ).thenAnswer(
+      (_) async => Response<Map<String, dynamic>>(
+        requestOptions: RequestOptions(path: '/v0/inventory/items'),
+        data: {
+          'success': true,
+          'data': {
+            'id': 'item-1',
+            'tenantId': 'tenant-1',
+            'name': 'Whole Milk',
+            'baseUnit': 'ml',
+            'imageUrl': 'https://cdn.example.com/stock-item.jpg',
+            'status': 'ACTIVE',
+            'createdAt': '2026-02-20T00:00:00.000Z',
+            'updatedAt': '2026-02-21T00:00:00.000Z',
+          },
+        },
+      ),
+    );
+
+    final api = InventoryApi(dio);
+    await api.createStockItem(
+      {'name': 'Whole Milk', 'baseUnit': 'ml'},
+      imageBytes: const [
+        0x89,
+        0x50,
+        0x4E,
+        0x47,
+        0x0D,
+        0x0A,
+        0x1A,
+        0x0A,
+      ],
+    );
+
+    final uploadCaptured =
+        verify(
+              () => dio.post<dynamic>(
+                '/v0/media/images/upload',
+                data: captureAny(named: 'data'),
+              ),
+            ).captured.single
+            as FormData;
+    expect(uploadCaptured.files.single.value.filename, 'upload.png');
+    expect(
+      uploadCaptured.files.single.value.contentType,
+      MediaType('image', 'png'),
+    );
   });
 
   test(

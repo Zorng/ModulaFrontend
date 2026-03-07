@@ -38,7 +38,7 @@ class _SpyStockInventoryController extends StockInventoryController {
   StockInventoryState build() => const StockInventoryState();
 
   @override
-  Future<void> loadStockItems({String? branchId}) async {
+  Future<void> loadStockItems({String? branchId, String status = 'all'}) async {
     loadCalled = true;
   }
 }
@@ -50,6 +50,19 @@ void main() {
   setUpAll(() {
     registerFallbackValue(
       const InventoryCategory(id: 'fallback', name: 'Fallback', isActive: true),
+    );
+    registerFallbackValue(
+      const StockItem(
+        id: 'fallback-item',
+        name: 'Fallback Item',
+        baseUnit: 'pcs',
+        pieceSize: 1,
+        branchId: '',
+        branchName: '',
+        onHand: 0,
+        minThreshold: 0,
+        isActive: true,
+      ),
     );
   });
 
@@ -117,7 +130,10 @@ void main() {
       final journalRepo = _MockJournalRepository();
 
       when(
-        () => branchStockRepo.fetchStockItems(branchId: any(named: 'branchId')),
+        () => branchStockRepo.fetchStockItems(
+          branchId: any(named: 'branchId'),
+          status: any(named: 'status'),
+        ),
       ).thenAnswer(
         (_) async => const [
           StockItem(
@@ -135,7 +151,10 @@ void main() {
         ],
       );
       when(
-        () => branchStockRepo.fetchOnHand(branchId: any(named: 'branchId')),
+        () => branchStockRepo.fetchOnHand(
+          branchId: any(named: 'branchId'),
+          status: any(named: 'status'),
+        ),
       ).thenAnswer((_) async => const []);
 
       final container = createTestContainer(
@@ -181,7 +200,10 @@ void main() {
       final journalRepo = _MockJournalRepository();
 
       when(
-        () => branchStockRepo.fetchStockItems(branchId: any(named: 'branchId')),
+        () => branchStockRepo.fetchStockItems(
+          branchId: any(named: 'branchId'),
+          status: any(named: 'status'),
+        ),
       ).thenThrow(
         const ApiClientException(
           message: 'Branch context is missing',
@@ -190,7 +212,10 @@ void main() {
         ),
       );
       when(
-        () => branchStockRepo.fetchOnHand(branchId: any(named: 'branchId')),
+        () => branchStockRepo.fetchOnHand(
+          branchId: any(named: 'branchId'),
+          status: any(named: 'status'),
+        ),
       ).thenThrow(
         const ApiClientException(
           message: 'Branch context is missing',
@@ -383,6 +408,86 @@ void main() {
   );
 
   test(
+    'StockInventoryController.updateStockItem returns saved item with imageUrl and updates state',
+    () async {
+      final stockRepo = _MockStockItemRepository();
+      final branchStockRepo = _MockBranchStockRepository();
+      final journalRepo = _MockJournalRepository();
+
+      const updatedDto = StockItem(
+        id: 'item-1',
+        name: 'Iced Coffee Updated',
+        categoryId: 'cat-1',
+        baseUnit: 'ml',
+        pieceSize: 1,
+        branchId: 'branch-1',
+        branchName: '',
+        onHand: 12,
+        minThreshold: 3,
+        isActive: true,
+        imageUrl: 'https://cdn.example.com/item-1.jpg',
+      );
+
+      when(
+        () => stockRepo.updateStockItem(
+          any(),
+          imagePath: any(named: 'imagePath'),
+          imageBytes: any(named: 'imageBytes'),
+        ),
+      ).thenAnswer((_) async => updatedDto);
+
+      final container = createTestContainer(
+        overrides: [
+          stockItemRepositoryProvider.overrideWithValue(stockRepo),
+          branchStockRepositoryProvider.overrideWithValue(branchStockRepo),
+          inventoryJournalRepositoryProvider.overrideWithValue(journalRepo),
+        ],
+      );
+
+      final notifier = container.read(
+        stockInventoryControllerProvider.notifier,
+      );
+      notifier.state = const StockInventoryState(
+        items: [
+          StockItem(
+            id: 'item-1',
+            name: 'Iced Coffee',
+            categoryId: 'cat-1',
+            baseUnit: 'ml',
+            pieceSize: 1,
+            branchId: 'branch-1',
+            branchName: 'Main Branch',
+            onHand: 12,
+            minThreshold: 3,
+            isActive: true,
+          ),
+        ],
+      );
+
+      final saved = await notifier.updateStockItem(
+        const StockItem(
+          id: 'item-1',
+          name: 'Iced Coffee Updated',
+          categoryId: 'cat-1',
+          baseUnit: 'ml',
+          pieceSize: 1,
+          branchId: 'branch-1',
+          branchName: 'Main Branch',
+          onHand: 12,
+          minThreshold: 3,
+          isActive: true,
+        ),
+        imageBytes: [1, 2, 3],
+      );
+
+      final state = container.read(stockInventoryControllerProvider);
+      expect(saved.imageUrl, 'https://cdn.example.com/item-1.jpg');
+      expect(state.items.first.imageUrl, 'https://cdn.example.com/item-1.jpg');
+      expect(state.items.first.name, 'Iced Coffee Updated');
+    },
+  );
+
+  test(
     'StockInventoryController.restoreStockItem marks item active in state',
     () async {
       final stockRepo = _MockStockItemRepository();
@@ -472,8 +577,81 @@ void main() {
       final state = container.read(stockInventoryControllerProvider);
       expect(state.batches, hasLength(1));
       expect(state.batches.first.id, 'batch-1');
+      expect(state.restockBatchOffset, 1);
+      expect(state.hasMoreRestockBatches, isFalse);
       expect(state.error, isNull);
       expect(state.errorCode, isNull);
+    },
+  );
+
+  test(
+    'StockInventoryController.loadMoreRestockBatches appends next page',
+    () async {
+      final stockRepo = _MockStockItemRepository();
+      final branchStockRepo = _MockBranchStockRepository();
+      final journalRepo = _MockJournalRepository();
+
+      when(
+        () => journalRepo.fetchRestockBatches(
+          status: 'active',
+          stockItemId: 'item-1',
+          limit: 1,
+          offset: 0,
+        ),
+      ).thenAnswer(
+        (_) async => const [
+          StockBatch(
+            id: 'batch-1',
+            stockItemId: 'item-1',
+            branchId: 'branch-1',
+            onHand: 2400,
+            receivedDate: '2026-02-20',
+          ),
+        ],
+      );
+      when(
+        () => journalRepo.fetchRestockBatches(
+          status: 'active',
+          stockItemId: 'item-1',
+          limit: 1,
+          offset: 1,
+        ),
+      ).thenAnswer(
+        (_) async => const [
+          StockBatch(
+            id: 'batch-2',
+            stockItemId: 'item-1',
+            branchId: 'branch-1',
+            onHand: 1200,
+            receivedDate: '2026-02-21',
+          ),
+        ],
+      );
+
+      final container = createTestContainer(
+        overrides: [
+          stockItemRepositoryProvider.overrideWithValue(stockRepo),
+          branchStockRepositoryProvider.overrideWithValue(branchStockRepo),
+          inventoryJournalRepositoryProvider.overrideWithValue(journalRepo),
+        ],
+      );
+
+      final notifier = container.read(
+        stockInventoryControllerProvider.notifier,
+      );
+      await notifier.loadRestockBatches(
+        stockItemId: 'item-1',
+        limit: 1,
+        offset: 0,
+      );
+      await notifier.loadMoreRestockBatches();
+
+      final state = container.read(stockInventoryControllerProvider);
+      expect(state.batches, hasLength(2));
+      expect(state.batches.first.id, 'batch-1');
+      expect(state.batches.last.id, 'batch-2');
+      expect(state.restockBatchOffset, 2);
+      expect(state.hasMoreRestockBatches, isTrue);
     },
   );
 
@@ -612,13 +790,16 @@ void main() {
           qty: 2400,
           receivedAt: any(named: 'receivedAt'),
           expiryDate: '2026-03-20',
-          supplierName: any(named: 'supplierName'),
+          supplierName: 'Farm Supplier Co.',
           purchaseCostUsd: 15.75,
           note: 'Morning restock',
         ),
       ).thenAnswer((_) async => null);
       when(
-        () => branchStockRepo.fetchStockItems(branchId: 'branch-1'),
+        () => branchStockRepo.fetchStockItems(
+          branchId: 'branch-1',
+          status: any(named: 'status'),
+        ),
       ).thenAnswer(
         (_) async => const [
           StockItem(
@@ -636,7 +817,10 @@ void main() {
         ],
       );
       when(
-        () => branchStockRepo.fetchOnHand(branchId: 'branch-1'),
+        () => branchStockRepo.fetchOnHand(
+          branchId: 'branch-1',
+          status: any(named: 'status'),
+        ),
       ).thenAnswer((_) async => const []);
 
       final container = createTestContainer(
@@ -672,25 +856,27 @@ void main() {
         baseQty: 2400,
         restockDate: '2026-02-20',
         expiryDate: '2026-03-20',
+        supplierName: 'Farm Supplier Co.',
         purchaseCostUsd: 15.75,
         note: 'Morning restock',
         branchId: 'branch-1',
       );
 
-      final receivedAtCaptured =
-          verify(
-                () => journalRepo.createRestockBatch(
-                  branchId: 'branch-1',
-                  stockItemId: 'item-1',
-                  qty: 2400,
-                  receivedAt: captureAny(named: 'receivedAt'),
-                  expiryDate: '2026-03-20',
-                  supplierName: captureAny(named: 'supplierName'),
-                  purchaseCostUsd: 15.75,
-                  note: 'Morning restock',
-                ),
-              ).captured.first
-              as String?;
+      final captured = verify(
+        () => journalRepo.createRestockBatch(
+          branchId: 'branch-1',
+          stockItemId: 'item-1',
+          qty: 2400,
+          receivedAt: captureAny(named: 'receivedAt'),
+          expiryDate: '2026-03-20',
+          supplierName: captureAny(named: 'supplierName'),
+          purchaseCostUsd: 15.75,
+          note: 'Morning restock',
+        ),
+      ).captured;
+      final receivedAtCaptured = captured.first as String?;
+      final supplierNameCaptured = captured.last as String?;
+      expect(supplierNameCaptured, 'Farm Supplier Co.');
       expect(receivedAtCaptured, isNotNull);
       expect(receivedAtCaptured!.contains('T'), isTrue);
       expect(receivedAtCaptured.endsWith('Z'), isTrue);
@@ -752,7 +938,9 @@ void main() {
       );
 
       await notifier.applyInventoryAdjustment(
+        stockItemId: 'item-1',
         batchId: 'batch-1',
+        style: 'DELTA',
         delta: -1,
         note: 'Spilled',
       );
@@ -774,7 +962,85 @@ void main() {
   );
 
   test(
-    'StockInventoryController.applyInventoryAdjustment throws when negative',
+    'StockInventoryController.applyInventoryAdjustment supports SET_TO_COUNT and updates local on-hand',
+    () async {
+      final stockRepo = _MockStockItemRepository();
+      final branchStockRepo = _MockBranchStockRepository();
+      final journalRepo = _MockJournalRepository();
+
+      when(
+        () => journalRepo.applyAdjustment(
+          stockItemId: 'item-1',
+          style: 'SET_TO_COUNT',
+          deltaInBaseUnit: null,
+          countedOnHandInBaseUnit: 7,
+          reasonCode: 'COUNT_CORRECTION',
+          note: 'Counted again',
+        ),
+      ).thenAnswer((_) async => 7);
+
+      final container = createTestContainer(
+        overrides: [
+          stockItemRepositoryProvider.overrideWithValue(stockRepo),
+          branchStockRepositoryProvider.overrideWithValue(branchStockRepo),
+          inventoryJournalRepositoryProvider.overrideWithValue(journalRepo),
+        ],
+      );
+
+      final notifier = container.read(
+        stockInventoryControllerProvider.notifier,
+      );
+      notifier.state = const StockInventoryState(
+        items: [
+          StockItem(
+            id: 'item-1',
+            name: 'Iced Coffee',
+            baseUnit: 'ml',
+            pieceSize: 1,
+            branchId: 'branch-1',
+            branchName: 'Main Branch',
+            onHand: 2,
+            minThreshold: 1,
+            isActive: true,
+          ),
+        ],
+        batches: [
+          StockBatch(
+            id: 'batch-1',
+            stockItemId: 'item-1',
+            branchId: 'branch-1',
+            onHand: 2,
+            receivedDate: '2025-12-20',
+          ),
+        ],
+      );
+
+      await notifier.applyInventoryAdjustment(
+        stockItemId: 'item-1',
+        batchId: 'batch-1',
+        style: 'SET_TO_COUNT',
+        countedOnHandInBaseUnit: 7,
+        note: 'Counted again',
+      );
+
+      final state = container.read(stockInventoryControllerProvider);
+      expect(state.items.first.onHand, 7);
+      expect(state.batches.first.onHand, 7);
+      verify(
+        () => journalRepo.applyAdjustment(
+          stockItemId: 'item-1',
+          style: 'SET_TO_COUNT',
+          deltaInBaseUnit: null,
+          countedOnHandInBaseUnit: 7,
+          reasonCode: 'COUNT_CORRECTION',
+          note: 'Counted again',
+        ),
+      ).called(1);
+    },
+  );
+
+  test(
+    'StockInventoryController.applyInventoryAdjustment throws coded quantity error when negative',
     () async {
       final stockRepo = _MockStockItemRepository();
       final branchStockRepo = _MockBranchStockRepository();
@@ -816,10 +1082,24 @@ void main() {
         ],
       );
 
-      expect(
-        () => notifier.applyInventoryAdjustment(batchId: 'batch-1', delta: -5),
-        throwsA(isA<StateError>()),
+      await expectLater(
+        notifier.applyInventoryAdjustment(
+          stockItemId: 'item-1',
+          batchId: 'batch-1',
+          style: 'DELTA',
+          delta: -5,
+        ),
+        throwsA(
+          isA<ApiClientException>().having(
+            (e) => e.code,
+            'code',
+            'INVENTORY_QUANTITY_INVALID',
+          ),
+        ),
       );
+
+      final state = container.read(stockInventoryControllerProvider);
+      expect(state.errorCode, InventoryErrorCode.quantityInvalid);
     },
   );
 
@@ -831,8 +1111,8 @@ void main() {
       () => journalRepo.fetch(
         stockItemId: any(named: 'stockItemId'),
         reason: null,
-        limit: 500,
-        offset: 0,
+        limit: any(named: 'limit'),
+        offset: any(named: 'offset'),
       ),
     ).thenAnswer(
       (_) async => [
@@ -901,8 +1181,8 @@ void main() {
         () => journalRepo.fetch(
           stockItemId: any(named: 'stockItemId'),
           reason: null,
-          limit: 500,
-          offset: 0,
+          limit: any(named: 'limit'),
+          offset: any(named: 'offset'),
         ),
       ).thenThrow(
         const ApiClientException(
@@ -934,4 +1214,107 @@ void main() {
       expect(state.errorCode, InventoryErrorCode.branchContextRequired);
     },
   );
+
+  test('InventoryJournalController.loadMore appends paged entries', () async {
+    final journalRepo = _MockInventoryJournalRepository();
+    final stockRepo = _MockStockItemRepository();
+
+    when(
+      () => journalRepo.fetch(
+        stockItemId: any(named: 'stockItemId'),
+        reason: null,
+        limit: 1,
+        offset: 0,
+      ),
+    ).thenAnswer(
+      (_) async => [
+        InventoryJournalEntry(
+          id: 'entry-1',
+          itemId: 'item-1',
+          itemName: 'Item',
+          branchId: 'branch-1',
+          branchName: 'Main Branch',
+          reason: InventoryJournalReason.restock,
+          delta: 5,
+          note: 'Restock',
+          actor: 'Alex',
+          createdAt: DateTime(2025, 12, 20),
+          occurredAt: DateTime(2025, 12, 20),
+        ),
+      ],
+    );
+    when(
+      () => journalRepo.fetch(
+        stockItemId: any(named: 'stockItemId'),
+        reason: null,
+        limit: 1,
+        offset: 1,
+      ),
+    ).thenAnswer(
+      (_) async => [
+        InventoryJournalEntry(
+          id: 'entry-2',
+          itemId: 'item-2',
+          itemName: 'Item',
+          branchId: 'branch-1',
+          branchName: 'Main Branch',
+          reason: InventoryJournalReason.add,
+          delta: 2,
+          note: 'Adjust',
+          actor: 'Alex',
+          createdAt: DateTime(2025, 12, 21),
+          occurredAt: DateTime(2025, 12, 21),
+        ),
+      ],
+    );
+    when(
+      () => stockRepo.fetchMasterStockItems(pageSize: any(named: 'pageSize')),
+    ).thenAnswer(
+      (_) async => const [
+        StockItem(
+          id: 'item-1',
+          name: 'Iced Coffee',
+          baseUnit: 'ml',
+          pieceSize: 1,
+          branchId: '',
+          branchName: '',
+          onHand: 0,
+          minThreshold: 0,
+          isActive: true,
+        ),
+        StockItem(
+          id: 'item-2',
+          name: 'Lemon Tea',
+          baseUnit: 'ml',
+          pieceSize: 1,
+          branchId: '',
+          branchName: '',
+          onHand: 0,
+          minThreshold: 0,
+          isActive: true,
+        ),
+      ],
+    );
+
+    final container = createTestContainer(
+      overrides: [
+        inventoryJournalRepositoryProvider.overrideWithValue(journalRepo),
+        stockItemRepositoryProvider.overrideWithValue(stockRepo),
+        loginControllerProvider.overrideWith(
+          () => FakeLoginController(const LoginState()),
+        ),
+      ],
+    );
+
+    final notifier = container.read(
+      inventoryJournalControllerProvider.notifier,
+    );
+    await notifier.load(limit: 1);
+    await notifier.loadMore();
+
+    final state = container.read(inventoryJournalControllerProvider);
+    expect(state.entries, hasLength(2));
+    expect(state.offset, 2);
+    expect(state.hasMore, isTrue);
+  });
 }

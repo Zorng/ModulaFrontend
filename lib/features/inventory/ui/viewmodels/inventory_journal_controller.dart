@@ -23,15 +23,31 @@ class InventoryJournalController extends Notifier<InventoryJournalState> {
     return const InventoryJournalState();
   }
 
-  Future<void> load({String? branchId, String? stockItemId}) async {
+  Future<void> load({
+    String? branchId,
+    String? stockItemId,
+    InventoryJournalReason? reason,
+    int limit = 50,
+    int offset = 0,
+    bool append = false,
+  }) async {
+    final safeLimit = limit <= 0 ? 50 : limit;
+    final safeOffset = offset < 0 ? 0 : offset;
     try {
-      state = state.copyWith(isLoading: true, error: null, errorCode: null);
+      state = state.copyWith(
+        isLoading: !append,
+        isLoadingMore: append,
+        error: null,
+        errorCode: null,
+        limit: safeLimit,
+      );
       final userBranches =
           ref.read(loginControllerProvider).user?.branches ?? const [];
       final fetched = await _repo.fetch(
         stockItemId: stockItemId,
-        limit: 500,
-        offset: 0,
+        reason: reason,
+        limit: safeLimit,
+        offset: safeOffset,
       );
 
       final entries = fetched
@@ -64,10 +80,17 @@ class InventoryJournalController extends Notifier<InventoryJournalState> {
           )
           .toList();
 
-      enriched.sort((a, b) => b.occurredAt.compareTo(a.occurredAt));
+      final nextEntries = append
+          ? _mergeEntries(state.entries, enriched)
+          : enriched;
+      nextEntries.sort((a, b) => b.occurredAt.compareTo(a.occurredAt));
+      final hasMore = fetched.length == safeLimit;
       state = state.copyWith(
         isLoading: false,
-        entries: enriched,
+        isLoadingMore: false,
+        entries: nextEntries,
+        offset: safeOffset + fetched.length,
+        hasMore: hasMore,
         error: null,
         errorCode: null,
       );
@@ -78,10 +101,28 @@ class InventoryJournalController extends Notifier<InventoryJournalState> {
       );
       state = state.copyWith(
         isLoading: false,
+        isLoadingMore: false,
         error: mapped.message,
         errorCode: mapped.code,
       );
     }
+  }
+
+  Future<void> loadMore({
+    String? branchId,
+    String? stockItemId,
+    InventoryJournalReason? reason,
+  }) async {
+    if (state.isLoading || state.isLoadingMore) return;
+    if (!state.hasMore) return;
+    await load(
+      branchId: branchId,
+      stockItemId: stockItemId,
+      reason: reason,
+      limit: state.limit,
+      offset: state.offset,
+      append: true,
+    );
   }
 
   void recordEntry(InventoryJournalEntry entry) {
@@ -120,5 +161,17 @@ class InventoryJournalController extends Notifier<InventoryJournalState> {
     if (trimmed.isEmpty) return false;
     if (trimmed.toLowerCase() == 'item') return false;
     return true;
+  }
+
+  List<InventoryJournalEntry> _mergeEntries(
+    List<InventoryJournalEntry> existing,
+    List<InventoryJournalEntry> next,
+  ) {
+    final seen = <String>{for (final entry in existing) entry.id};
+    final merged = <InventoryJournalEntry>[...existing];
+    for (final entry in next) {
+      if (seen.add(entry.id)) merged.add(entry);
+    }
+    return merged;
   }
 }

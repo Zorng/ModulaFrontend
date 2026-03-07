@@ -25,12 +25,7 @@ class RemoteInventoryCategoryRepository extends InventoryCategoryRepository {
 
   @override
   Future<InventoryCategory> createCategory(InventoryCategory category) async {
-    final body = {
-      'name': category.name,
-      'isActive': category.isActive,
-      if (category.description != null && category.description!.isNotEmpty)
-        'description': category.description,
-    };
+    final body = {'name': category.name};
     final dto = await _api.createCategory(body);
     return _toDomain(dto);
   }

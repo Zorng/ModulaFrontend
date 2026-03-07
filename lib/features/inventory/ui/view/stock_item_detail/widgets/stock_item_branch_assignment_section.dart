@@ -34,7 +34,11 @@ class StockItemBranchAssignmentSection extends StatelessWidget {
       if (userBranches.isEmpty)
         const Text('No branches available.')
       else if (branchAssignments.isEmpty)
-        const Text('Not assigned to any branch.')
+        Text(
+          isEditing
+              ? 'Select at least one branch for this item.'
+              : 'Not assigned to any branch.',
+        )
       else
         ...branchAssignments.map(
           (assignment) => BranchAssignmentCard(
@@ -53,7 +57,9 @@ class StockItemBranchAssignmentSection extends StatelessWidget {
           child: TextButton.icon(
             onPressed: onAddAssignment,
             icon: const Icon(Icons.add),
-            label: const Text('Assign to branch'),
+            label: Text(
+              branchAssignments.isEmpty ? 'Assign to branch' : 'Add branch',
+            ),
           ),
         ),
     ];

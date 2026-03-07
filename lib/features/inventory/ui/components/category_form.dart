@@ -1,4 +1,3 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -33,7 +32,6 @@ class _CategoryFormBodyState extends ConsumerState<CategoryFormBody> {
   final _nameCtrl = TextEditingController();
   final _descriptionCtrl = TextEditingController();
   CategoryFormMode _mode = CategoryFormMode.create;
-  bool _isActive = true;
   String? _nameError;
   String? _descriptionError;
 
@@ -45,7 +43,6 @@ class _CategoryFormBodyState extends ConsumerState<CategoryFormBody> {
     if (category != null) {
       _nameCtrl.text = category.name;
       _descriptionCtrl.text = category.description ?? '';
-      _isActive = category.isActive;
     }
   }
 
@@ -88,6 +85,10 @@ class _CategoryFormBodyState extends ConsumerState<CategoryFormBody> {
             isRequired: true,
             child: TextField(
               controller: _nameCtrl,
+              onChanged: (_) {
+                if (_nameError == null) return;
+                setState(() => _nameError = null);
+              },
               enabled: !isView,
               decoration: InputDecoration(
                 hintText: 'e.g., Coffee, Pastries',
@@ -109,25 +110,6 @@ class _CategoryFormBodyState extends ConsumerState<CategoryFormBody> {
               maxLines: 3,
               maxLength: 200,
             ),
-          ),
-          const SizedBox(height: 24),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Set Active',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              CupertinoSwitch(
-                value: _isActive,
-                activeTrackColor: Theme.of(context).primaryColor,
-                onChanged: isView
-                    ? null
-                    : (value) => setState(() {
-                        _isActive = value;
-                      }),
-              ),
-            ],
           ),
           const SizedBox(height: 24),
           _buildActions(context),
@@ -213,21 +195,13 @@ class _CategoryFormBodyState extends ConsumerState<CategoryFormBody> {
       if (_mode == CategoryFormMode.create) {
         await ref
             .read(categoryControllerProvider.notifier)
-            .addCategory(
-              name,
-              description: descriptionValue,
-              isActive: _isActive,
-            );
+            .addCategory(name, description: descriptionValue);
       } else {
         final current = widget.category!;
         await ref
             .read(categoryControllerProvider.notifier)
             .updateCategory(
-              current.copyWith(
-                name: name,
-                description: descriptionValue,
-                isActive: _isActive,
-              ),
+              current.copyWith(name: name, description: descriptionValue),
             );
       }
     } catch (e) {
@@ -236,6 +210,10 @@ class _CategoryFormBodyState extends ConsumerState<CategoryFormBody> {
         e,
         fallbackMessage: 'Failed to save category.',
       );
+      if (mapped.code == InventoryErrorCode.stockCategoryDuplicateName) {
+        setState(() => _nameError = mapped.message);
+        return;
+      }
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(mapped.message)));

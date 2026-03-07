@@ -13,6 +13,7 @@ import 'package:modular_pos/features/inventory/ui/view/inventory_stock_items/inv
 import 'package:modular_pos/features/inventory/ui/view/inventory_stock_items/widgets/stock_item_card.dart';
 import 'package:modular_pos/features/inventory/ui/view/inventory_stock_items/widgets/stock_item_image.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/category_controller.dart';
+import 'package:modular_pos/features/inventory/ui/viewmodels/inventory_error_mapper.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_controller.dart';
 import 'package:modular_pos/features/inventory/ui/widgets/inventory_dropdown.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
@@ -36,7 +37,9 @@ class _InventoryStockItemsPageState
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(stockInventoryControllerProvider.notifier).loadStockItems();
+      ref
+          .read(stockInventoryControllerProvider.notifier)
+          .loadStockItems(status: _statusApiValue(_activeFilter));
     });
   }
 
@@ -152,12 +155,21 @@ class _InventoryStockItemsPageState
                     ),
                     DropdownMenuEntry(
                       value: _ActiveFilter.inactive,
-                      label: 'Inactive',
+                      label: 'Archived',
                     ),
                   ],
-                  onSelected: (value) => setState(
-                    () => _activeFilter = value ?? _ActiveFilter.all,
-                  ),
+                  onSelected: (value) {
+                    final selected = value ?? _ActiveFilter.all;
+                    setState(() => _activeFilter = selected);
+                    ref
+                        .read(stockInventoryControllerProvider.notifier)
+                        .loadStockItems(
+                          branchId: effectiveBranchId == 'all'
+                              ? null
+                              : effectiveBranchId,
+                          status: _statusApiValue(selected),
+                        );
+                  },
                 );
 
                 final branchFilter = InventoryDropdown<String>(
@@ -177,6 +189,7 @@ class _InventoryStockItemsPageState
                         .read(stockInventoryControllerProvider.notifier)
                         .loadStockItems(
                           branchId: selected == 'all' ? null : selected,
+                          status: _statusApiValue(_activeFilter),
                         );
                   },
                 );
@@ -329,6 +342,9 @@ class _InventoryStockItemsPageState
                                     item,
                                     categoryLookup,
                                   ),
+                                  onRestore: item.isActive
+                                      ? null
+                                      : () => _restoreItem(item),
                                 );
                               },
                               separatorBuilder: (_, __) =>
@@ -512,7 +528,7 @@ class _InventoryStockItemsPageState
                                                 child: Text(
                                                   isActive
                                                       ? 'Active'
-                                                      : 'Inactive',
+                                                      : 'Archived',
                                                   style: isActive
                                                       ? AppTableTheme
                                                             .healthyText
@@ -524,16 +540,34 @@ class _InventoryStockItemsPageState
 
                                             // View button
                                             DataCell(
-                                              ElevatedButton(
-                                                style: AppTableTheme
-                                                    .actionButtonStyle,
-                                                onPressed: () => context.push(
-                                                  AppRoute
-                                                      .inventoryStockDetail
-                                                      .path,
-                                                  extra: item,
-                                                ),
-                                                child: const Text('View'),
+                                              Wrap(
+                                                spacing: 8,
+                                                runSpacing: 8,
+                                                children: [
+                                                  ElevatedButton(
+                                                    style: AppTableTheme
+                                                        .actionButtonStyle,
+                                                    onPressed: () => context.push(
+                                                      AppRoute
+                                                          .inventoryStockDetail
+                                                          .path,
+                                                      extra: item,
+                                                    ),
+                                                    child: const Text('View'),
+                                                  ),
+                                                  if (!item.isActive)
+                                                    OutlinedButton.icon(
+                                                      onPressed: () =>
+                                                          _restoreItem(item),
+                                                      icon: const Icon(
+                                                        Icons.restore_outlined,
+                                                        size: 18,
+                                                      ),
+                                                      label: const Text(
+                                                        'Restore',
+                                                      ),
+                                                    ),
+                                                ],
                                               ),
                                             ),
                                           ],
@@ -569,6 +603,35 @@ class _InventoryStockItemsPageState
     }
 
     return '${branches.length} branches assigned';
+  }
+
+  String _statusApiValue(_ActiveFilter filter) {
+    return switch (filter) {
+      _ActiveFilter.all => 'all',
+      _ActiveFilter.active => 'active',
+      _ActiveFilter.inactive => 'archived',
+    };
+  }
+
+  Future<void> _restoreItem(StockItem item) async {
+    try {
+      await ref
+          .read(stockInventoryControllerProvider.notifier)
+          .restoreStockItem(item.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('${item.name} restored')));
+    } catch (e) {
+      if (!mounted) return;
+      final mapped = mapInventoryError(
+        e,
+        fallbackMessage: 'Failed to restore stock item.',
+      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(mapped.message)));
+    }
   }
 }
 

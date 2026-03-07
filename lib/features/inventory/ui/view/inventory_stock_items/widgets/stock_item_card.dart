@@ -10,10 +10,12 @@ class StockItemCard extends StatelessWidget {
     super.key,
     required this.item,
     required this.categoryLabel,
+    this.onRestore,
   });
 
   final StockItem item;
   final String categoryLabel;
+  final VoidCallback? onRestore;
 
   @override
   Widget build(BuildContext context) {
@@ -69,7 +71,7 @@ class StockItemCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      item.isActive ? 'Active' : 'Inactive',
+                      item.isActive ? 'Active' : 'Archived',
                       style: TextStyle(
                         color: item.isActive ? scheme.primary : scheme.error,
                         fontWeight: FontWeight.w600,
@@ -89,6 +91,14 @@ class StockItemCard extends StatelessWidget {
                     'Piece: ${item.pieceSize}',
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
+                  if (!item.isActive && onRestore != null) ...[
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      onPressed: onRestore,
+                      icon: const Icon(Icons.restore_outlined, size: 18),
+                      label: const Text('Restore'),
+                    ),
+                  ],
                 ],
               ),
             ],

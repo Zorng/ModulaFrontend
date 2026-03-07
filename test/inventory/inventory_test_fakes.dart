@@ -154,7 +154,10 @@ class FakeStockInventoryController extends StockInventoryController {
   StockInventoryState build() => _state;
 
   @override
-  Future<void> loadStockItems({String? branchId}) async {}
+  Future<void> loadStockItems({
+    String? branchId,
+    String status = 'all',
+  }) async {}
 
   @override
   Future<StockItem> loadStockItemDetail(String id) async {
@@ -171,11 +174,13 @@ class FakeStockInventoryController extends StockInventoryController {
   }
 
   @override
-  Future<void> updateStockItem(
+  Future<StockItem> updateStockItem(
     StockItem item, {
     String? imagePath,
     List<int>? imageBytes,
-  }) async {}
+  }) async {
+    return item;
+  }
 
   @override
   Future<void> createRestockBatch({
@@ -183,6 +188,7 @@ class FakeStockInventoryController extends StockInventoryController {
     required int baseQty,
     String? restockDate,
     String? expiryDate,
+    String? supplierName,
     num? purchaseCostUsd,
     String? note,
     String? branchId,
@@ -196,8 +202,11 @@ class FakeStockInventoryController extends StockInventoryController {
 
   @override
   Future<void> applyInventoryAdjustment({
-    required String batchId,
-    required int delta,
+    required String stockItemId,
+    String? batchId,
+    String style = 'DELTA',
+    int? delta,
+    int? countedOnHandInBaseUnit,
     String? note,
   }) async {}
 }
@@ -211,7 +220,14 @@ class FakeInventoryJournalController extends InventoryJournalController {
   InventoryJournalState build() => _state;
 
   @override
-  Future<void> load({String? branchId, String? stockItemId}) async {}
+  Future<void> load({
+    String? branchId,
+    String? stockItemId,
+    InventoryJournalReason? reason,
+    int limit = 50,
+    int offset = 0,
+    bool append = false,
+  }) async {}
 }
 
 class FakeStockItemRepository extends StockItemRepository {
@@ -262,7 +278,10 @@ class FakeBranchStockRepository extends BranchStockRepository {
   final List<StockItem> _items;
 
   @override
-  Future<List<OnHandRecord>> fetchOnHand({String? branchId}) async {
+  Future<List<OnHandRecord>> fetchOnHand({
+    String? branchId,
+    String status = 'all',
+  }) async {
     return _items
         .where(
           (item) =>
@@ -280,9 +299,25 @@ class FakeBranchStockRepository extends BranchStockRepository {
   }
 
   @override
-  Future<List<StockItem>> fetchStockItems({String? branchId}) async {
-    if (branchId == null || branchId.isEmpty) return _items;
-    return _items
+  Future<List<StockItem>> fetchStockItems({
+    String? branchId,
+    String status = 'all',
+  }) async {
+    final filteredByStatus = _items.where((item) {
+      switch (status.trim().toLowerCase()) {
+        case 'active':
+          return item.isActive;
+        case 'archived':
+          return !item.isActive;
+        case 'all':
+        default:
+          return true;
+      }
+    });
+    if (branchId == null || branchId.isEmpty) {
+      return filteredByStatus.toList(growable: false);
+    }
+    return filteredByStatus
         .where((item) => item.branchId == branchId)
         .toList(growable: false);
   }

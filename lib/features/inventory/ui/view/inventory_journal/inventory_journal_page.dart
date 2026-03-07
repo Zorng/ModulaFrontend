@@ -5,6 +5,7 @@ import 'package:modular_pos/features/auth/domain/models/user.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_journal_entry.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_journal_summary.dart';
+import 'package:modular_pos/features/inventory/ui/models/inventory_journal_reason_filter.dart';
 import 'package:modular_pos/features/inventory/ui/view/inventory_journal/inventory_journal_models.dart';
 import 'package:modular_pos/features/inventory/ui/view/inventory_journal/inventory_journal_utils.dart';
 import 'package:modular_pos/features/inventory/ui/view/inventory_journal/widgets/inventory_journal_branch_section.dart';
@@ -22,7 +23,9 @@ class InventoryJournalPage extends ConsumerStatefulWidget {
 }
 
 class _InventoryJournalPageState extends ConsumerState<InventoryJournalPage> {
+  static const int _pageSize = 50;
   String _selectedBranchId = 'all';
+  InventoryJournalReasonFilter? _selectedReasonFilter;
   DateTime? _startDate;
   DateTime? _endDate;
   final TextEditingController _startCtrl = TextEditingController();
@@ -33,7 +36,9 @@ class _InventoryJournalPageState extends ConsumerState<InventoryJournalPage> {
     super.initState();
     // Initial load from backend.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(inventoryJournalControllerProvider.notifier).load();
+      ref
+          .read(inventoryJournalControllerProvider.notifier)
+          .load(limit: _pageSize);
     });
   }
 
@@ -90,7 +95,48 @@ class _InventoryJournalPageState extends ConsumerState<InventoryJournalPage> {
                       });
                       ref
                           .read(inventoryJournalControllerProvider.notifier)
-                          .load(branchId: branch == 'all' ? null : branch);
+                          .load(
+                            branchId: branch == 'all' ? null : branch,
+                            reason: inventoryJournalReasonFilterToDomainReason(
+                              _selectedReasonFilter,
+                            ),
+                            limit: _pageSize,
+                          );
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: DropdownMenu<InventoryJournalReasonFilter?>(
+                    initialSelection: _selectedReasonFilter,
+                    label: const Text('Reason'),
+                    dropdownMenuEntries:
+                        <DropdownMenuEntry<InventoryJournalReasonFilter?>>[
+                          const DropdownMenuEntry<
+                            InventoryJournalReasonFilter?
+                          >(value: null, label: 'All reasons'),
+                          ...InventoryJournalReasonFilter.values.map(
+                            (filter) =>
+                                DropdownMenuEntry<
+                                  InventoryJournalReasonFilter?
+                                >(value: filter, label: filter.label),
+                          ),
+                        ],
+                    onSelected: (value) {
+                      setState(() {
+                        _selectedReasonFilter = value;
+                      });
+                      ref
+                          .read(inventoryJournalControllerProvider.notifier)
+                          .load(
+                            branchId: _selectedBranchId == 'all'
+                                ? null
+                                : _selectedBranchId,
+                            reason: inventoryJournalReasonFilterToDomainReason(
+                              value,
+                            ),
+                            limit: _pageSize,
+                          );
                     },
                   ),
                 ),
@@ -101,6 +147,7 @@ class _InventoryJournalPageState extends ConsumerState<InventoryJournalPage> {
                   onPressed: () {
                     setState(() {
                       _selectedBranchId = 'all';
+                      _selectedReasonFilter = null;
                       _startDate = null;
                       _endDate = null;
                       _startCtrl.clear();
@@ -108,7 +155,7 @@ class _InventoryJournalPageState extends ConsumerState<InventoryJournalPage> {
                     });
                     ref
                         .read(inventoryJournalControllerProvider.notifier)
-                        .load();
+                        .load(limit: _pageSize);
                   },
                 ),
               ],
@@ -142,9 +189,41 @@ class _InventoryJournalPageState extends ConsumerState<InventoryJournalPage> {
                   : branchGroups.isEmpty
                   ? const Center(child: Text('No journal activity yet.'))
                   : ListView.separated(
-                      itemCount: branchGroups.length,
+                      itemCount:
+                          branchGroups.length + (journalState.hasMore ? 1 : 0),
                       separatorBuilder: (_, __) => const SizedBox(height: 16),
                       itemBuilder: (context, index) {
+                        if (index >= branchGroups.length) {
+                          if (journalState.isLoadingMore) {
+                            return const Center(
+                              child: Padding(
+                                padding: EdgeInsets.symmetric(vertical: 8),
+                                child: CircularProgressIndicator(),
+                              ),
+                            );
+                          }
+                          return Center(
+                            child: OutlinedButton(
+                              onPressed: () {
+                                ref
+                                    .read(
+                                      inventoryJournalControllerProvider
+                                          .notifier,
+                                    )
+                                    .loadMore(
+                                      branchId: _selectedBranchId == 'all'
+                                          ? null
+                                          : _selectedBranchId,
+                                      reason:
+                                          inventoryJournalReasonFilterToDomainReason(
+                                            _selectedReasonFilter,
+                                          ),
+                                    );
+                              },
+                              child: const Text('Load more'),
+                            ),
+                          );
+                        }
                         final group = branchGroups[index];
                         return InventoryJournalBranchSection(
                           group: group,

@@ -103,7 +103,7 @@ class CategoryController extends Notifier<CategoryState> {
     } catch (e) {
       final mapped = mapInventoryError(
         e,
-        fallbackMessage: 'Failed to delete category.',
+        fallbackMessage: 'Failed to archive category.',
       );
       state = state.copyWith(error: mapped.message, errorCode: mapped.code);
       rethrow;

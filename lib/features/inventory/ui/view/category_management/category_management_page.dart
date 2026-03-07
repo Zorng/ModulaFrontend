@@ -11,6 +11,7 @@ import 'package:modular_pos/features/inventory/ui/view/category_management/widge
 import 'package:modular_pos/features/inventory/ui/view/category_management/widgets/inventory_category_tile.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/category_controller.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_controller.dart';
+import 'package:modular_pos/features/inventory/ui/widgets/inventory_dropdown.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
 
 class CategoryManagementPage extends ConsumerStatefulWidget {
@@ -24,6 +25,17 @@ class CategoryManagementPage extends ConsumerStatefulWidget {
 class _CategoryManagementPageState
     extends ConsumerState<CategoryManagementPage> {
   final _searchController = TextEditingController();
+  _CategoryStatusFilter _statusFilter = _CategoryStatusFilter.all;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref
+          .read(categoryControllerProvider.notifier)
+          .loadCategories(status: _statusApiValue(_statusFilter));
+    });
+  }
 
   @override
   void dispose() {
@@ -65,6 +77,38 @@ class _CategoryManagementPageState
               onAddPressed: () =>
                   _openCreateCategory(context, useDialog: isWide),
               addButtonLabel: 'Add new',
+            ),
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: SizedBox(
+                width: isWide ? 220 : double.infinity,
+                child: InventoryDropdown<_CategoryStatusFilter>(
+                  initialValue: _statusFilter,
+                  label: const Text('Status'),
+                  entries: const [
+                    DropdownMenuEntry(
+                      value: _CategoryStatusFilter.all,
+                      label: 'All statuses',
+                    ),
+                    DropdownMenuEntry(
+                      value: _CategoryStatusFilter.active,
+                      label: 'Active',
+                    ),
+                    DropdownMenuEntry(
+                      value: _CategoryStatusFilter.archived,
+                      label: 'Archived',
+                    ),
+                  ],
+                  onSelected: (value) {
+                    final selected = value ?? _CategoryStatusFilter.all;
+                    setState(() => _statusFilter = selected);
+                    ref
+                        .read(categoryControllerProvider.notifier)
+                        .loadCategories(status: _statusApiValue(selected));
+                  },
+                ),
+              ),
             ),
             const SizedBox(height: 16),
             Expanded(
@@ -113,6 +157,7 @@ class _CategoryManagementPageState
                                 return InventoryCategoryTile(
                                   category: category,
                                   itemCount: stockCount,
+                                  onArchived: _reloadCurrentFilter,
                                 );
                               },
                             );
@@ -263,7 +308,7 @@ class _CategoryManagementPageState
                                                 child: Text(
                                                   isActive
                                                       ? 'Active'
-                                                      : 'Inactive',
+                                                      : 'Archived',
                                                   style: isActive
                                                       ? AppTableTheme
                                                             .healthyText
@@ -277,6 +322,8 @@ class _CategoryManagementPageState
                                                 category: category,
                                                 compact: false,
                                                 useDialog: true,
+                                                onArchived:
+                                                    _reloadCurrentFilter,
                                               ),
                                             ),
                                           ],
@@ -321,4 +368,20 @@ class _CategoryManagementPageState
       ),
     );
   }
+
+  String _statusApiValue(_CategoryStatusFilter filter) {
+    return switch (filter) {
+      _CategoryStatusFilter.all => 'all',
+      _CategoryStatusFilter.active => 'active',
+      _CategoryStatusFilter.archived => 'archived',
+    };
+  }
+
+  void _reloadCurrentFilter() {
+    ref
+        .read(categoryControllerProvider.notifier)
+        .loadCategories(status: _statusApiValue(_statusFilter));
+  }
 }
+
+enum _CategoryStatusFilter { all, active, archived }

@@ -5,7 +5,7 @@ import 'package:modular_pos/features/inventory/data/stock_item_repository.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_journal_entry.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_journal_summary.dart';
 import 'package:modular_pos/core/widgets/navigation/app_back_button.dart';
-import 'package:modular_pos/features/inventory/ui/models/inventory_journal_reason_label.dart';
+import 'package:modular_pos/features/inventory/ui/models/inventory_journal_reason_filter.dart';
 import 'package:modular_pos/features/inventory/ui/view/inventory_journal_detail/widgets/inventory_journal_entry_card.dart';
 import 'package:modular_pos/features/inventory/ui/view/inventory_journal_detail/widgets/inventory_journal_search_autocomplete.dart';
 
@@ -28,7 +28,7 @@ class _InventoryJournalDetailPageState
     extends ConsumerState<InventoryJournalDetailPage> {
   late List<InventoryJournalEntry> _entries;
   String? _searchQuery;
-  final Set<InventoryJournalReason> _selectedReasons = {};
+  final Set<InventoryJournalReasonFilter> _selectedReasonFilters = {};
 
   @override
   void initState() {
@@ -72,18 +72,17 @@ class _InventoryJournalDetailPageState
             Wrap(
               spacing: 8,
               runSpacing: 8,
-              children: InventoryJournalReason.values
-                  .where((reason) => reason != InventoryJournalReason.unknown)
+              children: InventoryJournalReasonFilter.values
                   .map(
-                    (reason) => FilterChip(
-                      label: Text(inventoryJournalReasonLabel(reason)),
-                      selected: _selectedReasons.contains(reason),
+                    (filter) => FilterChip(
+                      label: Text(filter.label),
+                      selected: _selectedReasonFilters.contains(filter),
                       onSelected: (selected) {
                         setState(() {
                           if (selected) {
-                            _selectedReasons.add(reason);
+                            _selectedReasonFilters.add(filter);
                           } else {
-                            _selectedReasons.remove(reason);
+                            _selectedReasonFilters.remove(filter);
                           }
                         });
                       },
@@ -116,7 +115,10 @@ class _InventoryJournalDetailPageState
           entry.itemName.toLowerCase().contains(query) ||
           entry.note.toLowerCase().contains(query);
       final matchesReason =
-          _selectedReasons.isEmpty || _selectedReasons.contains(entry.reason);
+          _selectedReasonFilters.isEmpty ||
+          _selectedReasonFilters.any(
+            (filter) => inventoryJournalReasonFilterMatchesEntry(filter, entry),
+          );
       return matchesQuery && matchesReason;
     }).toList();
   }

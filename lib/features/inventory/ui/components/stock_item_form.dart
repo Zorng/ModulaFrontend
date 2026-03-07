@@ -1,4 +1,3 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,6 +11,7 @@ import 'package:modular_pos/features/inventory/data/branch_stock_repository.dart
 import 'package:modular_pos/features/inventory/domain/models/inventory_category.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
 import 'package:modular_pos/features/inventory/ui/components/branch_assignment.dart';
+import 'package:modular_pos/features/inventory/ui/components/stock_item_form_error_mapper.dart';
 import 'package:modular_pos/features/inventory/ui/widgets/inventory_dropdown.dart';
 import 'package:modular_pos/features/inventory/ui/widgets/inventory_section_card.dart';
 import 'package:modular_pos/core/widgets/media/product_image_picker.dart';
@@ -56,8 +56,11 @@ class _StockItemFormPageState extends ConsumerState<StockItemFormPage> {
   String? _baseUnit;
   bool _isActive = true;
   final _selectedTypes = <String>{};
+  String? _nameError;
   String? _baseUnitError;
+  String? _imageError;
   bool _isSaving = false;
+  AutovalidateMode _autovalidateMode = AutovalidateMode.disabled;
 
   @override
   void initState() {
@@ -89,13 +92,24 @@ class _StockItemFormPageState extends ConsumerState<StockItemFormPage> {
     final isWide = !AppBreakpoints.isSmall(MediaQuery.of(context).size.width);
     final isEditing = _mode != StockItemFormMode.view;
     final categoryState = ref.watch(categoryControllerProvider);
-    final userBranches =
-        ref.watch(loginControllerProvider).user?.branches ??
-        const <UserBranch>[];
+    final loginState = ref.watch(loginControllerProvider);
+    final userBranches = _resolveAvailableBranches(loginState);
 
     final categoryOptions = categoryState.categories;
     if (_mode == StockItemFormMode.create && categoryOptions.isEmpty) {
       _categoryId = null;
+    }
+    if (_mode == StockItemFormMode.create &&
+        _branchAssignments.isEmpty &&
+        userBranches.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted ||
+            _mode != StockItemFormMode.create ||
+            _branchAssignments.isNotEmpty) {
+          return;
+        }
+        setState(() => _bootstrapBranchAssignments(userBranches));
+      });
     }
     final usageTags = _selectedTypes.isEmpty
         ? const <String>[]
@@ -107,6 +121,15 @@ class _StockItemFormPageState extends ConsumerState<StockItemFormPage> {
         title: Text(_title()),
         centerTitle: false,
         actions: [
+          if (_mode == StockItemFormMode.view && _isActive)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: TextButton.icon(
+                onPressed: _isSaving ? null : _archiveItem,
+                icon: const Icon(Icons.archive_outlined, size: 18),
+                label: const Text('Archive'),
+              ),
+            ),
           if (_mode == StockItemFormMode.view && !_isActive)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -116,7 +139,7 @@ class _StockItemFormPageState extends ConsumerState<StockItemFormPage> {
                 label: const Text('Restore'),
               ),
             ),
-          if (_mode == StockItemFormMode.view)
+          if (_mode == StockItemFormMode.view && _isActive)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               child: isWide
@@ -145,6 +168,7 @@ class _StockItemFormPageState extends ConsumerState<StockItemFormPage> {
       ),
       body: Form(
         key: _formKey,
+        autovalidateMode: _autovalidateMode,
         child: LayoutBuilder(
           builder: (context, constraints) {
             final sectionSpacing = isWide ? 18.0 : 16.0;
@@ -168,28 +192,7 @@ class _StockItemFormPageState extends ConsumerState<StockItemFormPage> {
                               // LEFT: Image
                               Expanded(
                                 flex: 1,
-                                child: Center(
-                                  child: ProductImagePicker(
-                                    size: const Size(220, 220),
-                                    borderRadius: 16,
-                                    imageBytes: _selectedImageBytes,
-                                    imageUrl: _selectedImageBytes == null
-                                        ? _originalItem?.imageUrl
-                                        : null,
-                                    readOnly: !isEditing,
-                                    placeholderLabel: isEditing
-                                        ? 'Upload image'
-                                        : 'No image',
-                                    showTapToChangeHint: isEditing,
-                                    onPickImage: _pickImage,
-                                    onClearLocalSelection: isEditing
-                                        ? () => setState(() {
-                                            _selectedImageBytes = null;
-                                            _selectedImagePath = null;
-                                          })
-                                        : null,
-                                  ),
-                                ),
+                                child: _buildImagePicker(isEditing: isEditing),
                               ),
 
                               const SizedBox(width: 24),
@@ -217,30 +220,7 @@ class _StockItemFormPageState extends ConsumerState<StockItemFormPage> {
                         InventorySectionCard(
                           title: 'Item image',
                           backgroundColor: Colors.white,
-                          children: [
-                            Center(
-                              child: ProductImagePicker(
-                                size: const Size(220, 220),
-                                borderRadius: 16,
-                                imageBytes: _selectedImageBytes,
-                                imageUrl: _selectedImageBytes == null
-                                    ? _originalItem?.imageUrl
-                                    : null,
-                                readOnly: !isEditing,
-                                placeholderLabel: isEditing
-                                    ? 'Upload image'
-                                    : 'No image',
-                                showTapToChangeHint: isEditing,
-                                onPickImage: _pickImage,
-                                onClearLocalSelection: isEditing
-                                    ? () => setState(() {
-                                        _selectedImageBytes = null;
-                                        _selectedImagePath = null;
-                                      })
-                                    : null,
-                              ),
-                            ),
-                          ],
+                          children: [_buildImagePicker(isEditing: isEditing)],
                         ),
 
                         SizedBox(height: sectionSpacing),
@@ -352,6 +332,37 @@ class _StockItemFormPageState extends ConsumerState<StockItemFormPage> {
     StockItemFormMode.edit => 'Edit stock item',
   };
 
+  Widget _buildImagePicker({required bool isEditing}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Center(
+          child: ProductImagePicker(
+            size: const Size(220, 220),
+            borderRadius: 16,
+            imageBytes: _selectedImageBytes,
+            imageUrl: _selectedImageBytes == null
+                ? _originalItem?.imageUrl
+                : null,
+            readOnly: !isEditing,
+            placeholderLabel: isEditing ? 'Upload image' : 'No image',
+            showTapToChangeHint: isEditing,
+            onPickImage: _pickImage,
+            onClearLocalSelection: isEditing ? _clearLocalImageSelection : null,
+          ),
+        ),
+        if (_imageError != null) ...[
+          const SizedBox(height: 12),
+          Text(
+            _imageError!,
+            style: TextStyle(color: Theme.of(context).colorScheme.error),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ],
+    );
+  }
+
   List<Widget> _buildItemDetails({
     required bool isWide,
     required bool isEditing,
@@ -360,15 +371,15 @@ class _StockItemFormPageState extends ConsumerState<StockItemFormPage> {
     final statusField = Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text('Set Active', style: Theme.of(context).textTheme.titleSmall),
-        CupertinoSwitch(
-          value: _isActive,
-          activeTrackColor: Theme.of(context).primaryColor,
-          onChanged: isEditing
-              ? (value) => setState(() {
-                  _isActive = value;
-                })
-              : null,
+        Text('Status', style: Theme.of(context).textTheme.titleSmall),
+        Text(
+          _isActive ? 'Active' : 'Archived',
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: _isActive
+                ? Theme.of(context).colorScheme.primary
+                : Theme.of(context).colorScheme.error,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ],
     );
@@ -379,13 +390,23 @@ class _StockItemFormPageState extends ConsumerState<StockItemFormPage> {
         isRequired: true,
         child: TextFormField(
           controller: _nameCtrl,
+          onChanged: (_) {
+            if (_nameError == null) return;
+            setState(() => _nameError = null);
+          },
           maxLength: 20,
           enabled: isEditing,
           readOnly: !isEditing,
-          decoration: const InputDecoration(hintText: 'e.g., Milk 1000ml'),
+          decoration: InputDecoration(
+            hintText: 'e.g., Milk 1000ml',
+            errorText: isEditing ? _nameError : null,
+          ),
           validator: isEditing
-              ? (value) =>
-                    value == null || value.trim().isEmpty ? 'Required' : null
+              ? (value) {
+                  return value == null || value.trim().isEmpty
+                      ? 'Required'
+                      : null;
+                }
               : null,
         ),
       ),
@@ -494,9 +515,7 @@ class _StockItemFormPageState extends ConsumerState<StockItemFormPage> {
       ),
     ];
 
-    if (!isWide) {
-      return [...fields, statusField];
-    }
+    if (!isWide) return [...fields, statusField];
 
     final rows = <Widget>[];
     for (var i = 0; i < fields.length; i += 3) {
@@ -542,7 +561,10 @@ class _StockItemFormPageState extends ConsumerState<StockItemFormPage> {
       _mode = StockItemFormMode.view;
       _selectedImageBytes = null;
       _selectedImagePath = null;
+      _nameError = null;
       _baseUnitError = null;
+      _imageError = null;
+      _autovalidateMode = AutovalidateMode.disabled;
     });
     _bootstrapFromItem(_originalItem);
   }
@@ -555,10 +577,39 @@ class _StockItemFormPageState extends ConsumerState<StockItemFormPage> {
     _cancelEditing();
   }
 
+  List<UserBranch> _readAvailableBranches() {
+    return _resolveAvailableBranches(ref.read(loginControllerProvider));
+  }
+
+  List<UserBranch> _resolveAvailableBranches(LoginState loginState) {
+    final sessionBranches = loginState.session?.user.branches ?? const [];
+    final branchMap = <String, UserBranch>{};
+
+    for (final branch in sessionBranches) {
+      final id = branch.branchId.isNotEmpty ? branch.branchId : branch.id;
+      if (id.isEmpty) continue;
+      branchMap[id] = branch;
+    }
+    if (branchMap.isNotEmpty) {
+      return branchMap.values.toList(growable: false);
+    }
+
+    for (final option in loginState.branchOptions) {
+      final id = option.branchId.trim();
+      if (id.isEmpty) continue;
+      branchMap[id] = UserBranch(
+        id: id,
+        branchId: id,
+        name: option.branchName,
+        role: '',
+        active: true,
+      );
+    }
+    return branchMap.values.toList(growable: false);
+  }
+
   void _initBranchAssignments(StockItem item) {
-    final branches =
-        ref.read(loginControllerProvider).user?.branches ??
-        const <UserBranch>[];
+    final branches = _readAvailableBranches();
     _branchAssignments.clear();
     if (item.branchId.isNotEmpty && item.branchId != 'all') {
       _branchAssignments.add(
@@ -575,11 +626,10 @@ class _StockItemFormPageState extends ConsumerState<StockItemFormPage> {
     }
   }
 
-  void _bootstrapBranchAssignments() {
-    final branches =
-        ref.read(loginControllerProvider).user?.branches ??
-        const <UserBranch>[];
-    if (branches.length == 1 && _branchAssignments.isEmpty) {
+  void _bootstrapBranchAssignments([List<UserBranch>? availableBranches]) {
+    final branches = availableBranches ?? _readAvailableBranches();
+    if (branches.isEmpty || _branchAssignments.isNotEmpty) return;
+    if (branches.length == 1) {
       _branchAssignments.add(
         BranchAssignment(
           branchId: branches.first.branchId.isNotEmpty
@@ -587,13 +637,13 @@ class _StockItemFormPageState extends ConsumerState<StockItemFormPage> {
               : branches.first.id,
         ),
       );
+      return;
     }
+    _branchAssignments.add(BranchAssignment());
   }
 
   void _addBranchAssignment() {
-    final branches =
-        ref.read(loginControllerProvider).user?.branches ??
-        const <UserBranch>[];
+    final branches = _readAvailableBranches();
     if (branches.isEmpty) return;
     final used = _branchAssignments
         .map((e) => e.branchId)
@@ -626,6 +676,7 @@ class _StockItemFormPageState extends ConsumerState<StockItemFormPage> {
       setState(() {
         _selectedImageBytes = bytes;
         _selectedImagePath = picked.path;
+        _imageError = null;
       });
     } catch (_) {
       if (!mounted) return;
@@ -639,7 +690,22 @@ class _StockItemFormPageState extends ConsumerState<StockItemFormPage> {
     }
   }
 
+  void _clearLocalImageSelection() {
+    setState(() {
+      _selectedImageBytes = null;
+      _selectedImagePath = null;
+      _imageError = null;
+    });
+  }
+
   bool _validateRequired() {
+    if (_nameError != null || _baseUnitError != null || _imageError != null) {
+      setState(() {
+        _nameError = null;
+        _baseUnitError = null;
+        _imageError = null;
+      });
+    }
     var valid = _formKey.currentState?.validate() ?? false;
     if (_baseUnit == null || _baseUnit!.isEmpty) {
       setState(() => _baseUnitError = 'Please select a base unit');
@@ -650,11 +716,12 @@ class _StockItemFormPageState extends ConsumerState<StockItemFormPage> {
 
   Future<void> _submit() async {
     if (!_validateRequired()) return;
-    setState(() => _isSaving = true);
+    setState(() {
+      _isSaving = true;
+      _imageError = null;
+    });
 
-    final branches =
-        ref.read(loginControllerProvider).user?.branches ??
-        const <UserBranch>[];
+    final branches = _readAvailableBranches();
     if (branches.isNotEmpty && _branchAssignments.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -696,31 +763,18 @@ class _StockItemFormPageState extends ConsumerState<StockItemFormPage> {
           imagePath: kIsWeb ? null : _selectedImagePath,
           imageBytes: _selectedImageBytes,
         );
-
-        final repo = ref.read(branchStockRepositoryProvider);
-        for (final assignment in _branchAssignments) {
-          final branchId = assignment.branchId;
-          if (branchId == null || branchId.isEmpty) continue;
-          final minThreshold =
-              int.tryParse(assignment.thresholdCtrl.text.trim()) ?? 0;
-          await repo.assignToBranch(
-            stockItemId: created.id,
-            branchId: branchId,
-            minThreshold: minThreshold < 0 ? 0 : minThreshold,
-          );
-          ref
-              .read(stockInventoryControllerProvider.notifier)
-              .updateBranchAssignment(
-                stockItemId: created.id,
-                branchId: branchId,
-                minThreshold: minThreshold < 0 ? 0 : minThreshold,
-              );
-        }
+        final assignmentWarning = await _syncBranchAssignments(
+          stockItemId: created.id,
+        );
 
         if (!mounted) return;
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('Stock item added')));
+        ).showSnackBar(
+          SnackBar(
+            content: Text(assignmentWarning ?? 'Stock item added'),
+          ),
+        );
         Navigator.of(context).pop();
       } else {
         final current = _originalItem!;
@@ -729,57 +783,119 @@ class _StockItemFormPageState extends ConsumerState<StockItemFormPage> {
           categoryId: _categoryId,
           baseUnit: _baseUnit ?? current.baseUnit,
           pieceSize: pieceSize <= 0 ? current.pieceSize : pieceSize,
-          isActive: _isActive,
         );
-        await controller.updateStockItem(
+        final saved = await controller.updateStockItem(
           updated,
           imagePath: kIsWeb ? null : _selectedImagePath,
           imageBytes: _selectedImageBytes,
         );
-        final repo = ref.read(branchStockRepositoryProvider);
-        for (final assignment in _branchAssignments) {
-          final branchId = assignment.branchId;
-          if (branchId == null || branchId.isEmpty) continue;
-          final minThreshold =
-              int.tryParse(assignment.thresholdCtrl.text.trim()) ?? 0;
-          await repo.assignToBranch(
-            stockItemId: updated.id,
-            branchId: branchId,
-            minThreshold: minThreshold < 0 ? 0 : minThreshold,
-          );
-          ref
-              .read(stockInventoryControllerProvider.notifier)
-              .updateBranchAssignment(
-                stockItemId: updated.id,
-                branchId: branchId,
-                minThreshold: minThreshold < 0 ? 0 : minThreshold,
-              );
-        }
+        final assignmentWarning = await _syncBranchAssignments(
+          stockItemId: saved.id,
+        );
         if (!mounted) return;
         setState(() {
-          _originalItem = updated;
+          _originalItem = saved;
           _mode = StockItemFormMode.view;
           _selectedImageBytes = null;
           _selectedImagePath = null;
+          _imageError = null;
         });
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('Stock item saved')));
+        ).showSnackBar(
+          SnackBar(
+            content: Text(assignmentWarning ?? 'Stock item saved'),
+          ),
+        );
       }
     } catch (e) {
       if (!mounted) return;
-      final mapped = mapInventoryError(
+      final mapped = mapStockItemFormSaveError(
         e,
         fallbackMessage: _mode == StockItemFormMode.create
             ? 'Failed to add stock item.'
             : 'Failed to save stock item.',
       );
+      switch (mapped.field) {
+        case StockItemFormErrorField.name:
+          setState(() {
+            _nameError = mapped.message;
+            _autovalidateMode = AutovalidateMode.always;
+          });
+          _formKey.currentState?.validate();
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(mapped.message)));
+          return;
+        case StockItemFormErrorField.baseUnit:
+          setState(() {
+            _baseUnitError = mapped.message;
+            _autovalidateMode = AutovalidateMode.always;
+          });
+          _formKey.currentState?.validate();
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(mapped.message)));
+          return;
+        case StockItemFormErrorField.image:
+          setState(() {
+            _imageError = mapped.message;
+            _autovalidateMode = AutovalidateMode.always;
+          });
+          _formKey.currentState?.validate();
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(mapped.message)));
+          return;
+        case StockItemFormErrorField.general:
+          break;
+      }
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(mapped.message)));
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
+  }
+
+  Future<String?> _syncBranchAssignments({required String stockItemId}) async {
+    final repo = ref.read(branchStockRepositoryProvider);
+    for (final assignment in _branchAssignments) {
+      final branchId = assignment.branchId;
+      if (branchId == null || branchId.isEmpty) continue;
+      final minThreshold =
+          int.tryParse(assignment.thresholdCtrl.text.trim()) ?? 0;
+      try {
+        await repo.assignToBranch(
+          stockItemId: stockItemId,
+          branchId: branchId,
+          minThreshold: minThreshold < 0 ? 0 : minThreshold,
+        );
+        ref
+            .read(stockInventoryControllerProvider.notifier)
+            .updateBranchAssignment(
+              stockItemId: stockItemId,
+              branchId: branchId,
+              minThreshold: minThreshold < 0 ? 0 : minThreshold,
+            );
+      } catch (error) {
+        return _branchAssignmentWarningMessage(error);
+      }
+    }
+    return null;
+  }
+
+  String _branchAssignmentWarningMessage(Object error) {
+    final mapped = mapInventoryError(
+      error,
+      fallbackMessage: 'Stock item was saved, but branch assignment failed.',
+    );
+    final serverText = error.toString().toLowerCase();
+    if (serverText.contains('not register to route') ||
+        serverText.contains('not registered')) {
+      return 'Stock item was saved, but branch assignment is not available in the current API.';
+    }
+    return 'Stock item was saved, but branch assignment failed: ${mapped.message}';
   }
 
   Future<void> _restoreItem() async {
@@ -803,6 +919,58 @@ class _StockItemFormPageState extends ConsumerState<StockItemFormPage> {
       final mapped = mapInventoryError(
         e,
         fallbackMessage: 'Failed to restore stock item.',
+      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(mapped.message)));
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  Future<void> _archiveItem() async {
+    final current = _originalItem;
+    if (current == null || current.id.isEmpty) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Archive stock item?'),
+          content: Text(
+            '"${current.name}" will move to archived views until it is restored.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Archive'),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _isSaving = true);
+    try {
+      await ref
+          .read(stockInventoryControllerProvider.notifier)
+          .archiveStockItem(current.id);
+      if (!mounted) return;
+      setState(() {
+        _isActive = false;
+        _originalItem = current.copyWith(isActive: false);
+      });
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Stock item archived')));
+    } catch (e) {
+      if (!mounted) return;
+      final mapped = mapInventoryError(
+        e,
+        fallbackMessage: 'Failed to archive stock item.',
       );
       ScaffoldMessenger.of(
         context,

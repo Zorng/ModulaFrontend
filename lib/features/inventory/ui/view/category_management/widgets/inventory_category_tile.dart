@@ -9,10 +9,12 @@ class InventoryCategoryTile extends ConsumerWidget {
     super.key,
     required this.category,
     required this.itemCount,
+    this.onArchived,
   });
 
   final InventoryCategory category;
   final int itemCount;
+  final VoidCallback? onArchived;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -59,13 +61,18 @@ class InventoryCategoryTile extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              category.isActive ? 'Active' : 'Inactive',
+              category.isActive ? 'Active' : 'Archived',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: category.isActive ? scheme.primary : scheme.error,
                 fontWeight: FontWeight.w600,
               ),
             ),
             const SizedBox(width: 8),
+            InventoryCategoryActionMenu(
+              category: category,
+              compact: true,
+              onArchived: onArchived,
+            ),
           ],
         ),
         onTap: () => InventoryCategoryActionMenu.openView(context, category),

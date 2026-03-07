@@ -17,7 +17,10 @@ class MockBranchStockRepository extends BranchStockRepository {
       <String, _BranchAssignment>{};
 
   @override
-  Future<List<OnHandRecord>> fetchOnHand({String? branchId}) async {
+  Future<List<OnHandRecord>> fetchOnHand({
+    String? branchId,
+    String status = 'all',
+  }) async {
     return _assignments.entries
         .where(
           (entry) =>
@@ -37,10 +40,23 @@ class MockBranchStockRepository extends BranchStockRepository {
   }
 
   @override
-  Future<List<StockItem>> fetchStockItems({String? branchId}) async {
+  Future<List<StockItem>> fetchStockItems({
+    String? branchId,
+    String status = 'all',
+  }) async {
     if (_items.isEmpty) return const <StockItem>[];
 
-    final items = _items.map(_withAssignment);
+    final items = _items.map(_withAssignment).where((item) {
+      switch (status.trim().toLowerCase()) {
+        case 'active':
+          return item.isActive;
+        case 'archived':
+          return !item.isActive;
+        case 'all':
+        default:
+          return true;
+      }
+    });
     if (branchId == null || branchId.isEmpty) {
       return items.toList(growable: false);
     }

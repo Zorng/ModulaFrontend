@@ -34,10 +34,12 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
   TextEditingController? _itemCtrl;
   final _pcsCtrl = TextEditingController(text: '0');
   final _extraCtrl = TextEditingController(text: '0');
-  final _priceCtrl = TextEditingController(text: '0');
+  final _priceCtrl = TextEditingController();
+  final _supplierCtrl = TextEditingController();
   final _noteCtrl = TextEditingController();
   final _dateCtrl = TextEditingController();
   final _expiryCtrl = TextEditingController();
+  String? _submitError;
 
   @override
   void initState() {
@@ -66,6 +68,7 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
     _pcsCtrl.dispose();
     _extraCtrl.dispose();
     _priceCtrl.dispose();
+    _supplierCtrl.dispose();
     _noteCtrl.dispose();
     _dateCtrl.dispose();
     _expiryCtrl.dispose();
@@ -180,7 +183,7 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
             const SizedBox(height: 16),
           ],
           Text(
-            'Provide the branch, item, and quantity received. We keep track using base units (ml/g/pcs) behind the scenes.',
+            'Provide the branch, item, and quantity received. Restock batches are stored in base units (quantityInBaseUnit) even when you enter pieces and extras here.',
             style: Theme.of(context).textTheme.bodyMedium,
           ),
           const SizedBox(height: 16),
@@ -194,6 +197,7 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
                 _itemCtrl?.clear();
                 _pcsCtrl.text = '0';
                 _extraCtrl.text = '0';
+                _submitError = null;
               });
               ref
                   .read(stockInventoryControllerProvider.notifier)
@@ -212,9 +216,13 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
                 _itemCtrl?.text = item.name;
                 _pcsCtrl.text = '0';
                 _extraCtrl.text = '0';
+                _submitError = null;
               });
             },
-            onCleared: () => setState(() => _selectedItemId = null),
+            onCleared: () => setState(() {
+              _selectedItemId = null;
+              _submitError = null;
+            }),
             onTapEmpty: () {
               final fallback = userBranches.isNotEmpty
                   ? (userBranches.first.branchId.isNotEmpty
@@ -233,18 +241,42 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
               pcsCtrl: _pcsCtrl,
               extraCtrl: _extraCtrl,
             ),
+          if (selectedItem != null) ...[
+            const SizedBox(height: 8),
+            AnimatedBuilder(
+              animation: Listenable.merge([_pcsCtrl, _extraCtrl]),
+              builder: (context, _) {
+                return Text(
+                  'Recorded quantity in base units: ${_formatBaseQuantity(selectedItem)}',
+                  style: Theme.of(context).textTheme.bodySmall,
+                );
+              },
+            ),
+          ],
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: _supplierCtrl,
+            decoration: const InputDecoration(
+              labelText: 'Supplier name (optional)',
+              hintText: 'Enter supplier name',
+            ),
+          ),
           const SizedBox(height: 12),
           TextFormField(
             controller: _priceCtrl,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             decoration: const InputDecoration(
-              labelText: 'Cost price per delivery',
+              labelText: 'Purchase cost (USD, optional)',
               prefixText: '\$ ',
               hintText: 'Enter amount',
             ),
             validator: (value) {
-              final price = double.tryParse(value?.trim() ?? '');
-              if (price == null || price < 0) return 'Enter a valid price';
+              final trimmed = value?.trim() ?? '';
+              if (trimmed.isEmpty) return null;
+              final price = double.tryParse(trimmed);
+              if (price == null || price < 0) {
+                return 'Enter a valid purchase cost';
+              }
               return null;
             },
           ),
@@ -257,7 +289,7 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
             controller: _dateCtrl,
             readOnly: true,
             decoration: InputDecoration(
-              labelText: 'Restock date',
+              labelText: 'Received date',
               hintText: 'Select date',
               suffixIcon: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -315,6 +347,13 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
                 : () => _submit(selectedItem),
             child: const Text('Record restock'),
           ),
+          if (_submitError != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              _submitError!,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ],
         ],
       ),
     );
@@ -401,14 +440,14 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
       );
       return;
     }
-    final price = double.tryParse(_priceCtrl.text.trim());
-    if (price == null || price < 0) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Enter a valid price')));
+    final priceText = _priceCtrl.text.trim();
+    final price = priceText.isEmpty ? null : double.tryParse(priceText);
+    if (priceText.isNotEmpty && (price == null || price < 0)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter a valid purchase cost')),
+      );
       return;
     }
-    setState(() => _isSaving = true);
 
     final pcs = int.tryParse(_pcsCtrl.text.trim()) ?? 0;
     final extra = item.pieceSize > 1
@@ -421,6 +460,10 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
       );
       return;
     }
+    setState(() {
+      _isSaving = true;
+      _submitError = null;
+    });
     try {
       await ref
           .read(stockInventoryControllerProvider.notifier)
@@ -431,6 +474,9 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
                 ? formatYyyyMmDd(DateTime.now())
                 : _dateCtrl.text,
             expiryDate: _expiryCtrl.text.isEmpty ? null : _expiryCtrl.text,
+            supplierName: _supplierCtrl.text.trim().isEmpty
+                ? null
+                : _supplierCtrl.text.trim(),
             purchaseCostUsd: price,
             note: _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim(),
             branchId: _selectedBranchId,
@@ -463,11 +509,7 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Recorded ${StockQuantityFormatter(baseQty: baseQty, pieceSize: item.pieceSize, baseUnit: item.baseUnit).format()} for ${item.name} at \$${price.toStringAsFixed(2)} (${_expiryCtrl.text.isEmpty ? 'no expiry' : 'expires ${_expiryCtrl.text}'})',
-          ),
-        ),
+        SnackBar(content: Text(_buildSuccessMessage(item, baseQty, price))),
       );
       context.pop();
     } catch (e) {
@@ -476,11 +518,54 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
         e,
         fallbackMessage: 'Failed to record restock.',
       );
+      if (_showInlineSubmitError(mapped.code)) {
+        setState(() => _submitError = mapped.message);
+        return;
+      }
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(mapped.message)));
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
+  }
+
+  bool _showInlineSubmitError(InventoryErrorCode code) {
+    switch (code) {
+      case InventoryErrorCode.stockItemInactive:
+      case InventoryErrorCode.quantityInvalid:
+      case InventoryErrorCode.adjustmentInvalid:
+      case InventoryErrorCode.restockBatchArchived:
+      case InventoryErrorCode.restockBatchNotFound:
+        return true;
+      default:
+        return isInventoryAccessErrorCode(code);
+    }
+  }
+
+  String _formatBaseQuantity(StockItem item) {
+    final pcs = int.tryParse(_pcsCtrl.text.trim()) ?? 0;
+    final extra = item.pieceSize > 1
+        ? int.tryParse(_extraCtrl.text.trim()) ?? 0
+        : 0;
+    final baseQty = item.pieceSize > 1 ? pcs * item.pieceSize + extra : pcs;
+    return StockQuantityFormatter(
+      baseQty: baseQty,
+      pieceSize: 1,
+      baseUnit: item.baseUnit,
+    ).format();
+  }
+
+  String _buildSuccessMessage(StockItem item, int baseQty, double? price) {
+    final quantity = StockQuantityFormatter(
+      baseQty: baseQty,
+      pieceSize: item.pieceSize,
+      baseUnit: item.baseUnit,
+    ).format();
+    final details = <String>[
+      if (price != null) 'purchase cost \$${price.toStringAsFixed(2)}',
+      _expiryCtrl.text.isEmpty ? 'no expiry' : 'expires ${_expiryCtrl.text}',
+    ];
+    return 'Recorded $quantity for ${item.name} (${details.join(', ')})';
   }
 }

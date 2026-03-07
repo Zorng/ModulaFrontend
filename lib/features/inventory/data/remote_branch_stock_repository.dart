@@ -22,8 +22,14 @@ class RemoteBranchStockRepository extends BranchStockRepository {
   final InventoryApi _api;
 
   @override
-  Future<List<OnHandRecord>> fetchOnHand({String? branchId}) async {
-    final records = await _api.fetchOnHand(includeArchivedItems: true);
+  Future<List<OnHandRecord>> fetchOnHand({
+    String? branchId,
+    String status = 'all',
+  }) async {
+    final normalizedStatus = _normalizeInventoryStatus(status);
+    final records = await _api.fetchOnHand(
+      includeArchivedItems: normalizedStatus != 'active',
+    );
     final mapped = records
         .map((dto) => _toOnHandDomain(dto, branchIdHint: branchId))
         .toList(growable: false);
@@ -36,10 +42,16 @@ class RemoteBranchStockRepository extends BranchStockRepository {
   }
 
   @override
-  Future<List<StockItem>> fetchStockItems({String? branchId}) async {
+  Future<List<StockItem>> fetchStockItems({
+    String? branchId,
+    String status = 'all',
+  }) async {
+    final normalizedStatus = _normalizeInventoryStatus(status);
+    final includeArchivedItems = normalizedStatus != 'active';
+
     // Always fetch master items so we can hydrate unit/piece info.
     final masterDtos = await _api.fetchStockItems(
-      status: 'all',
+      status: normalizedStatus,
       limit: 200,
       offset: 0,
     );
@@ -47,7 +59,7 @@ class RemoteBranchStockRepository extends BranchStockRepository {
 
     if (branchId == null || branchId.isEmpty) {
       final aggregateDtos = await _api.fetchAggregateStock(
-        includeArchivedItems: true,
+        includeArchivedItems: includeArchivedItems,
       );
       if (aggregateDtos.isNotEmpty) {
         return aggregateDtos
@@ -57,12 +69,13 @@ class RemoteBranchStockRepository extends BranchStockRepository {
                 masterById: masterById,
               ),
             )
+            .where((item) => _matchesStatus(item, normalizedStatus))
             .toList(growable: false);
       }
     }
 
     final branchDtos = await _api.fetchBranchStockItems(
-      includeArchivedItems: true,
+      includeArchivedItems: includeArchivedItems,
     );
 
     if (branchDtos.isNotEmpty) {
@@ -74,6 +87,7 @@ class RemoteBranchStockRepository extends BranchStockRepository {
               branchIdHint: branchId,
             ),
           )
+          .where((item) => _matchesStatus(item, normalizedStatus))
           .toList(growable: false);
     }
 
@@ -88,6 +102,7 @@ class RemoteBranchStockRepository extends BranchStockRepository {
             minThreshold: dto.lowStockThreshold ?? 0,
           ),
         )
+        .where((item) => _matchesStatus(item, normalizedStatus))
         .toList(growable: false);
   }
 
@@ -102,6 +117,29 @@ class RemoteBranchStockRepository extends BranchStockRepository {
       branchId: branchId,
       minThreshold: minThreshold,
     );
+  }
+}
+
+String _normalizeInventoryStatus(String raw) {
+  switch (raw.trim().toLowerCase()) {
+    case 'active':
+    case 'archived':
+    case 'all':
+      return raw.trim().toLowerCase();
+    default:
+      return 'all';
+  }
+}
+
+bool _matchesStatus(StockItem item, String status) {
+  switch (status) {
+    case 'active':
+      return item.isActive;
+    case 'archived':
+      return !item.isActive;
+    case 'all':
+    default:
+      return true;
   }
 }
 

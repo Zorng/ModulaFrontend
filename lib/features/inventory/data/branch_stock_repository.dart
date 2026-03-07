@@ -17,9 +17,15 @@ final branchStockRepositoryProvider = Provider<BranchStockRepository>((ref) {
 abstract class BranchStockRepository {
   const BranchStockRepository();
 
-  Future<List<OnHandRecord>> fetchOnHand({String? branchId});
+  Future<List<OnHandRecord>> fetchOnHand({
+    String? branchId,
+    String status = 'all',
+  });
 
-  Future<List<StockItem>> fetchStockItems({String? branchId});
+  Future<List<StockItem>> fetchStockItems({
+    String? branchId,
+    String status = 'all',
+  });
 
   Future<void> assignToBranch({
     required String stockItemId,

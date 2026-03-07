@@ -8,20 +8,35 @@ class AdjustQuantityInputs extends StatelessWidget {
     required this.item,
     required this.pcsCtrl,
     required this.baseCtrl,
+    required this.mode,
   });
 
   final StockItem item;
   final TextEditingController pcsCtrl;
   final TextEditingController baseCtrl;
+  final AdjustQuantityInputMode mode;
 
   @override
   Widget build(BuildContext context) {
+    final quantityLabel = switch (mode) {
+      AdjustQuantityInputMode.delta => 'Adjustment quantity',
+      AdjustQuantityInputMode.setToCount => 'Counted on-hand quantity',
+    };
+    final pieceLabel = switch (mode) {
+      AdjustQuantityInputMode.delta => 'Pieces to adjust',
+      AdjustQuantityInputMode.setToCount => 'Counted pieces',
+    };
+    final extraLabel = switch (mode) {
+      AdjustQuantityInputMode.delta => 'Additional ${item.baseUnit}',
+      AdjustQuantityInputMode.setToCount =>
+        'Additional counted ${item.baseUnit}',
+    };
     if (item.pieceSize <= 1) {
       return TextFormField(
         controller: baseCtrl,
         keyboardType: TextInputType.number,
         decoration: InputDecoration(
-          labelText: 'Quantity (${item.baseUnit})',
+          labelText: '$quantityLabel (${item.baseUnit})',
           hintText: 'Enter amount',
         ),
       );
@@ -33,8 +48,8 @@ class AdjustQuantityInputs extends StatelessWidget {
           child: TextFormField(
             controller: pcsCtrl,
             keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              labelText: 'Pieces',
+            decoration: InputDecoration(
+              labelText: pieceLabel,
               hintText: 'e.g., number of cartons',
             ),
           ),
@@ -45,7 +60,7 @@ class AdjustQuantityInputs extends StatelessWidget {
             controller: baseCtrl,
             keyboardType: TextInputType.number,
             decoration: InputDecoration(
-              labelText: 'Extra (${item.baseUnit})',
+              labelText: extraLabel,
               hintText: 'Optional remainder',
             ),
           ),
@@ -55,3 +70,4 @@ class AdjustQuantityInputs extends StatelessWidget {
   }
 }
 
+enum AdjustQuantityInputMode { delta, setToCount }
