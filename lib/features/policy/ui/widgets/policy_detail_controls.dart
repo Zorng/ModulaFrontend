@@ -55,6 +55,7 @@ class PolicyValueTile extends StatelessWidget {
     required this.enabled,
     this.onTap,
     this.hint,
+    this.subtitle,
   });
 
   final String title;
@@ -62,6 +63,7 @@ class PolicyValueTile extends StatelessWidget {
   final bool enabled;
   final VoidCallback? onTap;
   final String? hint;
+  final String? subtitle;
 
   @override
   Widget build(BuildContext context) {
@@ -73,6 +75,9 @@ class PolicyValueTile extends StatelessWidget {
 
     return ListTile(
       title: Text(title),
+      subtitle: subtitle != null
+          ? Text(subtitle!)
+          : (!enabled && hint != null ? Text(hint!) : null),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -92,7 +97,6 @@ class PolicyValueTile extends StatelessWidget {
         ],
       ),
       enabled: enabled,
-      subtitle: !enabled && hint != null ? Text(hint!) : null,
       onTap: enabled ? onTap : null,
     );
   }
@@ -247,12 +251,15 @@ class PolicyDetailScaffold extends StatelessWidget {
       children: [
         const SizedBox(height: 8),
         child,
-        if (isEditing && onSave != null && canSave)
+        if (isEditing && onSave != null)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 12),
             child: Align(
               alignment: Alignment.centerLeft,
-              child: FilledButton(onPressed: onSave, child: const Text('Save')),
+              child: FilledButton(
+                onPressed: canSave ? onSave : null,
+                child: const Text('Save'),
+              ),
             ),
           ),
       ],
@@ -299,7 +306,7 @@ class PolicyDetailScaffold extends StatelessWidget {
                 ),
                 const SizedBox(height: 24),
                 child,
-                if (isEditing && onSave != null && canSave)
+                if (isEditing && onSave != null)
                   Padding(
                     padding: const EdgeInsets.only(top: 24),
                     child: Align(
@@ -321,7 +328,7 @@ class PolicyDetailScaffold extends StatelessWidget {
                             SizedBox(
                               width: 160,
                               child: FilledButton(
-                                onPressed: onSave,
+                                onPressed: canSave ? onSave : null,
                                 child: const Text('Save Changes'),
                               ),
                             ),

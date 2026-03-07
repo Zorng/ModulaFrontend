@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/core/hydration/app_hydration_listener.dart';
 import 'package:modular_pos/core/hydration/context_scoped_runtime_resource.dart';
+import 'package:modular_pos/features/auth/domain/active_branch_context_provider.dart';
 import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
 import 'package:modular_pos/features/auth/domain/auth_tenant_provider.dart';
 import 'package:modular_pos/features/auth/domain/auth_token_provider.dart';
@@ -49,9 +50,9 @@ class _TestPolicyNotifier extends PolicyNotifier {
   PolicyState build() => const PolicyState();
 
   @override
-  Future<void> load({String? branchId}) {
+  Future<void> load() {
     loadCount += 1;
-    loadedBranchIds.add(branchId);
+    loadedBranchIds.add(ref.read(activeBranchContextIdProvider));
     return Future.value();
   }
 

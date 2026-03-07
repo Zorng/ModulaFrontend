@@ -7,6 +7,7 @@ import 'package:modular_pos/core/formatters/khr_currency_formatter.dart';
 import 'package:modular_pos/core/feedback/user_error_message.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
+import 'package:modular_pos/features/policy/domain/models/policy.dart';
 import 'package:modular_pos/features/policy/ui/viewmodels/policy_viewmodel.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/order_viewmodel.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_access_gate.dart';
@@ -357,12 +358,15 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
     final gate = ref.watch(saleAccessGateProvider);
     final readOnly = !gate.canAddToCart || cartState.isFinalizing;
     final policyState = ref.watch(policyNotifierProvider);
-    final salesPolicy = policyState.salesPolicy;
-    final fxRate = salesPolicy.saleFxRateKhrPerUsd;
-    final roundingEnabled = salesPolicy.saleKhrRoundingEnabled;
-    final roundingMode = salesPolicy.saleKhrRoundingMode;
-    final roundingGranularity =
-        double.tryParse(salesPolicy.saleKhrRoundingGranularity) ?? 100;
+    final branchPolicy = policyState.branchPolicy;
+    final fxRate = branchPolicy.saleFxRateKhrPerUsd;
+    final roundingEnabled = branchPolicy.saleKhrRoundingEnabled;
+    final roundingMode = BranchPolicyRoundingModes.normalize(
+      branchPolicy.saleKhrRoundingMode,
+    );
+    final roundingGranularity = BranchPolicyRoundingGranularities.asAmount(
+      branchPolicy.saleKhrRoundingGranularity,
+    );
     final groupLookup = {
       for (final g in menuState.modifierGroups) g.id: g,
       for (final g in menuState.hydratedModifierGroups.entries) g.key: g.value,
@@ -385,6 +389,7 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
     );
     final orderType = cartState.saleType;
     final isPayLaterMode = orderType == 'dine_in';
+    final payLaterEnabled = branchPolicy.saleAllowPayLater;
     final canCheckout =
         gate.canCheckout &&
         !cartState.isFinalizing &&
@@ -392,9 +397,15 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
         ((_paymentMethod == 'cash' && tenderUsd >= grandTotalUsd) ||
             (_paymentMethod == 'qr' && khqrReady));
     final canPlaceOrder =
-        gate.canPlacePayLater && !cartState.isFinalizing && items.isNotEmpty;
+        gate.canPlacePayLater &&
+        payLaterEnabled &&
+        !cartState.isFinalizing &&
+        items.isNotEmpty;
     final canPrimaryAction = isPayLaterMode ? canPlaceOrder : canCheckout;
     final primaryActionLabel = isPayLaterMode ? 'Place Order' : 'Checkout';
+    final payLaterDisabledMessage = !payLaterEnabled && isPayLaterMode
+        ? 'Pay-later is disabled by branch policy. Switch order type to continue.'
+        : null;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -577,9 +588,19 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
                 SaleOrderTypeSelector(
                   value: orderType,
                   enabled: !readOnly,
+                  dineInEnabled: payLaterEnabled,
                   onChanged: (value) =>
                       ref.read(saleCartProvider.notifier).setSaleType(value),
                 ),
+                if (payLaterDisabledMessage != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    payLaterDisabledMessage,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 20),
                 // Summary Section
                 Text(
@@ -587,6 +608,20 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
                   style: Theme.of(
                     context,
                   ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    'Displayed VAT, FX, and KHR totals are policy-based estimates. Backend checkout/finalize remains the authority for committed totals and receipts.',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 // Cart Items

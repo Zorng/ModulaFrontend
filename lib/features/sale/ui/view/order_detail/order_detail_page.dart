@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:modular_pos/features/sale/ui/viewmodels/order_viewmodel.dart';
+import 'package:modular_pos/core/feedback/user_error_message.dart';
+import 'package:modular_pos/features/policy/ui/viewmodels/policy_viewmodel.dart';
 import 'package:modular_pos/features/sale/ui/view/order_detail/order_detail_utils.dart';
 import 'package:modular_pos/features/sale/ui/view/order_detail/widgets/order_detail_summary_row.dart';
+import 'package:modular_pos/features/sale/ui/viewmodels/order_viewmodel.dart';
 
 class OrderDetailPage extends ConsumerWidget {
   const OrderDetailPage({
@@ -17,12 +19,15 @@ class OrderDetailPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final orders = ref.watch(ordersProvider);
+    final policyState = ref.watch(policyNotifierProvider);
     final order = orders.firstWhere(
       (o) => o.number == orderNumber,
       orElse: () => Order(
         id: orderNumber,
+        saleId: orderNumber,
         number: orderNumber,
         status: 'unknown',
+        ticketStatus: 'UNKNOWN',
         placedAt: DateTime.now(),
         orderType: 'take_away',
         paymentMethod: 'cash',
@@ -52,16 +57,31 @@ class OrderDetailPage extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Order Summary', style: Theme.of(context).textTheme.titleMedium),
+            Text(
+              'Order Summary',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
             const SizedBox(height: 8),
             Card(
               color: Colors.white,
               elevation: 2,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
                 child: Column(
                   children: [
+                    if (order.openTicketId != null) ...[
+                      OrderDetailSummaryRow(
+                        label: 'Open Ticket',
+                        value: order.openTicketId!,
+                      ),
+                      const Divider(),
+                    ],
                     OrderDetailSummaryRow(
                       label: 'Type',
                       value: orderDetailOrderTypeLabel(order.orderType),
@@ -74,24 +94,98 @@ class OrderDetailPage extends ConsumerWidget {
                     const Divider(),
                     OrderDetailSummaryRow(
                       label: 'Payment Method',
-                      value: order.paymentMethod == 'qr' ? 'QR / Transfer' : 'Cash',
+                      value: order.paymentMethod == 'qr'
+                          ? 'QR / Transfer'
+                          : (order.paymentMethod == 'unpaid'
+                                ? 'Pending collection'
+                                : 'Cash'),
                     ),
                     const Divider(),
                     OrderDetailSummaryRow(
                       label: 'Current Status',
                       value: orderDetailStatusLabel(order.status),
                     ),
+                    const Divider(),
+                    OrderDetailSummaryRow(
+                      label: 'Ticket Status',
+                      value: order.ticketStatus,
+                    ),
                   ],
                 ),
               ),
             ),
+            if (order.isSettleableOpenTicket) ...[
+              const SizedBox(height: 16),
+              Text(
+                'Open Ticket Settlement',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 8),
+              Card(
+                color: Colors.white,
+                elevation: 2,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        !policyState.branchPolicy.saleAllowPayLater
+                            ? 'New pay-later tickets are disabled by policy, but this existing unpaid ticket can still be settled.'
+                            : 'This existing unpaid ticket can be settled directly from here.',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () => _settleOpenTicket(
+                                context,
+                                ref,
+                                order,
+                                tenderCurrency: 'USD',
+                              ),
+                              child: Text(
+                                'Collect USD \$${order.totalUsd.toStringAsFixed(2)}',
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: FilledButton(
+                              onPressed: () => _settleOpenTicket(
+                                context,
+                                ref,
+                                order,
+                                tenderCurrency: 'KHR',
+                              ),
+                              child: Text(
+                                'Collect KHR ${order.totalKhr.toStringAsFixed(0)}',
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 16),
             Text('Order Items', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
             Card(
               color: Colors.white,
               elevation: 2,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
               child: ListView.separated(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
@@ -100,8 +194,9 @@ class OrderDetailPage extends ConsumerWidget {
                 separatorBuilder: (_, __) => const Divider(height: 12),
                 itemBuilder: (context, index) {
                   final line = order.lines[index];
-                  final modifierText =
-                      line.modifiers.isEmpty ? 'No modifiers' : line.modifiers.join(', ');
+                  final modifierText = line.modifiers.isEmpty
+                      ? 'No modifiers'
+                      : line.modifiers.join(', ');
                   return Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -131,15 +226,30 @@ class OrderDetailPage extends ConsumerWidget {
                 },
               ),
             ),
+            if (order.lines.isEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  order.isOpenTicket
+                      ? 'Line-level ticket details are not available in this view yet. Settlement is still supported.'
+                      : 'No item lines available.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
             const SizedBox(height: 16),
             Text('Payment', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
             Card(
               color: Colors.white,
               elevation: 2,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
                 child: Column(
                   children: [
                     OrderDetailSummaryRow(
@@ -169,5 +279,40 @@ class OrderDetailPage extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _settleOpenTicket(
+    BuildContext context,
+    WidgetRef ref,
+    Order order, {
+    required String tenderCurrency,
+  }) async {
+    try {
+      await ref
+          .read(ordersProvider.notifier)
+          .settleOpenTicket(order, tenderCurrency: tenderCurrency);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            tenderCurrency == 'KHR'
+                ? 'Open ticket settled in KHR.'
+                : 'Open ticket settled in USD.',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            UserErrorMessage.build(
+              context: 'Failed to settle open ticket',
+              error: e,
+            ),
+          ),
+        ),
+      );
+    }
   }
 }

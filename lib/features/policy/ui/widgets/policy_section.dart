@@ -25,65 +25,62 @@ class PolicySection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(bottom: 8, top: 12),
-          child: Text(
-            title,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: Theme.of(context).colorScheme.onSurface,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: Theme.of(
+            context,
+          ).colorScheme.outlineVariant.withValues(alpha: 0.5),
         ),
-        Container(
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: Theme.of(
-                context,
-              ).colorScheme.outlineVariant.withValues(alpha: 0.5),
+      ),
+      child: Column(
+        children: [
+          for (int i = 0; i < items.length; i++) ...[
+            PolicyTile(
+              item: items[i],
+              isCompact: isCompact,
+              value: items[i].type == PolicyItemType.toggle
+                  ? (toggleValues[items[i].id] ?? false)
+                  : selectorValues[items[i].id] ?? items[i].defaultValue ?? '',
+              displayValue: _displayValueForItem(items[i]),
+              readOnly: readOnly,
+              showDivider: i != items.length - 1,
+              onTap: () => onItemTap(
+                items[i],
+                items[i].type == PolicyItemType.toggle
+                    ? (toggleValues[items[i].id] ?? false)
+                    : selectorValues[items[i].id] ??
+                          items[i].defaultValue ??
+                          '',
+              ),
             ),
-          ),
-          child: Column(
-            children: [
-              for (int i = 0; i < items.length; i++) ...[
-                PolicyTile(
-                  item: items[i],
-                  isCompact: isCompact,
-                  value: items[i].type == PolicyItemType.toggle
-                      ? (toggleValues[items[i].id] ?? false)
-                      : selectorValues[items[i].id] ??
-                            items[i].defaultValue ??
-                            '',
-                  displayValue: _displayValueForItem(items[i]),
-                  readOnly: readOnly,
-                  showDivider: i != items.length - 1,
-                  onTap: () => onItemTap(
-                    items[i],
-                    items[i].type == PolicyItemType.toggle
-                        ? (toggleValues[items[i].id] ?? false)
-                        : selectorValues[items[i].id] ??
-                              items[i].defaultValue ??
-                              '',
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ],
+          ],
+        ],
+      ),
     );
   }
 
   String? _displayValueForItem(PolicyItem item) {
     if (item.id == 'apply_vat') {
       final enabled = toggleValues[item.id] ?? false;
-      final rate = selectorValues['vat_rate'] ?? item.defaultValue ?? '';
+      final rate = selectorValues['vat_rate'] ?? '0%';
       return enabled ? 'On ($rate)' : 'Off';
+    }
+    if (item.id == 'vat_rate') {
+      return selectorValues[item.id] ?? '0%';
+    }
+    if (item.id == 'khr_rounding_enabled') {
+      final enabled = toggleValues[item.id] ?? false;
+      if (!enabled) return 'Off';
+      final granularity = selectorValues['rounding_granularity'] ?? '100';
+      final mode = selectorValues['rounding_mode'] ?? 'Nearest';
+      return 'On ($granularity, $mode)';
+    }
+    if (item.id == 'rounding_granularity') {
+      final granularity = selectorValues[item.id] ?? item.defaultValue ?? '100';
+      return '$granularity riel';
     }
     if (item.type == PolicyItemType.selector) {
       return selectorValues[item.id] ?? item.defaultValue ?? '';
@@ -158,24 +155,7 @@ class PolicyTile extends StatelessWidget {
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(item.title, style: titleStyle),
-                        if (item.subtitle != null &&
-                            item.type != PolicyItemType.info) ...[                          const SizedBox(height: 2),
-                          Text(
-                            item.subtitle!,
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodySmall
-                                ?.copyWith(
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .onSurfaceVariant,
-                                  height: 1.3,
-                                ),
-                          ),
-                        ],
-                      ],
+                      children: [Text(item.title, style: titleStyle)],
                     ),
                   ),
                   const SizedBox(width: 12),

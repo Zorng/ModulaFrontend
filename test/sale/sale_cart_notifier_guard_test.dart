@@ -20,9 +20,23 @@ class _StaticPolicyNotifier extends PolicyNotifier {
   PolicyState build() {
     return const PolicyState(
       isLoading: false,
-      salesPolicy: SalesPolicy(saleFxRateKhrPerUsd: 4000),
-      inventoryPolicy: InventoryPolicy(),
-      cashSessionPolicy: CashSessionPolicy(),
+      branchPolicy: BranchPolicy(
+        saleFxRateKhrPerUsd: 4000,
+        saleAllowPayLater: true,
+      ),
+    );
+  }
+}
+
+class _PayLaterDisabledPolicyNotifier extends PolicyNotifier {
+  @override
+  PolicyState build() {
+    return const PolicyState(
+      isLoading: false,
+      branchPolicy: BranchPolicy(
+        saleFxRateKhrPerUsd: 4000,
+        saleAllowPayLater: false,
+      ),
     );
   }
 }
@@ -331,6 +345,7 @@ void main() {
 
       final container = createTestContainer(
         overrides: [
+          policyNotifierProvider.overrideWith(_StaticPolicyNotifier.new),
           saleRepositoryProvider.overrideWithValue(repo),
           saleCartProvider.overrideWith(
             () => _PrefilledCartNotifier(
@@ -376,6 +391,63 @@ void main() {
   );
 
   test(
+    'SaleCartNotifier.placeOrder throws when branch policy disables pay-later',
+    () async {
+      final repo = _MockSaleRepository();
+      const item = MenuItem(
+        id: 'menu-1',
+        name: 'Item',
+        categoryId: 'cat-1',
+        price: 2.0,
+      );
+
+      final container = createTestContainer(
+        overrides: [
+          policyNotifierProvider.overrideWith(_PayLaterDisabledPolicyNotifier.new),
+          saleRepositoryProvider.overrideWithValue(repo),
+          saleCartProvider.overrideWith(
+            () => _PrefilledCartNotifier(
+              const SaleCartState(
+                saleId: 'sale-1',
+                saleType: 'dine_in',
+                lines: [
+                  CartLine(item: item, quantity: 1, selectedOptionIds: {}),
+                ],
+              ),
+            ),
+          ),
+          saleAccessGateProvider.overrideWithValue(
+            const SaleAccessGate(
+              branchId: 'branch-1',
+              contextLoading: false,
+              branchActive: true,
+              branchFrozen: false,
+              cashSessionOpen: true,
+              canMutateCart: true,
+              canCheckout: true,
+              canPlacePayLater: true,
+            ),
+          ),
+        ],
+      );
+
+      final notifier = container.read(saleCartProvider.notifier);
+      await expectLater(
+        notifier.placeOrder(),
+        throwsA(
+          isA<SaleCheckoutRepositoryException>().having(
+            (e) => e.reasonCode,
+            'reasonCode',
+            SaleCheckoutReasonCodes.payLaterDisabled,
+          ),
+        ),
+      );
+
+      verifyNever(() => repo.placeOrder(any()));
+    },
+  );
+
+  test(
     'SaleCartNotifier.placeOrder calls repository and clears cart on success',
     () async {
       final repo = _MockSaleRepository();
@@ -398,6 +470,7 @@ void main() {
 
       final container = createTestContainer(
         overrides: [
+          policyNotifierProvider.overrideWith(_StaticPolicyNotifier.new),
           saleRepositoryProvider.overrideWithValue(repo),
           saleCartProvider.overrideWith(
             () => _PrefilledCartNotifier(
@@ -459,6 +532,7 @@ void main() {
 
       final container = createTestContainer(
         overrides: [
+          policyNotifierProvider.overrideWith(_StaticPolicyNotifier.new),
           saleRepositoryProvider.overrideWithValue(repo),
           saleCartProvider.overrideWith(
             () => _PrefilledCartNotifier(

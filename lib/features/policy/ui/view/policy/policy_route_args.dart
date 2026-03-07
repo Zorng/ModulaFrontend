@@ -14,6 +14,30 @@ class VatPolicySaveResult {
   final double ratePercent;
 }
 
+class KhrRoundingPolicyDetailArgs {
+  const KhrRoundingPolicyDetailArgs({
+    required this.enabled,
+    required this.mode,
+    required this.granularity,
+  });
+
+  final bool enabled;
+  final String mode;
+  final String granularity;
+}
+
+class KhrRoundingPolicySaveResult {
+  const KhrRoundingPolicySaveResult({
+    required this.enabled,
+    required this.mode,
+    required this.granularity,
+  });
+
+  final bool enabled;
+  final String mode;
+  final String granularity;
+}
+
 class PolicyItemDetailArgs {
   const PolicyItemDetailArgs({required this.item, required this.value});
 

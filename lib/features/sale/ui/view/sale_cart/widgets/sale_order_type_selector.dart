@@ -6,11 +6,13 @@ class SaleOrderTypeSelector extends StatelessWidget {
     required this.value,
     required this.onChanged,
     required this.enabled,
+    this.dineInEnabled = true,
   });
 
   final String value;
   final ValueChanged<String> onChanged;
   final bool enabled;
+  final bool dineInEnabled;
 
   @override
   Widget build(BuildContext context) {
@@ -21,7 +23,7 @@ class SaleOrderTypeSelector extends StatelessWidget {
           label: 'Dine in',
           value: 'dine_in',
           selected: value == 'dine_in',
-          onSelected: enabled ? () => onChanged('dine_in') : null,
+          onSelected: enabled && dineInEnabled ? () => onChanged('dine_in') : null,
         ),
         _OrderTypeChip(
           label: 'Take away',

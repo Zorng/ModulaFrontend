@@ -27,9 +27,10 @@ class _StaticPolicyNotifier extends PolicyNotifier {
   PolicyState build() {
     return const PolicyState(
       isLoading: false,
-      salesPolicy: SalesPolicy(saleFxRateKhrPerUsd: 4000),
-      inventoryPolicy: InventoryPolicy(),
-      cashSessionPolicy: CashSessionPolicy(),
+      branchPolicy: BranchPolicy(
+        saleFxRateKhrPerUsd: 4000,
+        saleAllowPayLater: true,
+      ),
     );
   }
 }

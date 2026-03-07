@@ -3,6 +3,7 @@ import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/features/policy/ui/view/policy/policy_page.dart';
 import 'package:modular_pos/features/policy/ui/view/policy/policy_route_args.dart';
 import 'package:modular_pos/features/policy/ui/view/policy_detail/policy_detail_page.dart';
+import 'package:modular_pos/features/policy/ui/view/rounding_policy_detail/khr_rounding_policy_detail_page.dart';
 import 'package:modular_pos/features/policy/ui/view/vat_policy_detail/vat_policy_detail_page.dart';
 
 List<RouteBase> buildPolicyRoutes() {
@@ -23,6 +24,18 @@ List<RouteBase> buildPolicyRoutes() {
         return VatPolicyDetailPage(
           enabled: args.enabled,
           currentRate: '$rateText%',
+        );
+      },
+    ),
+    GoRoute(
+      path: AppRoute.policyRoundingDetail.path,
+      name: AppRoute.policyRoundingDetail.name,
+      builder: (context, state) {
+        final args = state.extra as KhrRoundingPolicyDetailArgs;
+        return KhrRoundingPolicyDetailPage(
+          enabled: args.enabled,
+          mode: args.mode,
+          granularity: args.granularity,
         );
       },
     ),

@@ -106,7 +106,7 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
 
   double _fxRate() {
     final policies = ref.read(policyNotifierProvider);
-    return policies.salesPolicy.saleFxRateKhrPerUsd;
+    return policies.branchPolicy.saleFxRateKhrPerUsd;
   }
 
   void _assertCanCreateDraftSale() {
@@ -632,6 +632,13 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
     }
 
     _assertCanCreateDraftSale();
+    final policyState = ref.read(policyNotifierProvider);
+    if (!policyState.branchPolicy.saleAllowPayLater) {
+      throw const SaleCheckoutRepositoryException(
+        reasonCode: SaleCheckoutReasonCodes.payLaterDisabled,
+        message: 'Pay-later is currently disabled for this branch.',
+      );
+    }
     final gate = ref.read(saleAccessGateProvider);
     if (!gate.canPlacePayLater) {
       throw Exception(

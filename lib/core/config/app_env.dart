@@ -45,6 +45,9 @@ class AppEnv {
   static const _inventoryRepositoryModeDefine = String.fromEnvironment(
     'INVENTORY_REPOSITORY_MODE',
   );
+  static const _policyRepositoryModeDefine = String.fromEnvironment(
+    'POLICY_REPOSITORY_MODE',
+  );
 
   static String get apiBaseUrl => _readString(
     primary: _apiBaseUrlDefine,
@@ -91,7 +94,7 @@ class AppEnv {
   static String get policyApiPrefix => _readString(
     primary: _policyApiPrefixDefine,
     dotenvKey: 'POLICY_API_PREFIX',
-    defaultValue: '/v0/policies',
+    defaultValue: '/v0/policy',
   );
 
   static String get attendanceApiPrefix => _readString(
@@ -164,6 +167,15 @@ class AppEnv {
     final mode = _readString(
       primary: _inventoryRepositoryModeDefine,
       dotenvKey: 'INVENTORY_REPOSITORY_MODE',
+      defaultValue: 'api',
+    );
+    return mode.trim().toLowerCase() == 'mock';
+  }
+
+  static bool get useMockPolicyRepository {
+    final mode = _readString(
+      primary: _policyRepositoryModeDefine,
+      dotenvKey: 'POLICY_REPOSITORY_MODE',
       defaultValue: 'api',
     );
     return mode.trim().toLowerCase() == 'mock';
