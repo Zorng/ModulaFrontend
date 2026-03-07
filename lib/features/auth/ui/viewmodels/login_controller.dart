@@ -6,6 +6,7 @@ import 'package:modular_pos/core/network/api_contract.dart';
 import 'package:modular_pos/features/auth/data/auth_repository.dart';
 import 'package:modular_pos/features/auth/data/auth_repository_session_utils.dart';
 import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
+import 'package:modular_pos/features/auth/domain/auth_role.dart';
 import 'package:modular_pos/features/auth/data/auth_session_store.dart';
 import 'package:modular_pos/features/auth/domain/models/auth_session.dart';
 import 'package:modular_pos/features/auth/domain/models/tenant_membership.dart';
@@ -187,22 +188,18 @@ class LoginController extends Notifier<LoginState> {
     );
 
     try {
-      final session = await _repository.login(username, password);
+      final session = _normalizeLoginSession(
+        await _repository.login(username, password),
+      );
       // Persist snapshot immediately so refresh/reload keeps auth state and
       // routing state (tenant/branch selection steps).
       await _sessionStore.save(session);
-      // Only persist fully-established sessions.
-      if (!session.requiresTenantSelection &&
-          session.accessToken.trim().isNotEmpty) {
-        await _applyBranchContextState(session);
-      } else {
-        state = state.copyWith(
-          isLoading: false,
-          session: session,
-          requiresBranchSelection: false,
-          branchOptions: const <AuthBranchContextOption>[],
-        );
-      }
+      state = state.copyWith(
+        isLoading: false,
+        session: session,
+        requiresBranchSelection: false,
+        branchOptions: const <AuthBranchContextOption>[],
+      );
     } catch (e, st) {
       if (e is ApiClientException && _isPhoneNotVerified(e)) {
         state = state.copyWith(
@@ -282,9 +279,12 @@ class LoginController extends Notifier<LoginState> {
       } catch (error, stackTrace) {
         if (error is ApiClientException &&
             _isRecoverableBranchContextResolutionError(error)) {
+          final role = resolveSessionAuthRole(nextSessionWithRole);
+          final requiresBranchSelection =
+              role == AuthRole.cashier || role == AuthRole.manager;
           AppLog.e(
             'Recoverable branch-context error after tenant selection; '
-            'falling back to branch selection state.',
+            'falling back to a context-pending state.',
             error: error,
             stackTrace: stackTrace,
           );
@@ -292,7 +292,7 @@ class LoginController extends Notifier<LoginState> {
           state = state.copyWith(
             isLoading: false,
             session: nextSessionWithRole,
-            requiresBranchSelection: true,
+            requiresBranchSelection: requiresBranchSelection,
             branchOptions: const <AuthBranchContextOption>[],
             error: null,
             errorCode: null,
@@ -463,6 +463,18 @@ class LoginController extends Notifier<LoginState> {
     );
   }
 
+  AuthSession _normalizeLoginSession(AuthSession session) {
+    final selectionToken = session.tenantSelectionToken.trim().isNotEmpty
+        ? session.tenantSelectionToken.trim()
+        : 'v0-context-selection';
+
+    return session.copyWith(
+      user: session.user.copyWith(tenantId: '', role: '', branches: const []),
+      activeTenantId: null,
+      tenantSelectionToken: selectionToken,
+    );
+  }
+
   Future<_BranchContextResolution> _resolveBranchContextState(
     AuthSession session,
   ) async {
@@ -472,8 +484,12 @@ class LoginController extends Notifier<LoginState> {
     final hasActiveBranchContext = (currentBranchId(session) ?? '')
         .trim()
         .isNotEmpty;
-    final requiresBranchSelection =
-        branchContext.requiresSelection || !hasActiveBranchContext;
+    final role = resolveSessionAuthRole(session);
+    final isBranchFirstRole =
+        role == AuthRole.cashier || role == AuthRole.manager;
+    final requiresBranchSelection = isBranchFirstRole
+        ? branchContext.requiresSelection || !hasActiveBranchContext
+        : false;
 
     return _BranchContextResolution(
       session: session,
@@ -552,19 +568,18 @@ class LoginController extends Notifier<LoginState> {
     final code = (exception.code ?? '').trim().toUpperCase();
     final message = exception.message.trim().toUpperCase();
 
-    final isBranchNotFound = statusCode == 404 ||
+    final isBranchNotFound =
+        statusCode == 404 ||
         code.contains('BRANCH_NOT_FOUND') ||
         message.contains('BRANCH NOT FOUND');
-    final isBranchAccessError = statusCode == 403 &&
+    final isBranchAccessError =
+        statusCode == 403 &&
         (code.contains('NO_BRANCH_ACCESS') ||
             code.contains('BRANCH_CONTEXT_REQUIRED') ||
             message.contains('NO BRANCH ACCESS') ||
             message.contains('BRANCH CONTEXT REQUIRED'));
-    final isTenantContextCrossOver = (statusCode == 409 || statusCode == 403) &&
-        (code.contains('TENANT_CONTEXT_REQUIRED') ||
-            message.contains('TENANT CONTEXT REQUIRED'));
 
-    return isBranchNotFound || isBranchAccessError || isTenantContextCrossOver;
+    return isBranchNotFound || isBranchAccessError;
   }
 }
 

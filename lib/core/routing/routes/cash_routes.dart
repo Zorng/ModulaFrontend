@@ -42,12 +42,17 @@ List<RouteBase> buildCashRoutes() {
             ),
           ],
         ),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: AppRoute.zReport.path,
+              name: AppRoute.zReport.name,
+              builder: (context, state) =>
+                  const ZReportPage(showAppBar: false),
+            ),
+          ],
+        ),
       ],
-    ),
-    GoRoute(
-      path: AppRoute.zReport.path,
-      name: AppRoute.zReport.name,
-      builder: (context, state) => const ZReportPage(),
     ),
   ];
 }

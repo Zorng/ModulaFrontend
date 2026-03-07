@@ -5,6 +5,7 @@ import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/theme/app_buttons.dart';
 import 'package:modular_pos/core/theme/app_gradient.dart';
 import 'package:modular_pos/core/theme/responsive.dart';
+import 'package:modular_pos/features/auth/domain/auth_role.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 
 class LoginPage extends ConsumerStatefulWidget {
@@ -44,11 +45,14 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       final user = next.user;
       if (session == null || user == null) return;
 
+      final role = resolveSessionAuthRole(session);
       final route = session.requiresTenantSelection
           ? AppRoute.tenantSelection.path
           : next.requiresBranchSelection
           ? AppRoute.branchSelection.path
-          : AppRoute.portal.path;
+          : (role == AuthRole.admin || role == AuthRole.owner)
+          ? AppRoute.portal.path
+          : AppRoute.cashSession.path;
       if (_lastRoute == route) return;
       _lastRoute = route;
       context.go(route);

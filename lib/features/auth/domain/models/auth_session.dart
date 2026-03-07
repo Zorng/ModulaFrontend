@@ -2,6 +2,8 @@ import 'package:modular_pos/features/auth/domain/models/user.dart';
 import 'package:modular_pos/features/auth/domain/models/tenant_membership.dart';
 
 class AuthSession {
+  static const Object _unset = Object();
+
   const AuthSession({
     required this.user,
     required this.memberships,
@@ -22,10 +24,16 @@ class AuthSession {
   final DateTime refreshTokenExpiresAt;
   final String tenantSelectionToken;
 
-  bool get requiresTenantSelection =>
-      tenantSelectionToken.isNotEmpty ||
-      (memberships.length > 1 &&
-          (activeTenantId == null || activeTenantId!.isEmpty));
+  String get establishedTenantId {
+    final sessionTenantId = (activeTenantId ?? '').trim();
+    if (sessionTenantId.isNotEmpty) return sessionTenantId;
+    return user.tenantId.trim();
+  }
+
+  bool get hasEstablishedTenantContext =>
+      tenantSelectionToken.trim().isEmpty && establishedTenantId.isNotEmpty;
+
+  bool get requiresTenantSelection => !hasEstablishedTenantContext;
 
   bool get isAccessTokenExpired => DateTime.now().isAfter(accessTokenExpiresAt);
 
@@ -81,23 +89,27 @@ class AuthSession {
   AuthSession copyWith({
     User? user,
     List<TenantMembership>? memberships,
-    String? activeTenantId,
+    Object? activeTenantId = _unset,
     String? accessToken,
     String? refreshToken,
     DateTime? accessTokenExpiresAt,
     DateTime? refreshTokenExpiresAt,
-    String? tenantSelectionToken,
+    Object? tenantSelectionToken = _unset,
   }) {
     return AuthSession(
       user: user ?? this.user,
       memberships: memberships ?? this.memberships,
-      activeTenantId: activeTenantId ?? this.activeTenantId,
+      activeTenantId: identical(activeTenantId, _unset)
+          ? this.activeTenantId
+          : activeTenantId as String?,
       accessToken: accessToken ?? this.accessToken,
       refreshToken: refreshToken ?? this.refreshToken,
       accessTokenExpiresAt: accessTokenExpiresAt ?? this.accessTokenExpiresAt,
       refreshTokenExpiresAt:
           refreshTokenExpiresAt ?? this.refreshTokenExpiresAt,
-      tenantSelectionToken: tenantSelectionToken ?? this.tenantSelectionToken,
+      tenantSelectionToken: identical(tenantSelectionToken, _unset)
+          ? this.tenantSelectionToken
+          : tenantSelectionToken as String,
     );
   }
 }

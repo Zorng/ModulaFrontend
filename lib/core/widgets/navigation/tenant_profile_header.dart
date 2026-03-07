@@ -7,23 +7,27 @@ class TenantProfileHeader extends StatelessWidget {
     required this.branchName,
     required this.initial,
     this.onBackPressed,
+    this.backTooltip,
+    this.onTap,
   });
 
   final String tenantName;
   final String branchName;
   final String initial;
   final VoidCallback? onBackPressed;
+  final String? backTooltip;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    final content = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         if (onBackPressed != null) ...[
           IconButton(
             onPressed: onBackPressed,
             icon: const Icon(Icons.arrow_back),
-            tooltip: 'Back to branches',
+            tooltip: backTooltip ?? 'Back',
           ),
           const SizedBox(width: 4),
         ],
@@ -50,6 +54,23 @@ class TenantProfileHeader extends StatelessWidget {
           ),
         ),
       ],
+    );
+
+    if (onTap == null) return content;
+
+    return Tooltip(
+      message: 'Switch tenant',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+            child: content,
+          ),
+        ),
+      ),
     );
   }
 }

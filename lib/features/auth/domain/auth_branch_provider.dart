@@ -1,6 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
-import 'package:modular_pos/features/auth/domain/workspace_context_provider.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 
 /// Resolves the current active branch assignment for the logged-in user.
@@ -23,9 +22,6 @@ class AuthActiveBranchOverrideNotifier extends Notifier<String?> {
   String? build() => null;
 
   void setOverride(String? branchId) {
-    // Branch context is selected from the branch-selection flow and locked
-    // once a workspace context exists.
-    if (ref.read(workspaceContextProvider) != null) return;
     final trimmed = (branchId ?? '').trim();
     state = trimmed.isEmpty ? null : trimmed;
   }
@@ -48,8 +44,8 @@ class AuthActiveBranchNameOverrideNotifier extends Notifier<String?> {
 final authActiveBranchProvider = Provider<UserBranch?>((ref) {
   final session = ref.watch(loginControllerProvider).session;
   final branches = session?.user.branches ?? const <UserBranch>[];
-  if (branches.isEmpty) return null;
   final overrideId = ref.watch(authActiveBranchOverrideProvider);
+  final overrideName = ref.watch(authActiveBranchNameOverrideProvider);
   if (overrideId != null && overrideId.trim().isNotEmpty) {
     final override = branches.firstWhere(
       (b) => b.id == overrideId || b.branchId == overrideId,
@@ -58,15 +54,29 @@ final authActiveBranchProvider = Provider<UserBranch?>((ref) {
     if (override.id.isNotEmpty || override.branchId.isNotEmpty) {
       return override;
     }
+    return UserBranch(
+      id: overrideId,
+      branchId: overrideId,
+      name: (overrideName ?? '').trim(),
+      role: '',
+      active: true,
+    );
   }
-  return branches.firstWhere(
+  if (branches.isEmpty) return null;
+  final activeBranch = branches.firstWhere(
     (b) => b.active && (b.branchId.isNotEmpty || b.id.isNotEmpty),
-    orElse: () => branches.first,
+    orElse: () => const UserBranch(id: '', name: '', role: '', active: false),
   );
+  if (activeBranch.id.isNotEmpty || activeBranch.branchId.isNotEmpty) {
+    return activeBranch;
+  }
+  return null;
 });
 
 /// The resolved active branch id (prefers `branchId`, otherwise falls back to assignment id).
 final authActiveBranchIdProvider = Provider<String?>((ref) {
+  final overrideId = (ref.watch(authActiveBranchOverrideProvider) ?? '').trim();
+  if (overrideId.isNotEmpty) return overrideId;
   final branch = ref.watch(authActiveBranchProvider);
   if (branch == null) return null;
   final id = branch.branchId.isNotEmpty ? branch.branchId : branch.id;

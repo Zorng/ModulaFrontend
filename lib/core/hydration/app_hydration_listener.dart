@@ -6,8 +6,6 @@ import 'package:modular_pos/core/hydration/context_scoped_runtime_resource.dart'
 import 'package:modular_pos/core/logging/app_log.dart';
 import 'package:modular_pos/features/auth/domain/active_branch_context_provider.dart';
 import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
-import 'package:modular_pos/features/auth/domain/workspace_context.dart';
-import 'package:modular_pos/features/auth/domain/workspace_context_provider.dart';
 import 'package:modular_pos/features/auth/domain/auth_tenant_provider.dart';
 import 'package:modular_pos/features/auth/domain/auth_token_provider.dart';
 import 'package:modular_pos/features/auth/domain/models/auth_session.dart';
@@ -33,12 +31,10 @@ class _AppHydrationListenerState extends ConsumerState<AppHydrationListener> {
   String? _lastHydrationToken;
   String? _lastHydrationTenantId;
   String? _lastHydrationBranchId;
-  String? _lastWorkspaceHydrationKey;
 
   ProviderSubscription<AuthSession?>? _sessionSubscription;
   ProviderSubscription<String?>? _tenantSubscription;
   ProviderSubscription<String?>? _branchSubscription;
-  ProviderSubscription<WorkspaceContext?>? _workspaceSubscription;
 
   @override
   void initState() {
@@ -65,11 +61,6 @@ class _AppHydrationListenerState extends ConsumerState<AppHydrationListener> {
       activeBranchContextIdProvider,
       (_, __) => _refreshBranchScopedStateIfNeeded(),
     );
-
-    _workspaceSubscription = ref.listenManual<WorkspaceContext?>(
-      workspaceContextProvider,
-      (_, __) => _refreshBranchScopedStateIfNeeded(),
-    );
   }
 
   @override
@@ -77,7 +68,6 @@ class _AppHydrationListenerState extends ConsumerState<AppHydrationListener> {
     _sessionSubscription?.close();
     _tenantSubscription?.close();
     _branchSubscription?.close();
-    _workspaceSubscription?.close();
     super.dispose();
   }
 
@@ -86,12 +76,10 @@ class _AppHydrationListenerState extends ConsumerState<AppHydrationListener> {
       _lastHydrationToken = null;
       _lastHydrationTenantId = null;
       _lastHydrationBranchId = null;
-      _lastWorkspaceHydrationKey = null;
 
       ref.read(authAccessTokenProvider.notifier).clear();
       ref.read(authTenantIdProvider.notifier).clear();
       ref.read(authActiveBranchOverrideProvider.notifier).clear();
-      ref.read(workspaceContextProvider.notifier).clear();
 
       ref.read(policyNotifierProvider.notifier).reset();
       ref.read(cashSessionViewModelProvider.notifier).reset();
@@ -107,27 +95,24 @@ class _AppHydrationListenerState extends ConsumerState<AppHydrationListener> {
   }
 
   void _refreshBranchScopedStateIfNeeded() {
+    final session = ref.read(loginControllerProvider).session;
+    if (session == null) return;
+
     final token = ref.read(authAccessTokenProvider);
     final tenantId = ref.read(authTenantIdProvider);
-    final workspaceContext = ref.read(workspaceContextProvider);
     final branchId = ref.read(activeBranchContextIdProvider);
-    final workspaceHydrationKey = workspaceContext == null
-        ? 'none'
-        : '${workspaceContext.scope.name}:${workspaceContext.mode.name}';
 
     if (token == null || token.isEmpty) return;
     if (tenantId == null || tenantId.isEmpty) return;
 
-    if (workspaceContext?.scope == WorkspaceScope.global) {
+    if (branchId == null || branchId.isEmpty) {
       final needsReset =
           _lastHydrationBranchId != null ||
           _lastHydrationToken != token ||
-          _lastHydrationTenantId != tenantId ||
-          _lastWorkspaceHydrationKey != workspaceHydrationKey;
+          _lastHydrationTenantId != tenantId;
       _lastHydrationToken = token;
       _lastHydrationTenantId = tenantId;
       _lastHydrationBranchId = null;
-      _lastWorkspaceHydrationKey = workspaceHydrationKey;
       if (!needsReset) return;
 
       ref.read(policyNotifierProvider.notifier).reset();
@@ -135,19 +120,16 @@ class _AppHydrationListenerState extends ConsumerState<AppHydrationListener> {
       _notifyContextClearedResources();
       return;
     }
-    if (branchId == null || branchId.isEmpty) return;
 
     final needsRefresh =
         token != _lastHydrationToken ||
         tenantId != _lastHydrationTenantId ||
-        branchId != _lastHydrationBranchId ||
-        workspaceHydrationKey != _lastWorkspaceHydrationKey;
+        branchId != _lastHydrationBranchId;
     if (!needsRefresh) return;
 
     _lastHydrationToken = token;
     _lastHydrationTenantId = tenantId;
     _lastHydrationBranchId = branchId;
-    _lastWorkspaceHydrationKey = workspaceHydrationKey;
 
     _notifyContextChangedResources(
       accessToken: token,
