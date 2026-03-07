@@ -4,7 +4,7 @@ import 'package:modular_pos/core/config/app_env.dart';
 import 'package:modular_pos/core/network/api_contract.dart';
 import 'package:modular_pos/core/network/dio_client.dart';
 import 'package:modular_pos/core/network/idempotency_key_store.dart';
-import 'package:modular_pos/features/cash_session/data/dto/cash_register_dto.dart';
+import 'package:modular_pos/features/cash_session/data/dto/cash_movement_dto.dart';
 import 'package:modular_pos/features/cash_session/data/dto/cash_session_api_envelope.dart';
 import 'package:modular_pos/features/cash_session/data/dto/cash_session_dto.dart';
 import 'package:modular_pos/features/cash_session/data/dto/cash_session_envelope_dto.dart';
@@ -120,43 +120,108 @@ class CashSessionApi {
     }
   }
 
-  Future<void> recordMovement(
+  Future<void> recordPaidIn(
     String sessionId,
     Map<String, dynamic> body,
   ) async {
-    await _dio.post<Map<String, dynamic>>(
-      '$_prefix/sessions/$sessionId/movements',
-      data: body,
-    );
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        '$_prefix/sessions/$sessionId/movements/paid-in',
+        data: body,
+        options: withIdempotency(
+          request: IdempotencyRequest(
+            actionKey: 'cashSession.movement.paidIn',
+            payload: {'sessionId': sessionId, ...body},
+          ),
+        ),
+      );
+      CashSessionApiEnvelope.unwrapSuccess(
+        response.data,
+        fallbackMessage: 'Failed to record cash movement.',
+      );
+    } on DioError catch (error) {
+      throw _mapCashSessionDioError(
+        error,
+        fallbackMessage: 'Failed to record cash movement.',
+      );
+    }
   }
 
-  Future<List<CashRegisterDto>> fetchRegisters({
-    bool includeInactive = false,
+  Future<void> recordPaidOut(
+    String sessionId,
+    Map<String, dynamic> body,
+  ) async {
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        '$_prefix/sessions/$sessionId/movements/paid-out',
+        data: body,
+        options: withIdempotency(
+          request: IdempotencyRequest(
+            actionKey: 'cashSession.movement.paidOut',
+            payload: {'sessionId': sessionId, ...body},
+          ),
+        ),
+      );
+      CashSessionApiEnvelope.unwrapSuccess(
+        response.data,
+        fallbackMessage: 'Failed to record cash movement.',
+      );
+    } on DioError catch (error) {
+      throw _mapCashSessionDioError(
+        error,
+        fallbackMessage: 'Failed to record cash movement.',
+      );
+    }
+  }
+
+  Future<void> recordAdjustment(
+    String sessionId,
+    Map<String, dynamic> body,
+  ) async {
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        '$_prefix/sessions/$sessionId/movements/adjustment',
+        data: body,
+        options: withIdempotency(
+          request: IdempotencyRequest(
+            actionKey: 'cashSession.movement.adjustment',
+            payload: {'sessionId': sessionId, ...body},
+          ),
+        ),
+      );
+      CashSessionApiEnvelope.unwrapSuccess(
+        response.data,
+        fallbackMessage: 'Failed to record cash adjustment.',
+      );
+    } on DioError catch (error) {
+      throw _mapCashSessionDioError(
+        error,
+        fallbackMessage: 'Failed to record cash adjustment.',
+      );
+    }
+  }
+
+  Future<List<CashMovementDto>> listMovements(
+    String sessionId, {
+    int limit = 100,
+    int offset = 0,
   }) async {
-    final response = await _dio.get<Map<String, dynamic>>(
-      '$_prefix/registers',
-      queryParameters: includeInactive ? {'includeInactive': true} : null,
-    );
-    final data = response.data;
-    if (data == null) return const [];
-    final list = (data['data'] is List)
-        ? (data['data'] as List)
-        : (data['items'] is List)
-        ? (data['items'] as List)
-        : const [];
-    return list
-        .whereType<Map>()
-        .map((e) => CashRegisterDto.fromJson(Map<String, dynamic>.from(e)))
-        .toList();
-  }
-
-  Future<CashRegisterDto> createRegister(String name) async {
-    final response = await _dio.post<Map<String, dynamic>>(
-      '$_prefix/registers',
-      data: {'name': name},
-    );
-    final data = ApiContract.asJsonMap(ApiContract.unwrapData(response.data));
-    return CashRegisterDto.fromJson(data);
+    try {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '$_prefix/sessions/$sessionId/movements',
+        queryParameters: {'limit': limit, 'offset': offset},
+      );
+      final items = CashSessionApiEnvelope.unwrapDataList(
+        response.data,
+        fallbackMessage: 'Failed to load cash movements.',
+      );
+      return items.map(CashMovementDto.fromJson).toList();
+    } on DioError catch (error) {
+      throw _mapCashSessionDioError(
+        error,
+        fallbackMessage: 'Failed to load cash movements.',
+      );
+    }
   }
 }
 

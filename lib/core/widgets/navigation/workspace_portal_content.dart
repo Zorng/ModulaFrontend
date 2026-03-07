@@ -71,18 +71,33 @@ class WorkspacePortalContent extends ConsumerWidget {
         context.push(route.path);
         return;
       case WorkspaceNavItemType.enterPosMode:
-        final branchId = ref.read(activeBranchContextIdProvider);
-        if (branchId == null || branchId.trim().isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Select a branch first.')),
-          );
-          return;
-        }
-        ref
-            .read(workspaceContextProvider.notifier)
-            .setBranchPos(activeBranchId: branchId);
-        context.go(AppRoute.sale.path);
+        _enterPosMode(context, ref);
         return;
     }
+  }
+
+  Future<void> _enterPosMode(BuildContext context, WidgetRef ref) async {
+    final branchId = ref.read(activeBranchContextIdProvider);
+    if (branchId == null || branchId.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Select a branch first.')),
+      );
+      return;
+    }
+
+    await ref.read(loginControllerProvider.notifier).selectBranch(branchId);
+    final loginState = ref.read(loginControllerProvider);
+    if (!context.mounted) return;
+    if (loginState.error != null && loginState.error!.trim().isNotEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(loginState.error!)));
+      return;
+    }
+
+    ref
+        .read(workspaceContextProvider.notifier)
+        .setBranchPos(activeBranchId: branchId);
+    context.go(AppRoute.sale.path);
   }
 }

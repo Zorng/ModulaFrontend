@@ -87,4 +87,18 @@ void main() {
       );
     },
   );
+
+  test('unwrapDataList reads movement collection payloads', () {
+    final list = CashSessionApiEnvelope.unwrapDataList({
+      'success': true,
+      'data': {
+        'movements': [
+          {'id': 'movement-1', 'movementType': 'MANUAL_IN'},
+        ],
+      },
+    }, fallbackMessage: 'fallback');
+
+    expect(list, hasLength(1));
+    expect(list.first['id'], 'movement-1');
+  });
 }

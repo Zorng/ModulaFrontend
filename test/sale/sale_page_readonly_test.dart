@@ -3,10 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:modular_pos/features/auth/data/auth_repository.dart';
 import 'package:modular_pos/features/auth/data/auth_session_store.dart';
+import 'package:modular_pos/features/menu/data/menu_repository.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_state.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
 import 'package:modular_pos/features/sale/data/sale_checkout_repository_contract.dart';
-import 'package:modular_pos/features/sale/data/sale_repository.dart';
 import 'package:modular_pos/features/sale/ui/view/sale/sale_page.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_access_gate.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -22,7 +22,10 @@ class _StaticMenuViewModel extends MenuViewModel {
   MenuState build() => _state;
 
   @override
-  Future<void> loadMenu({String? branchId}) async {
+  Future<void> loadMenu({
+    String? branchId,
+    MenuReadLane readLane = MenuReadLane.management,
+  }) async {
     // Intentionally no-op for widget tests.
   }
 }
@@ -45,7 +48,6 @@ void main() {
           menuViewModelProvider.overrideWith(
             () => _StaticMenuViewModel(const MenuState(isLoading: false)),
           ),
-          useMockSaleRepositoryProvider.overrideWithValue(false),
           saleAccessGateProvider.overrideWithValue(
             const SaleAccessGate(
               branchId: 'branch-1',

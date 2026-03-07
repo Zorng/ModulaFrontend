@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/features/cash_session/data/cash_session_movement_repository.dart';
 import 'package:modular_pos/features/cash_session/data/cash_session_repository.dart';
-import 'package:modular_pos/features/cash_session/domain/models/cash_register.dart';
+import 'package:modular_pos/features/cash_session/domain/models/cash_movement.dart';
 import 'package:modular_pos/features/cash_session/domain/models/cash_session.dart';
 
 /// Mock repository for testing cash session features without backend
@@ -9,14 +9,7 @@ class MockCashSessionRepository
     implements CashSessionRepository, CashSessionMovementRepository {
   // In-memory state
   CashSession? _activeSession;
-  final List<CashRegister> _registers = [
-    CashRegister(id: 'reg-1', name: 'Main Register', status: 'active'),
-    CashRegister(id: 'reg-2', name: 'Secondary Register', status: 'active'),
-  ];
-
-  // Track movements for the active session
-  double _totalPaidInUsd = 0.0;
-  double _totalPaidOutUsd = 0.0;
+  final List<CashMovement> _movements = <CashMovement>[];
 
   bool get isSessionOpen => _activeSession?.status == CashSessionStatuses.open;
 
@@ -46,9 +39,7 @@ class MockCashSessionRepository
       totalPaidOutUsd: 0.0,
     );
 
-    // Reset movement totals
-    _totalPaidInUsd = 0.0;
-    _totalPaidOutUsd = 0.0;
+    _movements.clear();
 
     return _activeSession!;
   }
@@ -79,8 +70,8 @@ class MockCashSessionRepository
       closedAt: DateTime.now(),
       closedByAccountId: '',
       closeNote: note ?? reason,
-      totalPaidInUsd: _totalPaidInUsd,
-      totalPaidOutUsd: _totalPaidOutUsd,
+      totalPaidInUsd: _movementTotalUsd(CashMovementTypes.manualIn),
+      totalPaidOutUsd: _movementTotalUsd(CashMovementTypes.manualOut),
     );
 
     return _activeSession!;
@@ -111,8 +102,8 @@ class MockCashSessionRepository
       closedAt: DateTime.now(),
       closedByAccountId: '',
       closeNote: note,
-      totalPaidInUsd: _totalPaidInUsd,
-      totalPaidOutUsd: _totalPaidOutUsd,
+      totalPaidInUsd: _movementTotalUsd(CashMovementTypes.manualIn),
+      totalPaidOutUsd: _movementTotalUsd(CashMovementTypes.manualOut),
     );
 
     return _activeSession!;
@@ -138,8 +129,8 @@ class MockCashSessionRepository
         closedAt: _activeSession!.closedAt,
         closedByAccountId: _activeSession!.closedByAccountId,
         closeNote: _activeSession!.closeNote,
-        totalPaidInUsd: _totalPaidInUsd,
-        totalPaidOutUsd: _totalPaidOutUsd,
+        totalPaidInUsd: _movementTotalUsd(CashMovementTypes.manualIn),
+        totalPaidOutUsd: _movementTotalUsd(CashMovementTypes.manualOut),
       );
     }
 
@@ -147,9 +138,71 @@ class MockCashSessionRepository
   }
 
   @override
-  Future<void> recordMovement({
+  Future<void> recordPaidIn({
     required String sessionId,
-    required String type,
+    required double amountUsd,
+    required double amountKhr,
+    String? reason,
+  }) async {
+    await _recordMovement(
+      sessionId: sessionId,
+      movementType: CashMovementTypes.manualIn,
+      amountUsd: amountUsd,
+      amountKhr: amountKhr,
+      reason: reason,
+    );
+  }
+
+  @override
+  Future<void> recordPaidOut({
+    required String sessionId,
+    required double amountUsd,
+    required double amountKhr,
+    String? reason,
+  }) async {
+    await _recordMovement(
+      sessionId: sessionId,
+      movementType: CashMovementTypes.manualOut,
+      amountUsd: amountUsd,
+      amountKhr: amountKhr,
+      reason: reason,
+    );
+  }
+
+  @override
+  Future<void> recordAdjustment({
+    required String sessionId,
+    required double amountUsdDelta,
+    required double amountKhrDelta,
+    String? reason,
+  }) async {
+    await _recordMovement(
+      sessionId: sessionId,
+      movementType: CashMovementTypes.adjustment,
+      amountUsd: amountUsdDelta,
+      amountKhr: amountKhrDelta,
+      reason: reason,
+    );
+  }
+
+  @override
+  Future<List<CashMovement>> listMovements({
+    required String sessionId,
+    int limit = 100,
+    int offset = 0,
+  }) async {
+    await Future.delayed(const Duration(milliseconds: 200));
+    if (_activeSession == null || _activeSession!.id != sessionId) {
+      return const [];
+    }
+    final start = offset.clamp(0, _movements.length);
+    final end = (start + limit).clamp(0, _movements.length);
+    return List<CashMovement>.unmodifiable(_movements.sublist(start, end));
+  }
+
+  Future<void> _recordMovement({
+    required String sessionId,
+    required String movementType,
     required double amountUsd,
     required double amountKhr,
     String? reason,
@@ -160,46 +213,35 @@ class MockCashSessionRepository
       throw Exception('No active session found');
     }
 
-    // Update movement totals based on type
-    if (type.toUpperCase() == 'PAID_IN') {
-      _totalPaidInUsd += amountUsd;
-    } else if (type.toUpperCase() == 'PAID_OUT') {
-      _totalPaidOutUsd += amountUsd;
-    }
-  }
-
-  @override
-  Future<List<CashRegister>> fetchRegisters({
-    bool includeInactive = false,
-  }) async {
-    await Future.delayed(const Duration(milliseconds: 200));
-
-    if (includeInactive) {
-      return _registers;
-    }
-
-    return _registers.where((r) => r.status == 'active').toList();
-  }
-
-  @override
-  Future<CashRegister> createRegister(String name) async {
-    await Future.delayed(const Duration(milliseconds: 300));
-
-    final newRegister = CashRegister(
-      id: 'reg-${DateTime.now().millisecondsSinceEpoch}',
-      name: name,
-      status: 'active',
+    _movements.insert(
+      0,
+      CashMovement(
+        id: 'movement-${DateTime.now().millisecondsSinceEpoch}',
+        sessionId: sessionId,
+        tenantId: _activeSession!.tenantId,
+        branchId: _activeSession!.branchId,
+        movementType: movementType,
+        amountUsd: amountUsd,
+        amountKhr: amountKhr,
+        reason: reason,
+        sourceRefType: 'MANUAL',
+        sourceRefId: null,
+        recordedByAccountId: _activeSession!.openedByAccountId,
+        occurredAt: DateTime.now(),
+      ),
     );
+  }
 
-    _registers.add(newRegister);
-    return newRegister;
+  double _movementTotalUsd(String movementType) {
+    return _movements
+        .where((movement) => movement.movementType == movementType)
+        .fold<double>(0, (sum, movement) => sum + movement.amountUsd);
   }
 
   /// Reset all mock data (useful for testing)
   void reset() {
     _activeSession = null;
-    _totalPaidInUsd = 0.0;
-    _totalPaidOutUsd = 0.0;
+    _movements.clear();
   }
 }
 

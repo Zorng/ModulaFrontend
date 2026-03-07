@@ -52,7 +52,7 @@ class SaleCartBottomBar extends StatelessWidget {
               children: [
                 Flexible(
                   child: Text(
-                    'Total (VAT inclu.)',
+                    'Total',
                     style: Theme.of(context).textTheme.titleSmall,
                     overflow: TextOverflow.ellipsis,
                   ),

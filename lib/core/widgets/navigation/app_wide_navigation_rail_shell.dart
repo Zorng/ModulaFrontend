@@ -233,9 +233,23 @@ class _RailDestinationTile extends ConsumerWidget {
         selected || item.route == null
             ? null
             : () => context.go(item.route!.path),
-      WorkspaceNavItemType.enterPosMode => () {
+      WorkspaceNavItemType.enterPosMode => () async {
         final branchId = ref.read(activeBranchContextIdProvider);
-        if (branchId == null || branchId.trim().isEmpty) return;
+        if (branchId == null || branchId.trim().isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Select a branch first.')),
+          );
+          return;
+        }
+        await ref.read(loginControllerProvider.notifier).selectBranch(branchId);
+        final loginState = ref.read(loginControllerProvider);
+        if (!context.mounted) return;
+        if (loginState.error != null && loginState.error!.trim().isNotEmpty) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(loginState.error!)));
+          return;
+        }
         ref
             .read(workspaceContextProvider.notifier)
             .setBranchPos(activeBranchId: branchId);

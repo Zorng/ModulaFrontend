@@ -13,7 +13,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../test_utils/riverpod_test_utils.dart';
 
-class _MockSaleRepository extends Mock implements SaleRepository {}
+class _MockSaleRepository extends Mock implements SaleCheckoutRepository {}
 
 class _StaticPolicyNotifier extends PolicyNotifier {
   @override
@@ -23,19 +23,6 @@ class _StaticPolicyNotifier extends PolicyNotifier {
       branchPolicy: BranchPolicy(
         saleFxRateKhrPerUsd: 4000,
         saleAllowPayLater: true,
-      ),
-    );
-  }
-}
-
-class _PayLaterDisabledPolicyNotifier extends PolicyNotifier {
-  @override
-  PolicyState build() {
-    return const PolicyState(
-      isLoading: false,
-      branchPolicy: BranchPolicy(
-        saleFxRateKhrPerUsd: 4000,
-        saleAllowPayLater: false,
       ),
     );
   }
@@ -58,12 +45,28 @@ void main() {
     registerFallbackValue(<Map<String, dynamic>>[]);
     registerFallbackValue(<String, dynamic>{});
     registerFallbackValue(
+      const SaleDraftItemInputDto(
+        menuItemId: 'menu-1',
+        quantity: 1,
+        selectedOptionIds: {},
+        modifiers: [],
+      ),
+    );
+    registerFallbackValue(
       const SalePlaceOrderCommand(
         saleId: 'sale-1',
         branchId: 'branch-1',
         saleType: 'dine_in',
         clientOpId: 'op-1',
         cartLines: [],
+      ),
+    );
+    registerFallbackValue(
+      const SaleFinalizeSaleCommand(
+        saleId: 'sale-1',
+        paymentMethod: 'cash',
+        tenderCurrency: 'USD',
+        clientOpId: 'finalize-op-1',
       ),
     );
   });
@@ -133,44 +136,16 @@ void main() {
       verifyNever(
         () => repo.addItem(
           saleId: any(named: 'saleId'),
-          menuItemId: any(named: 'menuItemId'),
-          quantity: any(named: 'quantity'),
-          modifiers: any(named: 'modifiers'),
-          selectedOptionIds: any(named: 'selectedOptionIds'),
-          unitPriceUsd: any(named: 'unitPriceUsd'),
-          lineTotalUsdExact: any(named: 'lineTotalUsdExact'),
-          addonTotalUsd: any(named: 'addonTotalUsd'),
-          pricingSnapshot: any(named: 'pricingSnapshot'),
+          item: any(named: 'item'),
         ),
       );
     },
   );
 
   test(
-    'SaleCartNotifier.addSelection creates draft + syncs item when allowed',
+    'SaleCartNotifier.addSelection keeps pay-now cart local when allowed',
     () async {
       final repo = _MockSaleRepository();
-
-      when(
-        () => repo.ensureDraft(
-          saleType: any(named: 'saleType'),
-          fxRateUsed: any(named: 'fxRateUsed'),
-        ),
-      ).thenAnswer((_) async => 'sale-1');
-
-      when(
-        () => repo.addItem(
-          saleId: any(named: 'saleId'),
-          menuItemId: any(named: 'menuItemId'),
-          quantity: any(named: 'quantity'),
-          modifiers: any(named: 'modifiers'),
-          selectedOptionIds: any(named: 'selectedOptionIds'),
-          unitPriceUsd: any(named: 'unitPriceUsd'),
-          lineTotalUsdExact: any(named: 'lineTotalUsdExact'),
-          addonTotalUsd: any(named: 'addonTotalUsd'),
-          pricingSnapshot: any(named: 'pricingSnapshot'),
-        ),
-      ).thenAnswer((_) async => 'sale-item-1');
 
       final container = createTestContainer(
         overrides: [
@@ -210,58 +185,37 @@ void main() {
 
       await notifier.addSelection(selection);
 
-      verify(
+      verifyNever(
         () => repo.ensureDraft(
           saleType: any(named: 'saleType'),
           fxRateUsed: any(named: 'fxRateUsed'),
         ),
-      ).called(1);
-      verify(
+      );
+      verifyNever(
         () => repo.addItem(
           saleId: any(named: 'saleId'),
-          menuItemId: any(named: 'menuItemId'),
-          quantity: any(named: 'quantity'),
-          modifiers: any(named: 'modifiers'),
-          selectedOptionIds: any(named: 'selectedOptionIds'),
-          unitPriceUsd: any(named: 'unitPriceUsd'),
-          lineTotalUsdExact: any(named: 'lineTotalUsdExact'),
-          addonTotalUsd: any(named: 'addonTotalUsd'),
-          pricingSnapshot: any(named: 'pricingSnapshot'),
+          item: any(named: 'item'),
         ),
-      ).called(1);
+      );
 
       final state = container.read(saleCartProvider);
-      expect(state.saleId, 'sale-1');
+      expect(state.saleId, isNull);
       expect(state.lines, hasLength(1));
       expect(state.lines.first.item.id, 'menu-1');
       expect(state.lines.first.quantity, 1);
-      expect(state.lines.first.saleItemId, 'sale-item-1');
+      expect(state.lines.first.saleItemId, isNull);
     },
   );
 
   test(
-    'SaleCartNotifier.addSelection creates draft + syncs item when session required but open',
+    'SaleCartNotifier.addSelection syncs remotely when cart already has a saleId',
     () async {
       final repo = _MockSaleRepository();
 
       when(
-        () => repo.ensureDraft(
-          saleType: any(named: 'saleType'),
-          fxRateUsed: any(named: 'fxRateUsed'),
-        ),
-      ).thenAnswer((_) async => 'sale-1');
-
-      when(
         () => repo.addItem(
           saleId: any(named: 'saleId'),
-          menuItemId: any(named: 'menuItemId'),
-          quantity: any(named: 'quantity'),
-          modifiers: any(named: 'modifiers'),
-          selectedOptionIds: any(named: 'selectedOptionIds'),
-          unitPriceUsd: any(named: 'unitPriceUsd'),
-          lineTotalUsdExact: any(named: 'lineTotalUsdExact'),
-          addonTotalUsd: any(named: 'addonTotalUsd'),
-          pricingSnapshot: any(named: 'pricingSnapshot'),
+          item: any(named: 'item'),
         ),
       ).thenAnswer((_) async => 'sale-item-1');
 
@@ -269,6 +223,9 @@ void main() {
         overrides: [
           policyNotifierProvider.overrideWith(_StaticPolicyNotifier.new),
           saleRepositoryProvider.overrideWithValue(repo),
+          saleCartProvider.overrideWith(
+            () => _PrefilledCartNotifier(const SaleCartState(saleId: 'sale-1')),
+          ),
           saleAccessGateProvider.overrideWithValue(
             const SaleAccessGate(
               branchId: 'branch-1',
@@ -303,23 +260,16 @@ void main() {
 
       await notifier.addSelection(selection);
 
-      verify(
+      verifyNever(
         () => repo.ensureDraft(
           saleType: any(named: 'saleType'),
           fxRateUsed: any(named: 'fxRateUsed'),
         ),
-      ).called(1);
+      );
       verify(
         () => repo.addItem(
           saleId: any(named: 'saleId'),
-          menuItemId: any(named: 'menuItemId'),
-          quantity: any(named: 'quantity'),
-          modifiers: any(named: 'modifiers'),
-          selectedOptionIds: any(named: 'selectedOptionIds'),
-          unitPriceUsd: any(named: 'unitPriceUsd'),
-          lineTotalUsdExact: any(named: 'lineTotalUsdExact'),
-          addonTotalUsd: any(named: 'addonTotalUsd'),
-          pricingSnapshot: any(named: 'pricingSnapshot'),
+          item: any(named: 'item'),
         ),
       ).called(1);
 
@@ -378,20 +328,24 @@ void main() {
       await expectLater(
         notifier.placeOrder(),
         throwsA(
-          predicate(
-            (e) =>
-                e is Exception &&
-                e.toString().toLowerCase().contains('pay-later'),
+          isA<SaleCheckoutRepositoryException>().having(
+            (e) => e.reasonCode,
+            'reasonCode',
+            SaleCheckoutReasonCodes.payLaterDisabled,
           ),
         ),
       );
 
+      final state = container.read(saleCartProvider);
+      expect(state.checkoutErrorCode, SaleCheckoutReasonCodes.payLaterDisabled);
+      expect(state.isCheckoutDenied, isTrue);
+      expect(state.isCheckoutOffline, isFalse);
       verifyNever(() => repo.placeOrder(any()));
     },
   );
 
   test(
-    'SaleCartNotifier.placeOrder throws when branch policy disables pay-later',
+    'SaleCartNotifier.checkout throws stable reason code when sale gate blocks checkout',
     () async {
       final repo = _MockSaleRepository();
       const item = MenuItem(
@@ -403,13 +357,13 @@ void main() {
 
       final container = createTestContainer(
         overrides: [
-          policyNotifierProvider.overrideWith(_PayLaterDisabledPolicyNotifier.new),
+          policyNotifierProvider.overrideWith(_StaticPolicyNotifier.new),
           saleRepositoryProvider.overrideWithValue(repo),
           saleCartProvider.overrideWith(
             () => _PrefilledCartNotifier(
               const SaleCartState(
                 saleId: 'sale-1',
-                saleType: 'dine_in',
+                paymentMethod: 'cash',
                 lines: [
                   CartLine(item: item, quantity: 1, selectedOptionIds: {}),
                 ],
@@ -422,10 +376,11 @@ void main() {
               contextLoading: false,
               branchActive: true,
               branchFrozen: false,
-              cashSessionOpen: true,
+              cashSessionOpen: false,
               canMutateCart: true,
-              canCheckout: true,
-              canPlacePayLater: true,
+              canCheckout: false,
+              canPlacePayLater: false,
+              reasonCode: SaleCheckoutReasonCodes.cashSessionRequired,
             ),
           ),
         ],
@@ -433,17 +388,24 @@ void main() {
 
       final notifier = container.read(saleCartProvider.notifier);
       await expectLater(
-        notifier.placeOrder(),
+        notifier.checkout(),
         throwsA(
           isA<SaleCheckoutRepositoryException>().having(
             (e) => e.reasonCode,
             'reasonCode',
-            SaleCheckoutReasonCodes.payLaterDisabled,
+            SaleCheckoutReasonCodes.cashSessionRequired,
           ),
         ),
       );
 
-      verifyNever(() => repo.placeOrder(any()));
+      final state = container.read(saleCartProvider);
+      expect(
+        state.checkoutErrorCode,
+        SaleCheckoutReasonCodes.cashSessionRequired,
+      );
+      expect(state.isCheckoutDenied, isTrue);
+      expect(state.isCheckoutOffline, isFalse);
+      verifyNever(() => repo.finalizeSale(any()));
     },
   );
 
@@ -573,9 +535,95 @@ void main() {
       expect(state.lines, hasLength(1));
       expect(state.lines.first.quantity, 2);
       expect(state.isFinalizing, isFalse);
-      expect(state.checkoutErrorMessage, 'Network unavailable.');
+      expect(
+        state.checkoutErrorMessage,
+        'This action requires online connectivity.',
+      );
+      expect(
+        state.checkoutErrorCode,
+        SaleCheckoutReasonCodes.offlineUnreachable,
+      );
+      expect(state.isCheckoutOffline, isTrue);
+      expect(state.isCheckoutDenied, isFalse);
+      expect(state.isCheckoutIdempotencyIssue, isFalse);
       expect(state.lastPlacedOpenTicketId, isNull);
       expect(state.lastPlacedSaleId, isNull);
+    },
+  );
+
+  test(
+    'SaleCartNotifier.checkout stores deterministic idempotency failure state',
+    () async {
+      final repo = _MockSaleRepository();
+      const item = MenuItem(
+        id: 'menu-1',
+        name: 'Item',
+        categoryId: 'cat-1',
+        price: 2.0,
+      );
+
+      when(() => repo.finalizeSale(any())).thenThrow(
+        const SaleCheckoutRepositoryException(
+          reasonCode: SaleCheckoutReasonCodes.idempotencyConflict,
+          message: 'Backend idempotency lane is still running.',
+        ),
+      );
+
+      final container = createTestContainer(
+        overrides: [
+          policyNotifierProvider.overrideWith(_StaticPolicyNotifier.new),
+          saleRepositoryProvider.overrideWithValue(repo),
+          saleCartProvider.overrideWith(
+            () => _PrefilledCartNotifier(
+              const SaleCartState(
+                saleId: 'sale-1',
+                paymentMethod: 'cash',
+                cashUsd: 10,
+                lines: [
+                  CartLine(item: item, quantity: 1, selectedOptionIds: {}),
+                ],
+              ),
+            ),
+          ),
+          saleAccessGateProvider.overrideWithValue(
+            const SaleAccessGate(
+              branchId: 'branch-1',
+              contextLoading: false,
+              branchActive: true,
+              branchFrozen: false,
+              cashSessionOpen: true,
+              canMutateCart: true,
+              canCheckout: true,
+              canPlacePayLater: true,
+            ),
+          ),
+        ],
+      );
+
+      final notifier = container.read(saleCartProvider.notifier);
+      await expectLater(
+        notifier.checkout(),
+        throwsA(
+          isA<SaleCheckoutRepositoryException>().having(
+            (e) => e.reasonCode,
+            'reasonCode',
+            SaleCheckoutReasonCodes.idempotencyConflict,
+          ),
+        ),
+      );
+
+      final state = container.read(saleCartProvider);
+      expect(
+        state.checkoutErrorMessage,
+        'This checkout is already processing. Please wait before retrying.',
+      );
+      expect(
+        state.checkoutErrorCode,
+        SaleCheckoutReasonCodes.idempotencyConflict,
+      );
+      expect(state.isCheckoutIdempotencyIssue, isTrue);
+      expect(state.isCheckoutOffline, isFalse);
+      expect(state.isCheckoutDenied, isFalse);
     },
   );
 }

@@ -1,4 +1,3 @@
-import 'dart:math';
 import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/core/logging/app_log.dart';
@@ -22,11 +21,13 @@ class SaleCheckoutResult {
   const SaleCheckoutResult({
     required this.summary,
     this.receiptId,
+    this.receipt,
     required this.idempotentReplay,
   });
 
   final SaleCheckoutSummary summary;
   final String? receiptId;
+  final SaleImmediateReceiptDto? receipt;
   final bool idempotentReplay;
 }
 
@@ -45,7 +46,7 @@ class SalePlaceOrderResult {
 class SaleCartNotifier extends Notifier<SaleCartState> {
   SaleCartNotifier();
 
-  late final SaleCheckoutRepository _repo = ref.read(saleRepositoryProvider);
+  late final SaleCartRepository _repo = ref.read(saleCartRepositoryProvider);
   static const String _cartStorageKey = 'sale_cart_state';
 
   void _logIgnoredError(String context, Object error, StackTrace stackTrace) {
@@ -118,6 +119,65 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
     }
   }
 
+  SaleCheckoutRepositoryException _saleAccessException(
+    SaleAccessGate gate, {
+    required String fallbackCode,
+    required String fallbackMessage,
+  }) {
+    return SaleCheckoutRepositoryException(
+      reasonCode:
+          SaleCheckoutReasonCodes.normalize(gate.reasonCode) ?? fallbackCode,
+      message: gate.blockingMessage ?? fallbackMessage,
+    );
+  }
+
+  String _checkoutMessageForCode(String? rawCode, {String? fallback}) {
+    switch (SaleCheckoutReasonCodes.normalize(rawCode)) {
+      case SaleCheckoutReasonCodes.unauthorized:
+        return 'Your account no longer has access to sell.';
+      case SaleCheckoutReasonCodes.branchRequired:
+        return 'Branch context is missing. Please switch to an active branch.';
+      case SaleCheckoutReasonCodes.branchFrozen:
+        return 'This branch is frozen. Sale writes are currently blocked.';
+      case SaleCheckoutReasonCodes.cashSessionRequired:
+        return 'Open cash session is required before this action.';
+      case SaleCheckoutReasonCodes.payLaterDisabled:
+        return 'Pay-later is currently disabled for this branch.';
+      case SaleCheckoutReasonCodes.khqrNotConfirmed:
+        return 'KHQR payment is not confirmed yet.';
+      case SaleCheckoutReasonCodes.idempotencyConflict:
+      case SaleCheckoutReasonCodes.duplicateOperation:
+        return 'This checkout is already processing. Please wait before retrying.';
+      case SaleCheckoutReasonCodes.offlineUnreachable:
+        return 'This action requires online connectivity.';
+      case SaleCheckoutReasonCodes.invalidRequest:
+        return fallback?.trim().isNotEmpty == true
+            ? fallback!.trim()
+            : 'The checkout request is invalid. Review the cart and try again.';
+      case SaleCheckoutReasonCodes.unknownError:
+      case null:
+        return fallback?.trim().isNotEmpty == true ? fallback!.trim() : '';
+      default:
+        return fallback?.trim().isNotEmpty == true ? fallback!.trim() : '';
+    }
+  }
+
+  SaleCartState _applyCheckoutFailure(
+    SaleCartState source, {
+    required String? reasonCode,
+    String? message,
+  }) {
+    final normalizedCode = SaleCheckoutReasonCodes.normalize(reasonCode);
+    return source.copyWith(
+      isFinalizing: false,
+      checkoutErrorCode: normalizedCode,
+      checkoutErrorMessage: _checkoutMessageForCode(
+        normalizedCode,
+        fallback: message,
+      ),
+    );
+  }
+
   Future<void> _ensureSaleId() async {
     if (state.saleId != null && state.saleId!.isNotEmpty) return;
     _assertCanCreateDraftSale();
@@ -139,6 +199,7 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
       khqrExpiresAt: null,
       khqrConfirmedAt: null,
       khqrErrorMessage: reason,
+      khqrErrorCode: null,
       isKhqrLoading: false,
     );
   }
@@ -152,6 +213,7 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
       khqrExpiresAt: null,
       khqrConfirmedAt: null,
       khqrErrorMessage: reason,
+      khqrErrorCode: null,
       isKhqrLoading: false,
     );
   }
@@ -175,24 +237,103 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
     );
   }
 
+  SaleCartState _applyKhqrStatusResult(
+    SaleCartState source, {
+    String? saleId,
+    String? attemptId,
+    String? md5,
+    String? qrPayload,
+    DateTime? expiresAt,
+    DateTime? confirmedAt,
+    required String status,
+    String? reasonCode,
+    String? reasonMessage,
+  }) {
+    final normalizedStatus = SaleKhqrUiStates.normalize(status);
+    final nextSaleId = saleId != null && saleId.trim().isNotEmpty
+        ? saleId
+        : source.saleId;
+
+    switch (normalizedStatus) {
+      case SaleKhqrUiStates.waitingForPayment:
+      case SaleKhqrUiStates.pendingConfirmation:
+        return source.copyWith(
+          saleId: nextSaleId,
+          khqrStatus: normalizedStatus,
+          khqrAttemptId: attemptId ?? source.khqrAttemptId,
+          khqrMd5: md5 ?? source.khqrMd5,
+          khqrQrPayload: qrPayload ?? source.khqrQrPayload,
+          khqrExpiresAt: expiresAt ?? source.khqrExpiresAt,
+          khqrConfirmedAt: null,
+          khqrErrorMessage: reasonMessage,
+          khqrErrorCode: reasonCode,
+          isKhqrLoading: false,
+        );
+      case SaleKhqrUiStates.paidConfirmed:
+        return source.copyWith(
+          saleId: nextSaleId,
+          khqrStatus: normalizedStatus,
+          khqrAttemptId: attemptId ?? source.khqrAttemptId,
+          khqrMd5: md5 ?? source.khqrMd5,
+          khqrQrPayload: qrPayload ?? source.khqrQrPayload,
+          khqrExpiresAt: expiresAt ?? source.khqrExpiresAt,
+          khqrConfirmedAt: confirmedAt ?? source.khqrConfirmedAt,
+          khqrErrorMessage: reasonMessage,
+          khqrErrorCode: reasonCode,
+          isKhqrLoading: false,
+        );
+      case SaleKhqrUiStates.cancelled:
+      case SaleKhqrUiStates.superseded:
+        return source.copyWith(
+          saleId: nextSaleId,
+          khqrStatus: normalizedStatus,
+          khqrAttemptId: null,
+          khqrMd5: null,
+          khqrQrPayload: null,
+          khqrExpiresAt: null,
+          khqrConfirmedAt: null,
+          khqrErrorMessage: reasonMessage,
+          khqrErrorCode: reasonCode,
+          isKhqrLoading: false,
+        );
+      case SaleKhqrUiStates.expired:
+        return source.copyWith(
+          saleId: nextSaleId,
+          khqrStatus: normalizedStatus,
+          khqrAttemptId: null,
+          khqrMd5: null,
+          khqrQrPayload: null,
+          khqrExpiresAt: expiresAt ?? source.khqrExpiresAt,
+          khqrConfirmedAt: null,
+          khqrErrorMessage: reasonMessage,
+          khqrErrorCode: reasonCode,
+          isKhqrLoading: false,
+        );
+      case SaleKhqrUiStates.readyToGenerate:
+        return _readyKhqrState(
+          source.copyWith(saleId: nextSaleId),
+          reason: reasonMessage,
+        );
+      default:
+        return source.copyWith(
+          saleId: nextSaleId,
+          khqrStatus: normalizedStatus,
+          khqrErrorMessage: reasonMessage,
+          khqrErrorCode: reasonCode,
+          isKhqrLoading: false,
+        );
+    }
+  }
+
   Future<void> addSelection(SaleItemSelectionResult selection) async {
     _assertCanCreateDraftSale();
-    await _ensureSaleId();
     final saleId = state.saleId;
-    if (saleId == null) return;
 
-    final addPayload = SaleCartPayloadBuilder.fromSelection(selection);
-    final saleItemId = await _repo.addItem(
-      saleId: saleId,
-      menuItemId: selection.item.id,
-      quantity: selection.quantity,
-      modifiers: addPayload.modifiers,
-      selectedOptionIds: selection.selectedOptionIds,
-      unitPriceUsd: addPayload.unitPriceUsd,
-      lineTotalUsdExact: addPayload.lineTotalUsdExact,
-      addonTotalUsd: addPayload.addonTotalUsd,
-      pricingSnapshot: addPayload.pricingSnapshot,
-    );
+    String? saleItemId;
+    if (saleId != null && saleId.isNotEmpty) {
+      final addPayload = SaleCartPayloadBuilder.fromSelection(selection);
+      saleItemId = await _repo.addItem(saleId: saleId, item: addPayload);
+    }
     // Only update local state after successful sync.
     final lines = [...state.lines];
     for (var i = 0; i < lines.length; i++) {
@@ -381,8 +522,10 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
   void clearCheckoutFeedback() {
     state = state.copyWith(
       checkoutErrorMessage: null,
+      checkoutErrorCode: null,
       lastFinalizedSaleId: null,
       lastReceiptId: null,
+      lastReceipt: null,
       lastPlacedOpenTicketId: null,
       lastPlacedSaleId: null,
     );
@@ -400,12 +543,7 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
 
   Future<void> generateKhqrAttempt() async {
     _assertCanCreateDraftSale();
-    await _ensureSaleId();
     final currentState = state;
-    final saleId = currentState.saleId;
-    if (saleId == null || saleId.isEmpty) {
-      throw Exception('No sale draft');
-    }
     if (currentState.lines.isEmpty) {
       throw Exception('Cannot generate KHQR for an empty cart.');
     }
@@ -413,9 +551,12 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
       throw Exception('KHQR can only be generated for QR payment method.');
     }
 
+    final commandLines = _buildCommandLines(currentState.lines);
+
     final loadingState = currentState.copyWith(
       isKhqrLoading: true,
       khqrErrorMessage: null,
+      khqrErrorCode: null,
     );
     state = loadingState;
     await _persistCart(loadingState);
@@ -423,21 +564,25 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
     try {
       final attempt = await _repo.generateKhqrAttempt(
         SaleGenerateKhqrAttemptCommand(
-          saleId: saleId,
+          saleId: currentState.saleId ?? '',
           tenderCurrency: currentState.tenderCurrency.toUpperCase(),
           clientOpId:
-              'khqr-generate-$saleId-${DateTime.now().millisecondsSinceEpoch}',
+              'khqr-generate-${currentState.saleId ?? 'local-cart'}-${DateTime.now().millisecondsSinceEpoch}',
+          saleType: currentState.saleType,
+          cartLines: commandLines,
+          expiresInSeconds: 180,
         ),
       );
-      final newState = state.copyWith(
-        khqrStatus: SaleKhqrUiStates.normalize(attempt.status),
-        khqrAttemptId: attempt.attemptId,
-        khqrMd5: attempt.md5,
-        khqrQrPayload: attempt.qrPayload,
-        khqrExpiresAt: attempt.expiresAt,
-        khqrConfirmedAt: null,
-        khqrErrorMessage: attempt.reasonMessage,
-        isKhqrLoading: false,
+      final newState = _applyKhqrStatusResult(
+        state,
+        saleId: attempt.saleId,
+        attemptId: attempt.attemptId,
+        md5: attempt.md5,
+        qrPayload: attempt.qrPayload,
+        expiresAt: attempt.expiresAt,
+        status: attempt.status,
+        reasonCode: attempt.reasonCode,
+        reasonMessage: attempt.reasonMessage,
       );
       state = newState;
       await _persistCart(newState);
@@ -445,6 +590,7 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
       final errorState = state.copyWith(
         isKhqrLoading: false,
         khqrErrorMessage: e.message,
+        khqrErrorCode: e.reasonCode,
       );
       state = errorState;
       await _persistCart(errorState);
@@ -453,6 +599,7 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
       final errorState = state.copyWith(
         isKhqrLoading: false,
         khqrErrorMessage: e.toString(),
+        khqrErrorCode: SaleCheckoutReasonCodes.unknownError,
       );
       state = errorState;
       await _persistCart(errorState);
@@ -463,8 +610,9 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
   Future<void> checkKhqrStatus() async {
     final currentState = state;
     final saleId = currentState.saleId;
+    final intentId = currentState.khqrAttemptId;
     final md5 = currentState.khqrMd5;
-    if (saleId == null || saleId.isEmpty || md5 == null || md5.isEmpty) {
+    if (intentId == null || intentId.isEmpty || md5 == null || md5.isEmpty) {
       throw Exception('KHQR attempt is not available.');
     }
     if (currentState.paymentMethod.toLowerCase() != 'qr') {
@@ -475,19 +623,26 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
     final loadingState = currentState.copyWith(
       isKhqrLoading: true,
       khqrErrorMessage: null,
+      khqrErrorCode: null,
     );
     state = loadingState;
     await _persistCart(loadingState);
 
     try {
       final status = await _repo.checkKhqrStatus(
-        SaleCheckKhqrStatusCommand(saleId: saleId, md5: md5),
+        SaleCheckKhqrStatusCommand(
+          saleId: saleId ?? '',
+          md5: md5,
+          intentId: intentId,
+        ),
       );
-      final newState = state.copyWith(
-        khqrStatus: SaleKhqrUiStates.normalize(status.status),
-        khqrConfirmedAt: status.confirmedAt,
-        khqrErrorMessage: status.reasonMessage,
-        isKhqrLoading: false,
+      final newState = _applyKhqrStatusResult(
+        state,
+        saleId: status.saleId,
+        status: status.status,
+        confirmedAt: status.confirmedAt,
+        reasonCode: status.reasonCode,
+        reasonMessage: status.reasonMessage,
       );
       state = newState;
       await _persistCart(newState);
@@ -495,6 +650,7 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
       final errorState = state.copyWith(
         isKhqrLoading: false,
         khqrErrorMessage: e.message,
+        khqrErrorCode: e.reasonCode,
       );
       state = errorState;
       await _persistCart(errorState);
@@ -503,6 +659,71 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
       final errorState = state.copyWith(
         isKhqrLoading: false,
         khqrErrorMessage: e.toString(),
+        khqrErrorCode: SaleCheckoutReasonCodes.unknownError,
+      );
+      state = errorState;
+      await _persistCart(errorState);
+      rethrow;
+    }
+  }
+
+  Future<void> cancelKhqrAttempt() async {
+    final currentState = state;
+    final saleId = currentState.saleId ?? '';
+    final intentId = currentState.khqrAttemptId;
+    final md5 = currentState.khqrMd5;
+    if (intentId == null || intentId.isEmpty || md5 == null || md5.isEmpty) {
+      throw const SaleCheckoutRepositoryException(
+        reasonCode: SaleCheckoutReasonCodes.invalidRequest,
+        message: 'KHQR attempt is not available.',
+      );
+    }
+    if (currentState.paymentMethod.toLowerCase() != 'qr') {
+      throw Exception('Switch payment method to QR before cancelling KHQR.');
+    }
+    if (currentState.isKhqrLoading) return;
+
+    final loadingState = currentState.copyWith(
+      isKhqrLoading: true,
+      khqrErrorMessage: null,
+      khqrErrorCode: null,
+    );
+    state = loadingState;
+    await _persistCart(loadingState);
+
+    try {
+      final status = await _repo.cancelKhqrAttempt(
+        SaleCancelKhqrAttemptCommand(
+          saleId: saleId,
+          md5: md5,
+          intentId: intentId,
+          clientOpId: 'khqr-cancel-$intentId',
+        ),
+      );
+      final newState = _applyKhqrStatusResult(
+        state,
+        saleId: status.saleId,
+        status: status.status,
+        confirmedAt: status.confirmedAt,
+        reasonCode: status.reasonCode,
+        reasonMessage: status.reasonMessage,
+      );
+      state = newState;
+      await _persistCart(newState);
+    } on SaleCheckoutRepositoryException catch (e) {
+      final errorState = state.copyWith(
+        isKhqrLoading: false,
+        khqrErrorMessage: e.message,
+        khqrErrorCode: e.reasonCode,
+      );
+      state = errorState;
+      await _persistCart(errorState);
+      rethrow;
+    } catch (e) {
+      final errorState = state.copyWith(
+        isKhqrLoading: false,
+        khqrErrorMessage: e.toString(),
+        khqrErrorCode: SaleCheckoutReasonCodes.unknownError,
       );
       state = errorState;
       await _persistCart(errorState);
@@ -517,16 +738,23 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
 
     _assertCanCreateDraftSale();
     final currentState = state;
-    final saleId = currentState.saleId;
-    if (saleId == null || saleId.isEmpty) throw Exception('No sale draft');
     if (currentState.lines.isEmpty) {
       throw Exception('Cannot finalize an empty cart.');
     }
 
     final gate = ref.read(saleAccessGateProvider);
-    final branchId = gate.branchId;
-    if (branchId == null || branchId.trim().isEmpty) {
-      throw Exception('Branch context is missing. Please switch branch.');
+    if (!gate.canCheckout) {
+      final error = _saleAccessException(
+        gate,
+        fallbackCode: SaleCheckoutReasonCodes.unknownError,
+        fallbackMessage: 'Checkout is currently unavailable.',
+      );
+      state = _applyCheckoutFailure(
+        currentState,
+        reasonCode: error.reasonCode,
+        message: error.message,
+      );
+      throw error;
     }
 
     final tenderCurrency = currentState.tenderCurrency.toUpperCase();
@@ -534,17 +762,29 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
     final commandPaymentMethod = paymentMethod == 'qr' ? 'khqr' : paymentMethod;
     if (paymentMethod == 'qr' &&
         !saleKhqrCanFinalize(currentState.khqrStatus)) {
-      throw const SaleCheckoutRepositoryException(
+      const error = SaleCheckoutRepositoryException(
         reasonCode: SaleCheckoutReasonCodes.khqrNotConfirmed,
         message: 'KHQR payment is not confirmed yet.',
       );
+      state = _applyCheckoutFailure(
+        currentState,
+        reasonCode: error.reasonCode,
+        message: error.message,
+      );
+      throw error;
     }
     if (paymentMethod == 'qr' &&
         (currentState.khqrMd5 == null || currentState.khqrMd5!.isEmpty)) {
-      throw const SaleCheckoutRepositoryException(
+      const error = SaleCheckoutRepositoryException(
         reasonCode: SaleCheckoutReasonCodes.khqrNotConfirmed,
         message: 'KHQR proof is missing. Generate KHQR again.',
       );
+      state = _applyCheckoutFailure(
+        currentState,
+        reasonCode: error.reasonCode,
+        message: error.message,
+      );
+      throw error;
     }
     final cashUsd = paymentMethod == 'cash' && tenderCurrency == 'USD'
         ? currentState.cashUsd
@@ -558,43 +798,41 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
             khr: cashKhr > 0 ? cashKhr : null,
           )
         : null;
+    final commandLines = _buildCommandLines(currentState.lines);
 
     state = currentState.copyWith(
       isFinalizing: true,
       checkoutErrorMessage: null,
+      checkoutErrorCode: null,
       lastFinalizedSaleId: null,
       lastReceiptId: null,
+      lastReceipt: null,
     );
 
     try {
       final finalizeResult = await _repo.finalizeSale(
         SaleFinalizeSaleCommand(
-          saleId: saleId,
-          branchId: branchId,
+          saleId: currentState.saleId ?? '',
           paymentMethod: commandPaymentMethod,
           tenderCurrency: tenderCurrency,
-          clientOpId: 'sale-finalize-$saleId',
+          clientOpId: 'sale-finalize-${currentState.saleId ?? 'local-cart'}',
           cashReceived: commandPaymentMethod == 'cash' ? cashReceivedDto : null,
           khqrMd5: commandPaymentMethod == 'khqr' ? currentState.khqrMd5 : null,
+          saleType: currentState.saleType,
+          cartLines: commandLines,
         ),
       );
 
-      final totalUsd = finalizeResult.totalUsdExact;
-      final totalKhr = finalizeResult.totalKhrExact;
       final summary = SaleCheckoutSummary(
         saleId: finalizeResult.saleId,
         tenderCurrency: tenderCurrency.toLowerCase(),
         paymentMethod: paymentMethod,
-        totalUsdExact: totalUsd,
-        totalKhrExact: totalKhr,
-        cashReceivedUsd: cashUsd,
-        cashReceivedKhr: cashKhr,
-        changeGivenUsd: tenderCurrency == 'USD'
-            ? max<double>(0, cashUsd - totalUsd)
-            : 0,
-        changeGivenKhr: tenderCurrency == 'KHR'
-            ? max<double>(0, cashKhr - totalKhr)
-            : 0,
+        totalUsdExact: finalizeResult.totalUsdExact,
+        totalKhrExact: finalizeResult.totalKhrExact,
+        cashReceivedUsd: finalizeResult.cashReceivedUsd ?? 0,
+        cashReceivedKhr: finalizeResult.cashReceivedKhr ?? 0,
+        changeGivenUsd: finalizeResult.changeGivenUsd ?? 0,
+        changeGivenKhr: finalizeResult.changeGivenKhr ?? 0,
       );
 
       ref.invalidate(xReportEntriesProvider);
@@ -604,23 +842,27 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
       state = SaleCartState(
         lastFinalizedSaleId: finalizeResult.saleId,
         lastReceiptId: finalizeResult.receiptId,
+        lastReceipt: finalizeResult.receipt,
       );
 
       return SaleCheckoutResult(
         summary: summary,
         receiptId: finalizeResult.receiptId,
+        receipt: finalizeResult.receipt,
         idempotentReplay: finalizeResult.idempotentReplay,
       );
     } on SaleCheckoutRepositoryException catch (e) {
-      state = currentState.copyWith(
-        isFinalizing: false,
-        checkoutErrorMessage: e.message,
+      state = _applyCheckoutFailure(
+        currentState,
+        reasonCode: e.reasonCode,
+        message: e.message,
       );
       rethrow;
     } catch (e) {
-      state = currentState.copyWith(
-        isFinalizing: false,
-        checkoutErrorMessage: e.toString(),
+      state = _applyCheckoutFailure(
+        currentState,
+        reasonCode: SaleCheckoutReasonCodes.unknownError,
+        message: e.toString(),
       );
       rethrow;
     }
@@ -632,18 +874,19 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
     }
 
     _assertCanCreateDraftSale();
-    final policyState = ref.read(policyNotifierProvider);
-    if (!policyState.branchPolicy.saleAllowPayLater) {
-      throw const SaleCheckoutRepositoryException(
-        reasonCode: SaleCheckoutReasonCodes.payLaterDisabled,
-        message: 'Pay-later is currently disabled for this branch.',
-      );
-    }
     final gate = ref.read(saleAccessGateProvider);
     if (!gate.canPlacePayLater) {
-      throw Exception(
-        gate.blockingMessage ?? 'Pay-later order is currently unavailable.',
+      final error = _saleAccessException(
+        gate,
+        fallbackCode: SaleCheckoutReasonCodes.payLaterDisabled,
+        fallbackMessage: 'Pay-later order is currently unavailable.',
       );
+      state = _applyCheckoutFailure(
+        state,
+        reasonCode: error.reasonCode,
+        message: error.message,
+      );
+      throw error;
     }
 
     await _ensureSaleId();
@@ -658,40 +901,28 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
 
     final branchId = gate.branchId;
     if (branchId == null || branchId.trim().isEmpty) {
-      throw Exception('Branch context is missing. Please switch branch.');
+      final error = _saleAccessException(
+        gate,
+        fallbackCode: SaleCheckoutReasonCodes.branchRequired,
+        fallbackMessage: 'Branch context is missing. Please switch branch.',
+      );
+      state = _applyCheckoutFailure(
+        currentState,
+        reasonCode: error.reasonCode,
+        message: error.message,
+      );
+      throw error;
     }
 
-    final commandLines = currentState.lines.map((line) {
-      final payload = SaleCartPayloadBuilder.fromLine(line);
-      final modifiers = payload.modifiers
-          .where(
-            (entry) => entry['groupId'] is String && entry['optionIds'] is List,
-          )
-          .map(
-            (entry) => SaleCartModifierInputDto(
-              groupId: entry['groupId'] as String,
-              optionIds: List<String>.from(
-                (entry['optionIds'] as List).map((id) => id.toString()),
-              ),
-            ),
-          )
-          .toList();
-      return SaleCartLineInputDto(
-        menuItemId: line.item.id,
-        quantity: line.quantity,
-        modifiers: modifiers,
-        unitPriceUsd: payload.unitPriceUsd,
-        lineTotalUsdExact: payload.lineTotalUsdExact,
-        addonTotalUsd: payload.addonTotalUsd,
-        pricingSnapshot: payload.pricingSnapshot,
-      );
-    }).toList();
+    final commandLines = _buildCommandLines(currentState.lines);
 
     state = currentState.copyWith(
       isFinalizing: true,
       checkoutErrorMessage: null,
+      checkoutErrorCode: null,
       lastFinalizedSaleId: null,
       lastReceiptId: null,
+      lastReceipt: null,
       lastPlacedOpenTicketId: null,
       lastPlacedSaleId: null,
     );
@@ -718,15 +949,17 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
         idempotentReplay: result.idempotentReplay,
       );
     } on SaleCheckoutRepositoryException catch (e) {
-      state = currentState.copyWith(
-        isFinalizing: false,
-        checkoutErrorMessage: e.message,
+      state = _applyCheckoutFailure(
+        currentState,
+        reasonCode: e.reasonCode,
+        message: e.message,
       );
       rethrow;
     } catch (e) {
-      state = currentState.copyWith(
-        isFinalizing: false,
-        checkoutErrorMessage: e.toString(),
+      state = _applyCheckoutFailure(
+        currentState,
+        reasonCode: SaleCheckoutReasonCodes.unknownError,
+        message: e.toString(),
       );
       rethrow;
     }
@@ -734,17 +967,30 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
 
   Future<CartLine> _replayLineToSale(String saleId, CartLine line) async {
     final payload = SaleCartPayloadBuilder.fromLine(line);
-    final saleItemId = await _repo.addItem(
-      saleId: saleId,
-      menuItemId: line.item.id,
-      quantity: line.quantity,
-      modifiers: payload.modifiers,
-      selectedOptionIds: line.selectedOptionIds,
-      unitPriceUsd: payload.unitPriceUsd,
-      lineTotalUsdExact: payload.lineTotalUsdExact,
-      addonTotalUsd: payload.addonTotalUsd,
-      pricingSnapshot: payload.pricingSnapshot,
-    );
+    final saleItemId = await _repo.addItem(saleId: saleId, item: payload);
     return line.copyWith(saleItemId: saleItemId);
+  }
+
+  List<SaleCartLineInputDto> _buildCommandLines(List<CartLine> lines) {
+    return lines.map((line) {
+      final payload = SaleCartPayloadBuilder.fromLine(line);
+      final modifiers = payload.modifiers
+          .map(
+            (entry) => SaleCartModifierInputDto(
+              groupId: entry.groupId,
+              optionIds: entry.optionIds,
+            ),
+          )
+          .toList();
+      return SaleCartLineInputDto(
+        menuItemId: line.item.id,
+        quantity: line.quantity,
+        modifiers: modifiers,
+        unitPriceUsd: payload.unitPriceUsd,
+        lineTotalUsdExact: payload.lineTotalUsdExact,
+        addonTotalUsd: payload.addonTotalUsd,
+        pricingSnapshot: payload.pricingSnapshot?.toJson(),
+      );
+    }).toList();
   }
 }

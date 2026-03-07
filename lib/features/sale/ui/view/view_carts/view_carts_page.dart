@@ -17,8 +17,8 @@ class ViewCartsPage extends ConsumerStatefulWidget {
 }
 
 class _ViewCartsPageState extends ConsumerState<ViewCartsPage> {
-  static const _states = ['draft', 'finalized', 'voided', 'reopened'];
-  String _selectedState = 'draft';
+  static const _states = ['PENDING', 'FINALIZED', 'VOID_PENDING', 'VOIDED'];
+  String _selectedState = 'PENDING';
   DateTime _selectedDate = DateTime.now();
   late Future<List<SaleSummary>> _future;
 
@@ -62,22 +62,22 @@ class _ViewCartsPageState extends ConsumerState<ViewCartsPage> {
     });
   }
 
-  Future<void> _voidSale(SaleSummary sale) async {
-    if (sale.state != 'draft') return;
+  Future<bool> _voidSale(SaleSummary sale) async {
+    if (!sale.canVoid) return false;
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         titlePadding: const EdgeInsets.fromLTRB(20, 16, 8, 0),
         title: Row(
           children: [
-            const Expanded(child: Text('Void draft')),
+            const Expanded(child: Text('Void sale')),
             IconButton(
               icon: const Icon(Icons.close),
               onPressed: () => context.pop(false),
             ),
           ],
         ),
-        content: const Text('Are you sure you want to void this draft cart?'),
+        content: const Text('Are you sure you want to void this sale?'),
         actions: [
           FilledButton(
             onPressed: () => context.pop(true),
@@ -86,18 +86,19 @@ class _ViewCartsPageState extends ConsumerState<ViewCartsPage> {
         ],
       ),
     );
-    if (confirm != true) return;
+    if (confirm != true) return false;
 
     final repo = ref.read(saleRepositoryProvider);
     try {
       await repo.voidSale(sale.id, reason: 'Voided from POS');
-      if (!mounted) return;
+      if (!mounted) return false;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Draft voided')));
+      ).showSnackBar(const SnackBar(content: Text('Sale voided')));
       setState(() => _future = _loadSales());
+      return true;
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted) return false;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -105,6 +106,7 @@ class _ViewCartsPageState extends ConsumerState<ViewCartsPage> {
           ),
         ),
       );
+      return false;
     }
   }
 
@@ -114,6 +116,7 @@ class _ViewCartsPageState extends ConsumerState<ViewCartsPage> {
       builder: (modalContext) => ViewCartDetailPage(
         summary: sale,
         showBack: false,
+        onVoid: sale.canVoid ? () => _voidSale(sale) : null,
       ),
     );
   }
@@ -171,9 +174,7 @@ class _ViewCartsPageState extends ConsumerState<ViewCartsPage> {
                       child: SaleSummaryCard(
                         summary: sale,
                         onTap: () => _openSale(sale),
-                        onVoid: sale.state == 'draft'
-                            ? () => _voidSale(sale)
-                            : null,
+                        onVoid: sale.canVoid ? () => _voidSale(sale) : null,
                       ),
                     );
                   },

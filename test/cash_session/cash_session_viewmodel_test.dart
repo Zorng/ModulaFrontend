@@ -6,7 +6,9 @@ import 'package:modular_pos/features/auth/domain/models/tenant_membership.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/cash_session/data/cash_session_error_codes.dart';
+import 'package:modular_pos/features/cash_session/data/cash_session_movement_repository.dart';
 import 'package:modular_pos/features/cash_session/data/cash_session_repository.dart';
+import 'package:modular_pos/features/cash_session/domain/models/cash_movement.dart';
 import 'package:modular_pos/features/cash_session/domain/models/cash_session.dart';
 import 'package:modular_pos/features/cash_session/ui/viewmodels/cash_session_viewmodel.dart';
 
@@ -14,6 +16,9 @@ import '../test_utils/riverpod_test_utils.dart';
 
 class _MockCashSessionRepository extends Mock
     implements CashSessionRepository {}
+
+class _MockCashSessionMovementRepository extends Mock
+    implements CashSessionMovementRepository {}
 
 class _TestLoginController extends LoginController {
   @override
@@ -70,11 +75,16 @@ CashSession _buildCashSession({
 void main() {
   test('load clears state when there is no active session', () async {
     final repo = _MockCashSessionRepository();
+    final movementRepo = _MockCashSessionMovementRepository();
     when(() => repo.getActiveSession()).thenAnswer((_) async => null);
+    when(
+      () => movementRepo.listMovements(sessionId: any(named: 'sessionId')),
+    ).thenAnswer((_) async => const []);
 
     final container = createTestContainer(
       overrides: [
         cashSessionRepositoryProvider.overrideWithValue(repo),
+        cashSessionMovementRepositoryProvider.overrideWithValue(movementRepo),
         loginControllerProvider.overrideWith(_TestLoginController.new),
       ],
     );
@@ -90,13 +100,18 @@ void main() {
 
   test('load keeps branch session even when opened by another user', () async {
     final repo = _MockCashSessionRepository();
+    final movementRepo = _MockCashSessionMovementRepository();
     when(() => repo.getActiveSession()).thenAnswer(
       (_) async => _buildCashSession(openedByAccountId: 'another-user'),
     );
+    when(
+      () => movementRepo.listMovements(sessionId: any(named: 'sessionId')),
+    ).thenAnswer((_) async => const []);
 
     final container = createTestContainer(
       overrides: [
         cashSessionRepositoryProvider.overrideWithValue(repo),
+        cashSessionMovementRepositoryProvider.overrideWithValue(movementRepo),
         loginControllerProvider.overrideWith(_TestLoginController.new),
       ],
     );
@@ -117,13 +132,18 @@ void main() {
 
   test('load sets canForceClose for manager on open session', () async {
     final repo = _MockCashSessionRepository();
+    final movementRepo = _MockCashSessionMovementRepository();
     when(
       () => repo.getActiveSession(),
     ).thenAnswer((_) async => _buildCashSession());
+    when(
+      () => movementRepo.listMovements(sessionId: any(named: 'sessionId')),
+    ).thenAnswer((_) async => const []);
 
     final container = createTestContainer(
       overrides: [
         cashSessionRepositoryProvider.overrideWithValue(repo),
+        cashSessionMovementRepositoryProvider.overrideWithValue(movementRepo),
         loginControllerProvider.overrideWith(_TestLoginController.new),
       ],
     );
@@ -145,9 +165,13 @@ void main() {
     'closeSession preserves session and stores backend error code',
     () async {
       final repo = _MockCashSessionRepository();
+      final movementRepo = _MockCashSessionMovementRepository();
       when(
         () => repo.getActiveSession(),
       ).thenAnswer((_) async => _buildCashSession());
+      when(
+        () => movementRepo.listMovements(sessionId: any(named: 'sessionId')),
+      ).thenAnswer((_) async => const []);
       when(
         () => repo.closeSession(
           sessionId: 'session-1',
@@ -165,6 +189,7 @@ void main() {
       final container = createTestContainer(
         overrides: [
           cashSessionRepositoryProvider.overrideWithValue(repo),
+          cashSessionMovementRepositoryProvider.overrideWithValue(movementRepo),
           loginControllerProvider.overrideWith(_TestLoginController.new),
         ],
       );
@@ -190,6 +215,7 @@ void main() {
 
   test('startSession stores the opened branch session', () async {
     final repo = _MockCashSessionRepository();
+    final movementRepo = _MockCashSessionMovementRepository();
     when(
       () => repo.openSession(
         openingFloatUsd: 25,
@@ -197,10 +223,14 @@ void main() {
         note: 'Shift start',
       ),
     ).thenAnswer((_) async => _buildCashSession());
+    when(
+      () => movementRepo.listMovements(sessionId: any(named: 'sessionId')),
+    ).thenAnswer((_) async => const []);
 
     final container = createTestContainer(
       overrides: [
         cashSessionRepositoryProvider.overrideWithValue(repo),
+        cashSessionMovementRepositoryProvider.overrideWithValue(movementRepo),
         loginControllerProvider.overrideWith(_TestLoginController.new),
       ],
     );
@@ -220,6 +250,7 @@ void main() {
 
   test('startSession stores already-open conflict reason code', () async {
     final repo = _MockCashSessionRepository();
+    final movementRepo = _MockCashSessionMovementRepository();
     when(
       () => repo.openSession(
         openingFloatUsd: 25,
@@ -232,10 +263,14 @@ void main() {
         code: CashSessionErrorCodes.cashSessionAlreadyOpen,
       ),
     );
+    when(
+      () => movementRepo.listMovements(sessionId: any(named: 'sessionId')),
+    ).thenAnswer((_) async => const []);
 
     final container = createTestContainer(
       overrides: [
         cashSessionRepositoryProvider.overrideWithValue(repo),
+        cashSessionMovementRepositoryProvider.overrideWithValue(movementRepo),
         loginControllerProvider.overrideWith(_TestLoginController.new),
       ],
     );
@@ -255,9 +290,13 @@ void main() {
 
   test('closeSession updates state to closed on success', () async {
     final repo = _MockCashSessionRepository();
+    final movementRepo = _MockCashSessionMovementRepository();
     when(
       () => repo.getActiveSession(),
     ).thenAnswer((_) async => _buildCashSession());
+    when(
+      () => movementRepo.listMovements(sessionId: any(named: 'sessionId')),
+    ).thenAnswer((_) async => const []);
     when(
       () => repo.closeSession(
         sessionId: 'session-1',
@@ -272,6 +311,7 @@ void main() {
     final container = createTestContainer(
       overrides: [
         cashSessionRepositoryProvider.overrideWithValue(repo),
+        cashSessionMovementRepositoryProvider.overrideWithValue(movementRepo),
         loginControllerProvider.overrideWith(_TestLoginController.new),
       ],
     );
@@ -297,9 +337,13 @@ void main() {
 
   test('forceCloseSession updates state to force closed', () async {
     final repo = _MockCashSessionRepository();
+    final movementRepo = _MockCashSessionMovementRepository();
     when(
       () => repo.getActiveSession(),
     ).thenAnswer((_) async => _buildCashSession());
+    when(
+      () => movementRepo.listMovements(sessionId: any(named: 'sessionId')),
+    ).thenAnswer((_) async => const []);
     when(
       () => repo.forceCloseSession(
         sessionId: 'session-1',
@@ -315,6 +359,7 @@ void main() {
     final container = createTestContainer(
       overrides: [
         cashSessionRepositoryProvider.overrideWithValue(repo),
+        cashSessionMovementRepositoryProvider.overrideWithValue(movementRepo),
         loginControllerProvider.overrideWith(_TestLoginController.new),
       ],
     );
@@ -337,4 +382,67 @@ void main() {
     expect(state.canForceClose, isFalse);
     expect(state.error, isNull);
   });
+
+  test(
+    'recordPaidIn refreshes movement totals from backend movements',
+    () async {
+      final repo = _MockCashSessionRepository();
+      final movementRepo = _MockCashSessionMovementRepository();
+      when(
+        () => repo.getActiveSession(),
+      ).thenAnswer((_) async => _buildCashSession());
+      when(
+        () => movementRepo.listMovements(sessionId: any(named: 'sessionId')),
+      ).thenAnswer(
+        (_) async => [
+          CashMovement(
+            id: 'move-1',
+            sessionId: 'session-1',
+            tenantId: 'tenant-1',
+            branchId: 'branch-1',
+            movementType: CashMovementTypes.manualIn,
+            amountUsd: 8,
+            amountKhr: 0,
+            reason: 'Top-up',
+            sourceRefType: 'MANUAL',
+            sourceRefId: null,
+            recordedByAccountId: 'user-1',
+            occurredAt: null,
+          ),
+        ],
+      );
+      when(
+        () => movementRepo.recordPaidIn(
+          sessionId: 'session-1',
+          amountUsd: 8,
+          amountKhr: 0,
+          reason: 'Top-up',
+        ),
+      ).thenAnswer((_) async {});
+
+      final container = createTestContainer(
+        overrides: [
+          cashSessionRepositoryProvider.overrideWithValue(repo),
+          cashSessionMovementRepositoryProvider.overrideWithValue(movementRepo),
+          loginControllerProvider.overrideWith(_TestLoginController.new),
+        ],
+      );
+
+      final notifier = container.read(cashSessionViewModelProvider.notifier);
+      await notifier.load();
+      await notifier.recordPaidIn(amountUsd: 8, amountKhr: 0, reason: 'Top-up');
+
+      final state = container.read(cashSessionViewModelProvider);
+      expect(state.movements, hasLength(1));
+      expect(state.totalPaidIn, 8);
+      verify(
+        () => movementRepo.recordPaidIn(
+          sessionId: 'session-1',
+          amountUsd: 8,
+          amountKhr: 0,
+          reason: 'Top-up',
+        ),
+      ).called(1);
+    },
+  );
 }

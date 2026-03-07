@@ -24,6 +24,39 @@ class CashSessionApiEnvelope {
     return dataMap;
   }
 
+  static void unwrapSuccess(
+    dynamic body, {
+    required String fallbackMessage,
+  }) {
+    final raw = ApiContract.asJsonMap(body);
+    _throwIfFailure(raw, fallbackMessage: fallbackMessage);
+    ApiContract.unwrapData(body);
+  }
+
+  static List<Map<String, dynamic>> unwrapDataList(
+    dynamic body, {
+    required String fallbackMessage,
+  }) {
+    final raw = ApiContract.asJsonMap(body);
+    _throwIfFailure(raw, fallbackMessage: fallbackMessage);
+    final data = ApiContract.unwrapData(body);
+    if (data is List) {
+      return data
+          .whereType<Map>()
+          .map((entry) => Map<String, dynamic>.from(entry))
+          .toList();
+    }
+    final dataMap = ApiContract.asJsonMap(data);
+    final list = dataMap['movements'] ?? dataMap['items'];
+    if (list is! List) {
+      throw ApiClientException(message: fallbackMessage);
+    }
+    return list
+        .whereType<Map>()
+        .map((entry) => Map<String, dynamic>.from(entry))
+        .toList();
+  }
+
   static Map<String, dynamic>? unwrapOptionalSessionMap(
     dynamic body, {
     required String fallbackMessage,

@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
+import 'package:modular_pos/features/auth/domain/active_branch_context_provider.dart';
 import 'package:modular_pos/features/cash_session/ui/viewmodels/cash_session_viewmodel.dart';
 import 'package:modular_pos/features/sale/data/sale_checkout_repository_contract.dart';
 import 'package:modular_pos/features/sale/data/sale_repository.dart';
@@ -104,10 +105,21 @@ final _saleContextProvider = FutureProvider.family<SaleContextDto, String>((
   return repo.getSaleContext(branchId: branchId);
 });
 
+/// Sale access prefers explicit workspace branch context, but falls back to
+/// the auth-derived active branch assignment when the workspace is still global.
+final saleAccessBranchIdProvider = Provider<String?>((ref) {
+  final workspaceBranchId =
+      (ref.watch(activeBranchContextIdProvider) ?? '').trim();
+  if (workspaceBranchId.isNotEmpty) return workspaceBranchId;
+
+  final authBranchId = (ref.watch(authActiveBranchIdProvider) ?? '').trim();
+  return authBranchId.isEmpty ? null : authBranchId;
+});
+
 /// Source-of-truth gate used by Sale UI + viewmodels to decide whether the user
 /// can create draft sales, add items, and checkout.
 final saleAccessGateProvider = Provider<SaleAccessGate>((ref) {
-  final branchId = ref.watch(authActiveBranchIdProvider);
+  final branchId = ref.watch(saleAccessBranchIdProvider);
   if (branchId == null || branchId.trim().isEmpty) {
     return const SaleAccessGate(
       branchId: null,

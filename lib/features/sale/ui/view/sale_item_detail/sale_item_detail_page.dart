@@ -9,17 +9,11 @@ import 'package:modular_pos/features/sale/ui/viewmodels/sale_access_gate.dart';
 import 'package:modular_pos/features/sale/ui/view/sale_item_detail/widgets/sale_item_detail_bottom_bar.dart';
 import 'package:modular_pos/features/sale/ui/view/sale_item_detail/widgets/sale_item_detail_image.dart';
 import 'package:modular_pos/features/sale/ui/view/sale_item_detail/widgets/sale_item_modifier_group_section.dart';
-import 'package:modular_pos/features/sale/ui/viewmodels/mock_sale_data.dart';
 
 class SaleItemDetailPage extends ConsumerStatefulWidget {
-  const SaleItemDetailPage({
-    super.key,
-    required this.item,
-    this.useMockData = false,
-  });
+  const SaleItemDetailPage({super.key, required this.item});
 
   final MenuItem item;
-  final bool useMockData;
 
   @override
   ConsumerState<SaleItemDetailPage> createState() => _SaleItemDetailPageState();
@@ -73,28 +67,17 @@ class _SaleItemDetailPageState extends ConsumerState<SaleItemDetailPage> {
         final hydratedItemFromState = menuState.hydratedItems[widget.item.id];
         final itemToUse = tuple?.$1 ?? hydratedItemFromState ?? widget.item;
 
-        // Use mock modifiers if enabled, otherwise use real data
-        List<ModifierGroup> modifiers;
-        if (widget.useMockData) {
-          modifiers = widget.item.modifierGroupIds
-              .map((id) => MockSaleData.modifierGroups[id])
-              .whereType<ModifierGroup>()
-              .toList();
-        } else {
-          final fetchedMods = tuple?.$2 ?? const <ModifierGroup>[];
-          final hydratedMods = itemToUse.modifierGroupIds
-              .map((id) => menuState.hydratedModifierGroups[id])
-              .whereType<ModifierGroup>()
-              .toList();
-          modifiers = fetchedMods.isNotEmpty ? fetchedMods : hydratedMods;
-        }
+        final fetchedMods = tuple?.$2 ?? const <ModifierGroup>[];
+        final hydratedMods = itemToUse.modifierGroupIds
+            .map((id) => menuState.hydratedModifierGroups[id])
+            .whereType<ModifierGroup>()
+            .toList();
+        final modifiers = fetchedMods.isNotEmpty ? fetchedMods : hydratedMods;
 
         final gate = ref.watch(saleAccessGateProvider);
         final canAddToCart = gate.canAddToCart;
 
-        // If the first attempt returned empty and not using mock data, trigger one retry automatically.
         if (modifiers.isEmpty &&
-            !widget.useMockData &&
             !_hasRetried &&
             snapshot.connectionState == ConnectionState.done) {
           _hasRetried = true;
@@ -368,16 +351,6 @@ class _SaleItemDetailPageState extends ConsumerState<SaleItemDetailPage> {
       },
     );
   }
-}
-
-class SaleItemDetailRouteExtra {
-  const SaleItemDetailRouteExtra({
-    required this.item,
-    this.useMockData = false,
-  });
-
-  final MenuItem item;
-  final bool useMockData;
 }
 
 class SaleItemSelectionResult {

@@ -21,7 +21,6 @@ class SalePageMenuCatalog extends ConsumerWidget {
     required this.gridCount,
     required this.itemAspectRatio,
     this.header,
-    this.useMockData = false,
   });
 
   final List<MenuItem> items;
@@ -29,7 +28,6 @@ class SalePageMenuCatalog extends ConsumerWidget {
   final int gridCount;
   final double itemAspectRatio;
   final Widget? header;
-  final bool useMockData;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -93,20 +91,14 @@ class SalePageMenuCatalog extends ConsumerWidget {
                               maxWidth: 600,
                               maxHeight: 700,
                             ),
-                            child: SaleItemDetailPage(
-                              item: item,
-                              useMockData: useMockData,
-                            ),
+                            child: SaleItemDetailPage(item: item),
                           ),
                         ),
                       );
                     } else {
                       selection = await context.push<SaleItemSelectionResult>(
                         AppRoute.saleItemDetail.path,
-                        extra: SaleItemDetailRouteExtra(
-                          item: item,
-                          useMockData: useMockData,
-                        ),
+                        extra: item,
                       );
                     }
 

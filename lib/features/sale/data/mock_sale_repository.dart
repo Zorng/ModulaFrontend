@@ -112,14 +112,7 @@ class MockSaleRepository implements SaleCheckoutRepository {
   @override
   Future<String?> addItem({
     required String saleId,
-    required String menuItemId,
-    required int quantity,
-    required List<Map<String, dynamic>> modifiers,
-    required Map<String, List<String>> selectedOptionIds,
-    double? unitPriceUsd,
-    double? lineTotalUsdExact,
-    double? addonTotalUsd,
-    Map<String, dynamic>? pricingSnapshot,
+    required SaleDraftItemInputDto item,
   }) async {
     _ensureWriteAllowed(
       branchId: _activeBranchId,
@@ -132,17 +125,17 @@ class MockSaleRepository implements SaleCheckoutRepository {
     final now = _now();
 
     final existingIndex = draft.items.indexWhere(
-      (item) =>
-          item.menuItemId == menuItemId &&
-          _modifiersMatch(item.modifiers, selectedOptionIds),
+      (draftItem) =>
+          draftItem.menuItemId == item.menuItemId &&
+          _modifiersMatch(draftItem.modifiers, item.selectedOptionIds),
     );
 
     if (existingIndex >= 0) {
       final existing = draft.items[existingIndex];
       draft.items[existingIndex] = existing.copyWith(
-        quantity: existing.quantity + quantity,
-        unitPriceUsd: unitPriceUsd ?? existing.unitPriceUsd,
-        lineTotalUsdExact: lineTotalUsdExact ?? existing.lineTotalUsdExact,
+        quantity: existing.quantity + item.quantity,
+        unitPriceUsd: item.unitPriceUsd ?? existing.unitPriceUsd,
+        lineTotalUsdExact: item.lineTotalUsdExact ?? existing.lineTotalUsdExact,
       );
       draft.updatedAt = now;
       _syncCartFingerprintFromDraft(saleId);
@@ -152,12 +145,14 @@ class MockSaleRepository implements SaleCheckoutRepository {
 
     final created = _MockSaleItem(
       id: _nextId('item'),
-      menuItemId: menuItemId,
-      menuItemName: menuItemId,
-      quantity: quantity,
-      modifiers: modifiers,
-      unitPriceUsd: unitPriceUsd ?? 1,
-      lineTotalUsdExact: lineTotalUsdExact ?? (unitPriceUsd ?? 1),
+      menuItemId: item.menuItemId,
+      menuItemName: item.menuItemId,
+      quantity: item.quantity,
+      modifiers: item.modifiers
+          .map((entry) => entry.toLegacyJson())
+          .toList(growable: false),
+      unitPriceUsd: item.unitPriceUsd ?? 1,
+      lineTotalUsdExact: item.lineTotalUsdExact ?? (item.unitPriceUsd ?? 1),
     );
 
     draft.items.add(created);
@@ -250,7 +245,6 @@ class MockSaleRepository implements SaleCheckoutRepository {
     final result = await finalizeSale(
       SaleFinalizeSaleCommand(
         saleId: saleId,
-        branchId: _activeBranchId,
         paymentMethod: 'cash',
         tenderCurrency: 'USD',
         clientOpId: 'legacy-finalize-$saleId',
@@ -377,7 +371,7 @@ class MockSaleRepository implements SaleCheckoutRepository {
   Future<SaleCheckoutPreviewDto> computeCheckoutPreview(
     SaleComputeCheckoutPreviewCommand command,
   ) async {
-    _ensureReadAllowed(branchId: command.branchId);
+    _ensureReadAllowed(branchId: _activeBranchId);
 
     final items = command.cartLines.isNotEmpty
         ? command.cartLines.map(_lineFromCommand).toList()
@@ -443,19 +437,24 @@ class MockSaleRepository implements SaleCheckoutRepository {
       payload: command.toJson(),
       onReplay: (existing) => existing,
       execute: () async {
-        _supersedeKhqrAttemptForSale(
+        final saleId = _ensurePayNowDraftForCheckout(
           saleId: command.saleId,
+          saleType: command.saleType ?? 'take_away',
+          cartLines: command.cartLines,
+        );
+        _supersedeKhqrAttemptForSale(
+          saleId: saleId,
           reason: 'new_attempt_generated',
         );
 
         final amount = _resolveCurrentPayable(
-          saleId: command.saleId,
+          saleId: saleId,
           tenderCurrency: command.tenderCurrency,
         );
 
         final now = _now();
         final attempt = _MockKhqrAttempt(
-          saleId: command.saleId,
+          saleId: saleId,
           attemptId: _nextId('khqr_attempt'),
           md5: _nextId('khqr_md5'),
           status: 'WAITING_FOR_PAYMENT',
@@ -469,7 +468,7 @@ class MockSaleRepository implements SaleCheckoutRepository {
         );
 
         _khqrByMd5[attempt.md5] = attempt;
-        _latestKhqrMd5BySaleId[command.saleId] = attempt.md5;
+        _latestKhqrMd5BySaleId[saleId] = attempt.md5;
 
         return SaleKhqrAttemptDto(
           saleId: attempt.saleId,
@@ -554,11 +553,48 @@ class MockSaleRepository implements SaleCheckoutRepository {
   }
 
   @override
+  Future<SaleKhqrStatusDto> cancelKhqrAttempt(
+    SaleCancelKhqrAttemptCommand command,
+  ) async {
+    final attempt = _khqrByMd5[command.md5];
+    if (attempt == null || attempt.saleId != command.saleId) {
+      throw const SaleCheckoutRepositoryException(
+        reasonCode: SaleCheckoutReasonCodes.invalidRequest,
+        message: 'KHQR attempt was not found for this sale.',
+      );
+    }
+
+    return _runIdempotent(
+      action: 'khqr.cancel',
+      key: command.clientOpId,
+      payload: command.toJson(),
+      onReplay: (existing) => existing,
+      execute: () async {
+        if (attempt.status == 'WAITING_FOR_PAYMENT' ||
+            attempt.status == 'PENDING_CONFIRMATION') {
+          attempt.status = 'CANCELLED';
+          attempt.reasonCode = null;
+          attempt.reasonMessage = null;
+        }
+
+        return SaleKhqrStatusDto(
+          saleId: attempt.saleId,
+          md5: attempt.md5,
+          status: attempt.status,
+          confirmedAt: attempt.confirmedAt,
+          reasonCode: attempt.reasonCode,
+          reasonMessage: attempt.reasonMessage,
+        );
+      },
+    );
+  }
+
+  @override
   Future<SaleFinalizeSaleResultDto> finalizeSale(
     SaleFinalizeSaleCommand command,
   ) async {
     _ensureWriteAllowed(
-      branchId: command.branchId,
+      branchId: _activeBranchId,
       requiresPayLaterEnabled: false,
       requiresOnline: false,
     );
@@ -569,7 +605,12 @@ class MockSaleRepository implements SaleCheckoutRepository {
       payload: command.toJson(),
       onReplay: (existing) => existing.copyWith(idempotentReplay: true),
       execute: () async {
-        final draft = _requireDraft(command.saleId);
+        final saleId = _ensurePayNowDraftForCheckout(
+          saleId: command.saleId,
+          saleType: command.saleType ?? 'take_away',
+          cartLines: command.cartLines,
+        );
+        final draft = _requireDraft(saleId);
         if (draft.items.isEmpty) {
           throw const SaleCheckoutRepositoryException(
             reasonCode: SaleCheckoutReasonCodes.invalidRequest,
@@ -578,7 +619,7 @@ class MockSaleRepository implements SaleCheckoutRepository {
         }
 
         if (command.paymentMethod.toLowerCase() == 'khqr') {
-          _ensureKhqrConfirmed(saleId: command.saleId, md5: command.khqrMd5);
+          _ensureKhqrConfirmed(saleId: saleId, md5: command.khqrMd5);
         }
 
         final cashReceived = command.cashReceived?.toJson().cast<String, num>();
@@ -591,7 +632,7 @@ class MockSaleRepository implements SaleCheckoutRepository {
 
         final now = _now();
         final finalized = _MockFinalizedSale(
-          saleId: command.saleId,
+          saleId: saleId,
           saleType: draft.saleType,
           paymentMethod: command.paymentMethod,
           tenderCurrency: command.tenderCurrency.toLowerCase(),
@@ -610,10 +651,10 @@ class MockSaleRepository implements SaleCheckoutRepository {
           updatedAt: now,
         );
 
-        _drafts.remove(command.saleId);
-        _finalizedSales[command.saleId] = finalized;
+        _drafts.remove(saleId);
+        _finalizedSales[saleId] = finalized;
 
-        final ticketId = _openTicketIdBySaleId[command.saleId];
+        final ticketId = _openTicketIdBySaleId[saleId];
         if (ticketId != null) {
           final ticket = _openTicketsById[ticketId];
           if (ticket != null && ticket.status == 'UNPAID') {
@@ -623,8 +664,8 @@ class MockSaleRepository implements SaleCheckoutRepository {
         }
 
         final receiptId = _nextId('receipt');
-        _receiptsBySaleId[command.saleId] = _buildReceipt(
-          saleId: command.saleId,
+        _receiptsBySaleId[saleId] = _buildReceipt(
+          saleId: saleId,
           receiptId: receiptId,
           paymentMethod: command.paymentMethod,
           totalUsdExact: totals.totalUsdExact,
@@ -634,13 +675,19 @@ class MockSaleRepository implements SaleCheckoutRepository {
         );
 
         return SaleFinalizeSaleResultDto(
-          saleId: command.saleId,
+          saleId: saleId,
           status: 'FINALIZED',
           totalUsdExact: totals.totalUsdExact,
           totalKhrExact: totals.totalKhrExact,
           idempotentReplay: false,
           orderId: command.saleId,
           receiptId: receiptId,
+          receipt: SaleImmediateReceiptDto(
+            receiptId: receiptId,
+            saleId: saleId,
+            statusDisplay: 'NORMAL',
+            issuedAt: now,
+          ),
         );
       },
     );
@@ -1358,6 +1405,46 @@ class MockSaleRepository implements SaleCheckoutRepository {
     return true;
   }
 
+  String _ensurePayNowDraftForCheckout({
+    required String saleId,
+    required String saleType,
+    required List<SaleCartLineInputDto> cartLines,
+  }) {
+    final normalizedSaleId = saleId.trim();
+    if (normalizedSaleId.isNotEmpty) {
+      if (_drafts.containsKey(normalizedSaleId)) {
+        return normalizedSaleId;
+      }
+      if (cartLines.isEmpty) {
+        return normalizedSaleId;
+      }
+      final now = _now();
+      _drafts[normalizedSaleId] = _MockSaleDraft(
+        saleId: normalizedSaleId,
+        saleType: saleType,
+        fxRateUsed: 4100,
+        items: cartLines.map(_lineFromCommand).toList(),
+        createdAt: now,
+        updatedAt: now,
+      );
+      _syncCartFingerprintFromDraft(normalizedSaleId);
+      return normalizedSaleId;
+    }
+
+    final generatedSaleId = 'mock_sale_${_nextId('checkout')}';
+    final now = _now();
+    _drafts[generatedSaleId] = _MockSaleDraft(
+      saleId: generatedSaleId,
+      saleType: saleType,
+      fxRateUsed: 4100,
+      items: cartLines.map(_lineFromCommand).toList(),
+      createdAt: now,
+      updatedAt: now,
+    );
+    _syncCartFingerprintFromDraft(generatedSaleId);
+    return generatedSaleId;
+  }
+
   void _ensureKhqrConfirmed({required String saleId, required String? md5}) {
     if (md5 == null || md5.trim().isEmpty) {
       throw const SaleCheckoutRepositoryException(
@@ -1725,6 +1812,7 @@ extension on SaleFinalizeSaleResultDto {
       idempotentReplay: idempotentReplay ?? this.idempotentReplay,
       orderId: orderId,
       receiptId: receiptId,
+      receipt: receipt,
       reasonCode: reasonCode,
       reasonMessage: reasonMessage,
     );

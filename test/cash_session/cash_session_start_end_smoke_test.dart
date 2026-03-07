@@ -3,7 +3,9 @@ import 'package:modular_pos/features/auth/domain/models/auth_session.dart';
 import 'package:modular_pos/features/auth/domain/models/tenant_membership.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
+import 'package:modular_pos/features/cash_session/data/cash_session_movement_repository.dart';
 import 'package:modular_pos/features/cash_session/data/cash_session_repository.dart';
+import 'package:modular_pos/features/cash_session/domain/models/cash_movement.dart';
 import 'package:modular_pos/features/cash_session/domain/models/cash_session.dart';
 import 'package:modular_pos/features/cash_session/ui/viewmodels/cash_session_viewmodel.dart';
 
@@ -18,7 +20,8 @@ class _TestLoginController extends LoginController {
   }
 }
 
-class _SmokeCashSessionRepository implements CashSessionRepository {
+class _SmokeCashSessionRepository
+    implements CashSessionRepository, CashSessionMovementRepository {
   CashSession? _session;
   int _counter = 0;
 
@@ -107,6 +110,39 @@ class _SmokeCashSessionRepository implements CashSessionRepository {
     );
     return _session!;
   }
+
+  @override
+  Future<List<CashMovement>> listMovements({
+    required String sessionId,
+    int limit = 100,
+    int offset = 0,
+  }) async {
+    return const [];
+  }
+
+  @override
+  Future<void> recordAdjustment({
+    required String sessionId,
+    required double amountUsdDelta,
+    required double amountKhrDelta,
+    String? reason,
+  }) async {}
+
+  @override
+  Future<void> recordPaidIn({
+    required String sessionId,
+    required double amountUsd,
+    required double amountKhr,
+    String? reason,
+  }) async {}
+
+  @override
+  Future<void> recordPaidOut({
+    required String sessionId,
+    required double amountUsd,
+    required double amountKhr,
+    String? reason,
+  }) async {}
 }
 
 AuthSession _buildSession({required String role}) {
@@ -139,6 +175,7 @@ void main() {
     final container = createTestContainer(
       overrides: [
         cashSessionRepositoryProvider.overrideWithValue(repo),
+        cashSessionMovementRepositoryProvider.overrideWithValue(repo),
         loginControllerProvider.overrideWith(_TestLoginController.new),
       ],
     );
@@ -178,6 +215,7 @@ void main() {
     final container = createTestContainer(
       overrides: [
         cashSessionRepositoryProvider.overrideWithValue(repo),
+        cashSessionMovementRepositoryProvider.overrideWithValue(repo),
         loginControllerProvider.overrideWith(_TestLoginController.new),
       ],
     );

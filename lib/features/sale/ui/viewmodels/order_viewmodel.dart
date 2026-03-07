@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/features/sale/data/sale_checkout_repository_contract.dart';
+import 'package:modular_pos/features/sale/data/sale_mappers.dart';
 import 'package:modular_pos/features/sale/data/sale_repository.dart';
 import 'package:modular_pos/features/sale/domain/models/sale.dart';
 
@@ -197,9 +198,9 @@ class Order {
           quantity: item.quantity,
         ),
     ];
-    final tenderCurrency =
-        (sale.tenderCurrency.isEmpty ? 'usd' : sale.tenderCurrency)
-            .toLowerCase();
+    final tenderCurrency = SaleMappers.normalizeTenderCurrency(
+      sale.tenderCurrency,
+    ).toLowerCase();
     final cashUsd = sale.cashReceivedUsd ?? 0;
     final cashKhr = sale.cashReceivedKhr ?? 0;
     final changeUsd = sale.changeGivenUsd ?? 0;
@@ -214,7 +215,7 @@ class Order {
       ticketStatus: sale.state.isEmpty ? 'PAID' : sale.state,
       placedAt: sale.createdAt,
       orderType: sale.saleType.isEmpty ? 'take_away' : sale.saleType,
-      paymentMethod: sale.paymentMethod.isEmpty ? 'cash' : sale.paymentMethod,
+      paymentMethod: SaleMappers.toUiPaymentMethod(sale.paymentMethod),
       totalUsd: sale.totalUsdExact,
       totalKhr: sale.totalKhrExact,
       tenderCurrency: tenderCurrency,

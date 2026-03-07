@@ -1,10 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:modular_pos/features/cash_session/data/cash_session_movement_repository.dart';
 import 'package:modular_pos/core/network/api_contract.dart';
 import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
 import 'package:modular_pos/features/auth/domain/auth_role.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
+import 'package:modular_pos/features/cash_session/data/cash_session_movement_repository.dart';
 import 'package:modular_pos/features/cash_session/data/cash_session_repository.dart';
+import 'package:modular_pos/features/cash_session/domain/models/cash_movement.dart';
 import 'package:modular_pos/features/cash_session/domain/models/cash_session.dart';
 
 enum SessionStatus { notStarted, open, closed, forceClosed }
@@ -14,6 +15,7 @@ class CashSessionState {
 
   const CashSessionState({
     this.session,
+    this.movements = const [],
     this.isLoading = false,
     this.error,
     this.errorCode,
@@ -21,6 +23,7 @@ class CashSessionState {
   });
 
   final CashSession? session;
+  final List<CashMovement> movements;
   final bool isLoading;
   final String? error;
   final String? errorCode;
@@ -43,13 +46,18 @@ class CashSessionState {
   DateTime? get endTime => session?.closedAt;
   double get openFloatUsd => session?.openingFloatUsd ?? 0;
   double get openFloatKhr => session?.openingFloatKhr ?? 0;
-  double get totalPaidIn => session?.totalPaidInUsd ?? 0;
-  double get totalPaidOut => session?.totalPaidOutUsd ?? 0;
-  bool get hasCashMovement => totalPaidIn > 0 || totalPaidOut > 0;
+  double get totalPaidIn => movements
+      .where((movement) => movement.movementType == CashMovementTypes.manualIn)
+      .fold<double>(0, (sum, movement) => sum + movement.amountUsd);
+  double get totalPaidOut => movements
+      .where((movement) => movement.movementType == CashMovementTypes.manualOut)
+      .fold<double>(0, (sum, movement) => sum + movement.amountUsd);
+  bool get hasCashMovement => movements.isNotEmpty;
   String? get sessionId => session?.id;
 
   CashSessionState copyWith({
     Object? session = _unset,
+    Object? movements = _unset,
     bool? isLoading,
     Object? error = _unset,
     Object? errorCode = _unset,
@@ -59,6 +67,11 @@ class CashSessionState {
       session: identical(session, _unset)
           ? this.session
           : session as CashSession?,
+      movements: identical(movements, _unset)
+          ? this.movements
+          : List<CashMovement>.unmodifiable(
+              List<CashMovement>.from(movements as List),
+            ),
       isLoading: isLoading ?? this.isLoading,
       error: identical(error, _unset) ? this.error : error as String?,
       errorCode: identical(errorCode, _unset)
@@ -87,7 +100,7 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
 
   Future<void> load() async {
     state = state.copyWith(isLoading: true, error: null, errorCode: null);
-    await _fetchActiveSession();
+    await _fetchActiveSession(loadMovements: true);
   }
 
   void reset() {
@@ -107,6 +120,7 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
         note: note,
       );
       _applySession(session);
+      await _loadMovements(session.id);
     } catch (error) {
       _setError(error);
     }
@@ -118,29 +132,103 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
     double khrAmount, {
     String? reason,
   }) async {
+    final normalizedType = type.toUpperCase().replaceAll(' ', '_');
+    if (normalizedType == 'PAID_IN') {
+      await recordPaidIn(
+        amountUsd: usdAmount,
+        amountKhr: khrAmount,
+        reason: reason,
+      );
+      return;
+    }
+    if (normalizedType == 'PAID_OUT') {
+      await recordPaidOut(
+        amountUsd: usdAmount,
+        amountKhr: khrAmount,
+        reason: reason,
+      );
+      return;
+    }
+    await recordAdjustment(
+      amountUsdDelta: usdAmount,
+      amountKhrDelta: khrAmount,
+      reason: reason,
+    );
+  }
+
+  Future<void> recordPaidIn({
+    required double amountUsd,
+    required double amountKhr,
+    String? reason,
+  }) async {
     final sessionId = state.sessionId;
     if (sessionId == null || sessionId.isEmpty) return;
 
     state = state.copyWith(isLoading: true, error: null, errorCode: null);
     try {
-      final normalizedType = switch (type.toUpperCase().replaceAll(' ', '_')) {
-        'PAID_IN' => 'PAID_IN',
-        'PAID_OUT' => 'PAID_OUT',
-        'ADJUSTMENT' => 'ADJUSTMENT',
-        _ => 'PAID_IN',
-      };
       final trimmedReason = (reason ?? '').trim();
       final safeReason = trimmedReason.length >= 3
           ? trimmedReason
           : 'Manual movement';
-      await _movementRepo.recordMovement(
+      await _movementRepo.recordPaidIn(
         sessionId: sessionId,
-        type: normalizedType,
-        amountUsd: usdAmount,
-        amountKhr: khrAmount,
+        amountUsd: amountUsd,
+        amountKhr: amountKhr,
         reason: safeReason,
       );
-      await _fetchActiveSession();
+      await _fetchActiveSession(loadMovements: true);
+    } catch (error) {
+      _setError(error);
+    }
+  }
+
+  Future<void> recordPaidOut({
+    required double amountUsd,
+    required double amountKhr,
+    String? reason,
+  }) async {
+    final sessionId = state.sessionId;
+    if (sessionId == null || sessionId.isEmpty) return;
+
+    state = state.copyWith(isLoading: true, error: null, errorCode: null);
+    try {
+      final trimmedReason = (reason ?? '').trim();
+      final safeReason = trimmedReason.length >= 3
+          ? trimmedReason
+          : 'Manual movement';
+      await _movementRepo.recordPaidOut(
+        sessionId: sessionId,
+        amountUsd: amountUsd,
+        amountKhr: amountKhr,
+        reason: safeReason,
+      );
+      await _fetchActiveSession(loadMovements: true);
+    } catch (error) {
+      _setError(error);
+    }
+  }
+
+  Future<void> recordAdjustment({
+    required double amountUsdDelta,
+    required double amountKhrDelta,
+    String? reason,
+  }) async {
+    final sessionId = state.sessionId;
+    if (sessionId == null || sessionId.isEmpty) return;
+
+    state = state.copyWith(isLoading: true, error: null, errorCode: null);
+    try {
+      final trimmedReason = (reason ?? '').trim();
+      final safeReason = trimmedReason.length >= 3
+          ? trimmedReason
+          : 'Manual adjustment';
+      await _movementRepo.recordAdjustment(
+        sessionId: sessionId,
+        amountUsdDelta: amountUsdDelta,
+        amountKhrDelta: amountKhrDelta,
+        reason: safeReason,
+      );
+      await _fetchActiveSession(loadMovements: true);
     } catch (error) {
       _setError(error);
     }
@@ -192,7 +280,7 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
     }
   }
 
-  Future<void> _fetchActiveSession() async {
+  Future<void> _fetchActiveSession({bool loadMovements = false}) async {
     try {
       final active = await _repo.getActiveSession();
       if (active == null || active.id.isEmpty) {
@@ -200,6 +288,24 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
         return;
       }
       _applySession(active);
+      if (loadMovements) {
+        await _loadMovements(active.id);
+      }
+    } catch (error) {
+      _setError(error);
+    }
+  }
+
+  Future<void> _loadMovements(String sessionId) async {
+    try {
+      final movements = await _movementRepo.listMovements(sessionId: sessionId);
+      state = state.copyWith(
+        isLoading: false,
+        movements: movements,
+        error: null,
+        errorCode: null,
+        canForceClose: _canForceClose(state.session),
+      );
     } catch (error) {
       _setError(error);
     }
@@ -224,6 +330,7 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
     state = state.copyWith(
       isLoading: false,
       session: null,
+      movements: const <CashMovement>[],
       error: null,
       errorCode: null,
       canForceClose: false,

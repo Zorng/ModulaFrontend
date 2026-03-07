@@ -1,14 +1,27 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/core/widgets/navigation/app_bottom_nav_shell_scaffold.dart';
+import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
+import 'package:modular_pos/features/auth/domain/workspace_context.dart';
+import 'package:modular_pos/features/auth/domain/workspace_context_provider.dart';
+import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/sale/ui/view/sale_cart/widgets/sale_cart_panel.dart';
+import 'package:modular_pos/features/sale/ui/viewmodels/sale_access_gate.dart';
 
-class SaleBottomNavShellPage extends StatelessWidget {
+class SaleBottomNavShellPage extends ConsumerStatefulWidget {
   const SaleBottomNavShellPage({super.key, required this.navigationShell});
 
   final StatefulNavigationShell navigationShell;
+  @override
+  ConsumerState<SaleBottomNavShellPage> createState() =>
+      _SaleBottomNavShellPageState();
+}
+
+class _SaleBottomNavShellPageState
+    extends ConsumerState<SaleBottomNavShellPage> {
   static const double _wideBottomTabHorizontalPadding = 210;
 
   static const _titles = <String>['Sale', 'Cart', 'Orders'];
@@ -29,9 +42,86 @@ class SaleBottomNavShellPage extends StatelessWidget {
     ),
   ];
 
+  bool _isPreparingBranchContext = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _ensureSaleBranchContext();
+    });
+  }
+
+  Future<void> _ensureSaleBranchContext() async {
+    final branchId = ref.read(saleAccessBranchIdProvider);
+    if (branchId == null || branchId.trim().isEmpty) return;
+    if (_isPreparingBranchContext) return;
+
+    final normalizedBranchId = branchId.trim();
+    final loginState = ref.read(loginControllerProvider);
+    final authBranchId = (ref.read(authActiveBranchIdProvider) ?? '').trim();
+
+    final needsAuthBranchSelection =
+        loginState.requiresBranchSelection || authBranchId != normalizedBranchId;
+
+    if (needsAuthBranchSelection) {
+      if (mounted) {
+        setState(() => _isPreparingBranchContext = true);
+      } else {
+        _isPreparingBranchContext = true;
+      }
+
+      try {
+        await ref
+            .read(loginControllerProvider.notifier)
+            .selectBranch(normalizedBranchId);
+        ref
+            .read(authActiveBranchOverrideProvider.notifier)
+            .setOverride(normalizedBranchId);
+      } finally {
+        if (mounted) {
+          setState(() => _isPreparingBranchContext = false);
+        } else {
+          _isPreparingBranchContext = false;
+        }
+      }
+    }
+
+    final workspaceContext = ref.read(workspaceContextProvider);
+    final needsPosContext =
+        workspaceContext == null ||
+        workspaceContext.scope != WorkspaceScope.branch ||
+        workspaceContext.mode != WorkspaceMode.pos ||
+        workspaceContext.activeBranchId?.trim() != normalizedBranchId;
+    if (!needsPosContext) return;
+
+    ref
+        .read(workspaceContextProvider.notifier)
+        .setBranchPos(activeBranchId: normalizedBranchId);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final index = navigationShell.currentIndex;
+    final index = widget.navigationShell.currentIndex;
+    ref.listen<String?>(saleAccessBranchIdProvider, (_, __) {
+      _ensureSaleBranchContext();
+    });
+
+    final saleBranchId = ref.watch(saleAccessBranchIdProvider);
+    final loginState = ref.watch(loginControllerProvider);
+    final branchContextReady =
+        saleBranchId != null &&
+        saleBranchId.trim().isNotEmpty &&
+        !_isPreparingBranchContext &&
+        !loginState.isLoading;
+
+    if (!branchContextReady) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -52,7 +142,7 @@ class SaleBottomNavShellPage extends StatelessWidget {
             ),
             body: Row(
               children: [
-                Expanded(child: navigationShell),
+                Expanded(child: widget.navigationShell),
                 if (showCartPanel) ...[
                   const VerticalDivider(width: 1),
                   SizedBox(
@@ -80,7 +170,7 @@ class SaleBottomNavShellPage extends StatelessWidget {
                   items: wideItems,
                   type: BottomNavigationBarType.fixed,
                   onTap: (tabIndex) {
-                    navigationShell.goBranch(tabIndex == 0 ? 0 : 2);
+                    widget.navigationShell.goBranch(tabIndex == 0 ? 0 : 2);
                   },
                 ),
               ),
@@ -89,7 +179,7 @@ class SaleBottomNavShellPage extends StatelessWidget {
         }
 
         return AppBottomNavShellScaffold(
-          navigationShell: navigationShell,
+          navigationShell: widget.navigationShell,
           titles: _mobileTitles,
           items: _items,
           centerTitle: false,

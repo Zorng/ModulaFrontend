@@ -99,7 +99,10 @@ class MenuViewModel extends Notifier<MenuState> {
     return const MenuState();
   }
 
-  Future<void> loadMenu({String? branchId}) async {
+  Future<void> loadMenu({
+    String? branchId,
+    MenuReadLane readLane = MenuReadLane.management,
+  }) async {
     try {
       state = state.copyWith(isLoading: true, error: null, errorCode: null);
       final userBranches = _resolveUserBranches();
@@ -109,7 +112,7 @@ class MenuViewModel extends Notifier<MenuState> {
           ? null
           : requestedBranchFilter;
       final bundle = await _menuRepository.fetchMenuData(
-        readLane: MenuReadLane.management,
+        readLane: readLane,
         status: 'active',
         branchIdFilter: branchIdFilter,
       );

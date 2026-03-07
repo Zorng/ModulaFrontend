@@ -78,8 +78,10 @@ void main() {
 
     await notifier.generateKhqrAttempt();
     final afterGenerate = container.read(saleCartProvider);
+    expect(afterGenerate.saleId, isNotEmpty);
     expect(afterGenerate.khqrStatus, SaleKhqrUiStates.waitingForPayment);
     expect(afterGenerate.khqrMd5, isNotNull);
+    expect(afterGenerate.khqrErrorCode, isNull);
 
     await expectLater(
       notifier.checkout(),
@@ -96,10 +98,16 @@ void main() {
     await notifier.checkKhqrStatus();
     final confirmed = container.read(saleCartProvider);
     expect(confirmed.khqrStatus, SaleKhqrUiStates.paidConfirmed);
+    expect(confirmed.khqrErrorCode, isNull);
 
     final result = await notifier.checkout();
     expect(result.summary.paymentMethod, 'qr');
     expect(result.summary.saleId, isNotEmpty);
+    expect(result.receipt?.receiptId, isNotEmpty);
+    expect(result.summary.cashReceivedUsd, 0);
+    expect(result.summary.changeGivenUsd, 0);
+    final afterCheckout = container.read(saleCartProvider);
+    expect(afterCheckout.lastReceipt?.receiptId, result.receiptId);
   });
 
   test('KHQR attempt is superseded when cart changes', () async {
@@ -154,4 +162,65 @@ void main() {
     expect(afterChange.khqrStatus, SaleKhqrUiStates.superseded);
     expect(afterChange.khqrMd5, isNull);
   });
+
+  test(
+    'KHQR cancel clears active payload and moves cart to cancelled state',
+    () async {
+      final repo = MockSaleRepository();
+      repo.configureContext(activeBranchId: 'branch-1');
+
+      final container = createTestContainer(
+        overrides: [
+          policyNotifierProvider.overrideWith(_StaticPolicyNotifier.new),
+          saleRepositoryProvider.overrideWithValue(repo),
+          saleAccessGateProvider.overrideWithValue(
+            const SaleAccessGate(
+              branchId: 'branch-1',
+              contextLoading: false,
+              branchActive: true,
+              branchFrozen: false,
+              cashSessionOpen: true,
+              canMutateCart: true,
+              canCheckout: true,
+              canPlacePayLater: true,
+            ),
+          ),
+        ],
+      );
+
+      final notifier = container.read(saleCartProvider.notifier);
+      const item = MenuItem(
+        id: 'menu-1',
+        name: 'Milk Tea',
+        categoryId: 'tea',
+        price: 1.5,
+      );
+      const selection = SaleItemSelectionResult(
+        item: item,
+        quantity: 1,
+        selectedOptionIds: {},
+        selectedOptions: {},
+        addonTotalUsd: 0,
+        unitPriceUsd: 1.5,
+        lineTotalUsd: 1.5,
+      );
+
+      await notifier.addSelection(selection);
+      notifier.setPaymentMethod('qr');
+      await notifier.generateKhqrAttempt();
+
+      final waitingState = container.read(saleCartProvider);
+      expect(waitingState.khqrStatus, SaleKhqrUiStates.waitingForPayment);
+      expect(waitingState.khqrMd5, isNotNull);
+
+      await notifier.cancelKhqrAttempt();
+
+      final cancelled = container.read(saleCartProvider);
+      expect(cancelled.khqrStatus, SaleKhqrUiStates.cancelled);
+      expect(cancelled.khqrAttemptId, isNull);
+      expect(cancelled.khqrMd5, isNull);
+      expect(cancelled.khqrQrPayload, isNull);
+      expect(cancelled.khqrErrorCode, isNull);
+    },
+  );
 }

@@ -18,24 +18,33 @@ void main() {
     );
   }
 
+  SaleDraftItemInputDto buildDraftItem({
+    required String menuItemId,
+    int quantity = 1,
+    double unitPriceUsd = 2,
+  }) {
+    return SaleDraftItemInputDto(
+      menuItemId: menuItemId,
+      quantity: quantity,
+      selectedOptionIds: const {},
+      modifiers: const [],
+      unitPriceUsd: unitPriceUsd,
+      lineTotalUsdExact: unitPriceUsd,
+    );
+  }
+
   test('pay-first cash finalize succeeds and receipt is available', () async {
     final repo = MockSaleRepository();
 
     final saleId = await repo.ensureDraft(saleType: 'take_away');
     await repo.addItem(
       saleId: saleId,
-      menuItemId: 'item-1',
-      quantity: 2,
-      modifiers: const [],
-      selectedOptionIds: const {},
-      unitPriceUsd: 2,
-      lineTotalUsdExact: 2,
+      item: buildDraftItem(menuItemId: 'item-1', quantity: 2),
     );
 
     final result = await repo.finalizeSale(
       SaleFinalizeSaleCommand(
         saleId: saleId,
-        branchId: 'mock-branch-001',
         paymentMethod: 'cash',
         tenderCurrency: 'USD',
         clientOpId: 'finalize-op-1',
@@ -60,17 +69,11 @@ void main() {
       final saleId = await repo.ensureDraft(saleType: 'take_away');
       await repo.addItem(
         saleId: saleId,
-        menuItemId: 'item-1',
-        quantity: 1,
-        modifiers: const [],
-        selectedOptionIds: const {},
-        unitPriceUsd: 3,
-        lineTotalUsdExact: 3,
+        item: buildDraftItem(menuItemId: 'item-1', unitPriceUsd: 3),
       );
 
       final command = SaleFinalizeSaleCommand(
         saleId: saleId,
-        branchId: 'mock-branch-001',
         paymentMethod: 'cash',
         tenderCurrency: 'USD',
         clientOpId: 'finalize-op-stable',
@@ -89,7 +92,6 @@ void main() {
         () => repo.finalizeSale(
           SaleFinalizeSaleCommand(
             saleId: saleId,
-            branchId: 'mock-branch-001',
             paymentMethod: 'cash',
             tenderCurrency: 'KHR',
             clientOpId: 'finalize-op-stable',
@@ -115,12 +117,7 @@ void main() {
       final saleId = await repo.ensureDraft(saleType: 'take_away');
       await repo.addItem(
         saleId: saleId,
-        menuItemId: 'item-1',
-        quantity: 1,
-        modifiers: const [],
-        selectedOptionIds: const {},
-        unitPriceUsd: 5,
-        lineTotalUsdExact: 5,
+        item: buildDraftItem(menuItemId: 'item-1', unitPriceUsd: 5),
       );
 
       final firstAttempt = await repo.generateKhqrAttempt(
@@ -153,6 +150,48 @@ void main() {
         SaleCheckKhqrStatusCommand(saleId: saleId, md5: firstAttempt.md5),
       );
       expect(supersededStatus.status, 'SUPERSEDED');
+    },
+  );
+
+  test(
+    'KHQR cancel returns cancelled state and supports idempotent replay',
+    () async {
+      final repo = MockSaleRepository();
+
+      final saleId = await repo.ensureDraft(saleType: 'take_away');
+      await repo.addItem(
+        saleId: saleId,
+        item: buildDraftItem(menuItemId: 'item-1', unitPriceUsd: 5),
+      );
+
+      final attempt = await repo.generateKhqrAttempt(
+        SaleGenerateKhqrAttemptCommand(
+          saleId: saleId,
+          tenderCurrency: 'USD',
+          clientOpId: 'khqr-generate-cancel-1',
+        ),
+      );
+
+      final cancelled = await repo.cancelKhqrAttempt(
+        SaleCancelKhqrAttemptCommand(
+          saleId: saleId,
+          md5: attempt.md5,
+          intentId: attempt.attemptId,
+          clientOpId: 'khqr-cancel-1',
+        ),
+      );
+
+      final replay = await repo.cancelKhqrAttempt(
+        SaleCancelKhqrAttemptCommand(
+          saleId: saleId,
+          md5: attempt.md5,
+          intentId: attempt.attemptId,
+          clientOpId: 'khqr-cancel-1',
+        ),
+      );
+
+      expect(cancelled.status, 'CANCELLED');
+      expect(replay.status, 'CANCELLED');
     },
   );
 

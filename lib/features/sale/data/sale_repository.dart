@@ -1,41 +1,70 @@
 import 'dart:math';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:modular_pos/core/config/app_env.dart';
-import 'package:modular_pos/features/cash_session/data/cash_session_repository.dart';
-import 'package:modular_pos/features/cash_session/data/mock_cash_session_repository.dart';
+import 'package:modular_pos/core/network/api_contract.dart';
+import 'package:modular_pos/core/network/idempotency_key_store.dart';
+import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
+import 'package:modular_pos/features/auth/domain/models/user.dart';
+import 'package:modular_pos/features/branchV2/domain/models/branch_models.dart';
+import 'package:modular_pos/features/branchV2/ui/viewmodels/branch_controller.dart';
+import 'package:modular_pos/features/branchV2/ui/viewmodels/branch_state.dart';
+import 'package:modular_pos/features/cash_session/domain/models/cash_session.dart';
+import 'package:modular_pos/features/cash_session/ui/viewmodels/cash_session_viewmodel.dart';
+import 'package:modular_pos/features/policy/ui/viewmodels/policy_viewmodel.dart';
+import 'package:modular_pos/features/sale/data/mock_sale_repository.dart';
 import 'package:modular_pos/features/sale/data/sale_api.dart';
 import 'package:modular_pos/features/sale/data/dto/sale_dto.dart';
-import 'package:modular_pos/features/sale/data/mock_sale_repository.dart';
+import 'package:modular_pos/features/sale/data/sale_mappers.dart';
 import 'package:modular_pos/features/sale/data/sale_checkout_repository_contract.dart';
 import 'package:modular_pos/features/sale/domain/models/sale.dart';
 
-/// Sale data source mode is config-driven (no runtime UI toggle).
-/// Defaults to mock mode until API integration is enabled.
-final useMockSaleRepositoryProvider = Provider<bool>(
-  (ref) => AppEnv.useMockSaleRepository,
-);
+final remoteSaleRepositoryProvider = Provider<SaleCheckoutRepository>((ref) {
+  final api = ref.watch(saleApiProvider);
+  final loginState = ref.watch(loginControllerProvider);
+  final branchState = ref.watch(branchControllerProvider);
+  final cashSessionState = ref.watch(cashSessionViewModelProvider);
+  final policyState = ref.watch(policyNotifierProvider);
+  return SaleRepository(
+    api,
+    loginStateReader: () => loginState,
+    branchStateReader: () => branchState,
+    cashSessionStateReader: () => cashSessionState,
+    policyStateReader: () => policyState,
+  );
+});
+
+final mockSaleRepositoryProvider = Provider<SaleCheckoutRepository>((ref) {
+  return MockSaleRepository();
+});
 
 final saleRepositoryProvider = Provider<SaleCheckoutRepository>((ref) {
-  final useMock = ref.watch(useMockSaleRepositoryProvider);
-  if (useMock) {
-    final useMockCashSession = ref.watch(useMockCashSessionProvider);
-    if (useMockCashSession) {
-      final mockCashSessionRepo = ref.watch(mockCashSessionRepositoryProvider);
-      return MockSaleRepository(
-        cashSessionOpenReader: () => mockCashSessionRepo.isSessionOpen,
-      );
-    }
-    return MockSaleRepository();
-  }
-  final api = ref.watch(saleApiProvider);
-  return SaleRepository(api);
+  // Sale runtime stays on the real API lane; tests can explicitly override
+  // either this provider or the dedicated mock/remote providers.
+  return ref.watch(remoteSaleRepositoryProvider);
+});
+
+final saleCartRepositoryProvider = Provider<SaleCartRepository>((ref) {
+  return ref.watch(saleRepositoryProvider);
 });
 
 class SaleRepository implements SaleCheckoutRepository {
-  SaleRepository(this._api);
+  SaleRepository(
+    this._api, {
+    LoginState Function()? loginStateReader,
+    BranchState Function()? branchStateReader,
+    CashSessionState Function()? cashSessionStateReader,
+    PolicyState Function()? policyStateReader,
+  }) : _loginStateReader = loginStateReader ?? _defaultLoginStateReader,
+       _branchStateReader = branchStateReader ?? _defaultBranchStateReader,
+       _cashSessionStateReader =
+           cashSessionStateReader ?? _defaultCashSessionStateReader,
+       _policyStateReader = policyStateReader ?? _defaultPolicyStateReader;
 
   final SaleApi _api;
+  final LoginState Function() _loginStateReader;
+  final BranchState Function() _branchStateReader;
+  final CashSessionState Function() _cashSessionStateReader;
+  final PolicyState Function() _policyStateReader;
 
   @override
   Future<String> ensureDraft({
@@ -61,30 +90,15 @@ class SaleRepository implements SaleCheckoutRepository {
   @override
   Future<String?> addItem({
     required String saleId,
-    required String menuItemId,
-    required int quantity,
-    required List<Map<String, dynamic>> modifiers,
-    required Map<String, List<String>> selectedOptionIds,
-    double? unitPriceUsd,
-    double? lineTotalUsdExact,
-    double? addonTotalUsd,
-    Map<String, dynamic>? pricingSnapshot,
+    required SaleDraftItemInputDto item,
   }) async {
-    final sale = await _api.addItem(saleId, {
-      'menuItemId': menuItemId,
-      'quantity': quantity,
-      'modifiers': modifiers,
-      if (unitPriceUsd != null) 'unitPriceUsd': unitPriceUsd,
-      if (lineTotalUsdExact != null) 'lineTotalUsdExact': lineTotalUsdExact,
-      if (addonTotalUsd != null) 'addonTotalUsd': addonTotalUsd,
-      if (pricingSnapshot != null) 'pricingSnapshot': pricingSnapshot,
-    });
+    final sale = await _api.addItem(saleId, item.toLegacyApiJson());
 
     // Best-effort: find the most recently-added matching item.
-    for (final item in sale.items.reversed) {
-      if (item.menuItemId != menuItemId) continue;
-      if (_modifiersMatch(item.modifiers, selectedOptionIds)) {
-        if (item.id.isNotEmpty) return item.id;
+    for (final saleItem in sale.items.reversed) {
+      if (saleItem.menuItemId != item.menuItemId) continue;
+      if (_modifiersMatch(saleItem.modifiers, item.selectedOptionIds)) {
+        if (saleItem.id.isNotEmpty) return saleItem.id;
       }
     }
     return null;
@@ -122,13 +136,13 @@ class SaleRepository implements SaleCheckoutRepository {
         'cashReceived': cashReceived,
     };
     final sale = await _api.preCheckout(saleId, body);
-    return _toCheckoutSummary(sale);
+    return SaleMappers.toCheckoutSummaryFromDraft(sale);
   }
 
   @override
   Future<SaleCheckoutSummary> finalize(String saleId) async {
     final sale = await _api.finalize(saleId);
-    return _toCheckoutSummary(sale);
+    return SaleMappers.toCheckoutSummaryFromDraft(sale);
   }
 
   @override
@@ -154,7 +168,10 @@ class SaleRepository implements SaleCheckoutRepository {
       page: page,
       limit: limit,
     );
-    return data.map(_toDomain).where((sale) => sale.id.isNotEmpty).toList();
+    return data
+        .map(SaleMappers.toDomainSale)
+        .where((sale) => sale.id.isNotEmpty)
+        .toList();
   }
 
   @override
@@ -164,8 +181,65 @@ class SaleRepository implements SaleCheckoutRepository {
 
   @override
   Future<SaleContextDto> getSaleContext({required String branchId}) async {
-    throw UnimplementedError(
-      'FE-SALE-04 will implement getSaleContext in API repository.',
+    final normalizedBranchId = branchId.trim();
+    final session = _loginStateReader().session;
+    if (session == null || session.accessToken.trim().isEmpty) {
+      return SaleContextDto(
+        branchId: normalizedBranchId,
+        branchActive: false,
+        branchFrozen: false,
+        cashSessionOpen: false,
+        canMutateCart: false,
+        canCheckout: false,
+        canPlacePayLater: false,
+        reasonCode: SaleCheckoutReasonCodes.unauthorized,
+        reasonMessage: 'Your account no longer has access to sell.',
+      );
+    }
+
+    if (normalizedBranchId.isEmpty) {
+      return const SaleContextDto(
+        branchId: '',
+        branchActive: false,
+        branchFrozen: false,
+        cashSessionOpen: false,
+        canMutateCart: false,
+        canCheckout: false,
+        canPlacePayLater: false,
+        reasonCode: SaleCheckoutReasonCodes.branchRequired,
+        reasonMessage: 'Active branch context is required.',
+      );
+    }
+
+    final branch = _findBranch(normalizedBranchId);
+    final authBranch = _findAuthBranch(normalizedBranchId);
+    final branchActive = branch?.isActive ?? authBranch?.active ?? true;
+    final branchFrozen = branch?.isFrozen ?? !branchActive;
+    final cashSessionOpen = _hasOpenCashSessionForBranch(normalizedBranchId);
+    final payLaterEnabled = _policyAllowsPayLater(normalizedBranchId);
+
+    String? reasonCode;
+    String? reasonMessage;
+    if (branchFrozen) {
+      reasonCode = SaleCheckoutReasonCodes.branchFrozen;
+      reasonMessage = 'Branch is currently frozen for write operations.';
+    } else if (!cashSessionOpen) {
+      reasonCode = SaleCheckoutReasonCodes.cashSessionRequired;
+      reasonMessage = 'Open cash session is required before this action.';
+    }
+
+    return SaleContextDto(
+      branchId: normalizedBranchId,
+      branchActive: branchActive,
+      branchFrozen: branchFrozen,
+      cashSessionOpen: cashSessionOpen,
+      canMutateCart:
+          reasonCode == null ||
+          reasonCode == SaleCheckoutReasonCodes.cashSessionRequired,
+      canCheckout: reasonCode == null,
+      canPlacePayLater: reasonCode == null && payLaterEnabled,
+      reasonCode: reasonCode,
+      reasonMessage: reasonMessage,
     );
   }
 
@@ -173,24 +247,12 @@ class SaleRepository implements SaleCheckoutRepository {
   Future<SaleCheckoutPreviewDto> computeCheckoutPreview(
     SaleComputeCheckoutPreviewCommand command,
   ) async {
-    final preview = await preCheckout(
+    return _estimateCheckoutPreview(
       saleId: command.saleId,
-      tenderCurrency: command.tenderCurrency,
       paymentMethod: command.paymentMethod,
-      cashReceived: command.cashReceived?.toJson().cast<String, num>(),
-    );
-    return SaleCheckoutPreviewDto(
-      saleId: preview.saleId,
-      tenderCurrency: preview.tenderCurrency,
-      paymentMethod: preview.paymentMethod,
-      subtotalUsdExact: preview.totalUsdExact,
-      subtotalKhrExact: preview.totalKhrExact,
-      totalUsdExact: preview.totalUsdExact,
-      totalKhrExact: preview.totalKhrExact,
-      cashReceivedUsd: preview.cashReceivedUsd,
-      cashReceivedKhr: preview.cashReceivedKhr,
-      changeGivenUsd: preview.changeGivenUsd,
-      changeGivenKhr: preview.changeGivenKhr,
+      cartLines: command.cartLines,
+      tenderCurrency: command.tenderCurrency,
+      cashReceived: command.cashReceived,
     );
   }
 
@@ -198,32 +260,140 @@ class SaleRepository implements SaleCheckoutRepository {
   Future<SaleKhqrAttemptDto> generateKhqrAttempt(
     SaleGenerateKhqrAttemptCommand command,
   ) async {
-    throw UnimplementedError(
-      'FE-SALE-07 will implement KHQR generation in API repository.',
-    );
+    try {
+      final payload = <String, dynamic>{
+        'items': command.cartLines.map(_toCheckoutItemPayload).toList(),
+        if (command.saleType != null)
+          'saleType': _normalizeSaleType(command.saleType!),
+        if (command.expiresInSeconds != null)
+          'expiresInSeconds': command.expiresInSeconds,
+      };
+      final data = await _api.initiateKhqrIntent(
+        payload,
+        idempotency: IdempotencyRequest(
+          actionKey: 'checkout.khqr.initiate',
+          intentId: command.clientOpId,
+          payload: payload,
+        ),
+      );
+      return SaleMappers.toKhqrAttempt(
+        command: command,
+        response: data,
+        expiresAt: DateTime.now().add(
+          Duration(seconds: command.expiresInSeconds ?? 180),
+        ),
+      );
+    } on ApiClientException catch (error) {
+      throw _toSaleRepoException(error);
+    }
   }
 
   @override
   Future<SaleKhqrStatusDto> checkKhqrStatus(
     SaleCheckKhqrStatusCommand command,
   ) async {
-    throw UnimplementedError(
-      'FE-SALE-07 will implement KHQR status checks in API repository.',
-    );
+    final intentId = _readString(command.intentId);
+    if (intentId.isEmpty) {
+      throw const SaleCheckoutRepositoryException(
+        reasonCode: SaleCheckoutReasonCodes.invalidRequest,
+        message: 'KHQR intent is not available for this cart.',
+      );
+    }
+    try {
+      final data = await _api.getKhqrIntentStatus(intentId);
+      return SaleMappers.toKhqrStatus(command: command, state: data);
+    } on ApiClientException catch (error) {
+      throw _toSaleRepoException(error);
+    }
+  }
+
+  @override
+  Future<SaleKhqrStatusDto> cancelKhqrAttempt(
+    SaleCancelKhqrAttemptCommand command,
+  ) async {
+    final intentId = _readString(command.intentId);
+    if (intentId.isEmpty) {
+      throw const SaleCheckoutRepositoryException(
+        reasonCode: SaleCheckoutReasonCodes.invalidRequest,
+        message: 'KHQR intent is not available for this cart.',
+      );
+    }
+    try {
+      final data = await _api.cancelKhqrIntent(
+        intentId,
+        idempotency: IdempotencyRequest(
+          actionKey: 'checkout.khqr.cancel',
+          intentId: command.clientOpId,
+          payload: command.toJson(),
+        ),
+      );
+      return SaleKhqrStatusDto(
+        saleId: command.saleId,
+        md5: command.md5,
+        status: SaleMappers.normalizeKhqrStatus(
+          rawStatus: data.status,
+          saleId: null,
+        ),
+      );
+    } on ApiClientException catch (error) {
+      throw _toSaleRepoException(error);
+    }
   }
 
   @override
   Future<SaleFinalizeSaleResultDto> finalizeSale(
     SaleFinalizeSaleCommand command,
   ) async {
-    final finalized = await finalize(command.saleId);
-    return SaleFinalizeSaleResultDto(
-      saleId: finalized.saleId,
-      status: 'FINALIZED',
-      totalUsdExact: finalized.totalUsdExact,
-      totalKhrExact: finalized.totalKhrExact,
-      idempotentReplay: false,
-    );
+    try {
+      final paymentMethod = command.paymentMethod.toLowerCase();
+      if (paymentMethod == 'cash') {
+        final tenderCurrency = command.tenderCurrency.toUpperCase();
+        final payload = <String, dynamic>{
+          'items': command.cartLines.map(_toCheckoutItemPayload).toList(),
+          if (command.saleType != null)
+            'saleType': _normalizeSaleType(command.saleType!),
+          'tenderCurrency': tenderCurrency,
+        };
+        final cashReceivedTenderAmount = _cashReceivedTenderAmount(
+          tenderCurrency: tenderCurrency,
+          cashReceived: command.cashReceived,
+        );
+        if (cashReceivedTenderAmount != null) {
+          payload['cashReceivedTenderAmount'] = cashReceivedTenderAmount;
+        }
+        final data = await _api.finalizeCashCheckout(
+          payload,
+          idempotency: IdempotencyRequest(
+            actionKey: 'checkout.cash.finalize',
+            intentId: command.clientOpId,
+            payload: payload,
+          ),
+        );
+        return SaleMappers.toFinalizeResultFromCashCheckout(data);
+      }
+
+      final paidAmount = _estimatePaidAmount(
+        cartLines: command.cartLines,
+        tenderCurrency: command.tenderCurrency,
+      );
+      final finalizePayload = <String, dynamic>{
+        'paidAmount': paidAmount,
+        if (command.khqrMd5 != null && command.khqrMd5!.isNotEmpty)
+          'khqrMd5': command.khqrMd5,
+      };
+      final data = await _api.finalizeSaleContract(
+        command.saleId,
+        finalizePayload,
+        idempotency: IdempotencyRequest(
+          actionKey: 'sale.finalize',
+          intentId: command.clientOpId,
+          payload: {'saleId': command.saleId, ...finalizePayload},
+        ),
+      );
+      return SaleMappers.toFinalizeResultFromFinalizeResponse(data);
+    } on ApiClientException catch (error) {
+      throw _toSaleRepoException(error);
+    }
   }
 
   @override
@@ -308,66 +478,6 @@ class SaleRepository implements SaleCheckoutRepository {
     );
   }
 
-  Sale _toDomain(SaleDto dto) {
-    return Sale(
-      id: dto.id,
-      saleType: dto.saleType,
-      state: dto.state,
-      fulfillmentStatus: dto.fulfillmentStatus,
-      paymentMethod: dto.paymentMethod,
-      tenderCurrency: dto.tenderCurrency,
-      fxRateUsed: dto.fxRateUsed,
-      subtotalUsdExact: dto.subtotalUsdExact,
-      subtotalKhrExact: dto.subtotalKhrExact,
-      totalUsdExact: dto.totalUsdExact,
-      totalKhrExact: dto.totalKhrExact,
-      cashReceivedUsd: dto.cashReceivedUsd,
-      cashReceivedKhr: dto.cashReceivedKhr,
-      changeGivenUsd: dto.changeGivenUsd,
-      changeGivenKhr: dto.changeGivenKhr,
-      createdAt: dto.createdAt.toLocal(),
-      updatedAt: dto.updatedAt.toLocal(),
-      items: dto.items
-          .map(
-            (item) => SaleItem(
-              id: item.id,
-              menuItemId: item.menuItemId,
-              menuItemName: item.menuItemName,
-              quantity: item.quantity,
-              modifiers: item.modifiers
-                  .map(
-                    (m) => SaleModifier(
-                      groupId: m.groupId,
-                      optionIds: m.optionIds,
-                      optionLabels: m.options
-                          .map((o) => o.label)
-                          .where((label) => label.isNotEmpty)
-                          .toList(),
-                    ),
-                  )
-                  .toList(),
-            ),
-          )
-          .toList(),
-    );
-  }
-
-  SaleCheckoutSummary _toCheckoutSummary(SaleDto dto) {
-    final tender = (dto.tenderCurrency.isEmpty ? 'USD' : dto.tenderCurrency)
-        .toLowerCase();
-    return SaleCheckoutSummary(
-      saleId: dto.id,
-      tenderCurrency: tender,
-      paymentMethod: dto.paymentMethod,
-      totalUsdExact: dto.totalUsdExact,
-      totalKhrExact: dto.totalKhrExact,
-      cashReceivedUsd: dto.cashReceivedUsd ?? 0,
-      cashReceivedKhr: dto.cashReceivedKhr ?? 0,
-      changeGivenUsd: dto.changeGivenUsd ?? 0,
-      changeGivenKhr: dto.changeGivenKhr ?? 0,
-    );
-  }
-
   bool _modifiersMatch(
     List<SaleModifierDto> modifiers,
     Map<String, List<String>> selectedOptionIds,
@@ -395,7 +505,163 @@ class SaleRepository implements SaleCheckoutRepository {
     }
     return true;
   }
+
+  SaleCheckoutPreviewDto _estimateCheckoutPreview({
+    required String saleId,
+    required String paymentMethod,
+    required List<SaleCartLineInputDto> cartLines,
+    required String tenderCurrency,
+    required SaleCashReceivedInputDto? cashReceived,
+  }) {
+    final subtotalUsd = cartLines.fold<double>(
+      0,
+      (sum, line) => sum + _lineTotalUsd(line),
+    );
+    final subtotalKhr = subtotalUsd * 4100;
+    final totalUsd = subtotalUsd;
+    final totalKhr = subtotalKhr;
+    final normalizedCurrency = tenderCurrency.toUpperCase();
+    final cashReceivedUsd =
+        (normalizedCurrency == 'USD' ? cashReceived?.usd : null)?.toDouble() ??
+        0;
+    final cashReceivedKhr =
+        (normalizedCurrency == 'KHR' ? cashReceived?.khr : null)?.toDouble() ??
+        0;
+    return SaleCheckoutPreviewDto(
+      saleId: saleId,
+      tenderCurrency: normalizedCurrency.toLowerCase(),
+      paymentMethod: paymentMethod,
+      subtotalUsdExact: subtotalUsd,
+      subtotalKhrExact: subtotalKhr,
+      totalUsdExact: totalUsd,
+      totalKhrExact: totalKhr,
+      cashReceivedUsd: cashReceivedUsd,
+      cashReceivedKhr: cashReceivedKhr,
+      changeGivenUsd: normalizedCurrency == 'USD'
+          ? max<double>(0, cashReceivedUsd - totalUsd)
+          : 0,
+      changeGivenKhr: normalizedCurrency == 'KHR'
+          ? max<double>(0, cashReceivedKhr - totalKhr)
+          : 0,
+    );
+  }
+
+  Map<String, dynamic> _toCheckoutItemPayload(SaleCartLineInputDto line) {
+    return {
+      'menuItemId': line.menuItemId,
+      'quantity': line.quantity,
+      'modifierSelections': line.modifiers
+          .map(
+            (modifier) => {
+              'groupId': modifier.groupId,
+              'optionIds': modifier.optionIds,
+            },
+          )
+          .toList(),
+    };
+  }
+
+  String _normalizeSaleType(String saleType) {
+    switch (saleType.trim().toLowerCase()) {
+      case 'dine_in':
+        return 'DINE_IN';
+      case 'delivery':
+        return 'DELIVERY';
+      case 'take_away':
+      case 'takeaway':
+      default:
+        return 'TAKE_AWAY';
+    }
+  }
+
+  num? _cashReceivedTenderAmount({
+    required String tenderCurrency,
+    required SaleCashReceivedInputDto? cashReceived,
+  }) {
+    if (cashReceived == null) return null;
+    return tenderCurrency == 'KHR' ? cashReceived.khr : cashReceived.usd;
+  }
+
+  double _estimatePaidAmount({
+    required List<SaleCartLineInputDto> cartLines,
+    required String tenderCurrency,
+  }) {
+    final totalUsd = cartLines.fold<double>(
+      0,
+      (sum, line) => sum + _lineTotalUsd(line),
+    );
+    if (tenderCurrency.toUpperCase() == 'KHR') {
+      return totalUsd * 4100;
+    }
+    return totalUsd;
+  }
+
+  double _lineTotalUsd(SaleCartLineInputDto line) {
+    final explicit = line.lineTotalUsdExact?.toDouble();
+    if (explicit != null && explicit > 0) return explicit;
+    final unit = line.unitPriceUsd?.toDouble() ?? 0;
+    return unit * line.quantity;
+  }
+
+  String _readString(dynamic value) => value?.toString().trim() ?? '';
+
+  SaleCheckoutRepositoryException _toSaleRepoException(
+    ApiClientException error,
+  ) {
+    return SaleCheckoutRepositoryException(
+      reasonCode:
+          SaleCheckoutReasonCodes.normalize(error.code) ??
+          SaleCheckoutReasonCodes.unknownError,
+      message: error.message,
+    );
+  }
+
+  BranchListItem? _findBranch(String branchId) {
+    for (final branch in _branchStateReader().branches) {
+      if (branch.branchId.trim() == branchId) {
+        return branch;
+      }
+    }
+    return null;
+  }
+
+  UserBranch? _findAuthBranch(String branchId) {
+    final session = _loginStateReader().session;
+    final branches = session?.user.branches ?? const <UserBranch>[];
+    for (final branch in branches) {
+      final normalizedId = branch.branchId.trim().isNotEmpty
+          ? branch.branchId.trim()
+          : branch.id.trim();
+      if (normalizedId == branchId) {
+        return branch;
+      }
+    }
+    return null;
+  }
+
+  bool _hasOpenCashSessionForBranch(String branchId) {
+    final session = _cashSessionStateReader().session;
+    if (session == null || session.id.trim().isEmpty) return false;
+    if (session.branchId.trim() != branchId) return false;
+    return CashSessionStatuses.normalize(session.status) ==
+        CashSessionStatuses.open;
+  }
+
+  bool _policyAllowsPayLater(String branchId) {
+    final policy = _policyStateReader().branchPolicy;
+    if (policy.branchId.trim().isEmpty) return false;
+    if (policy.branchId.trim() != branchId) return false;
+    return policy.saleAllowPayLater;
+  }
 }
+
+LoginState _defaultLoginStateReader() => const LoginState();
+
+BranchState _defaultBranchStateReader() => const BranchState();
+
+CashSessionState _defaultCashSessionStateReader() => const CashSessionState();
+
+PolicyState _defaultPolicyStateReader() => const PolicyState();
 
 String _randomUuid() {
   final rand = Random();

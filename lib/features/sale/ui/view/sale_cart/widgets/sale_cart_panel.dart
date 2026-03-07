@@ -9,9 +9,11 @@ import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
 import 'package:modular_pos/features/policy/domain/models/policy.dart';
 import 'package:modular_pos/features/policy/ui/viewmodels/policy_viewmodel.dart';
+import 'package:modular_pos/features/sale/data/sale_checkout_repository_contract.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/order_viewmodel.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_access_gate.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_state.dart';
+import 'package:modular_pos/features/sale/ui/viewmodels/sale_checkout_error_message.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_viewmodel.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_khqr_states.dart';
 import 'package:modular_pos/features/sale/ui/view/sale_cart/widgets/sale_cart_bottom_bar.dart';
@@ -31,8 +33,6 @@ class SaleCartPanel extends ConsumerStatefulWidget {
 }
 
 class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
-  String _paymentMethod = 'cash';
-  String _tenderCurrency = 'USD';
   final TextEditingController _usdController = TextEditingController();
   final TextEditingController _khrController = TextEditingController();
   Timer? _khqrPollTimer;
@@ -278,9 +278,14 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
     );
   }
 
-  double _tenderedUsd(double grandTotalUsd, double fxRate) {
-    if (_paymentMethod != 'cash') return grandTotalUsd;
-    final tender = _tenderCurrency.toLowerCase();
+  double _tenderedUsd(
+    double grandTotalUsd,
+    double fxRate, {
+    required String paymentMethod,
+    required String tenderCurrency,
+  }) {
+    if (paymentMethod != 'cash') return grandTotalUsd;
+    final tender = tenderCurrency.toLowerCase();
     if (tender == 'usd') {
       return _parseAmount(_usdController.text);
     } else {
@@ -291,6 +296,37 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
 
   double _parseAmount(String raw) {
     return double.tryParse(raw.replaceAll(',', '').trim()) ?? 0;
+  }
+
+  void _syncCashAmounts(SaleCartNotifier cartNotifier) {
+    cartNotifier.setCashReceived(
+      usd: _parseAmount(_usdController.text),
+      khr: _parseAmount(_khrController.text),
+    );
+  }
+
+  String _finalizeSuccessMessage(SaleCheckoutResult result) {
+    final hasReceipt =
+        (result.receiptId?.trim().isNotEmpty ?? false) ||
+        (result.receipt?.receiptId.trim().isNotEmpty ?? false);
+    if (result.idempotentReplay) {
+      return hasReceipt
+          ? 'Sale already finalized (replayed). Receipt is ready.'
+          : 'Sale already finalized (replayed).';
+    }
+    return hasReceipt
+        ? 'Sale finalized. Receipt is ready.'
+        : 'Sale finalized successfully.';
+  }
+
+  String _actionErrorMessage({required String context, required Object error}) {
+    if (error is SaleCheckoutRepositoryException) {
+      return SaleCheckoutErrorMessage.build(
+        reasonCode: error.reasonCode,
+        fallback: error.message,
+      );
+    }
+    return UserErrorMessage.build(context: context, error: error);
   }
 
   double _roundKhr(
@@ -353,6 +389,8 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
   Widget build(BuildContext context) {
     final cartState = ref.watch(saleCartProvider);
     final items = cartState.lines;
+    final paymentMethod = cartState.paymentMethod.toLowerCase();
+    final tenderCurrency = cartState.tenderCurrency.toUpperCase();
     final menuState = ref.watch(menuViewModelProvider);
     final cartNotifier = ref.read(saleCartProvider.notifier);
     final gate = ref.watch(saleAccessGateProvider);
@@ -380,11 +418,16 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
       roundingMode: roundingMode,
       roundingGranularity: roundingGranularity,
     );
-    final tenderUsd = _tenderedUsd(grandTotalUsd, fxRate);
+    final tenderUsd = _tenderedUsd(
+      grandTotalUsd,
+      fxRate,
+      paymentMethod: paymentMethod,
+      tenderCurrency: tenderCurrency,
+    );
     final isSmall = AppBreakpoints.isSmall(MediaQuery.sizeOf(context).width);
     final khqrReady = saleKhqrCanFinalize(cartState.khqrStatus);
     _syncKhqrPolling(
-      paymentMethod: _paymentMethod.toLowerCase(),
+      paymentMethod: paymentMethod,
       khqrStatus: cartState.khqrStatus,
     );
     final orderType = cartState.saleType;
@@ -394,8 +437,8 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
         gate.canCheckout &&
         !cartState.isFinalizing &&
         items.isNotEmpty &&
-        ((_paymentMethod == 'cash' && tenderUsd >= grandTotalUsd) ||
-            (_paymentMethod == 'qr' && khqrReady));
+        ((paymentMethod == 'cash' && tenderUsd >= grandTotalUsd) ||
+            (paymentMethod == 'qr' && khqrReady));
     final canPlaceOrder =
         gate.canPlacePayLater &&
         payLaterEnabled &&
@@ -406,6 +449,24 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
     final payLaterDisabledMessage = !payLaterEnabled && isPayLaterMode
         ? 'Pay-later is disabled by branch policy. Switch order type to continue.'
         : null;
+    final checkoutBannerMessage = SaleCheckoutErrorMessage.build(
+      reasonCode: cartState.checkoutErrorCode,
+      fallback: cartState.checkoutErrorMessage,
+    );
+    final checkoutBannerColor = cartState.isCheckoutOffline
+        ? Colors.orange
+        : cartState.isCheckoutIdempotencyIssue
+        ? Colors.blue
+        : cartState.isCheckoutDenied
+        ? Colors.amber.shade800
+        : Colors.red;
+    final checkoutBannerIcon = cartState.isCheckoutOffline
+        ? Icons.cloud_off_outlined
+        : cartState.isCheckoutIdempotencyIssue
+        ? Icons.hourglass_top_rounded
+        : cartState.isCheckoutDenied
+        ? Icons.info_outline
+        : Icons.error_outline;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -473,6 +534,13 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
                         const Text('Sale finalized successfully.'),
                         if (cartState.lastReceiptId != null)
                           Text('Receipt #: ${cartState.lastReceiptId}'),
+                        if (cartState.lastReceipt != null &&
+                            cartState.lastReceipt!.statusDisplay
+                                .trim()
+                                .isNotEmpty)
+                          Text(
+                            'Receipt status: ${cartState.lastReceipt!.statusDisplay}',
+                          ),
                       ],
                     ),
                   ),
@@ -540,25 +608,23 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
               ),
             ),
           ),
-        if (!cartState.isFinalizing &&
-            cartState.checkoutErrorMessage != null &&
-            cartState.checkoutErrorMessage!.trim().isNotEmpty)
+        if (!cartState.isFinalizing && checkoutBannerMessage.trim().isNotEmpty)
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.red.withValues(alpha: 0.08),
+                color: checkoutBannerColor.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.error_outline, color: Colors.red),
+                  Icon(checkoutBannerIcon, color: checkoutBannerColor),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      cartState.checkoutErrorMessage!,
+                      checkoutBannerMessage,
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ),
@@ -610,20 +676,6 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
                   ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    'Displayed VAT, FX, and KHR totals are policy-based estimates. Backend checkout/finalize remains the authority for committed totals and receipts.',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ),
-                const SizedBox(height: 12),
                 // Cart Items
                 SaleCartContent(
                   items: items,
@@ -632,18 +684,14 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
                       cartNotifier.updateQuantity(index, line.quantity + 1),
                   onDecrement: (index, line) =>
                       cartNotifier.updateQuantity(index, line.quantity - 1),
-                  paymentMethod: _paymentMethod,
-                  tenderCurrency: _tenderCurrency,
-                  onPaymentMethodChanged: (value) => setState(() {
-                    _paymentMethod = value;
-                    ref.read(saleCartProvider.notifier).setPaymentMethod(value);
-                  }),
-                  onTenderCurrencyChanged: (value) => setState(() {
-                    _tenderCurrency = value;
-                    ref
-                        .read(saleCartProvider.notifier)
-                        .setTenderCurrency(value);
-                  }),
+                  paymentMethod: paymentMethod,
+                  tenderCurrency: tenderCurrency,
+                  onPaymentMethodChanged: (value) => ref
+                      .read(saleCartProvider.notifier)
+                      .setPaymentMethod(value),
+                  onTenderCurrencyChanged: (value) => ref
+                      .read(saleCartProvider.notifier)
+                      .setTenderCurrency(value),
                   usdController: _usdController,
                   khrController: _khrController,
                   subtotal: subtotal,
@@ -651,12 +699,16 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
                   grandTotalKhr: grandTotalKhr,
                   fxRate: fxRate,
                   readOnly: readOnly,
-                  onAmountsChanged: () => setState(() {}),
+                  onAmountsChanged: () {
+                    _syncCashAmounts(cartNotifier);
+                    setState(() {});
+                  },
                   khqrStatus: cartState.khqrStatus,
                   khqrPayload: cartState.khqrQrPayload,
                   khqrExpiresAt: cartState.khqrExpiresAt,
                   khqrConfirmedAt: cartState.khqrConfirmedAt,
                   khqrErrorMessage: cartState.khqrErrorMessage,
+                  khqrErrorCode: cartState.khqrErrorCode,
                   khqrLoading: cartState.isKhqrLoading,
                   onGenerateKhqr: readOnly
                       ? null
@@ -668,7 +720,7 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                 content: Text(
-                                  UserErrorMessage.build(
+                                  _actionErrorMessage(
                                     context: 'Failed to generate KHQR',
                                     error: e,
                                   ),
@@ -687,8 +739,27 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                 content: Text(
-                                  UserErrorMessage.build(
+                                  _actionErrorMessage(
                                     context: 'Failed to check KHQR',
+                                    error: e,
+                                  ),
+                                ),
+                              ),
+                            );
+                          }
+                        },
+                  onCancelKhqr: readOnly
+                      ? null
+                      : () async {
+                          try {
+                            await cartNotifier.cancelKhqrAttempt();
+                          } catch (e) {
+                            if (!context.mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  _actionErrorMessage(
+                                    context: 'Failed to cancel KHQR',
                                     error: e,
                                   ),
                                 ),
@@ -732,7 +803,7 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text(
-                        UserErrorMessage.build(
+                        _actionErrorMessage(
                           context: 'Place order failed',
                           error: e,
                         ),
@@ -744,76 +815,20 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
               }
 
               final ordersNotifier = ref.read(ordersProvider.notifier);
-              final menuSnapshot = ref.read(menuViewModelProvider);
-              final cartSnapshot = ref.read(saleCartProvider);
-              final groupLookup = {
-                for (final g in menuSnapshot.modifierGroups) g.id: g,
-                for (final g in menuSnapshot.hydratedModifierGroups.entries)
-                  g.key: g.value,
-              };
-              final orderLines = cartSnapshot.lines
-                  .map(
-                    (line) => OrderLine(
-                      name: line.item.name,
-                      modifiers: _modifierNames(line, groupLookup),
-                      quantity: line.quantity,
-                    ),
-                  )
-                  .toList();
-              cartNotifier.setTenderCurrency(_tenderCurrency);
-              cartNotifier.setPaymentMethod(_paymentMethod);
-              cartNotifier.setCashReceived(
-                usd: _parseAmount(_usdController.text),
-                khr: _parseAmount(_khrController.text),
-              );
+              _syncCashAmounts(cartNotifier);
               try {
                 final result = await cartNotifier.checkout();
-                final summary = result.summary;
-                final tenderCurrency =
-                    (summary.tenderCurrency.isEmpty
-                            ? _tenderCurrency
-                            : summary.tenderCurrency)
-                        .toLowerCase();
-                final totalUsd = summary.totalUsdExact;
-                final totalKhr = summary.totalKhrExact;
-                final cashUsd = summary.cashReceivedUsd;
-                final cashKhr = summary.cashReceivedKhr;
-                final changeUsd = summary.changeGivenUsd;
-                final changeKhr = summary.changeGivenKhr;
-                ordersNotifier.createOrder(
-                  orderType: orderType,
-                  paymentMethod: _paymentMethod,
-                  totalUsd: totalUsd,
-                  totalKhr: totalKhr,
-                  tenderCurrency: tenderCurrency,
-                  tenderAmount: tenderCurrency == 'usd'
-                      ? cashUsd.toDouble()
-                      : cashKhr.toDouble(),
-                  changeAmount: tenderCurrency == 'usd'
-                      ? changeUsd.toDouble()
-                      : changeKhr.toDouble(),
-                  lines: orderLines,
-                );
                 await ordersNotifier.load(date: DateTime.now());
                 if (!context.mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      result.idempotentReplay
-                          ? 'Order already finalized (replayed).'
-                          : 'Order created',
-                    ),
-                  ),
+                  SnackBar(content: Text(_finalizeSuccessMessage(result))),
                 );
               } catch (e) {
                 if (!context.mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(
-                      UserErrorMessage.build(
-                        context: 'Checkout failed',
-                        error: e,
-                      ),
+                      _actionErrorMessage(context: 'Checkout failed', error: e),
                     ),
                   ),
                 );
@@ -823,23 +838,4 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
       ],
     );
   }
-}
-
-List<String> _modifierNames(
-  CartLine item,
-  Map<String, ModifierGroup> groupLookup,
-) {
-  final names = <String>[];
-  item.selectedOptionIds.forEach((groupId, optionIds) {
-    final group = groupLookup[groupId];
-    if (group == null) return;
-    for (final id in optionIds) {
-      final opt = group.options.firstWhere(
-        (o) => o.id == id,
-        orElse: () => const ModifierOption(id: '', name: '', price: 0),
-      );
-      if (opt.name.isNotEmpty) names.add(opt.name);
-    }
-  });
-  return names;
 }

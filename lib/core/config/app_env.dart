@@ -30,9 +30,6 @@ class AppEnv {
   static const _attendanceRepositoryModeDefine = String.fromEnvironment(
     'ATTENDANCE_REPOSITORY_MODE',
   );
-  static const _saleRepositoryModeDefine = String.fromEnvironment(
-    'SALE_REPOSITORY_MODE',
-  );
   static const _authRepositoryModeDefine = String.fromEnvironment(
     'AUTH_REPOSITORY_MODE',
   );
@@ -125,15 +122,6 @@ class AppEnv {
     final mode = _readString(
       primary: _attendanceRepositoryModeDefine,
       dotenvKey: 'ATTENDANCE_REPOSITORY_MODE',
-      defaultValue: 'mock',
-    );
-    return mode.trim().toLowerCase() != 'api';
-  }
-
-  static bool get useMockSaleRepository {
-    final mode = _readString(
-      primary: _saleRepositoryModeDefine,
-      dotenvKey: 'SALE_REPOSITORY_MODE',
       defaultValue: 'mock',
     );
     return mode.trim().toLowerCase() != 'api';

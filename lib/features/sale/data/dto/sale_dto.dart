@@ -1,3 +1,74 @@
+import 'package:modular_pos/features/sale/data/sale_checkout_repository_contract.dart';
+
+class SaleDraftDto {
+  const SaleDraftDto({
+    required this.id,
+    required this.tenderCurrency,
+    required this.paymentMethod,
+    required this.totalUsdExact,
+    required this.totalKhrExact,
+    required this.cashReceivedUsd,
+    required this.cashReceivedKhr,
+    required this.changeGivenUsd,
+    required this.changeGivenKhr,
+    required this.items,
+  });
+
+  final String id;
+  final String tenderCurrency;
+  final String paymentMethod;
+  final double totalUsdExact;
+  final double totalKhrExact;
+  final double? cashReceivedUsd;
+  final double? cashReceivedKhr;
+  final double? changeGivenUsd;
+  final double? changeGivenKhr;
+  final List<SaleItemDto> items;
+
+  factory SaleDraftDto.fromJson(Map<String, dynamic> json) {
+    final tenderCurrency = _readString(json['tenderCurrency']);
+    final cashReceivedTenderAmount = _readNullableDouble(
+      json['cashReceivedTenderAmount'],
+    );
+    final cashChangeTenderAmount = _readNullableDouble(
+      json['cashChangeTenderAmount'],
+    );
+
+    return SaleDraftDto(
+      id: _readString(json['id']),
+      tenderCurrency: tenderCurrency,
+      paymentMethod: _readString(json['paymentMethod']),
+      totalUsdExact: _readDouble(
+        json['totalUsdExact'] ?? json['grandTotalUsd'],
+      ),
+      totalKhrExact: _readDouble(
+        json['totalKhrExact'] ?? json['grandTotalKhr'],
+      ),
+      cashReceivedUsd:
+          _readNullableDouble(json['cashReceivedUsd']) ??
+          (tenderCurrency.toUpperCase() == 'USD'
+              ? cashReceivedTenderAmount
+              : null),
+      cashReceivedKhr:
+          _readNullableDouble(json['cashReceivedKhr']) ??
+          (tenderCurrency.toUpperCase() == 'KHR'
+              ? cashReceivedTenderAmount
+              : null),
+      changeGivenUsd:
+          _readNullableDouble(json['changeGivenUsd']) ??
+          (tenderCurrency.toUpperCase() == 'USD'
+              ? cashChangeTenderAmount
+              : null),
+      changeGivenKhr:
+          _readNullableDouble(json['changeGivenKhr']) ??
+          (tenderCurrency.toUpperCase() == 'KHR'
+              ? cashChangeTenderAmount
+              : null),
+      items: _readSaleItems(json, preferItems: true),
+    );
+  }
+}
+
 class SaleDto {
   const SaleDto({
     required this.id,
@@ -48,48 +119,69 @@ class SaleDto {
   final List<SaleItemDto> items;
 
   factory SaleDto.fromJson(Map<String, dynamic> json) {
-    final createdAt =
-        DateTime.tryParse(json['createdAt']?.toString() ?? '') ??
-        DateTime.fromMillisecondsSinceEpoch(0);
-    final updatedAt =
-        DateTime.tryParse(json['updatedAt']?.toString() ?? '') ??
-        DateTime.fromMillisecondsSinceEpoch(0);
-
-    final items = <SaleItemDto>[];
-    final rawItems = json['items'];
-    if (rawItems is List) {
-      for (final item in rawItems) {
-        if (item is Map<String, dynamic>) {
-          items.add(SaleItemDto.fromJson(item));
-        }
-      }
-    }
-
-    double? numOrNull(dynamic value) => (value is num) ? value.toDouble() : null;
+    final tenderCurrency = _readString(json['tenderCurrency']);
+    final cashReceivedTenderAmount = _readNullableDouble(
+      json['cashReceivedTenderAmount'],
+    );
+    final cashChangeTenderAmount = _readNullableDouble(
+      json['cashChangeTenderAmount'],
+    );
 
     return SaleDto(
-      id: json['id']?.toString() ?? '',
-      clientUuid: json['clientUuid']?.toString() ?? '',
-      tenantId: json['tenantId']?.toString() ?? '',
-      branchId: json['branchId']?.toString() ?? '',
-      employeeId: json['employeeId']?.toString() ?? '',
-      saleType: json['saleType']?.toString() ?? '',
-      state: json['state']?.toString() ?? '',
-      fxRateUsed: (json['fxRateUsed'] as num?)?.toDouble() ?? 0,
-      tenderCurrency: json['tenderCurrency']?.toString() ?? '',
-      paymentMethod: json['paymentMethod']?.toString() ?? '',
-      fulfillmentStatus: json['fulfillmentStatus']?.toString() ?? '',
-      subtotalUsdExact: (json['subtotalUsdExact'] as num?)?.toDouble() ?? 0,
-      subtotalKhrExact: (json['subtotalKhrExact'] as num?)?.toDouble() ?? 0,
-      totalUsdExact: (json['totalUsdExact'] as num?)?.toDouble() ?? 0,
-      totalKhrExact: (json['totalKhrExact'] as num?)?.toDouble() ?? 0,
-      cashReceivedUsd: numOrNull(json['cashReceivedUsd']),
-      cashReceivedKhr: numOrNull(json['cashReceivedKhr']),
-      changeGivenUsd: numOrNull(json['changeGivenUsd']),
-      changeGivenKhr: numOrNull(json['changeGivenKhr']),
-      createdAt: createdAt,
-      updatedAt: updatedAt,
-      items: items,
+      id: _readString(json['id']),
+      clientUuid: _readString(json['clientUuid']),
+      tenantId: _readString(json['tenantId']),
+      branchId: _readString(json['branchId']),
+      employeeId: _readString(
+        json['employeeId'] ??
+            json['openedByAccountId'] ??
+            json['checkedOutByAccountId'],
+      ),
+      saleType: _readString(json['saleType']),
+      state: _readString(json['state']).isEmpty
+          ? _readString(json['status'])
+          : _readString(json['state']),
+      fxRateUsed: _readDouble(
+        json['fxRateUsed'] ?? json['saleFxRateKhrPerUsd'],
+      ),
+      tenderCurrency: tenderCurrency,
+      paymentMethod: _readString(json['paymentMethod']),
+      fulfillmentStatus: _readString(json['fulfillmentStatus']),
+      subtotalUsdExact: _readDouble(
+        json['subtotalUsdExact'] ?? json['subtotalUsd'],
+      ),
+      subtotalKhrExact: _readDouble(
+        json['subtotalKhrExact'] ?? json['subtotalKhr'],
+      ),
+      totalUsdExact: _readDouble(
+        json['totalUsdExact'] ?? json['grandTotalUsd'],
+      ),
+      totalKhrExact: _readDouble(
+        json['totalKhrExact'] ?? json['grandTotalKhr'],
+      ),
+      cashReceivedUsd:
+          _readNullableDouble(json['cashReceivedUsd']) ??
+          (tenderCurrency.toUpperCase() == 'USD'
+              ? cashReceivedTenderAmount
+              : null),
+      cashReceivedKhr:
+          _readNullableDouble(json['cashReceivedKhr']) ??
+          (tenderCurrency.toUpperCase() == 'KHR'
+              ? cashReceivedTenderAmount
+              : null),
+      changeGivenUsd:
+          _readNullableDouble(json['changeGivenUsd']) ??
+          (tenderCurrency.toUpperCase() == 'USD'
+              ? cashChangeTenderAmount
+              : null),
+      changeGivenKhr:
+          _readNullableDouble(json['changeGivenKhr']) ??
+          (tenderCurrency.toUpperCase() == 'KHR'
+              ? cashChangeTenderAmount
+              : null),
+      createdAt: _readDateTime(json['createdAt']),
+      updatedAt: _readDateTime(json['updatedAt']),
+      items: _readSaleItems(json),
     );
   }
 }
@@ -113,7 +205,7 @@ class SaleItemDto {
 
   factory SaleItemDto.fromJson(Map<String, dynamic> json) {
     final modifiers = <SaleModifierDto>[];
-    final rawMods = json['modifiers'];
+    final rawMods = json['modifiers'] ?? json['modifierSnapshot'];
     if (rawMods is List) {
       for (final mod in rawMods) {
         if (mod is Map<String, dynamic>) {
@@ -122,10 +214,12 @@ class SaleItemDto {
       }
     }
     return SaleItemDto(
-      id: json['id']?.toString() ?? '',
-      saleId: json['saleId']?.toString() ?? '',
-      menuItemId: json['menuItemId']?.toString() ?? '',
-      menuItemName: json['menuItemName']?.toString() ?? '',
+      id: _readString(json['id']),
+      saleId: _readString(json['saleId'] ?? json['orderId']),
+      menuItemId: _readString(json['menuItemId']),
+      menuItemName: _readString(
+        json['menuItemName'] ?? json['menuItemNameSnapshot'],
+      ),
       quantity: (json['quantity'] as num?)?.toInt() ?? 0,
       modifiers: modifiers,
     );
@@ -163,7 +257,7 @@ class SaleModifierDto {
     }
 
     return SaleModifierDto(
-      groupId: json['groupId']?.toString() ?? '',
+      groupId: _readString(json['groupId']),
       optionIds: optionIds,
       options: options,
     );
@@ -171,19 +265,289 @@ class SaleModifierDto {
 }
 
 class SaleModifierOptionDto {
-  const SaleModifierOptionDto({
-    required this.id,
-    required this.label,
-  });
+  const SaleModifierOptionDto({required this.id, required this.label});
 
   final String id;
   final String label;
 
   factory SaleModifierOptionDto.fromJson(Map<String, dynamic> json) {
     return SaleModifierOptionDto(
-      id: json['id']?.toString() ?? '',
-      label: json['label']?.toString() ?? json['name']?.toString() ?? '',
+      id: _readString(json['id']),
+      label: _readString(json['label'] ?? json['name']),
     );
   }
 }
 
+class SaleReceiptProjectionDto {
+  const SaleReceiptProjectionDto({
+    required this.receiptId,
+    required this.saleId,
+    required this.statusDisplay,
+    required this.issuedAt,
+  });
+
+  final String receiptId;
+  final String saleId;
+  final String statusDisplay;
+  final DateTime issuedAt;
+
+  factory SaleReceiptProjectionDto.fromJson(Map<String, dynamic> json) {
+    return SaleReceiptProjectionDto(
+      receiptId: _readString(json['receiptId']),
+      saleId: _readString(json['saleId']),
+      statusDisplay: _readString(json['statusDisplay']),
+      issuedAt: _readDateTime(json['issuedAt']),
+    );
+  }
+}
+
+class SaleCashCheckoutResponseDto {
+  const SaleCashCheckoutResponseDto({required this.sale, this.receipt});
+
+  final SaleDto sale;
+  final SaleReceiptProjectionDto? receipt;
+
+  factory SaleCashCheckoutResponseDto.fromJson(Map<String, dynamic> json) {
+    return SaleCashCheckoutResponseDto(
+      sale: SaleDto.fromJson(_asMap(json['sale'])),
+      receipt: json['receipt'] == null
+          ? null
+          : SaleReceiptProjectionDto.fromJson(_asMap(json['receipt'])),
+    );
+  }
+}
+
+class SaleKhqrIntentStateDto {
+  const SaleKhqrIntentStateDto({
+    required this.paymentIntentId,
+    required this.status,
+    this.saleId,
+    this.reasonCode,
+  });
+
+  final String paymentIntentId;
+  final String status;
+  final String? saleId;
+  final String? reasonCode;
+
+  factory SaleKhqrIntentStateDto.fromJson(Map<String, dynamic> json) {
+    return SaleKhqrIntentStateDto(
+      paymentIntentId: _readString(json['paymentIntentId']),
+      status: _readString(json['status']),
+      saleId: _readNullableString(json['saleId']),
+      reasonCode: SaleCheckoutReasonCodes.normalize(
+        _readNullableString(json['reasonCode']),
+      ),
+    );
+  }
+}
+
+class SaleKhqrAttemptResponseDto {
+  const SaleKhqrAttemptResponseDto({
+    required this.attemptId,
+    required this.paymentIntentId,
+    this.saleId,
+    required this.md5,
+    required this.status,
+  });
+
+  final String attemptId;
+  final String paymentIntentId;
+  final String? saleId;
+  final String md5;
+  final String status;
+
+  factory SaleKhqrAttemptResponseDto.fromJson(Map<String, dynamic> json) {
+    return SaleKhqrAttemptResponseDto(
+      attemptId: _readString(json['attemptId']),
+      paymentIntentId: _readString(json['paymentIntentId']),
+      saleId: _readNullableString(json['saleId']),
+      md5: _readString(json['md5']),
+      status: _readString(json['status']),
+    );
+  }
+}
+
+class SaleKhqrPaymentRequestDto {
+  const SaleKhqrPaymentRequestDto({
+    required this.md5,
+    required this.payload,
+    required this.payloadType,
+  });
+
+  final String md5;
+  final String payload;
+  final String payloadType;
+
+  factory SaleKhqrPaymentRequestDto.fromJson(Map<String, dynamic> json) {
+    return SaleKhqrPaymentRequestDto(
+      md5: _readString(json['md5']),
+      payload: _readString(json['payload']),
+      payloadType: _readString(json['payloadType']),
+    );
+  }
+}
+
+class SaleKhqrPreviewDto {
+  const SaleKhqrPreviewDto({
+    required this.itemCount,
+    required this.grandTotalUsd,
+    required this.grandTotalKhr,
+  });
+
+  final int itemCount;
+  final double grandTotalUsd;
+  final double grandTotalKhr;
+
+  factory SaleKhqrPreviewDto.fromJson(Map<String, dynamic> json) {
+    return SaleKhqrPreviewDto(
+      itemCount: (json['itemCount'] as num?)?.toInt() ?? 0,
+      grandTotalUsd: _readDouble(json['grandTotalUsd']),
+      grandTotalKhr: _readDouble(json['grandTotalKhr']),
+    );
+  }
+}
+
+class SaleKhqrInitiateResponseDto {
+  const SaleKhqrInitiateResponseDto({
+    required this.id,
+    required this.intent,
+    required this.attempt,
+    required this.paymentRequest,
+    required this.preview,
+  });
+
+  final String id;
+  final SaleKhqrIntentStateDto intent;
+  final SaleKhqrAttemptResponseDto attempt;
+  final SaleKhqrPaymentRequestDto paymentRequest;
+  final SaleKhqrPreviewDto preview;
+
+  factory SaleKhqrInitiateResponseDto.fromJson(Map<String, dynamic> json) {
+    return SaleKhqrInitiateResponseDto(
+      id: _readString(json['id']),
+      intent: SaleKhqrIntentStateDto.fromJson(_asMap(json['intent'])),
+      attempt: SaleKhqrAttemptResponseDto.fromJson(_asMap(json['attempt'])),
+      paymentRequest: SaleKhqrPaymentRequestDto.fromJson(
+        _asMap(json['paymentRequest']),
+      ),
+      preview: SaleKhqrPreviewDto.fromJson(_asMap(json['preview'])),
+    );
+  }
+}
+
+class SaleKhqrIntentCancelDto {
+  const SaleKhqrIntentCancelDto({
+    required this.paymentIntentId,
+    required this.status,
+  });
+
+  final String paymentIntentId;
+  final String status;
+
+  factory SaleKhqrIntentCancelDto.fromJson(Map<String, dynamic> json) {
+    return SaleKhqrIntentCancelDto(
+      paymentIntentId: _readString(json['paymentIntentId']),
+      status: _readString(json['status']),
+    );
+  }
+}
+
+class SaleFinalizeResponseDto {
+  const SaleFinalizeResponseDto({required this.sale, this.receipt});
+
+  final SaleDto sale;
+  final SaleReceiptProjectionDto? receipt;
+
+  factory SaleFinalizeResponseDto.fromJson(Map<String, dynamic> json) {
+    return SaleFinalizeResponseDto(
+      sale: SaleDto.fromJson(json),
+      receipt: json['receipt'] == null
+          ? null
+          : SaleReceiptProjectionDto.fromJson(_asMap(json['receipt'])),
+    );
+  }
+}
+
+class SaleVoidRequestDto {
+  const SaleVoidRequestDto({
+    required this.id,
+    required this.saleId,
+    required this.status,
+    required this.reason,
+    this.reviewNote,
+    required this.requestedAt,
+    this.reviewedAt,
+  });
+
+  final String id;
+  final String saleId;
+  final String status;
+  final String reason;
+  final String? reviewNote;
+  final DateTime requestedAt;
+  final DateTime? reviewedAt;
+
+  factory SaleVoidRequestDto.fromJson(Map<String, dynamic> json) {
+    return SaleVoidRequestDto(
+      id: _readString(json['id']),
+      saleId: _readString(json['saleId']),
+      status: _readString(json['status']),
+      reason: _readString(json['reason']),
+      reviewNote: _readNullableString(json['reviewNote']),
+      requestedAt: _readDateTime(json['requestedAt']),
+      reviewedAt: _readNullableDateTime(json['reviewedAt']),
+    );
+  }
+}
+
+Map<String, dynamic> _asMap(dynamic value) {
+  if (value is Map<String, dynamic>) return value;
+  if (value is Map) {
+    return value.map((key, val) => MapEntry(key.toString(), val));
+  }
+  return const <String, dynamic>{};
+}
+
+List<SaleItemDto> _readSaleItems(
+  Map<String, dynamic> json, {
+  bool preferItems = false,
+}) {
+  final items = <SaleItemDto>[];
+  final rawItems = preferItems ? json['items'] ?? json['lines'] : json['lines'];
+  if (rawItems is List) {
+    for (final item in rawItems) {
+      if (item is Map<String, dynamic>) {
+        items.add(SaleItemDto.fromJson(item));
+      }
+    }
+  }
+  return items;
+}
+
+String _readString(dynamic value) => value?.toString().trim() ?? '';
+
+String? _readNullableString(dynamic value) {
+  final text = _readString(value);
+  return text.isEmpty ? null : text;
+}
+
+double _readDouble(dynamic value) {
+  if (value is num) return value.toDouble();
+  return double.tryParse(value?.toString() ?? '') ?? 0;
+}
+
+double? _readNullableDouble(dynamic value) {
+  if (value is num) return value.toDouble();
+  final parsed = double.tryParse(value?.toString() ?? '');
+  return parsed;
+}
+
+DateTime _readDateTime(dynamic value) {
+  return DateTime.tryParse(value?.toString() ?? '') ??
+      DateTime.fromMillisecondsSinceEpoch(0);
+}
+
+DateTime? _readNullableDateTime(dynamic value) {
+  return DateTime.tryParse(value?.toString() ?? '');
+}

@@ -51,14 +51,7 @@ List<RouteBase> buildSaleRoutes() {
       path: AppRoute.saleItemDetail.path,
       name: AppRoute.saleItemDetail.name,
       builder: (context, state) {
-        final extra = state.extra;
-        if (extra is SaleItemDetailRouteExtra) {
-          return SaleItemDetailPage(
-            item: extra.item,
-            useMockData: extra.useMockData,
-          );
-        }
-        final item = extra as MenuItem;
+        final item = state.extra as MenuItem;
         return SaleItemDetailPage(item: item);
       },
     ),

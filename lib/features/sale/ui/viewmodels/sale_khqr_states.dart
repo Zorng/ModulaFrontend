@@ -4,6 +4,7 @@ class SaleKhqrUiStates {
   static const readyToGenerate = 'READY_TO_GENERATE';
   static const waitingForPayment = 'WAITING_FOR_PAYMENT';
   static const paidConfirmed = 'PAID_CONFIRMED';
+  static const cancelled = 'CANCELLED';
   static const expired = 'EXPIRED';
   static const pendingConfirmation = 'PENDING_CONFIRMATION';
   static const superseded = 'SUPERSEDED';
@@ -13,6 +14,7 @@ class SaleKhqrUiStates {
     switch (upper) {
       case waitingForPayment:
       case paidConfirmed:
+      case cancelled:
       case expired:
       case pendingConfirmation:
       case superseded:
@@ -29,6 +31,7 @@ bool saleKhqrCanFinalize(String status) =>
 
 bool saleKhqrNeedsRegenerate(String status) {
   final normalized = SaleKhqrUiStates.normalize(status);
-  return normalized == SaleKhqrUiStates.expired ||
+  return normalized == SaleKhqrUiStates.cancelled ||
+      normalized == SaleKhqrUiStates.expired ||
       normalized == SaleKhqrUiStates.superseded;
 }

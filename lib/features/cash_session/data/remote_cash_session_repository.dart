@@ -1,9 +1,9 @@
 import 'package:modular_pos/features/cash_session/data/cash_session_api.dart';
 import 'package:modular_pos/features/cash_session/data/cash_session_movement_repository.dart';
 import 'package:modular_pos/features/cash_session/data/cash_session_repository.dart';
-import 'package:modular_pos/features/cash_session/data/dto/cash_register_dto.dart';
+import 'package:modular_pos/features/cash_session/data/dto/cash_movement_dto.dart';
 import 'package:modular_pos/features/cash_session/data/dto/cash_session_dto.dart';
-import 'package:modular_pos/features/cash_session/domain/models/cash_register.dart';
+import 'package:modular_pos/features/cash_session/domain/models/cash_movement.dart';
 import 'package:modular_pos/features/cash_session/domain/models/cash_session.dart';
 
 class RemoteCashSessionRepository
@@ -66,15 +66,13 @@ class RemoteCashSessionRepository
   }
 
   @override
-  Future<void> recordMovement({
+  Future<void> recordPaidIn({
     required String sessionId,
-    required String type,
     required double amountUsd,
     required double amountKhr,
     String? reason,
   }) async {
-    await _api.recordMovement(sessionId, {
-      'type': type,
+    await _api.recordPaidIn(sessionId, {
       'amountUsd': amountUsd,
       'amountKhr': amountKhr,
       'reason': (reason ?? 'Manual movement').trim().isEmpty
@@ -84,17 +82,49 @@ class RemoteCashSessionRepository
   }
 
   @override
-  Future<List<CashRegister>> fetchRegisters({
-    bool includeInactive = false,
+  Future<void> recordPaidOut({
+    required String sessionId,
+    required double amountUsd,
+    required double amountKhr,
+    String? reason,
   }) async {
-    final list = await _api.fetchRegisters(includeInactive: includeInactive);
-    return list.map(_toRegisterDomain).toList();
+    await _api.recordPaidOut(sessionId, {
+      'amountUsd': amountUsd,
+      'amountKhr': amountKhr,
+      'reason': (reason ?? 'Manual movement').trim().isEmpty
+          ? 'Manual movement'
+          : (reason ?? 'Manual movement').trim(),
+    });
   }
 
   @override
-  Future<CashRegister> createRegister(String name) async {
-    final dto = await _api.createRegister(name);
-    return _toRegisterDomain(dto);
+  Future<void> recordAdjustment({
+    required String sessionId,
+    required double amountUsdDelta,
+    required double amountKhrDelta,
+    String? reason,
+  }) async {
+    await _api.recordAdjustment(sessionId, {
+      'amountUsdDelta': amountUsdDelta,
+      'amountKhrDelta': amountKhrDelta,
+      'reason': (reason ?? 'Manual adjustment').trim().isEmpty
+          ? 'Manual adjustment'
+          : (reason ?? 'Manual adjustment').trim(),
+    });
+  }
+
+  @override
+  Future<List<CashMovement>> listMovements({
+    required String sessionId,
+    int limit = 100,
+    int offset = 0,
+  }) async {
+    final list = await _api.listMovements(
+      sessionId,
+      limit: limit,
+      offset: offset,
+    );
+    return list.map(_toMovementDomain).toList();
   }
 
   CashSession _toDomain(CashSessionDto dto) {
@@ -115,11 +145,20 @@ class RemoteCashSessionRepository
     );
   }
 
-  CashRegister _toRegisterDomain(CashRegisterDto dto) {
-    return CashRegister(
+  CashMovement _toMovementDomain(CashMovementDto dto) {
+    return CashMovement(
       id: dto.id,
-      name: dto.name.isEmpty ? 'Register' : dto.name,
-      status: dto.status,
+      sessionId: dto.sessionId,
+      tenantId: dto.tenantId,
+      branchId: dto.branchId,
+      movementType: dto.movementType,
+      amountUsd: dto.amountUsd,
+      amountKhr: dto.amountKhr,
+      reason: dto.reason,
+      sourceRefType: dto.sourceRefType,
+      sourceRefId: dto.sourceRefId,
+      recordedByAccountId: dto.recordedByAccountId,
+      occurredAt: dto.occurredAt?.toLocal(),
     );
   }
 }

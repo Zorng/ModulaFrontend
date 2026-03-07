@@ -1,5 +1,6 @@
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
+import 'package:modular_pos/features/sale/data/sale_checkout_repository_contract.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_khqr_states.dart';
 
 class CartLine {
@@ -68,8 +69,10 @@ class SaleCartState {
     this.cashKhr = 0,
     this.isFinalizing = false,
     this.checkoutErrorMessage,
+    this.checkoutErrorCode,
     this.lastFinalizedSaleId,
     this.lastReceiptId,
+    this.lastReceipt,
     this.lastPlacedOpenTicketId,
     this.lastPlacedSaleId,
     this.khqrStatus = SaleKhqrUiStates.readyToGenerate,
@@ -79,6 +82,7 @@ class SaleCartState {
     this.khqrExpiresAt,
     this.khqrConfirmedAt,
     this.khqrErrorMessage,
+    this.khqrErrorCode,
     this.isKhqrLoading = false,
   });
 
@@ -91,8 +95,10 @@ class SaleCartState {
   final double cashKhr;
   final bool isFinalizing;
   final String? checkoutErrorMessage;
+  final String? checkoutErrorCode;
   final String? lastFinalizedSaleId;
   final String? lastReceiptId;
+  final SaleImmediateReceiptDto? lastReceipt;
   final String? lastPlacedOpenTicketId;
   final String? lastPlacedSaleId;
   final String khqrStatus;
@@ -102,7 +108,42 @@ class SaleCartState {
   final DateTime? khqrExpiresAt;
   final DateTime? khqrConfirmedAt;
   final String? khqrErrorMessage;
+  final String? khqrErrorCode;
   final bool isKhqrLoading;
+
+  String? get normalizedCheckoutErrorCode =>
+      SaleCheckoutReasonCodes.normalize(checkoutErrorCode);
+
+  bool get hasCheckoutError =>
+      checkoutErrorMessage != null && checkoutErrorMessage!.trim().isNotEmpty;
+
+  bool get isCheckoutDenied {
+    switch (normalizedCheckoutErrorCode) {
+      case SaleCheckoutReasonCodes.unauthorized:
+      case SaleCheckoutReasonCodes.branchRequired:
+      case SaleCheckoutReasonCodes.branchFrozen:
+      case SaleCheckoutReasonCodes.cashSessionRequired:
+      case SaleCheckoutReasonCodes.payLaterDisabled:
+      case SaleCheckoutReasonCodes.khqrNotConfirmed:
+      case SaleCheckoutReasonCodes.invalidRequest:
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  bool get isCheckoutOffline =>
+      normalizedCheckoutErrorCode == SaleCheckoutReasonCodes.offlineUnreachable;
+
+  bool get isCheckoutIdempotencyIssue {
+    switch (normalizedCheckoutErrorCode) {
+      case SaleCheckoutReasonCodes.idempotencyConflict:
+      case SaleCheckoutReasonCodes.duplicateOperation:
+        return true;
+      default:
+        return false;
+    }
+  }
 
   SaleCartState copyWith({
     String? saleId,
@@ -114,8 +155,10 @@ class SaleCartState {
     double? cashKhr,
     bool? isFinalizing,
     Object? checkoutErrorMessage = _unset,
+    Object? checkoutErrorCode = _unset,
     Object? lastFinalizedSaleId = _unset,
     Object? lastReceiptId = _unset,
+    Object? lastReceipt = _unset,
     Object? lastPlacedOpenTicketId = _unset,
     Object? lastPlacedSaleId = _unset,
     String? khqrStatus,
@@ -125,6 +168,7 @@ class SaleCartState {
     Object? khqrExpiresAt = _unset,
     Object? khqrConfirmedAt = _unset,
     Object? khqrErrorMessage = _unset,
+    Object? khqrErrorCode = _unset,
     bool? isKhqrLoading,
   }) {
     return SaleCartState(
@@ -139,12 +183,18 @@ class SaleCartState {
       checkoutErrorMessage: checkoutErrorMessage == _unset
           ? this.checkoutErrorMessage
           : checkoutErrorMessage as String?,
+      checkoutErrorCode: checkoutErrorCode == _unset
+          ? this.checkoutErrorCode
+          : checkoutErrorCode as String?,
       lastFinalizedSaleId: lastFinalizedSaleId == _unset
           ? this.lastFinalizedSaleId
           : lastFinalizedSaleId as String?,
       lastReceiptId: lastReceiptId == _unset
           ? this.lastReceiptId
           : lastReceiptId as String?,
+      lastReceipt: lastReceipt == _unset
+          ? this.lastReceipt
+          : lastReceipt as SaleImmediateReceiptDto?,
       lastPlacedOpenTicketId: lastPlacedOpenTicketId == _unset
           ? this.lastPlacedOpenTicketId
           : lastPlacedOpenTicketId as String?,
@@ -168,6 +218,9 @@ class SaleCartState {
       khqrErrorMessage: khqrErrorMessage == _unset
           ? this.khqrErrorMessage
           : khqrErrorMessage as String?,
+      khqrErrorCode: khqrErrorCode == _unset
+          ? this.khqrErrorCode
+          : khqrErrorCode as String?,
       isKhqrLoading: isKhqrLoading ?? this.isKhqrLoading,
     );
   }
@@ -205,8 +258,10 @@ class SaleCartState {
       cashKhr: (json['cashKhr'] as num?)?.toDouble() ?? 0,
       isFinalizing: false,
       checkoutErrorMessage: null,
+      checkoutErrorCode: null,
       lastFinalizedSaleId: null,
       lastReceiptId: null,
+      lastReceipt: null,
       lastPlacedOpenTicketId: null,
       lastPlacedSaleId: null,
       khqrStatus: SaleKhqrUiStates.normalize(
@@ -222,6 +277,7 @@ class SaleCartState {
           ? null
           : DateTime.tryParse(json['khqrConfirmedAt'] as String),
       khqrErrorMessage: null,
+      khqrErrorCode: null,
       isKhqrLoading: false,
     );
   }

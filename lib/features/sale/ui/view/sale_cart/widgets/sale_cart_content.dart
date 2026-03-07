@@ -3,6 +3,7 @@ import 'package:modular_pos/core/formatters/khr_currency_formatter.dart';
 import 'package:modular_pos/core/input_formatters/khr_text_input_formatter.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_state.dart';
+import 'package:modular_pos/features/sale/ui/viewmodels/sale_checkout_error_message.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_khqr_states.dart';
 import 'package:modular_pos/core/input_formatters/decimal_text_input_formatter.dart';
 import 'package:modular_pos/features/sale/ui/view/sale_cart/widgets/sale_cart_item_row.dart';
@@ -32,9 +33,11 @@ class SaleCartContent extends StatelessWidget {
     required this.khqrExpiresAt,
     required this.khqrConfirmedAt,
     required this.khqrErrorMessage,
+    required this.khqrErrorCode,
     required this.khqrLoading,
     required this.onGenerateKhqr,
     required this.onRefreshKhqrStatus,
+    required this.onCancelKhqr,
   });
 
   final List<CartLine> items;
@@ -58,9 +61,11 @@ class SaleCartContent extends StatelessWidget {
   final DateTime? khqrExpiresAt;
   final DateTime? khqrConfirmedAt;
   final String? khqrErrorMessage;
+  final String? khqrErrorCode;
   final bool khqrLoading;
   final VoidCallback? onGenerateKhqr;
   final VoidCallback? onRefreshKhqrStatus;
+  final VoidCallback? onCancelKhqr;
 
   @override
   Widget build(BuildContext context) {
@@ -104,6 +109,7 @@ class SaleCartContent extends StatelessWidget {
       SaleKhqrUiStates.readyToGenerate => 'Ready to generate',
       SaleKhqrUiStates.waitingForPayment => 'Waiting for payment',
       SaleKhqrUiStates.paidConfirmed => 'Paid confirmed',
+      SaleKhqrUiStates.cancelled => 'Cancelled',
       SaleKhqrUiStates.expired => 'Expired',
       SaleKhqrUiStates.pendingConfirmation => 'Pending confirmation',
       SaleKhqrUiStates.superseded => 'Superseded',
@@ -111,6 +117,7 @@ class SaleCartContent extends StatelessWidget {
     };
     final khqrStatusColor = switch (normalizedKhqrStatus) {
       SaleKhqrUiStates.paidConfirmed => Colors.green.shade700,
+      SaleKhqrUiStates.cancelled => Colors.red.shade700,
       SaleKhqrUiStates.expired => Colors.orange.shade700,
       SaleKhqrUiStates.pendingConfirmation => Colors.amber.shade800,
       SaleKhqrUiStates.superseded => Colors.blueGrey.shade700,
@@ -122,12 +129,39 @@ class SaleCartContent extends StatelessWidget {
         !khqrLoading &&
         onRefreshKhqrStatus != null &&
         khqrPayload != null;
+    final canCancel =
+        !readOnly &&
+        !khqrLoading &&
+        onCancelKhqr != null &&
+        (normalizedKhqrStatus == SaleKhqrUiStates.waitingForPayment ||
+            normalizedKhqrStatus == SaleKhqrUiStates.pendingConfirmation);
     final khqrPayable = tender == 'khr'
         ? 'KHR ${formatKhrAmount(grandTotalKhr)}'
         : '\$${grandTotalUsd.toStringAsFixed(2)}';
     final showRefreshHint =
         normalizedKhqrStatus == SaleKhqrUiStates.waitingForPayment ||
         normalizedKhqrStatus == SaleKhqrUiStates.pendingConfirmation;
+    final lifecycleHint = switch (normalizedKhqrStatus) {
+      SaleKhqrUiStates.readyToGenerate =>
+        'Generate KHQR to start the QR payment flow.',
+      SaleKhqrUiStates.waitingForPayment =>
+        'Customer can scan and pay now. Keep checking for confirmation.',
+      SaleKhqrUiStates.pendingConfirmation =>
+        'Payment may be in progress. Keep checking status before finalizing.',
+      SaleKhqrUiStates.paidConfirmed =>
+        'Payment is confirmed. You can finalize checkout now.',
+      SaleKhqrUiStates.cancelled =>
+        'This KHQR intent was cancelled. Generate a new one to continue.',
+      SaleKhqrUiStates.expired =>
+        'This KHQR intent expired. Generate a new one to continue.',
+      SaleKhqrUiStates.superseded =>
+        'This KHQR intent is no longer valid. Generate a new one to continue.',
+      _ => null,
+    };
+    final khqrDisplayError = SaleCheckoutErrorMessage.build(
+      reasonCode: khqrErrorCode,
+      fallback: khqrErrorMessage,
+    );
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -149,20 +183,6 @@ class SaleCartContent extends StatelessWidget {
         }),
         const Divider(height: 16),
         SaleCartSummaryRow(label: 'Subtotal', value: subtotal),
-        const SizedBox(height: 4),
-        Row(
-          children: [
-            Text('VAT', style: Theme.of(context).textTheme.bodyMedium),
-            const Spacer(),
-            Text(
-              '\$0.00',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-                color: const Color(0xFF696969),
-              ),
-            ),
-          ],
-        ),
         const SizedBox(height: 20),
         Text(
           'Payment Methods',
@@ -313,6 +333,13 @@ class SaleCartContent extends StatelessWidget {
               ),
             ],
           ),
+          const SizedBox(height: 6),
+          Text(
+            'Final change is confirmed by backend checkout.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
         ],
         if (paymentMethod == 'qr') ...[
           const SizedBox(height: 12),
@@ -443,6 +470,23 @@ class SaleCartContent extends StatelessWidget {
                     ),
                   ],
                 ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: canCancel ? onCancelKhqr : null,
+                    child: const Text('Cancel KHQR'),
+                  ),
+                ),
+                if (lifecycleHint != null) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    lifecycleHint,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
                 if (showRefreshHint) ...[
                   const SizedBox(height: 6),
                   Text(
@@ -452,11 +496,10 @@ class SaleCartContent extends StatelessWidget {
                     ),
                   ),
                 ],
-                if (khqrErrorMessage != null &&
-                    khqrErrorMessage!.trim().isNotEmpty) ...[
+                if (khqrDisplayError.trim().isNotEmpty) ...[
                   const SizedBox(height: 6),
                   Text(
-                    khqrErrorMessage!,
+                    khqrDisplayError,
                     style: Theme.of(
                       context,
                     ).textTheme.bodySmall?.copyWith(color: Colors.red.shade700),

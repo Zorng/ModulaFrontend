@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:modular_pos/features/menu/data/menu_repository.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_state.dart';
@@ -24,7 +25,10 @@ class _StaticMenuViewModel extends MenuViewModel {
   MenuState build() => stateValue;
 
   @override
-  Future<void> loadMenu({String? branchId}) async {}
+  Future<void> loadMenu({
+    String? branchId,
+    MenuReadLane readLane = MenuReadLane.management,
+  }) async {}
 
   @override
   Future<(MenuItem, List<ModifierGroup>)> loadItemWithModifiers(
