@@ -206,7 +206,7 @@ void main() {
     );
     expect(
       container.read(cashSessionViewModelProvider).sessionStatus,
-      SessionStatus.closed,
+      SessionStatus.notStarted,
     );
   });
 
@@ -247,7 +247,7 @@ void main() {
     );
     expect(
       container.read(cashSessionViewModelProvider).sessionStatus,
-      SessionStatus.forceClosed,
+      SessionStatus.notStarted,
     );
   });
 }

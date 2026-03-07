@@ -244,13 +244,13 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
 
     state = state.copyWith(isLoading: true, error: null, errorCode: null);
     try {
-      final session = await _repo.closeSession(
+      await _repo.closeSession(
         sessionId: sessionId,
         countedCashUsd: countedUsd,
         countedCashKhr: countedKhr,
         note: note,
       );
-      _applySession(session);
+      await _fetchActiveSession(loadMovements: true);
     } catch (error) {
       _setError(error);
     }
@@ -267,14 +267,14 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
 
     state = state.copyWith(isLoading: true, error: null, errorCode: null);
     try {
-      final session = await _repo.forceCloseSession(
+      await _repo.forceCloseSession(
         sessionId: sessionId,
         countedCashUsd: countedUsd,
         countedCashKhr: countedKhr,
         reason: reason,
         note: note,
       );
-      _applySession(session);
+      await _fetchActiveSession(loadMovements: true);
     } catch (error) {
       _setError(error);
     }

@@ -176,7 +176,7 @@ class AppEnv {
     final mode = _readString(
       primary: _cashSessionRepositoryModeDefine,
       dotenvKey: 'CASH_SESSION_REPOSITORY_MODE',
-      defaultValue: 'mock',
+      defaultValue: 'api',
     );
     return mode.trim().toLowerCase() == 'mock';
   }

@@ -6,6 +6,8 @@ import 'package:modular_pos/core/hydration/context_scoped_runtime_resource.dart'
 import 'package:modular_pos/core/logging/app_log.dart';
 import 'package:modular_pos/features/auth/domain/active_branch_context_provider.dart';
 import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
+import 'package:modular_pos/features/auth/domain/auth_role.dart';
+import 'package:modular_pos/features/auth/data/auth_repository_session_utils.dart';
 import 'package:modular_pos/features/auth/domain/workspace_context.dart';
 import 'package:modular_pos/features/auth/domain/workspace_context_provider.dart';
 import 'package:modular_pos/features/auth/domain/auth_tenant_provider.dart';
@@ -102,8 +104,27 @@ class _AppHydrationListenerState extends ConsumerState<AppHydrationListener> {
     ref.read(authAccessTokenProvider.notifier).setToken(session.accessToken);
     final tenantId = (session.activeTenantId ?? session.user.tenantId).trim();
     ref.read(authTenantIdProvider.notifier).setTenantId(tenantId);
+    _restoreWorkspaceContextFromSession(session);
 
     _refreshBranchScopedStateIfNeeded();
+  }
+
+  void _restoreWorkspaceContextFromSession(AuthSession session) {
+    final currentWorkspace = ref.read(workspaceContextProvider);
+    if (currentWorkspace != null) return;
+
+    final branchId = (currentBranchId(session) ?? '').trim();
+    if (branchId.isEmpty) return;
+
+    final role = resolveSessionAuthRole(session);
+    final isAdminOrOwner = role == AuthRole.admin || role == AuthRole.owner;
+
+    ref
+        .read(workspaceContextProvider.notifier)
+        .setFromBranchSelection(
+          isAdminOrOwner: isAdminOrOwner,
+          activeBranchId: branchId,
+        );
   }
 
   void _refreshBranchScopedStateIfNeeded() {

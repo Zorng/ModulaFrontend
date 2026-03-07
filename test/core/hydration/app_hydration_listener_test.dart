@@ -7,6 +7,7 @@ import 'package:modular_pos/features/auth/domain/active_branch_context_provider.
 import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
 import 'package:modular_pos/features/auth/domain/auth_tenant_provider.dart';
 import 'package:modular_pos/features/auth/domain/auth_token_provider.dart';
+import 'package:modular_pos/features/auth/domain/workspace_context.dart';
 import 'package:modular_pos/features/auth/domain/workspace_context_provider.dart';
 import 'package:modular_pos/features/auth/domain/models/auth_session.dart';
 import 'package:modular_pos/features/auth/domain/models/tenant_membership.dart';
@@ -111,11 +112,12 @@ AuthSession _buildSession({
   required String accessToken,
   required List<UserBranch> branches,
   String? activeTenantId,
+  String role = 'admin',
 }) {
   final user = User(
     id: 'user-1',
     name: 'Test User',
-    role: 'admin',
+    role: role,
     tenantId: tenantId,
     branches: branches,
   );
@@ -126,7 +128,7 @@ AuthSession _buildSession({
       TenantMembership(
         tenantId: tenantId,
         tenantName: 'Tenant',
-        role: user.role,
+        role: role,
         branches: branches,
       ),
     ],
@@ -209,6 +211,20 @@ void main() {
 
       expect(container.read(authAccessTokenProvider), 'token-1');
       expect(container.read(authTenantIdProvider), 'tenant-1');
+      expect(container.read(workspaceContextProvider), isNotNull);
+      expect(container.read(workspaceContextProvider), isA<WorkspaceContext>());
+      expect(
+        container.read(workspaceContextProvider)!.scope,
+        WorkspaceScope.branch,
+      );
+      expect(
+        container.read(workspaceContextProvider)!.mode,
+        WorkspaceMode.management,
+      );
+      expect(
+        container.read(workspaceContextProvider)!.activeBranchId,
+        'branch-a',
+      );
       expect(policy.loadCount, 1);
       expect(policy.loadedBranchIds, ['branch-a']);
       expect(cash.loadCount, 1);
@@ -217,8 +233,8 @@ void main() {
       expect(runtimeResource.rebinds, [('token-1', 'tenant-1', 'branch-a')]);
 
       container
-          .read(authActiveBranchOverrideProvider.notifier)
-          .setOverride('branch-b');
+          .read(workspaceContextProvider.notifier)
+          .setBranchManagement(activeBranchId: 'branch-b');
       await tester.pump();
 
       expect(policy.loadCount, 2);
@@ -240,6 +256,56 @@ void main() {
       expect(policy.resetCount, 2);
       expect(cash.resetCount, 2);
       expect(runtimeResource.clearedCount, 2);
+    },
+  );
+
+  testWidgets(
+    'restores branch workspace context from existing session on cold start',
+    (tester) async {
+      final container = createTestContainer(
+        overrides: [
+          loginControllerProvider.overrideWith(_TestLoginController.new),
+          policyNotifierProvider.overrideWith(_TestPolicyNotifier.new),
+          cashSessionViewModelProvider.overrideWith(
+            _TestCashSessionViewModel.new,
+          ),
+        ],
+      );
+
+      final login =
+          container.read(loginControllerProvider.notifier)
+              as _TestLoginController;
+      login.setSession(
+        _buildSession(
+          tenantId: 'tenant-1',
+          accessToken: 'token-1',
+          role: 'cashier',
+          branches: const [
+            UserBranch(
+              id: 'assign-a',
+              name: 'Branch A',
+              role: 'cashier',
+              active: true,
+              branchId: 'branch-a',
+            ),
+          ],
+        ),
+      );
+
+      await tester.pumpWidget(
+        _TestHarness(
+          container: container,
+          child: const AppHydrationListener(child: SizedBox.shrink()),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 1));
+
+      final workspace = container.read(workspaceContextProvider);
+      expect(workspace, isNotNull);
+      expect(workspace!.scope, WorkspaceScope.branch);
+      expect(workspace.mode, WorkspaceMode.pos);
+      expect(workspace.activeBranchId, 'branch-a');
     },
   );
 

@@ -288,7 +288,7 @@ void main() {
     expect(state.isLoading, isFalse);
   });
 
-  test('closeSession updates state to closed on success', () async {
+  test('closeSession clears active session after successful close', () async {
     final repo = _MockCashSessionRepository();
     final movementRepo = _MockCashSessionMovementRepository();
     when(
@@ -307,6 +307,7 @@ void main() {
     ).thenAnswer(
       (_) async => _buildCashSession(status: CashSessionStatuses.closed),
     );
+    when(() => repo.getActiveSession()).thenAnswer((_) async => null);
 
     final container = createTestContainer(
       overrides: [
@@ -330,12 +331,12 @@ void main() {
     );
 
     final state = container.read(cashSessionViewModelProvider);
-    expect(state.sessionStatus, SessionStatus.closed);
-    expect(state.endTime, isNotNull);
+    expect(state.sessionStatus, SessionStatus.notStarted);
+    expect(state.session, isNull);
     expect(state.error, isNull);
   });
 
-  test('forceCloseSession updates state to force closed', () async {
+  test('forceCloseSession clears active session after force close', () async {
     final repo = _MockCashSessionRepository();
     final movementRepo = _MockCashSessionMovementRepository();
     when(
@@ -355,6 +356,7 @@ void main() {
     ).thenAnswer(
       (_) async => _buildCashSession(status: CashSessionStatuses.forceClosed),
     );
+    when(() => repo.getActiveSession()).thenAnswer((_) async => null);
 
     final container = createTestContainer(
       overrides: [
@@ -378,7 +380,8 @@ void main() {
     );
 
     final state = container.read(cashSessionViewModelProvider);
-    expect(state.sessionStatus, SessionStatus.forceClosed);
+    expect(state.sessionStatus, SessionStatus.notStarted);
+    expect(state.session, isNull);
     expect(state.canForceClose, isFalse);
     expect(state.error, isNull);
   });
