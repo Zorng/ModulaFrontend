@@ -2,7 +2,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/core/network/api_contract.dart';
 import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
 import 'package:modular_pos/features/auth/domain/models/tenant_membership.dart';
-import 'package:modular_pos/features/auth/domain/workspace_context_provider.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/branchV2/data/branch_mapper.dart';
 import 'package:modular_pos/features/branchV2/data/branch_repository.dart';
@@ -63,26 +62,9 @@ class BranchController extends Notifier<BranchState> {
     state = state.copyWith(searchQuery: '');
   }
 
-  Future<void> onGlobalManagementTap() async {
-    if (!state.canManageTenant) {
-      state = state.copyWith(
-        error: 'You do not have permission to access global management.',
-        errorCode: 'FORBIDDEN',
-        errorStatusCode: 403,
-      );
-      return;
-    }
-
-    ref.read(workspaceContextProvider.notifier).setGlobalManagement();
-    state = state.copyWith(
-      navigationIntent: BranchNavigationIntent.globalManagement,
-      error: null,
-      errorCode: null,
-      errorStatusCode: null,
-    );
-  }
-
-  Future<void> onBranchTileTap({required String branchId}) async {
+  Future<BranchSelectionResult> onBranchTileTap({
+    required String branchId,
+  }) async {
     final normalizedBranchId = branchId.trim();
     final selectedBranchName = state.branches
         .firstWhere(
@@ -102,7 +84,7 @@ class BranchController extends Notifier<BranchState> {
         errorCode: 'INVALID_BRANCH_ID',
         errorStatusCode: 422,
       );
-      return;
+      return BranchSelectionResult.failed;
     }
 
     state = state.copyWith(
@@ -120,13 +102,30 @@ class BranchController extends Notifier<BranchState> {
       final hasLoginError =
           loginState.error != null && loginState.error!.trim().isNotEmpty;
       if (hasLoginError) {
+        final normalizedLoginCode = (loginState.errorCode ?? '')
+            .trim()
+            .toUpperCase();
+        final normalizedLoginMessage = (loginState.error ?? '')
+            .trim()
+            .toUpperCase();
+        if (normalizedLoginCode == 'TENANT_CONTEXT_REQUIRED' ||
+            normalizedLoginMessage.contains('TENANT CONTEXT REQUIRED')) {
+          state = state.copyWith(
+            isLoading: false,
+            error: null,
+            errorCode: null,
+            errorStatusCode: null,
+            navigationIntent: BranchNavigationIntent.tenantSelection,
+          );
+          return BranchSelectionResult.tenantSelectionRequired;
+        }
         state = state.copyWith(
           isLoading: false,
           error: loginState.error,
           errorCode: loginState.errorCode,
           errorStatusCode: loginState.errorStatusCode,
         );
-        return;
+        return BranchSelectionResult.failed;
       }
 
       if (loginState.requiresBranchSelection) {
@@ -136,12 +135,10 @@ class BranchController extends Notifier<BranchState> {
           errorCode: 'BRANCH_CONTEXT_REQUIRED',
           errorStatusCode: 409,
         );
-        return;
+        return BranchSelectionResult.failed;
       }
 
       final updatedSession = loginState.session;
-      // Keep selected branch as the source of truth for workspace context.
-      // Some backend payloads may not mark the selected assignment as active.
       final resolvedBranchId = normalizedBranchId;
       ref
           .read(authActiveBranchOverrideProvider.notifier)
@@ -149,12 +146,6 @@ class BranchController extends Notifier<BranchState> {
       ref
           .read(authActiveBranchNameOverrideProvider.notifier)
           .setName(selectedBranchName);
-      ref
-          .read(workspaceContextProvider.notifier)
-          .setFromBranchSelection(
-            isAdminOrOwner: state.canManageTenant,
-            activeBranchId: resolvedBranchId,
-          );
       final tokens = updatedSession == null
           ? null
           : BranchContextTokens(
@@ -171,10 +162,14 @@ class BranchController extends Notifier<BranchState> {
         isLoading: false,
         selectedContextTokens: tokens,
         selectedBranchId: tokens?.branchId ?? resolvedBranchId,
-        navigationIntent: BranchNavigationIntent.branchWorkspace,
+        navigationIntent: BranchNavigationIntent.none,
       );
+      return BranchSelectionResult.success;
     } catch (error) {
       _setActionError(error, fallbackMessage: 'Failed to select branch.');
+      return state.navigationIntent == BranchNavigationIntent.tenantSelection
+          ? BranchSelectionResult.tenantSelectionRequired
+          : BranchSelectionResult.failed;
     }
   }
 
@@ -297,9 +292,10 @@ class BranchController extends Notifier<BranchState> {
     if (state.activeTenantId == null || state.activeTenantId!.trim().isEmpty) {
       state = state.copyWith(
         isLoading: false,
-        error: 'Tenant context is required.',
-        errorCode: 'TENANT_CONTEXT_REQUIRED',
-        errorStatusCode: 409,
+        error: null,
+        errorCode: null,
+        errorStatusCode: null,
+        navigationIntent: BranchNavigationIntent.tenantSelection,
       );
       return;
     }
@@ -336,6 +332,19 @@ class BranchController extends Notifier<BranchState> {
 
   void _setActionError(Object error, {required String fallbackMessage}) {
     if (error is ApiClientException) {
+      final code = (error.code ?? '').trim().toUpperCase();
+      final message = error.message.trim().toUpperCase();
+      if (code == 'TENANT_CONTEXT_REQUIRED' ||
+          message.contains('TENANT CONTEXT REQUIRED')) {
+        state = state.copyWith(
+          isLoading: false,
+          error: null,
+          errorCode: null,
+          errorStatusCode: null,
+          navigationIntent: BranchNavigationIntent.tenantSelection,
+        );
+        return;
+      }
       state = state.copyWith(
         isLoading: false,
         error: error.message,
