@@ -13,6 +13,8 @@ class SaleCheckoutErrorMessage {
         return 'Open a cash session before continuing.';
       case SaleCheckoutReasonCodes.payLaterDisabled:
         return 'Pay-later is currently disabled for this branch.';
+      case SaleCheckoutReasonCodes.khqrBranchReceiverNotConfigured:
+        return 'Configure a Bakong receiver account for this branch before generating KHQR.';
       case SaleCheckoutReasonCodes.khqrNotConfirmed:
         return 'KHQR payment is not confirmed yet.';
       case SaleCheckoutReasonCodes.idempotencyConflict:

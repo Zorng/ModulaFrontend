@@ -63,6 +63,33 @@ class BranchMapper {
         .toList(growable: false);
   }
 
+  static BranchListItem toCurrentBranchProfile(BranchCurrentProfileDto dto) {
+    final branchId = dto.branchId.trim();
+    final fallbackName = branchId.isEmpty ? 'Unknown Branch' : branchId;
+    final branchName = dto.branchName.trim().isEmpty
+        ? fallbackName
+        : dto.branchName.trim();
+
+    final normalizedStatus = dto.status.trim().toUpperCase();
+    final status = normalizedStatus.isEmpty ? 'UNKNOWN' : normalizedStatus;
+
+    return BranchListItem(
+      branchId: branchId,
+      tenantId: dto.tenantId.trim(),
+      branchName: branchName,
+      status: status,
+      branchAddress: _nullableTrim(dto.branchAddress),
+      contactNumber: _nullableTrim(dto.contactNumber),
+      khqrReceiverAccountId: _nullableTrim(dto.khqrReceiverAccountId),
+      khqrReceiverName: _nullableTrim(dto.khqrReceiverName),
+      attendanceLocationVerificationMode:
+          _normalizeAttendanceLocationVerificationMode(
+            dto.attendanceLocationVerificationMode,
+          ),
+      workplaceLocation: _toWorkplaceLocation(dto.workplaceLocation),
+    );
+  }
+
   static BranchContextTokens toContextTokens(BranchContextTokenResultDto dto) {
     return BranchContextTokens(
       accessToken: dto.accessToken.trim(),

@@ -24,10 +24,31 @@ class SaleKhqrUiStates {
         return readyToGenerate;
     }
   }
+
+  static String? toFoundationStatus(String status) {
+    final normalized = normalize(status);
+    return switch (normalized) {
+      waitingForPayment => waitingForPayment,
+      pendingConfirmation => pendingConfirmation,
+      paidConfirmed => paidConfirmed,
+      cancelled => cancelled,
+      expired => expired,
+      superseded => superseded,
+      readyToGenerate => null,
+      _ => null,
+    };
+  }
 }
 
 bool saleKhqrCanFinalize(String status) =>
     SaleKhqrUiStates.normalize(status) == SaleKhqrUiStates.paidConfirmed;
+
+bool saleKhqrIsActiveAttempt(String status) {
+  final normalized = SaleKhqrUiStates.normalize(status);
+  return normalized == SaleKhqrUiStates.waitingForPayment ||
+      normalized == SaleKhqrUiStates.pendingConfirmation ||
+      normalized == SaleKhqrUiStates.paidConfirmed;
+}
 
 bool saleKhqrNeedsRegenerate(String status) {
   final normalized = SaleKhqrUiStates.normalize(status);

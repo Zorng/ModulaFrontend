@@ -74,13 +74,16 @@ void main() {
     );
 
     await notifier.addSelection(selection);
-    notifier.setPaymentMethod('qr');
-
-    await notifier.generateKhqrAttempt();
+    await notifier.setPaymentMethod('qr');
     final afterGenerate = container.read(saleCartProvider);
     expect(afterGenerate.saleId, isNotEmpty);
     expect(afterGenerate.khqrStatus, SaleKhqrUiStates.waitingForPayment);
     expect(afterGenerate.khqrMd5, isNotNull);
+    expect(afterGenerate.khqrQrPayload, isNotNull);
+    expect(afterGenerate.khqrPayloadType, 'EMV_KHQR_STRING');
+    expect(afterGenerate.khqrToAccountId, 'mock-bakong-account');
+    expect(afterGenerate.khqrAmount, isNotNull);
+    expect(afterGenerate.khqrCurrency, 'USD');
     expect(afterGenerate.khqrErrorCode, isNull);
 
     await expectLater(
@@ -151,16 +154,20 @@ void main() {
     );
 
     await notifier.addSelection(selection);
-    notifier.setPaymentMethod('qr');
-    await notifier.generateKhqrAttempt();
+    await notifier.setPaymentMethod('qr');
     final waitingState = container.read(saleCartProvider);
     expect(waitingState.khqrStatus, SaleKhqrUiStates.waitingForPayment);
     expect(waitingState.lines, hasLength(1));
+    final initialAttemptId = waitingState.khqrAttemptId;
+    final initialMd5 = waitingState.khqrMd5;
 
     await notifier.updateQuantity(0, 2);
     final afterChange = container.read(saleCartProvider);
-    expect(afterChange.khqrStatus, SaleKhqrUiStates.superseded);
-    expect(afterChange.khqrMd5, isNull);
+    expect(afterChange.khqrStatus, SaleKhqrUiStates.waitingForPayment);
+    expect(afterChange.khqrAttemptId, isNot(initialAttemptId));
+    expect(afterChange.khqrMd5, isNot(initialMd5));
+    expect(afterChange.khqrPayloadType, 'EMV_KHQR_STRING');
+    expect(afterChange.khqrToAccountId, 'mock-bakong-account');
   });
 
   test(
@@ -206,8 +213,7 @@ void main() {
       );
 
       await notifier.addSelection(selection);
-      notifier.setPaymentMethod('qr');
-      await notifier.generateKhqrAttempt();
+      await notifier.setPaymentMethod('qr');
 
       final waitingState = container.read(saleCartProvider);
       expect(waitingState.khqrStatus, SaleKhqrUiStates.waitingForPayment);
@@ -220,7 +226,68 @@ void main() {
       expect(cancelled.khqrAttemptId, isNull);
       expect(cancelled.khqrMd5, isNull);
       expect(cancelled.khqrQrPayload, isNull);
+      expect(cancelled.khqrPayloadType, isNull);
+      expect(cancelled.khqrToAccountId, isNull);
       expect(cancelled.khqrErrorCode, isNull);
     },
   );
+
+  test('KHQR generation stores missing branch receiver denial deterministically', () async {
+    final repo = MockSaleRepository();
+    repo.configureContext(
+      activeBranchId: 'branch-1',
+      khqrReceiverConfigured: false,
+    );
+
+    final container = createTestContainer(
+      overrides: [
+        policyNotifierProvider.overrideWith(_StaticPolicyNotifier.new),
+        saleRepositoryProvider.overrideWithValue(repo),
+        saleAccessGateProvider.overrideWithValue(
+          const SaleAccessGate(
+            branchId: 'branch-1',
+            contextLoading: false,
+            branchActive: true,
+            branchFrozen: false,
+            cashSessionOpen: true,
+            canMutateCart: true,
+            canCheckout: true,
+            canPlacePayLater: true,
+          ),
+        ),
+      ],
+    );
+
+    final notifier = container.read(saleCartProvider.notifier);
+    const item = MenuItem(
+      id: 'menu-1',
+      name: 'Milk Tea',
+      categoryId: 'tea',
+      price: 1.5,
+    );
+    const selection = SaleItemSelectionResult(
+      item: item,
+      quantity: 1,
+      selectedOptionIds: {},
+      selectedOptions: {},
+      addonTotalUsd: 0,
+      unitPriceUsd: 1.5,
+      lineTotalUsd: 1.5,
+    );
+
+    await notifier.addSelection(selection);
+    await notifier.setPaymentMethod('qr');
+
+    final failedState = container.read(saleCartProvider);
+    expect(
+      failedState.khqrErrorCode,
+      SaleCheckoutReasonCodes.khqrBranchReceiverNotConfigured,
+    );
+    expect(
+      failedState.khqrErrorMessage,
+      'Configure a Bakong receiver account for this branch before generating KHQR.',
+    );
+    expect(failedState.khqrStatus, SaleKhqrUiStates.readyToGenerate);
+    expect(failedState.khqrMd5, isNull);
+  });
 }

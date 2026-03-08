@@ -39,6 +39,48 @@ class BranchApi {
     }
   }
 
+  Future<BranchCurrentProfileDto> getCurrentBranchProfile() async {
+    try {
+      final response = await _dio.get<dynamic>('$_orgPrefix/branch/current');
+      final data = BranchEnvelope.unwrapDataMap(
+        response.data,
+        fallbackMessage: 'Failed to load current branch profile.',
+      );
+      return BranchCurrentProfileDto.fromJson(data);
+    } on DioError catch (error) {
+      throw ApiClientException.fromDio(
+        error,
+        fallbackMessage: 'Failed to load current branch profile.',
+      );
+    }
+  }
+
+  Future<BranchCurrentProfileDto> updateCurrentBranchKhqrReceiver({
+    required String khqrReceiverAccountId,
+    required String khqrReceiverName,
+  }) async {
+    final payload = BranchKhqrReceiverUpdateRequestDto(
+      khqrReceiverAccountId: khqrReceiverAccountId.trim(),
+      khqrReceiverName: khqrReceiverName.trim(),
+    ).toJson();
+    try {
+      final response = await _dio.patch<dynamic>(
+        '$_orgPrefix/branch/current/khqr-receiver',
+        data: payload,
+      );
+      final data = BranchEnvelope.unwrapDataMap(
+        response.data,
+        fallbackMessage: 'Failed to update KHQR receiver account.',
+      );
+      return BranchCurrentProfileDto.fromJson(data);
+    } on DioError catch (error) {
+      throw ApiClientException.fromDio(
+        error,
+        fallbackMessage: 'Failed to update KHQR receiver account.',
+      );
+    }
+  }
+
   Future<BranchActivationInitiateDto> initiateBranchActivation({
     required String branchName,
     String? intentId,

@@ -102,9 +102,12 @@ class SaleMappers {
     required DateTime expiresAt,
   }) {
     final intentId = response.intent.paymentIntentId.ifEmpty(response.id);
-    final amount = command.tenderCurrency.toUpperCase() == 'KHR'
-        ? response.preview.grandTotalKhr
-        : response.preview.grandTotalUsd;
+    final normalizedCurrency = normalizeTenderCurrency(command.tenderCurrency);
+    final amount =
+        response.paymentRequest.amount ??
+        (normalizedCurrency == 'KHR'
+            ? response.preview.grandTotalKhr
+            : response.preview.grandTotalUsd);
     return SaleKhqrAttemptDto(
       saleId: (response.attempt.saleId ?? '')
           .ifEmpty(response.intent.saleId ?? '')
@@ -116,9 +119,17 @@ class SaleMappers {
         saleId: response.attempt.saleId,
       ),
       amount: amount,
-      currency: normalizeTenderCurrency(command.tenderCurrency),
-      expiresAt: expiresAt,
+      currency:
+          normalizeTenderCurrency(response.paymentRequest.currency ?? '') ==
+              'USD' &&
+              (response.paymentRequest.currency ?? '').trim().isEmpty
+          ? normalizedCurrency
+          : normalizeTenderCurrency(response.paymentRequest.currency ?? ''),
+      expiresAt: response.paymentRequest.expiresAt ?? expiresAt,
       qrPayload: response.paymentRequest.payload,
+      payloadType: response.paymentRequest.payloadType,
+      deepLinkUrl: response.paymentRequest.deepLinkUrl,
+      toAccountId: response.paymentRequest.toAccountId,
       reasonCode: response.intent.reasonCode,
       reasonMessage: null,
     );

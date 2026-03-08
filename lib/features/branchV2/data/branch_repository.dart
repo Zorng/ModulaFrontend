@@ -8,6 +8,13 @@ import 'package:modular_pos/features/branchV2/domain/models/branch_models.dart';
 abstract class BranchRepository {
   Future<List<BranchListItem>> loadAccessibleBranches();
 
+  Future<BranchListItem> getCurrentBranchProfile();
+
+  Future<BranchListItem> updateCurrentBranchKhqrReceiver({
+    required String khqrReceiverAccountId,
+    required String khqrReceiverName,
+  });
+
   Future<BranchActivationDraft> initiateBranchActivation({
     required String branchName,
     String? intentId,
