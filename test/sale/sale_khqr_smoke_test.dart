@@ -53,12 +53,16 @@ class _SmokeBranchRepository implements BranchRepository {
   }
 
   @override
-  Future<BranchListItem> getCurrentBranchProfile() async => _current;
+  Future<BranchListItem> getCurrentBranchProfile({
+    String? accessTokenOverride,
+  }) async => _current;
 
   @override
   Future<BranchListItem> updateCurrentBranchKhqrReceiver({
     required String khqrReceiverAccountId,
     required String khqrReceiverName,
+    String? intentId,
+    String? accessTokenOverride,
   }) async {
     _current = BranchListItem(
       branchId: _current.branchId,
@@ -71,6 +75,16 @@ class _SmokeBranchRepository implements BranchRepository {
       khqrReceiverName: khqrReceiverName,
     );
     return _current;
+  }
+
+  @override
+  Future<BranchListItem> updateCurrentBranchAttendanceLocation({
+    required String attendanceLocationVerificationMode,
+    BranchWorkplaceLocation? workplaceLocation,
+    String? intentId,
+    String? accessTokenOverride,
+  }) {
+    throw UnimplementedError();
   }
 
   @override
@@ -174,7 +188,10 @@ void main() {
       final branchNotifier = container.read(branchControllerProvider.notifier);
       await branchNotifier.loadCurrentBranchProfile();
       expect(
-        container.read(branchControllerProvider).currentBranchProfile?.khqrReceiverAccountId,
+        container
+            .read(branchControllerProvider)
+            .currentBranchProfile
+            ?.khqrReceiverAccountId,
         isNull,
       );
 
@@ -242,7 +259,10 @@ void main() {
       final result = await cartNotifier.checkout();
       expect(result.summary.paymentMethod, 'qr');
       expect(result.receipt?.receiptId, isNotEmpty);
-      expect(container.read(saleCartProvider).lastReceipt?.receiptId, result.receiptId);
+      expect(
+        container.read(saleCartProvider).lastReceipt?.receiptId,
+        result.receiptId,
+      );
     },
   );
 }

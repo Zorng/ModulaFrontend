@@ -13,10 +13,7 @@ import 'package:modular_pos/features/branchV2/ui/viewmodels/branch_state.dart';
 import '../test_utils/riverpod_test_utils.dart';
 
 class _StubBranchRepository implements BranchRepository {
-  _StubBranchRepository({
-    this.currentBranchError,
-    this.updateKhqrError,
-  });
+  _StubBranchRepository({this.currentBranchError, this.updateKhqrError});
 
   final ApiClientException? currentBranchError;
   final ApiClientException? updateKhqrError;
@@ -40,8 +37,12 @@ class _StubBranchRepository implements BranchRepository {
   }
 
   @override
-  Future<BranchListItem> getCurrentBranchProfile() {
-    if (currentBranchError != null) return Future<BranchListItem>.error(currentBranchError!);
+  Future<BranchListItem> getCurrentBranchProfile({
+    String? accessTokenOverride,
+  }) {
+    if (currentBranchError != null) {
+      return Future<BranchListItem>.error(currentBranchError!);
+    }
     return Future.value(
       const BranchListItem(
         branchId: 'branch-a',
@@ -56,8 +57,12 @@ class _StubBranchRepository implements BranchRepository {
   Future<BranchListItem> updateCurrentBranchKhqrReceiver({
     required String khqrReceiverAccountId,
     required String khqrReceiverName,
+    String? intentId,
+    String? accessTokenOverride,
   }) {
-    if (updateKhqrError != null) return Future<BranchListItem>.error(updateKhqrError!);
+    if (updateKhqrError != null) {
+      return Future<BranchListItem>.error(updateKhqrError!);
+    }
     return Future.value(
       BranchListItem(
         branchId: 'branch-a',
@@ -68,6 +73,16 @@ class _StubBranchRepository implements BranchRepository {
         khqrReceiverName: khqrReceiverName,
       ),
     );
+  }
+
+  @override
+  Future<BranchListItem> updateCurrentBranchAttendanceLocation({
+    required String attendanceLocationVerificationMode,
+    BranchWorkplaceLocation? workplaceLocation,
+    String? intentId,
+    String? accessTokenOverride,
+  }) {
+    throw UnimplementedError();
   }
 
   @override
@@ -376,77 +391,92 @@ void main() {
     );
 
     await container.read(branchControllerProvider.notifier).loadInitial();
-    await container.read(branchControllerProvider.notifier).updateCurrentBranchKhqrReceiver(
-      khqrReceiverAccountId: 'bakong-001',
-      khqrReceiverName: 'Main Branch Receiver',
-    );
+    await container
+        .read(branchControllerProvider.notifier)
+        .updateCurrentBranchKhqrReceiver(
+          khqrReceiverAccountId: 'bakong-001',
+          khqrReceiverName: 'Main Branch Receiver',
+        );
 
     final state = container.read(branchControllerProvider);
     expect(state.currentBranchProfile, isNotNull);
     expect(state.currentBranchProfile!.khqrReceiverAccountId, 'bakong-001');
-    expect(state.currentBranchProfile!.khqrReceiverName, 'Main Branch Receiver');
     expect(
-      state.branches.firstWhere((item) => item.branchId == 'branch-a').khqrReceiverAccountId,
+      state.currentBranchProfile!.khqrReceiverName,
+      'Main Branch Receiver',
+    );
+    expect(
+      state.branches
+          .firstWhere((item) => item.branchId == 'branch-a')
+          .khqrReceiverAccountId,
       'bakong-001',
     );
   });
 
-  test('loadCurrentBranchProfile normalizes branch access error code', () async {
-    final container = createTestContainer(
-      overrides: [
-        loginControllerProvider.overrideWith(
-          () => _TestLoginController(
-            _session(role: 'admin', membershipRole: 'ADMIN'),
-          ),
-        ),
-        branchRepositoryProvider.overrideWithValue(
-          _StubBranchRepository(
-            currentBranchError: const ApiClientException(
-              message: 'No branch access.',
-              code: 'no-branch-access',
-              statusCode: 403,
+  test(
+    'loadCurrentBranchProfile normalizes branch access error code',
+    () async {
+      final container = createTestContainer(
+        overrides: [
+          loginControllerProvider.overrideWith(
+            () => _TestLoginController(
+              _session(role: 'admin', membershipRole: 'ADMIN'),
             ),
           ),
-        ),
-      ],
-    );
-
-    await container
-        .read(branchControllerProvider.notifier)
-        .loadCurrentBranchProfile();
-
-    final state = container.read(branchControllerProvider);
-    expect(state.errorCode, 'NO_BRANCH_ACCESS');
-    expect(state.errorStatusCode, 403);
-  });
-
-  test('updateCurrentBranchKhqrReceiver normalizes KHQR receiver error code', () async {
-    final container = createTestContainer(
-      overrides: [
-        loginControllerProvider.overrideWith(
-          () => _TestLoginController(
-            _session(role: 'admin', membershipRole: 'ADMIN'),
-          ),
-        ),
-        branchRepositoryProvider.overrideWithValue(
-          _StubBranchRepository(
-            updateKhqrError: const ApiClientException(
-              message: 'Invalid KHQR receiver.',
-              code: 'org-branch-khqr-receiver-invalid',
-              statusCode: 422,
+          branchRepositoryProvider.overrideWithValue(
+            _StubBranchRepository(
+              currentBranchError: const ApiClientException(
+                message: 'No branch access.',
+                code: 'no-branch-access',
+                statusCode: 403,
+              ),
             ),
           ),
-        ),
-      ],
-    );
+        ],
+      );
 
-    await container.read(branchControllerProvider.notifier).updateCurrentBranchKhqrReceiver(
-      khqrReceiverAccountId: 'bad',
-      khqrReceiverName: 'Receiver',
-    );
+      await container
+          .read(branchControllerProvider.notifier)
+          .loadCurrentBranchProfile();
 
-    final state = container.read(branchControllerProvider);
-    expect(state.errorCode, 'ORG_BRANCH_KHQR_RECEIVER_INVALID');
-    expect(state.errorStatusCode, 422);
-  });
+      final state = container.read(branchControllerProvider);
+      expect(state.errorCode, 'NO_BRANCH_ACCESS');
+      expect(state.errorStatusCode, 403);
+    },
+  );
+
+  test(
+    'updateCurrentBranchKhqrReceiver normalizes KHQR receiver error code',
+    () async {
+      final container = createTestContainer(
+        overrides: [
+          loginControllerProvider.overrideWith(
+            () => _TestLoginController(
+              _session(role: 'admin', membershipRole: 'ADMIN'),
+            ),
+          ),
+          branchRepositoryProvider.overrideWithValue(
+            _StubBranchRepository(
+              updateKhqrError: const ApiClientException(
+                message: 'Invalid KHQR receiver.',
+                code: 'org-branch-khqr-receiver-invalid',
+                statusCode: 422,
+              ),
+            ),
+          ),
+        ],
+      );
+
+      await container
+          .read(branchControllerProvider.notifier)
+          .updateCurrentBranchKhqrReceiver(
+            khqrReceiverAccountId: 'bad',
+            khqrReceiverName: 'Receiver',
+          );
+
+      final state = container.read(branchControllerProvider);
+      expect(state.errorCode, 'ORG_BRANCH_KHQR_RECEIVER_INVALID');
+      expect(state.errorStatusCode, 422);
+    },
+  );
 }
