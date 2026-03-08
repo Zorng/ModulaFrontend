@@ -25,10 +25,13 @@ class BranchState {
 
   const BranchState({
     this.isLoading = false,
+    this.isCurrentBranchLoading = false,
+    this.isKhqrReceiverUpdating = false,
     this.error,
     this.errorCode,
     this.errorStatusCode,
     this.branches = const <BranchListItem>[],
+    this.currentBranchProfile,
     this.activeTenantId,
     this.tenantName = '',
     this.roleKey = '',
@@ -44,11 +47,14 @@ class BranchState {
   });
 
   final bool isLoading;
+  final bool isCurrentBranchLoading;
+  final bool isKhqrReceiverUpdating;
   final String? error;
   final String? errorCode;
   final int? errorStatusCode;
 
   final List<BranchListItem> branches;
+  final BranchListItem? currentBranchProfile;
   final String? activeTenantId;
   final String tenantName;
   final String roleKey;
@@ -83,10 +89,13 @@ class BranchState {
 
   BranchState copyWith({
     bool? isLoading,
+    bool? isCurrentBranchLoading,
+    bool? isKhqrReceiverUpdating,
     Object? error = _unset,
     Object? errorCode = _unset,
     Object? errorStatusCode = _unset,
     List<BranchListItem>? branches,
+    Object? currentBranchProfile = _unset,
     Object? activeTenantId = _unset,
     String? tenantName,
     String? roleKey,
@@ -102,6 +111,10 @@ class BranchState {
   }) {
     return BranchState(
       isLoading: isLoading ?? this.isLoading,
+      isCurrentBranchLoading:
+          isCurrentBranchLoading ?? this.isCurrentBranchLoading,
+      isKhqrReceiverUpdating:
+          isKhqrReceiverUpdating ?? this.isKhqrReceiverUpdating,
       error: identical(error, _unset) ? this.error : error as String?,
       errorCode: identical(errorCode, _unset)
           ? this.errorCode
@@ -110,6 +123,9 @@ class BranchState {
           ? this.errorStatusCode
           : errorStatusCode as int?,
       branches: branches ?? this.branches,
+      currentBranchProfile: identical(currentBranchProfile, _unset)
+          ? this.currentBranchProfile
+          : currentBranchProfile as BranchListItem?,
       activeTenantId: identical(activeTenantId, _unset)
           ? this.activeTenantId
           : activeTenantId as String?,

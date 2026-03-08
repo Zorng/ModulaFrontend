@@ -79,6 +79,11 @@ class SaleCartState {
     this.khqrAttemptId,
     this.khqrMd5,
     this.khqrQrPayload,
+    this.khqrPayloadType,
+    this.khqrDeepLinkUrl,
+    this.khqrToAccountId,
+    this.khqrAmount,
+    this.khqrCurrency,
     this.khqrExpiresAt,
     this.khqrConfirmedAt,
     this.khqrErrorMessage,
@@ -105,6 +110,11 @@ class SaleCartState {
   final String? khqrAttemptId;
   final String? khqrMd5;
   final String? khqrQrPayload;
+  final String? khqrPayloadType;
+  final String? khqrDeepLinkUrl;
+  final String? khqrToAccountId;
+  final double? khqrAmount;
+  final String? khqrCurrency;
   final DateTime? khqrExpiresAt;
   final DateTime? khqrConfirmedAt;
   final String? khqrErrorMessage;
@@ -165,6 +175,11 @@ class SaleCartState {
     Object? khqrAttemptId = _unset,
     Object? khqrMd5 = _unset,
     Object? khqrQrPayload = _unset,
+    Object? khqrPayloadType = _unset,
+    Object? khqrDeepLinkUrl = _unset,
+    Object? khqrToAccountId = _unset,
+    Object? khqrAmount = _unset,
+    Object? khqrCurrency = _unset,
     Object? khqrExpiresAt = _unset,
     Object? khqrConfirmedAt = _unset,
     Object? khqrErrorMessage = _unset,
@@ -209,6 +224,19 @@ class SaleCartState {
       khqrQrPayload: khqrQrPayload == _unset
           ? this.khqrQrPayload
           : khqrQrPayload as String?,
+      khqrPayloadType: khqrPayloadType == _unset
+          ? this.khqrPayloadType
+          : khqrPayloadType as String?,
+      khqrDeepLinkUrl: khqrDeepLinkUrl == _unset
+          ? this.khqrDeepLinkUrl
+          : khqrDeepLinkUrl as String?,
+      khqrToAccountId: khqrToAccountId == _unset
+          ? this.khqrToAccountId
+          : khqrToAccountId as String?,
+      khqrAmount: khqrAmount == _unset ? this.khqrAmount : khqrAmount as double?,
+      khqrCurrency: khqrCurrency == _unset
+          ? this.khqrCurrency
+          : khqrCurrency as String?,
       khqrExpiresAt: khqrExpiresAt == _unset
           ? this.khqrExpiresAt
           : khqrExpiresAt as DateTime?,
@@ -238,6 +266,11 @@ class SaleCartState {
       'khqrAttemptId': khqrAttemptId,
       'khqrMd5': khqrMd5,
       'khqrQrPayload': khqrQrPayload,
+      'khqrPayloadType': khqrPayloadType,
+      'khqrDeepLinkUrl': khqrDeepLinkUrl,
+      'khqrToAccountId': khqrToAccountId,
+      'khqrAmount': khqrAmount,
+      'khqrCurrency': khqrCurrency,
       'khqrExpiresAt': khqrExpiresAt?.toIso8601String(),
       'khqrConfirmedAt': khqrConfirmedAt?.toIso8601String(),
     };
@@ -270,6 +303,11 @@ class SaleCartState {
       khqrAttemptId: json['khqrAttemptId'] as String?,
       khqrMd5: json['khqrMd5'] as String?,
       khqrQrPayload: json['khqrQrPayload'] as String?,
+      khqrPayloadType: json['khqrPayloadType'] as String?,
+      khqrDeepLinkUrl: json['khqrDeepLinkUrl'] as String?,
+      khqrToAccountId: json['khqrToAccountId'] as String?,
+      khqrAmount: (json['khqrAmount'] as num?)?.toDouble(),
+      khqrCurrency: json['khqrCurrency'] as String?,
       khqrExpiresAt: json['khqrExpiresAt'] == null
           ? null
           : DateTime.tryParse(json['khqrExpiresAt'] as String),

@@ -334,12 +334,6 @@ class SaleCartContent extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 6),
-          Text(
-            'Final change is confirmed by backend checkout.',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          ),
         ],
         if (paymentMethod == 'qr') ...[
           const SizedBox(height: 12),

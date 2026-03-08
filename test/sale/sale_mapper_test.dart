@@ -59,6 +59,11 @@ void main() {
           'md5': 'md5-1',
           'payload': 'KHQR:payload',
           'payloadType': 'RAW',
+          'deepLinkUrl': 'khqr://launch',
+          'amount': 18.45,
+          'currency': 'KHR',
+          'toAccountId': 'bakong-001',
+          'expiresAt': '2026-03-07T10:03:00.000Z',
         },
         'preview': {
           'itemCount': 1,
@@ -70,9 +75,14 @@ void main() {
     );
 
     expect(attempt.attemptId, 'intent-root-1');
-    expect(attempt.amount, 18450);
+    expect(attempt.amount, 18.45);
     expect(attempt.currency, 'KHR');
     expect(attempt.status, 'WAITING_FOR_PAYMENT');
+    expect(attempt.qrPayload, 'KHQR:payload');
+    expect(attempt.payloadType, 'RAW');
+    expect(attempt.deepLinkUrl, 'khqr://launch');
+    expect(attempt.toAccountId, 'bakong-001');
+    expect(attempt.expiresAt, DateTime.parse('2026-03-07T10:03:00.000Z'));
     expect(attempt.reasonCode, SaleCheckoutReasonCodes.khqrNotConfirmed);
   });
 

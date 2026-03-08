@@ -373,17 +373,32 @@ class SaleKhqrPaymentRequestDto {
     required this.md5,
     required this.payload,
     required this.payloadType,
+    this.deepLinkUrl,
+    this.amount,
+    this.currency,
+    this.toAccountId,
+    this.expiresAt,
   });
 
   final String md5;
   final String payload;
   final String payloadType;
+  final String? deepLinkUrl;
+  final double? amount;
+  final String? currency;
+  final String? toAccountId;
+  final DateTime? expiresAt;
 
   factory SaleKhqrPaymentRequestDto.fromJson(Map<String, dynamic> json) {
     return SaleKhqrPaymentRequestDto(
       md5: _readString(json['md5']),
       payload: _readString(json['payload']),
       payloadType: _readString(json['payloadType']),
+      deepLinkUrl: _readNullableString(json['deepLinkUrl']),
+      amount: _readNullableDouble(json['amount']),
+      currency: _readNullableString(json['currency']),
+      toAccountId: _readNullableString(json['toAccountId']),
+      expiresAt: _readNullableDateTime(json['expiresAt']),
     );
   }
 }

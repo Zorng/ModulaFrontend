@@ -83,6 +83,11 @@ void main() {
         'md5': 'khqr-md5',
         'payload': 'payload',
         'payloadType': 'EMV_KHQR_STRING',
+        'deepLinkUrl': 'khqr://launch',
+        'amount': 3.5,
+        'currency': 'USD',
+        'toAccountId': 'bakong-001',
+        'expiresAt': '2026-02-21T10:30:00.000Z',
       },
       'preview': {'itemCount': 1, 'grandTotalUsd': 3.5, 'grandTotalKhr': 14350},
     });
@@ -90,6 +95,11 @@ void main() {
     expect(dto.id, 'intent-root');
     expect(dto.intent.paymentIntentId, 'intent-1');
     expect(dto.attempt.md5, 'khqr-md5');
+    expect(dto.paymentRequest.payloadType, 'EMV_KHQR_STRING');
+    expect(dto.paymentRequest.deepLinkUrl, 'khqr://launch');
+    expect(dto.paymentRequest.amount, 3.5);
+    expect(dto.paymentRequest.currency, 'USD');
+    expect(dto.paymentRequest.toAccountId, 'bakong-001');
     expect(dto.preview.grandTotalUsd, 3.5);
   });
 

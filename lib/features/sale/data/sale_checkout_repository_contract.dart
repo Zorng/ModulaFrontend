@@ -7,6 +7,8 @@ class SaleCheckoutReasonCodes {
   static const cashSessionRequired = 'CASH_SESSION_REQUIRED';
   static const payLaterDisabled = 'PAY_LATER_DISABLED';
   static const khqrNotConfirmed = 'KHQR_NOT_CONFIRMED';
+  static const khqrBranchReceiverNotConfigured =
+      'KHQR_BRANCH_RECEIVER_NOT_CONFIGURED';
   static const duplicateOperation = 'DUPLICATE_OPERATION';
   static const idempotencyConflict = 'IDEMPOTENCY_CONFLICT';
   static const invalidRequest = 'INVALID_REQUEST';
@@ -25,6 +27,7 @@ class SaleCheckoutReasonCodes {
       case cashSessionRequired:
       case payLaterDisabled:
       case khqrNotConfirmed:
+      case khqrBranchReceiverNotConfigured:
       case duplicateOperation:
       case idempotencyConflict:
       case invalidRequest:
@@ -44,6 +47,7 @@ class SaleCheckoutReasonCodes {
         return branchFrozen;
       case 'ORDER_REQUIRES_OPEN_CASH_SESSION':
       case 'SALE_FINALIZE_REQUIRES_OPEN_CASH_SESSION':
+      case 'KHQR_GENERATE_REQUIRES_OPEN_CASH_SESSION':
         return cashSessionRequired;
       case 'ORDER_PAY_LATER_DISABLED':
         return payLaterDisabled;
@@ -423,6 +427,9 @@ class SaleKhqrAttemptDto {
     required this.currency,
     required this.expiresAt,
     this.qrPayload,
+    this.payloadType,
+    this.deepLinkUrl,
+    this.toAccountId,
     this.reasonCode,
     this.reasonMessage,
   });
@@ -435,6 +442,9 @@ class SaleKhqrAttemptDto {
   final String currency;
   final DateTime expiresAt;
   final String? qrPayload;
+  final String? payloadType;
+  final String? deepLinkUrl;
+  final String? toAccountId;
   final String? reasonCode;
   final String? reasonMessage;
 }

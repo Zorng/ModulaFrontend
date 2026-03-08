@@ -53,6 +53,62 @@ class BranchController extends Notifier<BranchState> {
     await _loadBranches(showLoading: false);
   }
 
+  Future<void> loadCurrentBranchProfile() async {
+    state = state.copyWith(
+      isCurrentBranchLoading: true,
+      error: null,
+      errorCode: null,
+      errorStatusCode: null,
+    );
+
+    try {
+      final profile = await _repository.getCurrentBranchProfile();
+      await _applyCurrentBranchProfile(profile, isCurrentBranchLoading: false);
+    } catch (error) {
+      _setCurrentBranchError(
+        error,
+        fallbackMessage: 'Failed to load current branch profile.',
+      );
+    }
+  }
+
+  Future<void> updateCurrentBranchKhqrReceiver({
+    required String khqrReceiverAccountId,
+    required String khqrReceiverName,
+  }) async {
+    final normalizedAccountId = khqrReceiverAccountId.trim();
+    final normalizedReceiverName = khqrReceiverName.trim();
+    if (normalizedAccountId.isEmpty || normalizedReceiverName.isEmpty) {
+      state = state.copyWith(
+        isKhqrReceiverUpdating: false,
+        error: 'KHQR receiver account and name are required.',
+        errorCode: BranchErrorCodes.orgBranchKhqrReceiverInvalid,
+        errorStatusCode: 422,
+      );
+      return;
+    }
+
+    state = state.copyWith(
+      isKhqrReceiverUpdating: true,
+      error: null,
+      errorCode: null,
+      errorStatusCode: null,
+    );
+
+    try {
+      final profile = await _repository.updateCurrentBranchKhqrReceiver(
+        khqrReceiverAccountId: normalizedAccountId,
+        khqrReceiverName: normalizedReceiverName,
+      );
+      await _applyCurrentBranchProfile(profile, isKhqrReceiverUpdating: false);
+    } catch (error) {
+      _setKhqrReceiverError(
+        error,
+        fallbackMessage: 'Failed to update KHQR receiver account.',
+      );
+    }
+  }
+
   void setSearchQuery(String value) {
     state = state.copyWith(searchQuery: value);
   }
@@ -129,13 +185,13 @@ class BranchController extends Notifier<BranchState> {
       }
 
       if (loginState.requiresBranchSelection) {
-        state = state.copyWith(
-          isLoading: false,
-          error: 'Branch context is still required.',
-          errorCode: 'BRANCH_CONTEXT_REQUIRED',
-          errorStatusCode: 409,
-        );
-        return BranchSelectionResult.failed;
+      state = state.copyWith(
+        isLoading: false,
+        error: 'Branch context is still required.',
+        errorCode: BranchErrorCodes.branchContextRequired,
+        errorStatusCode: 409,
+      );
+      return BranchSelectionResult.failed;
       }
 
       final updatedSession = loginState.session;
@@ -284,6 +340,76 @@ class BranchController extends Notifier<BranchState> {
     state = state.copyWith(navigationIntent: BranchNavigationIntent.none);
   }
 
+  List<BranchListItem> _mergeBranchProfileIntoList(BranchListItem profile) {
+    final index = state.branches.indexWhere(
+      (item) => item.branchId == profile.branchId,
+    );
+    if (index < 0) return state.branches;
+
+    final updated = List<BranchListItem>.from(state.branches);
+    updated[index] = updated[index].copyWith(
+      tenantId: profile.tenantId,
+      branchName: profile.branchName,
+      status: profile.status,
+      branchAddress: profile.branchAddress,
+      contactNumber: profile.contactNumber,
+      khqrReceiverAccountId: profile.khqrReceiverAccountId,
+      khqrReceiverName: profile.khqrReceiverName,
+      attendanceLocationVerificationMode:
+          profile.attendanceLocationVerificationMode,
+      workplaceLocation: profile.workplaceLocation,
+    );
+    return updated;
+  }
+
+  Future<void> _applyCurrentBranchProfile(
+    BranchListItem profile, {
+    bool? isCurrentBranchLoading,
+    bool? isKhqrReceiverUpdating,
+  }) async {
+    final mergedBranches = _mergeBranchProfileIntoList(profile);
+    state = state.copyWith(
+      isCurrentBranchLoading:
+          isCurrentBranchLoading ?? state.isCurrentBranchLoading,
+      isKhqrReceiverUpdating:
+          isKhqrReceiverUpdating ?? state.isKhqrReceiverUpdating,
+      currentBranchProfile: profile,
+      branches: mergedBranches,
+    );
+
+    try {
+      final items = await _repository.loadAccessibleBranches();
+      final refreshedBranches = items
+          .map((item) {
+            if (item.branchId != profile.branchId) return item;
+            return item.copyWith(
+              khqrReceiverAccountId: profile.khqrReceiverAccountId,
+              khqrReceiverName: profile.khqrReceiverName,
+              attendanceLocationVerificationMode:
+                  profile.attendanceLocationVerificationMode,
+              workplaceLocation: profile.workplaceLocation,
+              branchAddress: profile.branchAddress,
+              contactNumber: profile.contactNumber,
+              status: profile.status,
+              branchName: profile.branchName,
+              tenantId: profile.tenantId,
+            );
+          })
+          .toList(growable: false);
+      state = state.copyWith(
+        isCurrentBranchLoading:
+            isCurrentBranchLoading ?? state.isCurrentBranchLoading,
+        isKhqrReceiverUpdating:
+            isKhqrReceiverUpdating ?? state.isKhqrReceiverUpdating,
+        currentBranchProfile: profile,
+        branches: refreshedBranches,
+      );
+    } catch (_) {
+      // Keep the successfully updated current branch profile and merged list even
+      // if the non-critical branch-list refresh fails.
+    }
+  }
+
   Future<void> _loadBranches({
     required bool showLoading,
     String? highlightBranchId,
@@ -363,6 +489,50 @@ class BranchController extends Notifier<BranchState> {
     );
   }
 
+  void _setCurrentBranchError(Object error, {required String fallbackMessage}) {
+    if (error is ApiClientException) {
+      final normalizedCode = BranchErrorCodes.normalize(error.code);
+      state = state.copyWith(
+        isCurrentBranchLoading: false,
+        error: error.message,
+        errorCode: BranchErrorCodes.isCurrentBranchCode(normalizedCode)
+            ? normalizedCode
+            : _normalizeErrorCode(error.code),
+        errorStatusCode: error.statusCode,
+      );
+      return;
+    }
+
+    state = state.copyWith(
+      isCurrentBranchLoading: false,
+      error: fallbackMessage,
+      errorCode: _formatExceptionCode(error),
+      errorStatusCode: null,
+    );
+  }
+
+  void _setKhqrReceiverError(Object error, {required String fallbackMessage}) {
+    if (error is ApiClientException) {
+      final normalizedCode = BranchErrorCodes.normalize(error.code);
+      state = state.copyWith(
+        isKhqrReceiverUpdating: false,
+        error: error.message,
+        errorCode: BranchErrorCodes.isKhqrReceiverCode(normalizedCode)
+            ? normalizedCode
+            : _normalizeErrorCode(error.code),
+        errorStatusCode: error.statusCode,
+      );
+      return;
+    }
+
+    state = state.copyWith(
+      isKhqrReceiverUpdating: false,
+      error: fallbackMessage,
+      errorCode: _formatExceptionCode(error),
+      errorStatusCode: null,
+    );
+  }
+
   void _setCreateFlowError(Object error, {required String fallbackMessage}) {
     if (error is ApiClientException) {
       final normalizedCode = (error.code ?? '').trim().toUpperCase();
@@ -398,6 +568,10 @@ class BranchController extends Notifier<BranchState> {
       if (code.isNotEmpty) return code;
     }
     return null;
+  }
+
+  String? _normalizeErrorCode(String? code) {
+    return BranchErrorCodes.normalize(code);
   }
 
   String _tenantNameFor({

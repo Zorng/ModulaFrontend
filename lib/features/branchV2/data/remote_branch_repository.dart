@@ -15,6 +15,24 @@ class RemoteBranchRepository implements BranchRepository {
   }
 
   @override
+  Future<BranchListItem> getCurrentBranchProfile() async {
+    final dto = await _api.getCurrentBranchProfile();
+    return BranchMapper.toCurrentBranchProfile(dto);
+  }
+
+  @override
+  Future<BranchListItem> updateCurrentBranchKhqrReceiver({
+    required String khqrReceiverAccountId,
+    required String khqrReceiverName,
+  }) async {
+    final dto = await _api.updateCurrentBranchKhqrReceiver(
+      khqrReceiverAccountId: khqrReceiverAccountId,
+      khqrReceiverName: khqrReceiverName,
+    );
+    return BranchMapper.toCurrentBranchProfile(dto);
+  }
+
+  @override
   Future<BranchActivationDraft> initiateBranchActivation({
     required String branchName,
     String? intentId,

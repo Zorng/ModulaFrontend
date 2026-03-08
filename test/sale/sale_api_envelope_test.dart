@@ -52,6 +52,14 @@ void main() {
       SaleCheckoutReasonCodes.branchRequired,
     );
     expect(
+      SaleCheckoutReasonCodes.normalize('khqr-generate-requires-open-cash-session'),
+      SaleCheckoutReasonCodes.cashSessionRequired,
+    );
+    expect(
+      SaleCheckoutReasonCodes.normalize('khqr_branch_receiver_not_configured'),
+      SaleCheckoutReasonCodes.khqrBranchReceiverNotConfigured,
+    );
+    expect(
       SaleCheckoutReasonCodes.normalize('payment-intent-not-found'),
       SaleCheckoutReasonCodes.khqrNotConfirmed,
     );

@@ -45,6 +45,7 @@ class MockSaleRepository implements SaleCheckoutRepository {
   bool _branchFrozen = false;
   bool _cashSessionOpen = true;
   bool _payLaterEnabled = true;
+  bool _khqrReceiverConfigured = true;
   bool _online = true;
   bool _authorized = true;
 
@@ -58,6 +59,7 @@ class MockSaleRepository implements SaleCheckoutRepository {
     bool? branchFrozen,
     bool? cashSessionOpen,
     bool? payLaterEnabled,
+    bool? khqrReceiverConfigured,
     bool? online,
     bool? authorized,
   }) {
@@ -68,6 +70,9 @@ class MockSaleRepository implements SaleCheckoutRepository {
     if (branchFrozen != null) _branchFrozen = branchFrozen;
     if (cashSessionOpen != null) _cashSessionOpen = cashSessionOpen;
     if (payLaterEnabled != null) _payLaterEnabled = payLaterEnabled;
+    if (khqrReceiverConfigured != null) {
+      _khqrReceiverConfigured = khqrReceiverConfigured;
+    }
     if (online != null) _online = online;
     if (authorized != null) _authorized = authorized;
   }
@@ -442,6 +447,14 @@ class MockSaleRepository implements SaleCheckoutRepository {
           saleType: command.saleType ?? 'take_away',
           cartLines: command.cartLines,
         );
+        if (!_khqrReceiverConfigured) {
+          throw const SaleCheckoutRepositoryException(
+            reasonCode:
+                SaleCheckoutReasonCodes.khqrBranchReceiverNotConfigured,
+            message:
+                'Configure a Bakong receiver account for this branch before generating KHQR.',
+          );
+        }
         _supersedeKhqrAttemptForSale(
           saleId: saleId,
           reason: 'new_attempt_generated',
@@ -479,6 +492,9 @@ class MockSaleRepository implements SaleCheckoutRepository {
           currency: attempt.currency,
           expiresAt: attempt.expiresAt,
           qrPayload: 'KHQR:${attempt.md5}',
+          payloadType: 'EMV_KHQR_STRING',
+          deepLinkUrl: null,
+          toAccountId: 'mock-bakong-account',
           reasonCode: attempt.reasonCode,
           reasonMessage: attempt.reasonMessage,
         );

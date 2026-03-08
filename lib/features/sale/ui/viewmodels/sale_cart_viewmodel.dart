@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/core/logging/app_log.dart';
@@ -143,6 +144,8 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
         return 'Open cash session is required before this action.';
       case SaleCheckoutReasonCodes.payLaterDisabled:
         return 'Pay-later is currently disabled for this branch.';
+      case SaleCheckoutReasonCodes.khqrBranchReceiverNotConfigured:
+        return 'Configure a Bakong receiver account for this branch before generating KHQR.';
       case SaleCheckoutReasonCodes.khqrNotConfirmed:
         return 'KHQR payment is not confirmed yet.';
       case SaleCheckoutReasonCodes.idempotencyConflict:
@@ -196,6 +199,11 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
       khqrAttemptId: null,
       khqrMd5: null,
       khqrQrPayload: null,
+      khqrPayloadType: null,
+      khqrDeepLinkUrl: null,
+      khqrToAccountId: null,
+      khqrAmount: null,
+      khqrCurrency: null,
       khqrExpiresAt: null,
       khqrConfirmedAt: null,
       khqrErrorMessage: reason,
@@ -210,6 +218,11 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
       khqrAttemptId: null,
       khqrMd5: null,
       khqrQrPayload: null,
+      khqrPayloadType: null,
+      khqrDeepLinkUrl: null,
+      khqrToAccountId: null,
+      khqrAmount: null,
+      khqrCurrency: null,
       khqrExpiresAt: null,
       khqrConfirmedAt: null,
       khqrErrorMessage: reason,
@@ -237,12 +250,37 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
     );
   }
 
+  bool _shouldAutoGenerateKhqr(SaleCartState source) {
+    if (source.lines.isEmpty) return false;
+    if (source.paymentMethod.toLowerCase() != 'qr') return false;
+    if (source.isKhqrLoading) return false;
+    final normalizedStatus = SaleKhqrUiStates.normalize(source.khqrStatus);
+    return normalizedStatus == SaleKhqrUiStates.readyToGenerate ||
+        normalizedStatus == SaleKhqrUiStates.superseded ||
+        (source.khqrMd5 == null || source.khqrMd5!.trim().isEmpty);
+  }
+
+  Future<void> _maybeAutoGenerateKhqr({SaleCartState? snapshot}) async {
+    final currentState = snapshot ?? state;
+    if (!_shouldAutoGenerateKhqr(currentState)) return;
+    try {
+      await generateKhqrAttempt();
+    } catch (error, stackTrace) {
+      _logIgnoredError('_maybeAutoGenerateKhqr', error, stackTrace);
+    }
+  }
+
   SaleCartState _applyKhqrStatusResult(
     SaleCartState source, {
     String? saleId,
     String? attemptId,
     String? md5,
     String? qrPayload,
+    String? payloadType,
+    String? deepLinkUrl,
+    String? toAccountId,
+    double? amount,
+    String? currency,
     DateTime? expiresAt,
     DateTime? confirmedAt,
     required String status,
@@ -263,6 +301,11 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
           khqrAttemptId: attemptId ?? source.khqrAttemptId,
           khqrMd5: md5 ?? source.khqrMd5,
           khqrQrPayload: qrPayload ?? source.khqrQrPayload,
+          khqrPayloadType: payloadType ?? source.khqrPayloadType,
+          khqrDeepLinkUrl: deepLinkUrl ?? source.khqrDeepLinkUrl,
+          khqrToAccountId: toAccountId ?? source.khqrToAccountId,
+          khqrAmount: amount ?? source.khqrAmount,
+          khqrCurrency: currency ?? source.khqrCurrency,
           khqrExpiresAt: expiresAt ?? source.khqrExpiresAt,
           khqrConfirmedAt: null,
           khqrErrorMessage: reasonMessage,
@@ -276,6 +319,11 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
           khqrAttemptId: attemptId ?? source.khqrAttemptId,
           khqrMd5: md5 ?? source.khqrMd5,
           khqrQrPayload: qrPayload ?? source.khqrQrPayload,
+          khqrPayloadType: payloadType ?? source.khqrPayloadType,
+          khqrDeepLinkUrl: deepLinkUrl ?? source.khqrDeepLinkUrl,
+          khqrToAccountId: toAccountId ?? source.khqrToAccountId,
+          khqrAmount: amount ?? source.khqrAmount,
+          khqrCurrency: currency ?? source.khqrCurrency,
           khqrExpiresAt: expiresAt ?? source.khqrExpiresAt,
           khqrConfirmedAt: confirmedAt ?? source.khqrConfirmedAt,
           khqrErrorMessage: reasonMessage,
@@ -290,6 +338,11 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
           khqrAttemptId: null,
           khqrMd5: null,
           khqrQrPayload: null,
+          khqrPayloadType: null,
+          khqrDeepLinkUrl: null,
+          khqrToAccountId: null,
+          khqrAmount: null,
+          khqrCurrency: null,
           khqrExpiresAt: null,
           khqrConfirmedAt: null,
           khqrErrorMessage: reasonMessage,
@@ -303,6 +356,11 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
           khqrAttemptId: null,
           khqrMd5: null,
           khqrQrPayload: null,
+          khqrPayloadType: null,
+          khqrDeepLinkUrl: null,
+          khqrToAccountId: null,
+          khqrAmount: null,
+          khqrCurrency: null,
           khqrExpiresAt: expiresAt ?? source.khqrExpiresAt,
           khqrConfirmedAt: null,
           khqrErrorMessage: reasonMessage,
@@ -355,6 +413,7 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
         );
         state = newState;
         await _persistCart(newState);
+        await _maybeAutoGenerateKhqr(snapshot: newState);
         return;
       }
     }
@@ -374,9 +433,10 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
     );
     state = newState;
     await _persistCart(newState);
+    await _maybeAutoGenerateKhqr(snapshot: newState);
   }
 
-  void setTenderCurrency(String currency) {
+  Future<void> setTenderCurrency(String currency) async {
     if (state.tenderCurrency.toLowerCase() == currency.toLowerCase()) return;
     var newState = state.copyWith(tenderCurrency: currency);
     if (state.paymentMethod.toLowerCase() == 'qr' && state.khqrMd5 != null) {
@@ -386,10 +446,11 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
       );
     }
     state = newState;
-    _persistCart(newState);
+    await _persistCart(newState);
+    await _maybeAutoGenerateKhqr(snapshot: newState);
   }
 
-  void setPaymentMethod(String method) {
+  Future<void> setPaymentMethod(String method) async {
     if (state.paymentMethod.toLowerCase() == method.toLowerCase()) return;
     var newState = state.copyWith(
       paymentMethod: method,
@@ -404,7 +465,8 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
       );
     }
     state = newState;
-    _persistCart(newState);
+    await _persistCart(newState);
+    await _maybeAutoGenerateKhqr(snapshot: newState);
   }
 
   void setLines(List<CartLine> lines) {
@@ -413,6 +475,7 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
     );
     state = newState;
     _persistCart(newState);
+    unawaited(_maybeAutoGenerateKhqr(snapshot: newState));
   }
 
   Future<void> setSaleType(String saleType) async {
@@ -423,6 +486,7 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
       );
       state = newState;
       await _persistCart(newState);
+      await _maybeAutoGenerateKhqr(snapshot: newState);
       return;
     }
 
@@ -450,6 +514,7 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
     );
     state = newState;
     await _persistCart(newState);
+    await _maybeAutoGenerateKhqr(snapshot: newState);
   }
 
   void setCashReceived({double? usd, double? khr}) {
@@ -473,6 +538,7 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
       );
       state = newState;
       await _persistCart(newState);
+      await _maybeAutoGenerateKhqr(snapshot: newState);
       await _removeRemote(target);
       return;
     }
@@ -482,6 +548,7 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
     );
     state = newState;
     await _persistCart(newState);
+    await _maybeAutoGenerateKhqr(snapshot: newState);
     await _updateRemoteQuantity(target, quantity);
   }
 
@@ -579,6 +646,11 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
         attemptId: attempt.attemptId,
         md5: attempt.md5,
         qrPayload: attempt.qrPayload,
+        payloadType: attempt.payloadType,
+        deepLinkUrl: attempt.deepLinkUrl,
+        toAccountId: attempt.toAccountId,
+        amount: attempt.amount,
+        currency: attempt.currency,
         expiresAt: attempt.expiresAt,
         status: attempt.status,
         reasonCode: attempt.reasonCode,
