@@ -1,0 +1,414 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:modular_pos/features/auth/domain/models/auth_session.dart';
+import 'package:modular_pos/features/auth/domain/models/tenant_membership.dart';
+import 'package:modular_pos/features/auth/domain/models/user.dart';
+import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
+import 'package:modular_pos/features/staff/data/repository/staff_shift_repository.dart';
+import 'package:modular_pos/features/staff/domain/models/staff_shift_models.dart';
+import 'package:modular_pos/features/staff_attendance/data/attendance_repository_contract.dart';
+import 'package:modular_pos/features/staff_attendance/data/staff_attendance_repository.dart';
+import 'package:modular_pos/features/staff_attendance/domain/models/attendance_record.dart';
+import 'package:modular_pos/features/staff_attendance/domain/models/attendance_shift_schedule.dart';
+import 'package:modular_pos/features/staff_attendance/ui/view/attendance_check/attendance_check_page.dart';
+import 'package:modular_pos/features/staff_attendance/ui/view/attendance_shared/attendance_utils.dart';
+import '../test_utils/pump_app.dart';
+
+void main() {
+  group('AttendanceCheckPage', () {
+    testWidgets('shows one-time shift instance from canonical shift schedule', (
+      tester,
+    ) async {
+      final today = DateTime.now();
+      final session = _session();
+
+      await pumpApp(
+        tester,
+        const AttendanceCheckPage(),
+        overrides: [
+          loginControllerProvider.overrideWith(
+            () => _StaticLoginController(session),
+          ),
+          staffAttendanceRepositoryProvider.overrideWithValue(
+            StaffAttendanceRepository(_FakeAttendanceRepository()),
+          ),
+          staffShiftRepositoryProvider.overrideWithValue(
+            _FakeStaffShiftRepository(
+              schedule: StaffShiftSchedule(
+                patterns: <StaffShiftPattern>[
+                  StaffShiftPattern(
+                    id: 'pattern-1',
+                    tenantId: 'tenant-1',
+                    membershipId: 'membership-1',
+                    branchId: 'branch-1',
+                    daysOfWeek: <int>[today.weekday % 7],
+                    plannedStartTime: '08:00',
+                    plannedEndTime: '17:00',
+                    status: StaffShiftPatternStatus.active,
+                    effectiveFrom: DateTime(
+                      today.year,
+                      today.month,
+                      today.day,
+                    ).subtract(const Duration(days: 1)),
+                    effectiveTo: DateTime(
+                      today.year,
+                      today.month,
+                      today.day,
+                    ).add(const Duration(days: 1)),
+                    note: null,
+                    createdAt: today,
+                    updatedAt: today,
+                  ),
+                ],
+                instances: <StaffShiftInstance>[
+                  StaffShiftInstance(
+                    id: 'instance-1',
+                    tenantId: 'tenant-1',
+                    membershipId: 'membership-1',
+                    branchId: 'branch-1',
+                    patternId: null,
+                    date: DateTime(today.year, today.month, today.day),
+                    plannedStartTime: '14:00',
+                    plannedEndTime: '22:00',
+                    status: StaffShiftInstanceStatus.planned,
+                    note: null,
+                    createdAt: today,
+                    updatedAt: today,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      );
+
+      await tester.pumpAndSettle();
+
+      expect(find.text('14:00 - 22:00'), findsOneWidget);
+      expect(find.text('One-time shift'), findsOneWidget);
+      expect(find.text('No Shift Today'), findsNothing);
+    });
+
+    testWidgets('shows the next upcoming one-time shift instance', (
+      tester,
+    ) async {
+      final today = DateTime.now();
+      final tomorrow = today.add(const Duration(days: 1));
+
+      await pumpApp(
+        tester,
+        const AttendanceCheckPage(),
+        overrides: [
+          loginControllerProvider.overrideWith(
+            () => _StaticLoginController(_session()),
+          ),
+          staffAttendanceRepositoryProvider.overrideWithValue(
+            StaffAttendanceRepository(_FakeAttendanceRepository()),
+          ),
+          staffShiftRepositoryProvider.overrideWithValue(
+            _FakeStaffShiftRepository(
+              schedule: StaffShiftSchedule(
+                patterns: <StaffShiftPattern>[
+                  StaffShiftPattern(
+                    id: 'pattern-1',
+                    tenantId: 'tenant-1',
+                    membershipId: 'membership-1',
+                    branchId: 'branch-1',
+                    daysOfWeek: <int>[today.weekday % 7],
+                    plannedStartTime: '08:00',
+                    plannedEndTime: '17:00',
+                    status: StaffShiftPatternStatus.active,
+                    effectiveFrom: DateTime(
+                      today.year,
+                      today.month,
+                      today.day,
+                    ).subtract(const Duration(days: 1)),
+                    effectiveTo: DateTime(
+                      today.year,
+                      today.month,
+                      today.day,
+                    ).add(const Duration(days: 7)),
+                    note: null,
+                    createdAt: today,
+                    updatedAt: today,
+                  ),
+                ],
+                instances: <StaffShiftInstance>[
+                  StaffShiftInstance(
+                    id: 'instance-future',
+                    tenantId: 'tenant-1',
+                    membershipId: 'membership-1',
+                    branchId: 'branch-1',
+                    patternId: null,
+                    date: DateTime(tomorrow.year, tomorrow.month, tomorrow.day),
+                    plannedStartTime: '12:00',
+                    plannedEndTime: '18:00',
+                    status: StaffShiftInstanceStatus.planned,
+                    note: null,
+                    createdAt: today,
+                    updatedAt: today,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      );
+
+      await tester.pumpAndSettle();
+
+      expect(find.text('Recurring shift'), findsOneWidget);
+      expect(find.text('Next one-time shift'), findsOneWidget);
+      expect(find.text(formatDatePretty(tomorrow.toLocal())), findsOneWidget);
+      expect(find.text('12:00 - 18:00'), findsOneWidget);
+    });
+
+    testWidgets('keeps check in enabled when no shift is assigned', (
+      tester,
+    ) async {
+      await pumpApp(
+        tester,
+        const AttendanceCheckPage(),
+        overrides: [
+          loginControllerProvider.overrideWith(
+            () => _StaticLoginController(_session()),
+          ),
+          staffAttendanceRepositoryProvider.overrideWithValue(
+            StaffAttendanceRepository(_FakeAttendanceRepository()),
+          ),
+          staffShiftRepositoryProvider.overrideWithValue(
+            _FakeStaffShiftRepository(
+              schedule: const StaffShiftSchedule(
+                patterns: <StaffShiftPattern>[],
+                instances: <StaffShiftInstance>[],
+              ),
+            ),
+          ),
+        ],
+      );
+
+      await tester.pumpAndSettle();
+
+      expect(find.text('No Shift Today'), findsOneWidget);
+      final button = tester.widget<FilledButton>(
+        find.widgetWithText(FilledButton, 'Check-in'),
+      );
+      expect(button.onPressed, isNotNull);
+    });
+  });
+}
+
+class _StaticLoginController extends LoginController {
+  _StaticLoginController(this._session);
+
+  final AuthSession _session;
+
+  @override
+  LoginState build() => LoginState(session: _session);
+}
+
+class _FakeAttendanceRepository implements AttendanceRepository {
+  @override
+  Future<AttendanceMutationResult> checkIn(
+    AttendanceCheckInPayload payload,
+  ) async {
+    return AttendanceMutationResult(
+      attendanceId: 'check-in-1',
+      status: 'CHECKED_IN',
+      locationResult: AttendanceLocationResult.unknown,
+      distanceM: null,
+      allowedRadiusM: null,
+      message: 'Attendance recorded.',
+      reasonCode: null,
+      record: AttendanceRecord(
+        id: 'check-in-1',
+        tenantId: 'tenant-1',
+        branchId: payload.branchId ?? 'branch-1',
+        employeeId: 'user-1',
+        type: 'CHECK_IN',
+        occurredAt: DateTime.now(),
+        createdAt: DateTime.now(),
+      ),
+    );
+  }
+
+  @override
+  Future<AttendanceMutationResult> checkOut(
+    AttendanceCheckOutPayload payload,
+  ) async {
+    return AttendanceMutationResult(
+      attendanceId: 'check-out-1',
+      status: 'CHECKED_OUT',
+      locationResult: AttendanceLocationResult.unknown,
+      distanceM: null,
+      allowedRadiusM: null,
+      message: 'Attendance recorded.',
+      reasonCode: null,
+      record: AttendanceRecord(
+        id: 'check-out-1',
+        tenantId: 'tenant-1',
+        branchId: payload.branchId ?? 'branch-1',
+        employeeId: 'user-1',
+        type: 'CHECK_OUT',
+        occurredAt: DateTime.now(),
+        createdAt: DateTime.now(),
+      ),
+    );
+  }
+
+  @override
+  Future<AttendanceContext> getAttendanceContext({
+    required String branchId,
+  }) async {
+    return const AttendanceContext.empty();
+  }
+
+  @override
+  Future<List<AttendanceRecord>> getAttendanceRecords(
+    AttendanceRecordsFilter filters,
+  ) async {
+    return const <AttendanceRecord>[];
+  }
+
+  @override
+  Future<List<AttendanceShiftScheduleEntry>> getMySchedule(
+    AttendanceScheduleRange range,
+  ) async {
+    return const <AttendanceShiftScheduleEntry>[];
+  }
+}
+
+class _FakeStaffShiftRepository implements StaffShiftRepository {
+  _FakeStaffShiftRepository({required this.schedule});
+
+  final StaffShiftSchedule schedule;
+
+  @override
+  Future<StaffShiftInstance> cancelInstance({
+    required String instanceId,
+    required String reason,
+    String? intentId,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<StaffShiftInstance> createInstance({
+    required String membershipId,
+    required String branchId,
+    required DateTime date,
+    required String plannedStartTime,
+    required String plannedEndTime,
+    String? note,
+    String? intentId,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<StaffShiftPattern> createPattern({
+    required String membershipId,
+    required String branchId,
+    required List<int> daysOfWeek,
+    required String plannedStartTime,
+    required String plannedEndTime,
+    DateTime? effectiveFrom,
+    DateTime? effectiveTo,
+    String? note,
+    String? intentId,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<StaffShiftPattern> deactivatePattern({
+    required String patternId,
+    required String reason,
+    String? intentId,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<StaffShiftSchedule> fetchSchedule({
+    required String branchId,
+    required String from,
+    required String to,
+    String? membershipId,
+  }) async {
+    return schedule;
+  }
+
+  @override
+  Future<StaffShiftSchedule> fetchMySchedule() async {
+    return schedule;
+  }
+
+  @override
+  Future<StaffShiftInstance> updateInstance({
+    required String instanceId,
+    DateTime? date,
+    String? plannedStartTime,
+    String? plannedEndTime,
+    String? note,
+    String? intentId,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<StaffShiftPattern> updatePattern({
+    required String patternId,
+    List<int>? daysOfWeek,
+    String? plannedStartTime,
+    String? plannedEndTime,
+    DateTime? effectiveTo,
+    String? note,
+    String? intentId,
+  }) {
+    throw UnimplementedError();
+  }
+}
+
+AuthSession _session() {
+  final now = DateTime.now().toUtc();
+  return AuthSession(
+    user: User(
+      id: 'user-1',
+      name: 'Cashier User',
+      role: 'cashier',
+      tenantId: 'tenant-1',
+      branches: const <UserBranch>[
+        UserBranch(
+          id: 'assignment-1',
+          branchId: 'branch-1',
+          name: 'Main Branch',
+          role: 'CASHIER',
+          active: true,
+        ),
+      ],
+    ),
+    memberships: const <TenantMembership>[
+      TenantMembership(
+        membershipId: 'membership-1',
+        tenantId: 'tenant-1',
+        tenantName: 'Tenant One',
+        role: 'CASHIER',
+        branches: <UserBranch>[
+          UserBranch(
+            id: 'assignment-1',
+            branchId: 'branch-1',
+            name: 'Main Branch',
+            role: 'CASHIER',
+            active: true,
+          ),
+        ],
+      ),
+    ],
+    activeTenantId: 'tenant-1',
+    accessToken: 'token',
+    refreshToken: 'refresh',
+    accessTokenExpiresAt: now.add(const Duration(hours: 1)),
+    refreshTokenExpiresAt: now.add(const Duration(days: 7)),
+  );
+}

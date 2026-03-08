@@ -1,9 +1,9 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:modular_pos/core/network/idempotency_key_store.dart';
 import 'package:modular_pos/features/staff_attendance/data/attendance_repository_contract.dart';
 import 'package:modular_pos/features/staff_attendance/data/dto/attendance_record_dto.dart';
 import 'package:modular_pos/features/staff_attendance/data/dto/attendance_shift_schedule_dto.dart';
-import 'package:modular_pos/features/staff_attendance/data/dto/check_in_result_dto.dart';
 import 'package:modular_pos/features/staff_attendance/data/staff_attendance_api.dart';
 import 'package:modular_pos/features/staff_attendance/domain/models/attendance_record.dart';
 import 'package:modular_pos/features/staff_attendance/domain/models/attendance_shift_schedule.dart';
@@ -38,23 +38,24 @@ class ApiAttendanceRepository implements AttendanceRepository {
     AttendanceCheckInPayload payload,
   ) async {
     try {
-      final data = await _api.checkInV1(payload.toJson());
-      if (data != null) return _mapMutation(data, fallbackStatus: 'CHECKED_IN');
-
-      final legacy = await _api.checkIn(
-        occurredAt: payload.clientTs,
-        location: _legacyLocation(
-          deviceLat: payload.deviceLat,
-          deviceLng: payload.deviceLng,
+      final data = await _api.checkInV1(
+        payload.toJson(),
+        options: withIdempotency(
+          request: IdempotencyRequest(
+            actionKey: 'attendance.check_in',
+            payload: payload.toJson(),
+            intentId: payload.clientOpId,
+            scope: IdempotencyScope.branch,
+          ),
         ),
       );
-      if (legacy == null) {
+      if (data == null) {
         throw const AttendanceRepositoryException(
           reasonCode: AttendanceReasonCodes.invalidRequest,
           message: 'Check-in request was not accepted.',
         );
       }
-      return _mapLegacyCheckIn(legacy);
+      return _mapMutation(data, fallbackStatus: 'CHECKED_IN');
     } on DioError catch (error) {
       throw _mapError(error, fallbackMessage: 'Failed to check in.');
     }
@@ -65,35 +66,24 @@ class ApiAttendanceRepository implements AttendanceRepository {
     AttendanceCheckOutPayload payload,
   ) async {
     try {
-      final data = await _api.checkOutV1(payload.toJson());
-      if (data != null) {
-        return _mapMutation(data, fallbackStatus: 'CHECKED_OUT');
-      }
-
-      final legacy = await _api.checkOut(
-        occurredAt: payload.clientTs,
-        location: _legacyLocation(
-          deviceLat: payload.deviceLat,
-          deviceLng: payload.deviceLng,
+      final data = await _api.checkOutV1(
+        payload.toJson(),
+        options: withIdempotency(
+          request: IdempotencyRequest(
+            actionKey: 'attendance.check_out',
+            payload: payload.toJson(),
+            intentId: payload.clientOpId,
+            scope: IdempotencyScope.branch,
+          ),
         ),
       );
-      if (legacy == null) {
+      if (data == null) {
         throw const AttendanceRepositoryException(
           reasonCode: AttendanceReasonCodes.noActiveAttendance,
           message: 'No active attendance session found to check out.',
         );
       }
-      final record = _mapRecord(legacy);
-      return AttendanceMutationResult(
-        attendanceId: record.id,
-        status: 'CHECKED_OUT',
-        locationResult: AttendanceLocationResult.unknown,
-        distanceM: null,
-        allowedRadiusM: null,
-        message: 'Attendance recorded.',
-        reasonCode: null,
-        record: record,
-      );
+      return _mapMutation(data, fallbackStatus: 'CHECKED_OUT');
     } on DioError catch (error) {
       throw _mapError(error, fallbackMessage: 'Failed to check out.');
     }
@@ -252,23 +242,6 @@ class ApiAttendanceRepository implements AttendanceRepository {
     );
   }
 
-  AttendanceMutationResult _mapLegacyCheckIn(CheckInResultDto legacy) {
-    final status = legacy.status;
-    final record = legacy.record != null ? _mapRecord(legacy.record!) : null;
-    return AttendanceMutationResult(
-      attendanceId: record?.id ?? '',
-      status: status,
-      locationResult: AttendanceLocationResult.unknown,
-      distanceM: null,
-      allowedRadiusM: null,
-      message: status == 'PENDING_APPROVAL'
-          ? 'Check-in request is pending approval.'
-          : 'Attendance recorded.',
-      reasonCode: status == 'PENDING_APPROVAL' ? 'PENDING_APPROVAL' : null,
-      record: status == 'CHECKED_IN' ? record : null,
-    );
-  }
-
   AttendanceRecord _mapRecord(AttendanceRecordDto dto) {
     AttendanceLocation? location;
     if (dto.location != null) {
@@ -303,14 +276,6 @@ class ApiAttendanceRepository implements AttendanceRepository {
       endTime: dto.endTime,
       isOff: dto.isOff,
     );
-  }
-
-  Map<String, num>? _legacyLocation({
-    required double? deviceLat,
-    required double? deviceLng,
-  }) {
-    if (deviceLat == null || deviceLng == null) return null;
-    return <String, num>{'lat': deviceLat, 'lng': deviceLng};
   }
 
   AttendanceLocationVerificationMode _parseVerificationMode(String raw) {

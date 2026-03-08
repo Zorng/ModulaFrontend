@@ -11,7 +11,7 @@ const idempotencyRequestExtraKey = '__idempotency_request__';
 const _idempotencyUuidNamespace = '5642916f-e495-4bc6-8eb5-b730c4ec01d5';
 const _uuid = Uuid();
 
-enum IdempotencyScope { tenant, branch }
+enum IdempotencyScope { account, tenant, branch }
 
 class IdempotencyRequest {
   const IdempotencyRequest({

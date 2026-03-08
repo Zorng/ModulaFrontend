@@ -116,10 +116,14 @@ class StaffAttendanceApi {
     return _parseDataMap(response.data);
   }
 
-  Future<Map<String, dynamic>?> checkInV1(Map<String, dynamic> payload) async {
+  Future<Map<String, dynamic>?> checkInV1(
+    Map<String, dynamic> payload, {
+    Options? options,
+  }) async {
     final response = await _dio.post<Map<String, dynamic>>(
       '$_prefix/check-in',
       data: payload,
+      options: options,
     );
     return _parseDataMap(response.data);
   }
@@ -141,10 +145,14 @@ class StaffAttendanceApi {
     return null;
   }
 
-  Future<Map<String, dynamic>?> checkOutV1(Map<String, dynamic> payload) async {
+  Future<Map<String, dynamic>?> checkOutV1(
+    Map<String, dynamic> payload, {
+    Options? options,
+  }) async {
     final response = await _dio.post<Map<String, dynamic>>(
       '$_prefix/check-out',
       data: payload,
+      options: options,
     );
     return _parseDataMap(response.data);
   }

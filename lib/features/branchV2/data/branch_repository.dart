@@ -8,6 +8,22 @@ import 'package:modular_pos/features/branchV2/domain/models/branch_models.dart';
 abstract class BranchRepository {
   Future<List<BranchListItem>> loadAccessibleBranches();
 
+  Future<BranchListItem> getCurrentBranchProfile({String? accessTokenOverride});
+
+  Future<BranchListItem> updateCurrentBranchKhqrReceiver({
+    required String khqrReceiverAccountId,
+    required String khqrReceiverName,
+    String? intentId,
+    String? accessTokenOverride,
+  });
+
+  Future<BranchListItem> updateCurrentBranchAttendanceLocation({
+    required String attendanceLocationVerificationMode,
+    BranchWorkplaceLocation? workplaceLocation,
+    String? intentId,
+    String? accessTokenOverride,
+  });
+
   Future<BranchActivationDraft> initiateBranchActivation({
     required String branchName,
     String? intentId,
@@ -19,9 +35,7 @@ abstract class BranchRepository {
     String? intentId,
   });
 
-  Future<BranchContextTokens> selectBranchContext({
-    required String branchId,
-  });
+  Future<BranchContextTokens> selectBranchContext({required String branchId});
 }
 
 final useMockBranchRepositoryProvider = Provider<bool>(

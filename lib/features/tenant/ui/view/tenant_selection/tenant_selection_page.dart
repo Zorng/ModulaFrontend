@@ -60,7 +60,7 @@ class TenantSelectionPage extends ConsumerWidget {
         actions: [
           IconButton(
             tooltip: 'Inbox',
-            onPressed: () {},
+            onPressed: () => context.push(AppRoute.invitationInbox.path),
             icon: const Icon(Icons.inbox_outlined),
           ),
           IconButton(

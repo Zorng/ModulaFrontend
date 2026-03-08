@@ -122,7 +122,7 @@ class AppEnv {
     final mode = _readString(
       primary: _attendanceRepositoryModeDefine,
       dotenvKey: 'ATTENDANCE_REPOSITORY_MODE',
-      defaultValue: 'mock',
+      defaultValue: 'api',
     );
     return mode.trim().toLowerCase() != 'api';
   }

@@ -98,14 +98,15 @@ class AttendanceCheckInPayload {
   final String clientTs;
 
   Map<String, dynamic> toJson() {
-    return {
-      if (branchId != null && branchId!.isNotEmpty) 'branch_id': branchId,
-      if (deviceLat != null) 'device_lat': deviceLat,
-      if (deviceLng != null) 'device_lng': deviceLng,
-      if (deviceAccuracyM != null) 'device_accuracy_m': deviceAccuracyM,
-      'client_op_id': clientOpId,
-      'client_ts': clientTs,
-    };
+    final location = deviceLat == null || deviceLng == null
+        ? null
+        : <String, dynamic>{
+            'latitude': deviceLat,
+            'longitude': deviceLng,
+            if (deviceAccuracyM != null) 'accuracyMeters': deviceAccuracyM,
+            'capturedAt': clientTs,
+          };
+    return {'occurredAt': clientTs, if (location != null) 'location': location};
   }
 }
 
@@ -127,14 +128,15 @@ class AttendanceCheckOutPayload {
   final String clientTs;
 
   Map<String, dynamic> toJson() {
-    return {
-      if (branchId != null && branchId!.isNotEmpty) 'branch_id': branchId,
-      if (deviceLat != null) 'device_lat': deviceLat,
-      if (deviceLng != null) 'device_lng': deviceLng,
-      if (deviceAccuracyM != null) 'device_accuracy_m': deviceAccuracyM,
-      'client_op_id': clientOpId,
-      'client_ts': clientTs,
-    };
+    final location = deviceLat == null || deviceLng == null
+        ? null
+        : <String, dynamic>{
+            'latitude': deviceLat,
+            'longitude': deviceLng,
+            if (deviceAccuracyM != null) 'accuracyMeters': deviceAccuracyM,
+            'capturedAt': clientTs,
+          };
+    return {'occurredAt': clientTs, if (location != null) 'location': location};
   }
 }
 

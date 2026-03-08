@@ -35,6 +35,48 @@ class MockBranchRepository implements BranchRepository {
   }
 
   @override
+  Future<BranchListItem> getCurrentBranchProfile({
+    String? accessTokenOverride,
+  }) async {
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    return _branches.first;
+  }
+
+  @override
+  Future<BranchListItem> updateCurrentBranchKhqrReceiver({
+    required String khqrReceiverAccountId,
+    required String khqrReceiverName,
+    String? intentId,
+    String? accessTokenOverride,
+  }) async {
+    await Future<void>.delayed(const Duration(milliseconds: 120));
+    final current = _branches.first;
+    final updated = current.copyWith(
+      khqrReceiverAccountId: khqrReceiverAccountId,
+      khqrReceiverName: khqrReceiverName,
+    );
+    _branches[0] = updated;
+    return updated;
+  }
+
+  @override
+  Future<BranchListItem> updateCurrentBranchAttendanceLocation({
+    required String attendanceLocationVerificationMode,
+    BranchWorkplaceLocation? workplaceLocation,
+    String? intentId,
+    String? accessTokenOverride,
+  }) async {
+    await Future<void>.delayed(const Duration(milliseconds: 120));
+    final current = _branches.first;
+    final updated = current.copyWith(
+      attendanceLocationVerificationMode: attendanceLocationVerificationMode,
+      workplaceLocation: workplaceLocation,
+    );
+    _branches[0] = updated;
+    return updated;
+  }
+
+  @override
   Future<BranchActivationDraft> initiateBranchActivation({
     required String branchName,
     String? intentId,

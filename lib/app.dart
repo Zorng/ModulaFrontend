@@ -53,6 +53,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final isSignup = path == AppRoute.signup.path;
       final isOtpVerification = path == AppRoute.otpVerification.path;
       final isTenantSelection = path == AppRoute.tenantSelection.path;
+      final isInvitationInbox = path == AppRoute.invitationInbox.path;
       final isBranchSelection = path == AppRoute.branchSelection.path;
       final isPortal = path == AppRoute.portal.path;
       final isBranchPortal = path == AppRoute.branchPortal.path;
@@ -69,7 +70,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       }
 
       if (session.requiresTenantSelection) {
-        return isTenantSelection ? null : AppRoute.tenantSelection.path;
+        return (isTenantSelection || isInvitationInbox)
+            ? null
+            : AppRoute.tenantSelection.path;
       }
 
       final role = resolveSessionAuthRole(session);

@@ -166,6 +166,12 @@ class _BranchSelectionPageState extends ConsumerState<BranchSelectionPage> {
       context.go(target);
     }
 
+    void onManageBranch(BranchListItem branch) {
+      context.push(
+        AppRoute.branchDetail.path.replaceFirst(':id', branch.branchId),
+      );
+    }
+
     final appBarTitle = isSelectionMode ? tenantTitle : 'Branches';
     final headerMessage = isSelectionMode
         ? (userName.isEmpty
@@ -345,6 +351,9 @@ class _BranchSelectionPageState extends ConsumerState<BranchSelectionPage> {
                           onTap: () => isSelectionMode
                               ? onSelectionBranchTap(branch)
                               : onBranchTap(branch.branchId),
+                          onManage: !isSelectionMode && state.canManageTenant
+                              ? () => onManageBranch(branch)
+                              : null,
                         );
                       },
                     ),

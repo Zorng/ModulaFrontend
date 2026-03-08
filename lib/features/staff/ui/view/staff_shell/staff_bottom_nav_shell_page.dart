@@ -8,7 +8,7 @@ class StaffBottomNavShellPage extends StatelessWidget {
 
   final StatefulNavigationShell navigationShell;
 
-  static const _titles = <String>['Staff', 'Attendance', 'Request'];
+  static const _titles = <String>['Staff', 'Attendance', 'Shift'];
 
   static const _items = <BottomNavigationBarItem>[
     BottomNavigationBarItem(icon: Icon(Icons.group_outlined), label: 'Staff'),
@@ -17,8 +17,8 @@ class StaffBottomNavShellPage extends StatelessWidget {
       label: 'Attendance',
     ),
     BottomNavigationBarItem(
-      icon: Icon(Icons.pending_actions_outlined),
-      label: 'Request',
+      icon: Icon(Icons.event_repeat_outlined),
+      label: 'Shift',
     ),
   ];
 

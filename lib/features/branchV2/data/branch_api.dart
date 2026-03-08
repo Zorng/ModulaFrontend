@@ -20,9 +20,17 @@ class BranchApi {
   static const _orgPrefix = '/v0/org';
   String get _authPrefix => AppEnv.authApiPrefix;
 
+  Options? _authorizedOptions(String? accessTokenOverride) {
+    final token = (accessTokenOverride ?? '').trim();
+    if (token.isEmpty) return null;
+    return Options(headers: {'Authorization': 'Bearer $token'});
+  }
+
   Future<List<BranchAccessibleBranchDto>> loadAccessibleBranches() async {
     try {
-      final response = await _dio.get<dynamic>('$_orgPrefix/branches/accessible');
+      final response = await _dio.get<dynamic>(
+        '$_orgPrefix/branches/accessible',
+      );
       final list = BranchEnvelope.unwrapDataList(
         response.data,
         fallbackMessage: 'Failed to load branch list.',
@@ -35,6 +43,100 @@ class BranchApi {
       throw ApiClientException.fromDio(
         error,
         fallbackMessage: 'Failed to load branch list.',
+      );
+    }
+  }
+
+  Future<BranchAccessibleBranchDto> getCurrentBranchProfile({
+    String? accessTokenOverride,
+  }) async {
+    try {
+      final response = await _dio.get<dynamic>(
+        '$_orgPrefix/branch/current',
+        options: _authorizedOptions(accessTokenOverride),
+      );
+      final data = BranchEnvelope.unwrapDataMap(
+        response.data,
+        fallbackMessage: 'Failed to load branch profile.',
+      );
+      return BranchAccessibleBranchDto.fromJson(data);
+    } on DioError catch (error) {
+      throw ApiClientException.fromDio(
+        error,
+        fallbackMessage: 'Failed to load branch profile.',
+      );
+    }
+  }
+
+  Future<BranchAccessibleBranchDto> updateCurrentBranchKhqrReceiver({
+    required String khqrReceiverAccountId,
+    required String khqrReceiverName,
+    String? intentId,
+    String? accessTokenOverride,
+  }) async {
+    final payload = <String, dynamic>{
+      'khqrReceiverAccountId': khqrReceiverAccountId.trim(),
+      'khqrReceiverName': khqrReceiverName.trim(),
+    };
+    try {
+      final response = await _dio.patch<dynamic>(
+        '$_orgPrefix/branch/current/khqr-receiver',
+        data: payload,
+        options: withIdempotency(
+          request: IdempotencyRequest(
+            actionKey: 'branch.current.khqrReceiver.update',
+            payload: payload,
+            intentId: (intentId ?? '').trim().isEmpty ? null : intentId!.trim(),
+            scope: IdempotencyScope.branch,
+          ),
+        ).copyWith(headers: _authorizedOptions(accessTokenOverride)?.headers),
+      );
+      final data = BranchEnvelope.unwrapDataMap(
+        response.data,
+        fallbackMessage: 'Failed to update KHQR receiver.',
+      );
+      return BranchAccessibleBranchDto.fromJson(data);
+    } on DioError catch (error) {
+      throw ApiClientException.fromDio(
+        error,
+        fallbackMessage: 'Failed to update KHQR receiver.',
+      );
+    }
+  }
+
+  Future<BranchAccessibleBranchDto> updateCurrentBranchAttendanceLocation({
+    required String attendanceLocationVerificationMode,
+    BranchWorkplaceLocationDto? workplaceLocation,
+    String? intentId,
+    String? accessTokenOverride,
+  }) async {
+    final payload = <String, dynamic>{
+      'attendanceLocationVerificationMode': attendanceLocationVerificationMode
+          .trim(),
+      'workplaceLocation': workplaceLocation?.toJson(),
+    };
+    try {
+      final response = await _dio.patch<dynamic>(
+        '$_orgPrefix/branch/current/attendance-location',
+        data: payload,
+        options: withIdempotency(
+          request: IdempotencyRequest(
+            actionKey: 'branch.current.attendanceLocation.update',
+            payload: payload,
+            intentId: (intentId ?? '').trim().isEmpty ? null : intentId!.trim(),
+            scope: IdempotencyScope.branch,
+          ),
+        ).copyWith(headers: _authorizedOptions(accessTokenOverride)?.headers),
+      );
+      final data = BranchEnvelope.unwrapDataMap(
+        response.data,
+        fallbackMessage: 'Failed to update attendance location.',
+      );
+      return BranchAccessibleBranchDto.fromJson(data);
+    } on DioError catch (error) {
+      throw ApiClientException.fromDio(
+        error,
+        fallbackMessage: 'Failed to update attendance location.',
       );
     }
   }

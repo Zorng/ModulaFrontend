@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/core/theme/app_buttons.dart';
 import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
+import 'package:modular_pos/features/staff/data/repository/staff_shift_repository.dart';
+import 'package:modular_pos/features/staff/domain/models/staff_shift_models.dart';
 import 'package:modular_pos/features/staff_attendance/data/attendance_repository_contract.dart';
 import 'package:modular_pos/features/staff_attendance/data/staff_attendance_repository.dart';
 import 'package:modular_pos/features/staff_attendance/domain/models/attendance_record.dart';
@@ -33,6 +35,10 @@ class _AttendanceCheckPageState extends ConsumerState<AttendanceCheckPage> {
   DateTime? _todayCheckOutAt;
 
   List<AttendanceShiftScheduleEntry> _shiftSchedule = const [];
+  StaffShiftSchedule _canonicalShiftSchedule = const StaffShiftSchedule(
+    patterns: <StaffShiftPattern>[],
+    instances: <StaffShiftInstance>[],
+  );
 
   @override
   void initState() {
@@ -49,11 +55,29 @@ class _AttendanceCheckPageState extends ConsumerState<AttendanceCheckPage> {
       _scheduleLoading = true;
     });
     try {
-      final repo = ref.read(staffAttendanceRepositoryProvider);
       final branchId = ref.read(authActiveBranchIdProvider);
-      final schedule = await repo.fetchMyShiftSchedule(branchId: branchId);
+      if (branchId == null || branchId.isEmpty) {
+        if (!mounted) return;
+        setState(() {
+          _canonicalShiftSchedule = const StaffShiftSchedule(
+            patterns: <StaffShiftPattern>[],
+            instances: <StaffShiftInstance>[],
+          );
+          _shiftSchedule = const <AttendanceShiftScheduleEntry>[];
+        });
+        return;
+      }
+      final repo = ref.read(staffShiftRepositoryProvider);
+      final schedule = await repo.fetchMySchedule();
       if (!mounted) return;
-      setState(() => _shiftSchedule = schedule);
+      setState(() {
+        _canonicalShiftSchedule = schedule;
+        _shiftSchedule = _buildWeeklyScheduleEntries(
+          schedule: schedule,
+          branchId: branchId,
+          referenceDate: DateTime.now(),
+        );
+      });
     } catch (_) {
       if (!mounted) return;
       setState(() => _errorMessage = 'Failed to load shift schedule');
@@ -260,6 +284,163 @@ class _AttendanceCheckPageState extends ConsumerState<AttendanceCheckPage> {
     return '$action-$micros';
   }
 
+  List<AttendanceShiftScheduleEntry> _buildWeeklyScheduleEntries({
+    required StaffShiftSchedule schedule,
+    required String branchId,
+    required DateTime referenceDate,
+  }) {
+    final normalizedBranchId = branchId.trim();
+    final dayRows = <AttendanceShiftScheduleEntry>[
+      for (var day = 0; day < 7; day++)
+        AttendanceShiftScheduleEntry(dayOfWeek: day, isOff: true),
+    ];
+
+    for (final pattern in schedule.patterns) {
+      if (!_matchesActiveBranch(pattern.branchId, normalizedBranchId)) continue;
+      if (pattern.status != StaffShiftPatternStatus.active) continue;
+      if (!_isPatternEffectiveOn(pattern, referenceDate)) continue;
+      for (final day in pattern.daysOfWeek) {
+        if (day < 0 || day > 6) continue;
+        if (!dayRows[day].isOff) continue;
+        dayRows[day] = AttendanceShiftScheduleEntry(
+          dayOfWeek: day,
+          startTime: pattern.plannedStartTime,
+          endTime: pattern.plannedEndTime,
+          isOff: false,
+        );
+      }
+    }
+
+    return List<AttendanceShiftScheduleEntry>.unmodifiable(dayRows);
+  }
+
+  _TodayShiftInfo _resolveTodayShiftInfo(DateTime today, String? branchId) {
+    final normalizedBranchId = (branchId ?? '').trim();
+    final instanceCandidates = _canonicalShiftSchedule.instances
+        .where((entry) {
+          if (!_matchesActiveBranch(entry.branchId, normalizedBranchId)) {
+            return false;
+          }
+          if (entry.status == StaffShiftInstanceStatus.cancelled) {
+            return false;
+          }
+          return _isSameDate(entry.date, today);
+        })
+        .toList(growable: false);
+    if (instanceCandidates.isNotEmpty) {
+      instanceCandidates.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+      final instance = instanceCandidates.last;
+      return _TodayShiftInfo(
+        label: '${instance.plannedStartTime} - ${instance.plannedEndTime}',
+        hasAssignedShift: true,
+        sourceLabel: 'One-time shift',
+      );
+    }
+
+    final weekday = today.weekday % 7;
+    final patternCandidates = _canonicalShiftSchedule.patterns
+        .where((entry) {
+          if (!_matchesActiveBranch(entry.branchId, normalizedBranchId)) {
+            return false;
+          }
+          if (entry.status != StaffShiftPatternStatus.active) {
+            return false;
+          }
+          if (!_isPatternEffectiveOn(entry, today)) {
+            return false;
+          }
+          return entry.daysOfWeek.contains(weekday);
+        })
+        .toList(growable: false);
+    if (patternCandidates.isNotEmpty) {
+      patternCandidates.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+      final pattern = patternCandidates.last;
+      return _TodayShiftInfo(
+        label: '${pattern.plannedStartTime} - ${pattern.plannedEndTime}',
+        hasAssignedShift: true,
+        sourceLabel: 'Recurring shift',
+      );
+    }
+
+    return const _TodayShiftInfo(
+      label: 'No shift today',
+      hasAssignedShift: false,
+      sourceLabel: 'No assigned shift',
+    );
+  }
+
+  _UpcomingInstanceInfo? _resolveUpcomingInstanceInfo(
+    DateTime today,
+    String? branchId,
+  ) {
+    final normalizedBranchId = (branchId ?? '').trim();
+    final todayDate = DateTime(today.year, today.month, today.day);
+    final instanceCandidates = _canonicalShiftSchedule.instances
+        .where((entry) {
+          if (!_matchesActiveBranch(entry.branchId, normalizedBranchId)) {
+            return false;
+          }
+          if (entry.status == StaffShiftInstanceStatus.cancelled) {
+            return false;
+          }
+          final localDate = entry.date.toLocal();
+          final normalizedDate = DateTime(
+            localDate.year,
+            localDate.month,
+            localDate.day,
+          );
+          return normalizedDate.isAfter(todayDate);
+        })
+        .toList(growable: false);
+    if (instanceCandidates.isEmpty) return null;
+    instanceCandidates.sort((a, b) {
+      final dateCompare = a.date.compareTo(b.date);
+      if (dateCompare != 0) return dateCompare;
+      return a.createdAt.compareTo(b.createdAt);
+    });
+    final nextInstance = instanceCandidates.first;
+    return _UpcomingInstanceInfo(
+      dateLabel: formatDatePretty(nextInstance.date.toLocal()),
+      timeLabel:
+          '${nextInstance.plannedStartTime} - ${nextInstance.plannedEndTime}',
+    );
+  }
+
+  bool _matchesActiveBranch(String candidateBranchId, String activeBranchId) {
+    if (activeBranchId.isEmpty) return true;
+    return candidateBranchId.trim() == activeBranchId;
+  }
+
+  bool _isPatternEffectiveOn(StaffShiftPattern pattern, DateTime date) {
+    final localDate = DateTime(date.year, date.month, date.day);
+    final effectiveFrom = pattern.effectiveFrom;
+    if (effectiveFrom != null) {
+      final fromDate = DateTime(
+        effectiveFrom.year,
+        effectiveFrom.month,
+        effectiveFrom.day,
+      );
+      if (localDate.isBefore(fromDate)) return false;
+    }
+    final effectiveTo = pattern.effectiveTo;
+    if (effectiveTo != null) {
+      final toDate = DateTime(
+        effectiveTo.year,
+        effectiveTo.month,
+        effectiveTo.day,
+      );
+      if (localDate.isAfter(toDate)) return false;
+    }
+    return true;
+  }
+
+  bool _isSameDate(DateTime left, DateTime right) {
+    final localLeft = left.toLocal();
+    return localLeft.year == right.year &&
+        localLeft.month == right.month &&
+        localLeft.day == right.day;
+  }
+
   String _locationResultToLabel(AttendanceLocationResult result) {
     switch (result) {
       case AttendanceLocationResult.match:
@@ -275,18 +456,11 @@ class _AttendanceCheckPageState extends ConsumerState<AttendanceCheckPage> {
   Widget build(BuildContext context) {
     final today = DateTime.now();
     final todayLabel = formatDatePretty(today);
-    final todayShift = _shiftSchedule.firstWhere(
-      (entry) {
-        final day = today.weekday % 7;
-        return entry.dayOfWeek == day;
-      },
-      orElse: () =>
-          const AttendanceShiftScheduleEntry(dayOfWeek: -1, isOff: true),
-    );
-    final hasShiftToday = todayShift.dayOfWeek != -1 && !todayShift.isOff;
-    final shiftLabel = hasShiftToday
-        ? '${todayShift.startTime ?? '--'} - ${todayShift.endTime ?? '--'}'
-        : 'No shift today';
+    final branchId = ref.watch(authActiveBranchIdProvider);
+    final todayShift = _resolveTodayShiftInfo(today, branchId);
+    final upcomingInstance = _resolveUpcomingInstanceInfo(today, branchId);
+    final hasShiftToday = todayShift.hasAssignedShift;
+    final shiftLabel = todayShift.label;
     final checkInLabel = _todayCheckInAt == null
         ? '-'
         : formatTimeAmPm(_todayCheckInAt!.toLocal());
@@ -300,7 +474,8 @@ class _AttendanceCheckPageState extends ConsumerState<AttendanceCheckPage> {
     final canTakeAction =
         !_submitting &&
         !_contextLoading &&
-        (hasOpenAttendance || hasShiftToday);
+        branchId != null &&
+        branchId.isNotEmpty;
 
     final statusLabel = !hasShiftToday && !hasOpenAttendance
         ? 'No shift'
@@ -362,8 +537,7 @@ class _AttendanceCheckPageState extends ConsumerState<AttendanceCheckPage> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          _attendanceContext.reasonMessage ??
-                              'You do not have a working schedule for this shift.',
+                          'You do not have an assigned shift today. You can still record attendance, and the system will capture location evidence normally.',
                           style: Theme.of(context).textTheme.bodySmall
                               ?.copyWith(color: const Color(0xFF9A3412)),
                         ),
@@ -393,9 +567,12 @@ class _AttendanceCheckPageState extends ConsumerState<AttendanceCheckPage> {
                 TodayShiftCard(
                   date: todayLabel,
                   shift: shiftLabel,
+                  shiftSource: todayShift.sourceLabel,
                   checkIn: checkInLabel,
                   checkOut: checkOutLabel,
                   status: statusLabel,
+                  nextInstanceDate: upcomingInstance?.dateLabel,
+                  nextInstanceShift: upcomingInstance?.timeLabel,
                 ),
                 const SizedBox(height: 16),
                 SizedBox(
@@ -437,4 +614,26 @@ class _AttendanceCheckPageState extends ConsumerState<AttendanceCheckPage> {
       ),
     );
   }
+}
+
+class _TodayShiftInfo {
+  const _TodayShiftInfo({
+    required this.label,
+    required this.hasAssignedShift,
+    required this.sourceLabel,
+  });
+
+  final String label;
+  final bool hasAssignedShift;
+  final String sourceLabel;
+}
+
+class _UpcomingInstanceInfo {
+  const _UpcomingInstanceInfo({
+    required this.dateLabel,
+    required this.timeLabel,
+  });
+
+  final String dateLabel;
+  final String timeLabel;
 }

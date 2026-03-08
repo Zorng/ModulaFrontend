@@ -92,18 +92,6 @@ class MockAttendanceRepository implements AttendanceRepository {
       );
     }
 
-    if (activeShift == null) {
-      return AttendanceContext(
-        canCheckIn: false,
-        reasonCode: AttendanceReasonCodes.noActiveShift,
-        reasonMessage: 'You do not have a working schedule for this shift.',
-        activeShift: null,
-        activeAttendance: null,
-        locationVerificationMode: _locationMode,
-        geofence: _geofence,
-      );
-    }
-
     return AttendanceContext(
       canCheckIn: true,
       reasonCode: null,

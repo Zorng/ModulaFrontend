@@ -7,11 +7,13 @@ class BranchSelectionTile extends StatelessWidget {
     required this.branch,
     required this.enabled,
     required this.onTap,
+    this.onManage,
   });
 
   final BranchListItem branch;
   final bool enabled;
   final VoidCallback onTap;
+  final VoidCallback? onManage;
 
   @override
   Widget build(BuildContext context) {
@@ -52,18 +54,41 @@ class BranchSelectionTile extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
           ),
         ),
-        trailing: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.end,
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              branch.status,
-              style: Theme.of(
-                context,
-              ).textTheme.labelSmall?.copyWith(color: statusColor),
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  branch.status,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.labelSmall?.copyWith(color: statusColor),
+                ),
+                const SizedBox(height: 4),
+                const Icon(Icons.chevron_right),
+              ],
             ),
-            const SizedBox(height: 4),
-            const Icon(Icons.chevron_right),
+            if (onManage != null) ...[
+              const SizedBox(width: 4),
+              PopupMenuButton<_BranchTileAction>(
+                enabled: enabled,
+                tooltip: 'Branch actions',
+                onSelected: (value) {
+                  if (value == _BranchTileAction.manage) {
+                    onManage?.call();
+                  }
+                },
+                itemBuilder: (context) => const [
+                  PopupMenuItem<_BranchTileAction>(
+                    value: _BranchTileAction.manage,
+                    child: Text('Manage branch'),
+                  ),
+                ],
+              ),
+            ],
           ],
         ),
         selected: branch.shouldHighlight,
@@ -71,3 +96,5 @@ class BranchSelectionTile extends StatelessWidget {
     );
   }
 }
+
+enum _BranchTileAction { manage }
