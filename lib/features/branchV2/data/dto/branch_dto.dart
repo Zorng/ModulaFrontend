@@ -24,25 +24,19 @@ class BranchAccessibleBranchDto {
   final String status;
 
   factory BranchAccessibleBranchDto.fromJson(Map<String, dynamic> json) {
-    final workplaceLocation = BranchWorkplaceLocationDto.tryFromJson(
-      _nullableMap(json['workplaceLocation']),
-    );
-    final attendanceLocationVerificationMode =
-        _nullableString(json['attendanceLocationVerificationMode']) ??
-        _nullableString(json['attendanceLocationVerification']) ??
-        '';
-
+    final parsed = _parseBranchProfileFields(json);
     return BranchAccessibleBranchDto(
-      branchId: json['branchId']?.toString() ?? '',
-      tenantId: json['tenantId']?.toString() ?? '',
-      branchName: json['branchName']?.toString() ?? '',
-      branchAddress: _nullableString(json['branchAddress']),
-      contactNumber: _nullableString(json['contactNumber']),
-      khqrReceiverAccountId: _nullableString(json['khqrReceiverAccountId']),
-      khqrReceiverName: _nullableString(json['khqrReceiverName']),
-      attendanceLocationVerificationMode: attendanceLocationVerificationMode,
-      workplaceLocation: workplaceLocation,
-      status: json['status']?.toString() ?? '',
+      branchId: parsed.branchId,
+      tenantId: parsed.tenantId,
+      branchName: parsed.branchName,
+      branchAddress: parsed.branchAddress,
+      contactNumber: parsed.contactNumber,
+      khqrReceiverAccountId: parsed.khqrReceiverAccountId,
+      khqrReceiverName: parsed.khqrReceiverName,
+      attendanceLocationVerificationMode:
+          parsed.attendanceLocationVerificationMode,
+      workplaceLocation: parsed.workplaceLocation,
+      status: parsed.status,
     );
   }
 
@@ -59,6 +53,49 @@ class BranchAccessibleBranchDto {
       'workplaceLocation': workplaceLocation?.toJson(),
       'status': status,
     };
+  }
+}
+
+class BranchCurrentProfileDto {
+  const BranchCurrentProfileDto({
+    required this.branchId,
+    required this.tenantId,
+    required this.branchName,
+    required this.branchAddress,
+    required this.contactNumber,
+    required this.khqrReceiverAccountId,
+    required this.khqrReceiverName,
+    required this.attendanceLocationVerificationMode,
+    required this.workplaceLocation,
+    required this.status,
+  });
+
+  final String branchId;
+  final String tenantId;
+  final String branchName;
+  final String? branchAddress;
+  final String? contactNumber;
+  final String? khqrReceiverAccountId;
+  final String? khqrReceiverName;
+  final String attendanceLocationVerificationMode;
+  final BranchWorkplaceLocationDto? workplaceLocation;
+  final String status;
+
+  factory BranchCurrentProfileDto.fromJson(Map<String, dynamic> json) {
+    final parsed = _parseBranchProfileFields(json);
+    return BranchCurrentProfileDto(
+      branchId: parsed.branchId,
+      tenantId: parsed.tenantId,
+      branchName: parsed.branchName,
+      branchAddress: parsed.branchAddress,
+      contactNumber: parsed.contactNumber,
+      khqrReceiverAccountId: parsed.khqrReceiverAccountId,
+      khqrReceiverName: parsed.khqrReceiverName,
+      attendanceLocationVerificationMode:
+          parsed.attendanceLocationVerificationMode,
+      workplaceLocation: parsed.workplaceLocation,
+      status: parsed.status,
+    );
   }
 }
 
@@ -263,6 +300,72 @@ class BranchActivationConfirmRequestDto {
       'paymentToken': paymentToken,
     };
   }
+}
+
+class BranchKhqrReceiverUpdateRequestDto {
+  const BranchKhqrReceiverUpdateRequestDto({
+    required this.khqrReceiverAccountId,
+    required this.khqrReceiverName,
+  });
+
+  final String khqrReceiverAccountId;
+  final String khqrReceiverName;
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      'khqrReceiverAccountId': khqrReceiverAccountId,
+      'khqrReceiverName': khqrReceiverName,
+    };
+  }
+}
+
+class _BranchProfileFields {
+  const _BranchProfileFields({
+    required this.branchId,
+    required this.tenantId,
+    required this.branchName,
+    required this.branchAddress,
+    required this.contactNumber,
+    required this.khqrReceiverAccountId,
+    required this.khqrReceiverName,
+    required this.attendanceLocationVerificationMode,
+    required this.workplaceLocation,
+    required this.status,
+  });
+
+  final String branchId;
+  final String tenantId;
+  final String branchName;
+  final String? branchAddress;
+  final String? contactNumber;
+  final String? khqrReceiverAccountId;
+  final String? khqrReceiverName;
+  final String attendanceLocationVerificationMode;
+  final BranchWorkplaceLocationDto? workplaceLocation;
+  final String status;
+}
+
+_BranchProfileFields _parseBranchProfileFields(Map<String, dynamic> json) {
+  final workplaceLocation = BranchWorkplaceLocationDto.tryFromJson(
+    _nullableMap(json['workplaceLocation']),
+  );
+  final attendanceLocationVerificationMode =
+      _nullableString(json['attendanceLocationVerificationMode']) ??
+      _nullableString(json['attendanceLocationVerification']) ??
+      '';
+
+  return _BranchProfileFields(
+    branchId: json['branchId']?.toString() ?? '',
+    tenantId: json['tenantId']?.toString() ?? '',
+    branchName: json['branchName']?.toString() ?? '',
+    branchAddress: _nullableString(json['branchAddress']),
+    contactNumber: _nullableString(json['contactNumber']),
+    khqrReceiverAccountId: _nullableString(json['khqrReceiverAccountId']),
+    khqrReceiverName: _nullableString(json['khqrReceiverName']),
+    attendanceLocationVerificationMode: attendanceLocationVerificationMode,
+    workplaceLocation: workplaceLocation,
+    status: json['status']?.toString() ?? '',
+  );
 }
 
 String? _nullableString(dynamic value) {

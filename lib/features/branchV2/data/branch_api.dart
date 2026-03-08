@@ -47,7 +47,7 @@ class BranchApi {
     }
   }
 
-  Future<BranchAccessibleBranchDto> getCurrentBranchProfile({
+  Future<BranchCurrentProfileDto> getCurrentBranchProfile({
     String? accessTokenOverride,
   }) async {
     try {
@@ -57,18 +57,18 @@ class BranchApi {
       );
       final data = BranchEnvelope.unwrapDataMap(
         response.data,
-        fallbackMessage: 'Failed to load branch profile.',
+        fallbackMessage: 'Failed to load current branch profile.',
       );
-      return BranchAccessibleBranchDto.fromJson(data);
+      return BranchCurrentProfileDto.fromJson(data);
     } on DioError catch (error) {
       throw ApiClientException.fromDio(
         error,
-        fallbackMessage: 'Failed to load branch profile.',
+        fallbackMessage: 'Failed to load current branch profile.',
       );
     }
   }
 
-  Future<BranchAccessibleBranchDto> updateCurrentBranchKhqrReceiver({
+  Future<BranchCurrentProfileDto> updateCurrentBranchKhqrReceiver({
     required String khqrReceiverAccountId,
     required String khqrReceiverName,
     String? intentId,
@@ -93,18 +93,18 @@ class BranchApi {
       );
       final data = BranchEnvelope.unwrapDataMap(
         response.data,
-        fallbackMessage: 'Failed to update KHQR receiver.',
+        fallbackMessage: 'Failed to update KHQR receiver account.',
       );
-      return BranchAccessibleBranchDto.fromJson(data);
+      return BranchCurrentProfileDto.fromJson(data);
     } on DioError catch (error) {
       throw ApiClientException.fromDio(
         error,
-        fallbackMessage: 'Failed to update KHQR receiver.',
+        fallbackMessage: 'Failed to update KHQR receiver account.',
       );
     }
   }
 
-  Future<BranchAccessibleBranchDto> updateCurrentBranchAttendanceLocation({
+  Future<BranchCurrentProfileDto> updateCurrentBranchAttendanceLocation({
     required String attendanceLocationVerificationMode,
     BranchWorkplaceLocationDto? workplaceLocation,
     String? intentId,
@@ -132,7 +132,7 @@ class BranchApi {
         response.data,
         fallbackMessage: 'Failed to update attendance location.',
       );
-      return BranchAccessibleBranchDto.fromJson(data);
+      return BranchCurrentProfileDto.fromJson(data);
     } on DioError catch (error) {
       throw ApiClientException.fromDio(
         error,

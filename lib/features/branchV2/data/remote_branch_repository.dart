@@ -22,7 +22,7 @@ class RemoteBranchRepository implements BranchRepository {
     final dto = await _api.getCurrentBranchProfile(
       accessTokenOverride: accessTokenOverride,
     );
-    return BranchMapper.toBranchListItem(dto);
+    return BranchMapper.toCurrentBranchProfile(dto);
   }
 
   @override
@@ -38,7 +38,7 @@ class RemoteBranchRepository implements BranchRepository {
       intentId: intentId,
       accessTokenOverride: accessTokenOverride,
     );
-    return BranchMapper.toBranchListItem(dto);
+    return BranchMapper.toCurrentBranchProfile(dto);
   }
 
   @override
@@ -60,7 +60,7 @@ class RemoteBranchRepository implements BranchRepository {
       intentId: intentId,
       accessTokenOverride: accessTokenOverride,
     );
-    return BranchMapper.toBranchListItem(dto);
+    return BranchMapper.toCurrentBranchProfile(dto);
   }
 
   @override
