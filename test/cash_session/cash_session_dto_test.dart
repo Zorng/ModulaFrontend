@@ -10,12 +10,14 @@ void main() {
       'tenantId': 'tenant-1',
       'branchId': 'branch-1',
       'openedByAccountId': 'account-1',
+      'openedByName': 'John Smith',
       'openedAt': '2026-02-19T01:00:00.000Z',
       'status': 'OPEN',
       'openingFloatUsd': 20,
       'openingFloatKhr': 50000,
       'closedAt': null,
       'closedByAccountId': null,
+      'closedByName': null,
       'closeNote': null,
     });
 
@@ -23,6 +25,7 @@ void main() {
     expect(dto.tenantId, 'tenant-1');
     expect(dto.branchId, 'branch-1');
     expect(dto.openedByAccountId, 'account-1');
+    expect(dto.openedByName, 'John Smith');
     expect(dto.status, CashSessionStatuses.open);
     expect(dto.openingFloatUsd, 20);
     expect(dto.openingFloatKhr, 50000);
@@ -36,12 +39,14 @@ void main() {
       'tenantId': 'tenant-1',
       'branchId': 'branch-1',
       'openedByAccountId': 'account-1',
+      'openedByName': 'John Smith',
       'openedAt': '2026-02-19T01:00:00.000Z',
       'status': 'CLOSED',
       'openingFloatUsd': 30,
       'openingFloatKhr': 120000,
       'closedAt': '2026-02-19T09:00:00.000Z',
       'closedByAccountId': 'account-2',
+      'closedByName': 'Jane Doe',
       'closeNote': 'End of shift',
     });
 
@@ -49,6 +54,7 @@ void main() {
     expect(dto.status, CashSessionStatuses.closed);
     expect(dto.closedAt, isNotNull);
     expect(dto.closedByAccountId, 'account-2');
+    expect(dto.closedByName, 'Jane Doe');
     expect(dto.closeNote, 'End of shift');
   });
 
@@ -59,12 +65,14 @@ void main() {
         'tenantId': 'tenant-1',
         'branchId': 'branch-1',
         'openedByAccountId': 'account-1',
+        'openedByName': 'John Smith',
         'openedAt': '2026-02-19T01:00:00.000Z',
         'status': 'OPEN',
         'openingFloatUsd': 20,
         'openingFloatKhr': 50000,
         'closedAt': null,
         'closedByAccountId': null,
+        'closedByName': null,
         'closeNote': null,
       },
     });
@@ -84,12 +92,14 @@ void main() {
       'tenantId': 'tenant-1',
       'branchId': 'branch-1',
       'openedByAccountId': 'account-1',
+      'openedByName': 'John Smith',
       'openedAt': '2026-02-19T01:00:00.000Z',
       'status': ' force_closed ',
       'openingFloatUsd': 20,
       'openingFloatKhr': 50000,
       'closedAt': '2026-02-19T09:00:00.000Z',
       'closedByAccountId': 'account-2',
+      'closedByName': 'Jane Doe',
       'closeNote': 'Manager override',
     });
 

@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/core/logging/app_log.dart';
+import 'package:modular_pos/features/cash_session/ui/viewmodels/cash_session_viewmodel.dart';
+import 'package:modular_pos/features/cash_session/ui/viewmodels/current_session_summary_provider.dart';
 import 'package:modular_pos/features/policy/ui/viewmodels/policy_viewmodel.dart';
 import 'package:modular_pos/features/cash_session/ui/viewmodels/x_report_viewmodel.dart';
 import 'package:modular_pos/features/sale/data/sale_checkout_repository_contract.dart';
@@ -909,6 +911,8 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
 
       ref.invalidate(xReportEntriesProvider);
       ref.invalidate(xReportDetailProvider);
+      ref.invalidate(currentSessionSummaryProvider);
+      unawaited(ref.read(cashSessionViewModelProvider.notifier).load());
 
       await _clearPersistedCart();
       state = SaleCartState(

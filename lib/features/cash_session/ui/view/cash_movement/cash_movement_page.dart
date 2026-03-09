@@ -4,7 +4,7 @@ import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/features/cash_session/ui/viewmodels/cash_session_error_message.dart';
 import 'package:modular_pos/features/cash_session/ui/viewmodels/cash_session_viewmodel.dart';
 import 'package:modular_pos/features/cash_session/ui/widgets/cash_movement_card.dart';
-import 'package:modular_pos/features/cash_session/ui/widgets/session_overview_card.dart';
+import 'package:modular_pos/features/cash_session/ui/widgets/manual_movement_history_section.dart';
 
 class CashMovementPage extends ConsumerWidget {
   const CashMovementPage({super.key});
@@ -51,9 +51,9 @@ class CashMovementPage extends ConsumerWidget {
       padding: const EdgeInsets.all(16),
       children: [
         if (sessionState.error != null) _buildErrorCard(sessionState),
-        const SessionOverviewCard(),
-        const SizedBox(height: 16),
         CashMovementCard(onAddCashMovement: onMovementAdded),
+        const SizedBox(height: 16),
+        ManualMovementHistorySection(movements: sessionState.movements),
       ],
     );
   }
@@ -66,19 +66,12 @@ class CashMovementPage extends ConsumerWidget {
       padding: const EdgeInsets.all(24),
       children: [
         if (sessionState.error != null) _buildErrorCard(sessionState),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Left column: Session Overview
-            const Expanded(flex: 1, child: SessionOverviewCard()),
-            const SizedBox(width: 24),
-            // Right column: Cash Movement Card
-            Expanded(
-              flex: 1,
-              child: CashMovementCard(onAddCashMovement: onMovementAdded),
-            ),
-          ],
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 760),
+          child: CashMovementCard(onAddCashMovement: onMovementAdded),
         ),
+        const SizedBox(height: 24),
+        ManualMovementHistorySection(movements: sessionState.movements),
       ],
     );
   }

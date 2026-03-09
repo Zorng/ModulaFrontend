@@ -23,9 +23,7 @@ class XReportPage extends ConsumerWidget {
     final cashState = ref.watch(cashSessionViewModelProvider);
     final entriesAsync = ref.watch(xReportEntriesProvider);
     final filters = ref.watch(xReportFiltersProvider);
-    final isSmall = AppBreakpoints.isSmall(
-      MediaQuery.of(context).size.width,
-    );
+    final isSmall = AppBreakpoints.isSmall(MediaQuery.of(context).size.width);
 
     return Scaffold(
       appBar: showAppBar
@@ -40,7 +38,7 @@ class XReportPage extends ConsumerWidget {
                   : null,
               title: const Align(
                 alignment: Alignment.centerLeft,
-                child: Text('X Report'),
+                child: Text('Session Summaries'),
               ),
             )
           : null,
@@ -65,7 +63,7 @@ class XReportPage extends ConsumerWidget {
                         const Center(child: CircularProgressIndicator()),
                     error: (error, _) => Center(
                       child: Text(
-                        'Unable to load X reports.',
+                        'Unable to load session summaries.',
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                     ),
@@ -73,14 +71,13 @@ class XReportPage extends ConsumerWidget {
                       if (entries.isEmpty) {
                         return const Center(
                           child: Text(
-                            'No X reports available for this selection.',
+                            'No session summaries available for this selection.',
                           ),
                         );
                       }
                       return ListView.separated(
                         itemCount: entries.length,
-                        separatorBuilder: (_, __) =>
-                            const SizedBox(height: 12),
+                        separatorBuilder: (_, __) => const SizedBox(height: 12),
                         itemBuilder: (context, index) {
                           return XReportCard(entry: entries[index]);
                         },

@@ -46,6 +46,8 @@ class _FakeReportingApi extends ReportingApi {
       closedAt: null,
       openingFloatUsd: 10,
       openingFloatKhr: 0,
+      totalSalesKhqrUsd: 20,
+      totalSalesKhqrKhr: 80000,
       totalSalesCashUsd: 45,
       totalSalesCashKhr: 0,
       totalPaidInUsd: 0,
@@ -105,17 +107,39 @@ void main() {
     });
 
     test('parses X report detail response', () {
-      final payload = readJsonMapFixture(
-        fixturePath('reporting/x_report_detail_response.json'),
-      );
-      final data = Map<String, dynamic>.from(payload['data'] as Map);
+      final data = <String, dynamic>{
+        'sessionId': '11111111-1111-1111-1111-111111111111',
+        'status': 'OPEN',
+        'openedByName': 'John Smith',
+        'openedAt': '2025-12-23T08:00:00.000Z',
+        'closedAt': null,
+        'openingFloatUsd': 10,
+        'openingFloatKhr': 0,
+        'totalSalesKhqrUsd': 20,
+        'totalSalesKhqrKhr': 80000,
+        'totalSaleInUsd': 45,
+        'totalSaleInKhr': 0,
+        'totalRefundOutUsd': 2,
+        'totalRefundOutKhr': 0,
+        'totalManualInUsd': 3,
+        'totalManualInKhr': 0,
+        'totalManualOutUsd': 5,
+        'totalManualOutKhr': 0,
+        'totalAdjustmentUsd': 0,
+        'totalAdjustmentKhr': 0,
+        'expectedCashUsd': 51,
+        'expectedCashKhr': 0,
+      };
       final dto = XReportDetailDto.fromJson(data);
 
       expect(dto.id, '11111111-1111-1111-1111-111111111111');
       expect(dto.status, 'OPEN');
       expect(dto.openedByName, 'John Smith');
       expect(dto.openingFloatUsd, 10);
-      expect(dto.totalPaidOutUsd, 5);
+      expect(dto.totalSalesKhqrUsd, 20);
+      expect(dto.totalSalesCashUsd, 45);
+      expect(dto.totalPaidInUsd, 3);
+      expect(dto.totalPaidOutUsd, 7);
     });
 
     test('parses Z report summary response', () {

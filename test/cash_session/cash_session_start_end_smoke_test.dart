@@ -5,8 +5,10 @@ import 'package:modular_pos/features/auth/domain/models/user.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/cash_session/data/cash_session_movement_repository.dart';
 import 'package:modular_pos/features/cash_session/data/cash_session_repository.dart';
+import 'package:modular_pos/features/cash_session/data/cash_session_sales_repository.dart';
 import 'package:modular_pos/features/cash_session/domain/models/cash_movement.dart';
 import 'package:modular_pos/features/cash_session/domain/models/cash_session.dart';
+import 'package:modular_pos/features/cash_session/domain/models/cash_session_sale.dart';
 import 'package:modular_pos/features/cash_session/ui/viewmodels/cash_session_viewmodel.dart';
 
 import '../test_utils/riverpod_test_utils.dart';
@@ -21,7 +23,10 @@ class _TestLoginController extends LoginController {
 }
 
 class _SmokeCashSessionRepository
-    implements CashSessionRepository, CashSessionMovementRepository {
+    implements
+        CashSessionRepository,
+        CashSessionMovementRepository,
+        CashSessionSalesRepository {
   CashSession? _session;
   int _counter = 0;
 
@@ -45,12 +50,14 @@ class _SmokeCashSessionRepository
       tenantId: 'tenant-1',
       branchId: 'branch-1',
       openedByAccountId: 'user-1',
+      openedByName: 'Cashier A',
       openedAt: DateTime.utc(2026, 3, 7, 9, 0),
       status: CashSessionStatuses.open,
       openingFloatUsd: openingFloatUsd,
       openingFloatKhr: openingFloatKhr,
       closedAt: null,
       closedByAccountId: null,
+      closedByName: null,
       closeNote: note,
       totalPaidInUsd: 0,
       totalPaidOutUsd: 0,
@@ -71,12 +78,14 @@ class _SmokeCashSessionRepository
       tenantId: current.tenantId,
       branchId: current.branchId,
       openedByAccountId: current.openedByAccountId,
+      openedByName: current.openedByName,
       openedAt: current.openedAt,
       status: CashSessionStatuses.closed,
       openingFloatUsd: current.openingFloatUsd,
       openingFloatKhr: current.openingFloatKhr,
       closedAt: DateTime.utc(2026, 3, 7, 18, 0),
       closedByAccountId: 'manager-1',
+      closedByName: 'Manager 1',
       closeNote: note,
       totalPaidInUsd: 0,
       totalPaidOutUsd: 0,
@@ -98,12 +107,14 @@ class _SmokeCashSessionRepository
       tenantId: current.tenantId,
       branchId: current.branchId,
       openedByAccountId: current.openedByAccountId,
+      openedByName: current.openedByName,
       openedAt: current.openedAt,
       status: CashSessionStatuses.forceClosed,
       openingFloatUsd: current.openingFloatUsd,
       openingFloatKhr: current.openingFloatKhr,
       closedAt: DateTime.utc(2026, 3, 7, 18, 0),
       closedByAccountId: 'manager-1',
+      closedByName: 'Manager 1',
       closeNote: note ?? reason,
       totalPaidInUsd: 0,
       totalPaidOutUsd: 0,
@@ -115,6 +126,15 @@ class _SmokeCashSessionRepository
   Future<List<CashMovement>> listMovements({
     required String sessionId,
     int limit = 100,
+    int offset = 0,
+  }) async {
+    return const [];
+  }
+
+  @override
+  Future<List<CashSessionSale>> listSales({
+    required String sessionId,
+    int limit = 20,
     int offset = 0,
   }) async {
     return const [];
@@ -176,6 +196,7 @@ void main() {
       overrides: [
         cashSessionRepositoryProvider.overrideWithValue(repo),
         cashSessionMovementRepositoryProvider.overrideWithValue(repo),
+        cashSessionSalesRepositoryProvider.overrideWithValue(repo),
         loginControllerProvider.overrideWith(_TestLoginController.new),
       ],
     );
@@ -216,6 +237,7 @@ void main() {
       overrides: [
         cashSessionRepositoryProvider.overrideWithValue(repo),
         cashSessionMovementRepositoryProvider.overrideWithValue(repo),
+        cashSessionSalesRepositoryProvider.overrideWithValue(repo),
         loginControllerProvider.overrideWith(_TestLoginController.new),
       ],
     );

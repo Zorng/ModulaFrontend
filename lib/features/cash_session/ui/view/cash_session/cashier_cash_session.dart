@@ -7,10 +7,9 @@ import 'package:modular_pos/core/widgets/navigation/app_back_button.dart';
 import 'package:modular_pos/features/cash_session/ui/viewmodels/cash_session_error_message.dart';
 import 'package:modular_pos/features/cash_session/ui/viewmodels/cash_session_viewmodel.dart';
 import 'package:modular_pos/features/cash_session/ui/widgets/session_overview_card.dart';
-import 'package:modular_pos/features/cash_session/ui/widgets/start_session_card.dart';
-import 'package:modular_pos/features/cash_session/ui/widgets/cash_session_details_card.dart';
-import 'package:modular_pos/features/cash_session/ui/widgets/close_session_modal.dart';
-import 'package:modular_pos/features/cash_session/ui/widgets/force_close_session_modal.dart';
+import 'package:modular_pos/features/cash_session/ui/widgets/session_action_card.dart';
+import 'package:modular_pos/features/cash_session/ui/widgets/current_session_summary_card.dart';
+import 'package:modular_pos/features/cash_session/ui/widgets/session_sales_section.dart';
 
 class CashSessionScreen extends ConsumerWidget {
   const CashSessionScreen({super.key, this.showAppBar = true});
@@ -27,11 +26,6 @@ class CashSessionScreen extends ConsumerWidget {
     final hasNavigationRail = AppBreakpoints.isLarge(screenWidth);
 
     final isSessionOpen = sessionState.sessionStatus == SessionStatus.open;
-    final isSessionClosed =
-        sessionState.sessionStatus == SessionStatus.closed ||
-        sessionState.sessionStatus == SessionStatus.forceClosed;
-    final isNoSession = sessionState.sessionStatus == SessionStatus.notStarted;
-
     return Scaffold(
       appBar: showAppBar
           ? AppBar(
@@ -49,21 +43,12 @@ class CashSessionScreen extends ConsumerWidget {
           : null,
       body: SafeArea(
         child: hasNavigationRail
-            ? _buildWideLayout(
-                context,
-                sessionState,
-                notifier,
-                isNoSession,
-                isSessionOpen,
-                isSessionClosed,
-              )
+            ? _buildWideLayout(context, sessionState, notifier, isSessionOpen)
             : _buildMobileLayout(
                 context,
                 sessionState,
                 notifier,
-                isNoSession,
                 isSessionOpen,
-                isSessionClosed,
               ),
       ),
     );
@@ -73,26 +58,26 @@ class CashSessionScreen extends ConsumerWidget {
     BuildContext context,
     CashSessionState sessionState,
     CashSessionViewModel notifier,
-    bool isNoSession,
     bool isSessionOpen,
-    bool isSessionClosed,
   ) {
+    final showSummary = _showsSummary(sessionState);
+
     return ListView(
       padding: const EdgeInsets.all(16.0),
       children: [
         if (sessionState.error != null) _buildErrorBanner(sessionState),
         const SessionOverviewCard(),
         const SizedBox(height: 16),
-        if (isNoSession)
-          _buildStartSessionCard(context, notifier)
-        else if (isSessionOpen || isSessionClosed)
-          ..._buildSessionDetailsSection(
-            context,
-            sessionState,
-            notifier,
-            isSessionOpen,
-            isSessionClosed,
-          ),
+        SessionActionCard(sessionState: sessionState, notifier: notifier),
+        if (showSummary) ...[
+          const SizedBox(height: 16),
+          const CurrentSessionSummaryCard(),
+        ],
+        const SizedBox(height: 16),
+        SessionSalesSection(
+          sessionStatus: sessionState.sessionStatus,
+          sales: sessionState.sales,
+        ),
       ],
     );
   }
@@ -101,45 +86,97 @@ class CashSessionScreen extends ConsumerWidget {
     BuildContext context,
     CashSessionState sessionState,
     CashSessionViewModel notifier,
-    bool isNoSession,
     bool isSessionOpen,
-    bool isSessionClosed,
   ) {
+    final showSummary = _showsSummary(sessionState);
+    final isNotStarted = sessionState.sessionStatus == SessionStatus.notStarted;
+
     return ListView(
       padding: const EdgeInsets.all(24.0),
       children: [
         if (sessionState.error != null) _buildErrorBanner(sessionState),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Left column: Session Overview
-            Expanded(
-              flex: 1,
-              child: const SessionOverviewCard(),
+        if (showSummary && isNotStarted)
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Expanded(
+                  flex: 3,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      SessionOverviewCard(),
+                      SizedBox(height: 24),
+                      Expanded(
+                        child: CurrentSessionSummaryCard(
+                          stretchPlaceholder: true,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 24),
+                Expanded(
+                  flex: 2,
+                  child: SessionActionCard(
+                    sessionState: sessionState,
+                    notifier: notifier,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(width: 24),
-            // Right column: Start Session or Session Details
-            Expanded(
-              flex: 1,
-              child: Column(
-                children: [
-                  if (isNoSession)
-                    _buildStartSessionCard(context, notifier)
-                  else if (isSessionOpen || isSessionClosed)
-                    ..._buildSessionDetailsSection(
-                      context,
-                      sessionState,
-                      notifier,
-                      isSessionOpen,
-                      isSessionClosed,
-                    ),
-                ],
+          )
+        else if (showSummary)
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Expanded(
+                flex: 3,
+                child: Column(
+                  children: [
+                    SessionOverviewCard(),
+                    SizedBox(height: 24),
+                    CurrentSessionSummaryCard(),
+                  ],
+                ),
               ),
-            ),
-          ],
+              const SizedBox(width: 24),
+              Expanded(
+                flex: 2,
+                child: SessionActionCard(
+                  sessionState: sessionState,
+                  notifier: notifier,
+                ),
+              ),
+            ],
+          )
+        else
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Expanded(flex: 3, child: SessionOverviewCard()),
+              const SizedBox(width: 24),
+              Expanded(
+                flex: 2,
+                child: SessionActionCard(
+                  sessionState: sessionState,
+                  notifier: notifier,
+                ),
+              ),
+            ],
+          ),
+        const SizedBox(height: 24),
+        SessionSalesSection(
+          sessionStatus: sessionState.sessionStatus,
+          sales: sessionState.sales,
         ),
       ],
     );
+  }
+
+  bool _showsSummary(CashSessionState sessionState) {
+    return sessionState.isOwnedByCurrentUser ||
+        sessionState.sessionStatus == SessionStatus.notStarted;
   }
 
   Widget _buildErrorBanner(CashSessionState sessionState) {
@@ -167,118 +204,5 @@ class CashSessionScreen extends ConsumerWidget {
         ],
       ),
     );
-  }
-
-  Widget _buildStartSessionCard(
-    BuildContext context,
-    CashSessionViewModel notifier,
-  ) {
-    return StartSessionCard(
-      onSessionStarted: (usd, khr, note) {
-        notifier.startSession(usdAmount: usd, khrAmount: khr, note: note);
-      },
-    );
-  }
-
-  List<Widget> _buildSessionDetailsSection(
-    BuildContext context,
-    CashSessionState sessionState,
-    CashSessionViewModel notifier,
-    bool isSessionOpen,
-    bool isSessionClosed,
-  ) {
-    return [
-      CashSessionDetailsCard(
-        openFloatUsd: sessionState.openFloatUsd,
-        openFloatKhr: sessionState.openFloatKhr,
-        startTime: sessionState.startTime ?? DateTime.now(),
-        endTime: sessionState.endTime,
-        status: switch (sessionState.sessionStatus) {
-          SessionStatus.forceClosed => 'Force Closed',
-          SessionStatus.closed => 'Closed',
-          _ => 'Open',
-        },
-      ),
-      const SizedBox(height: 16),
-      if (isSessionOpen)
-        Column(
-          children: [
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: sessionState.isLoading
-                    ? null
-                    : () {
-                        showModalBottomSheet(
-                          context: context,
-                          isScrollControlled: true,
-                          shape: const RoundedRectangleBorder(
-                            borderRadius: BorderRadius.vertical(
-                              top: Radius.circular(16),
-                            ),
-                          ),
-                          builder: (modalContext) {
-                            return CloseSessionModal(
-                              onSessionClosed: (usd, khr, note) {
-                                Navigator.of(modalContext).pop();
-                                notifier.closeSession(
-                                  countedUsd: usd,
-                                  countedKhr: khr,
-                                  note: note,
-                                );
-                              },
-                            );
-                          },
-                        );
-                      },
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFFED533C),
-                  foregroundColor: Colors.white,
-                ),
-                child: const Text('Close Cash Session'),
-              ),
-            ),
-            if (sessionState.canForceClose) ...[
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton(
-                  onPressed: sessionState.isLoading
-                      ? null
-                      : () {
-                          showModalBottomSheet(
-                            context: context,
-                            isScrollControlled: true,
-                            shape: const RoundedRectangleBorder(
-                              borderRadius: BorderRadius.vertical(
-                                top: Radius.circular(16),
-                              ),
-                            ),
-                            builder: (modalContext) {
-                              return ForceCloseSessionModal(
-                                onForceClosed: (usd, khr, reason, note) {
-                                  Navigator.of(modalContext).pop();
-                                  notifier.forceCloseSession(
-                                    countedUsd: usd,
-                                    countedKhr: khr,
-                                    reason: reason,
-                                    note: note,
-                                  );
-                                },
-                              );
-                            },
-                          );
-                        },
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFFB45309),
-                    side: const BorderSide(color: Color(0xFFB45309)),
-                  ),
-                  child: const Text('Force Close Session'),
-                ),
-              ),
-            ],
-          ],
-        ),
-    ];
   }
 }

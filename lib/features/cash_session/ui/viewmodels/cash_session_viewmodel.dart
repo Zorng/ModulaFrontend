@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/core/network/api_contract.dart';
 import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
@@ -5,8 +7,10 @@ import 'package:modular_pos/features/auth/domain/auth_role.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/cash_session/data/cash_session_movement_repository.dart';
 import 'package:modular_pos/features/cash_session/data/cash_session_repository.dart';
+import 'package:modular_pos/features/cash_session/data/cash_session_sales_repository.dart';
 import 'package:modular_pos/features/cash_session/domain/models/cash_movement.dart';
 import 'package:modular_pos/features/cash_session/domain/models/cash_session.dart';
+import 'package:modular_pos/features/cash_session/domain/models/cash_session_sale.dart';
 
 enum SessionStatus { notStarted, open, closed, forceClosed }
 
@@ -16,18 +20,22 @@ class CashSessionState {
   const CashSessionState({
     this.session,
     this.movements = const [],
+    this.sales = const [],
     this.isLoading = false,
     this.error,
     this.errorCode,
     this.canForceClose = false,
+    this.currentUserAccountId = '',
   });
 
   final CashSession? session;
   final List<CashMovement> movements;
+  final List<CashSessionSale> sales;
   final bool isLoading;
   final String? error;
   final String? errorCode;
   final bool canForceClose;
+  final String currentUserAccountId;
 
   SessionStatus get sessionStatus {
     final currentSession = session;
@@ -54,14 +62,45 @@ class CashSessionState {
       .fold<double>(0, (sum, movement) => sum + movement.amountUsd);
   bool get hasCashMovement => movements.isNotEmpty;
   String? get sessionId => session?.id;
+  bool get hasOpenSession => sessionStatus == SessionStatus.open;
+  bool get isOwnedByCurrentUser {
+    final openerId = (session?.openedByAccountId ?? '').trim();
+    final currentUserId = currentUserAccountId.trim();
+    return hasOpenSession &&
+        openerId.isNotEmpty &&
+        currentUserId.isNotEmpty &&
+        openerId == currentUserId;
+  }
+
+  bool get isOccupiedByAnotherUser {
+    final openerId = (session?.openedByAccountId ?? '').trim();
+    final currentUserId = currentUserAccountId.trim();
+    return hasOpenSession &&
+        openerId.isNotEmpty &&
+        currentUserId.isNotEmpty &&
+        openerId != currentUserId;
+  }
+
+  String? get sessionOwnerLabel {
+    if (!hasOpenSession) return null;
+    if (isOwnedByCurrentUser) return 'You';
+    if (isOccupiedByAnotherUser) {
+      final openerName = (session?.openedByName ?? '').trim();
+      if (openerName.isNotEmpty) return openerName;
+      return 'Another account';
+    }
+    return null;
+  }
 
   CashSessionState copyWith({
     Object? session = _unset,
     Object? movements = _unset,
+    Object? sales = _unset,
     bool? isLoading,
     Object? error = _unset,
     Object? errorCode = _unset,
     bool? canForceClose,
+    String? currentUserAccountId,
   }) {
     return CashSessionState(
       session: identical(session, _unset)
@@ -72,12 +111,18 @@ class CashSessionState {
           : List<CashMovement>.unmodifiable(
               List<CashMovement>.from(movements as List),
             ),
+      sales: identical(sales, _unset)
+          ? this.sales
+          : List<CashSessionSale>.unmodifiable(
+              List<CashSessionSale>.from(sales as List),
+            ),
       isLoading: isLoading ?? this.isLoading,
       error: identical(error, _unset) ? this.error : error as String?,
       errorCode: identical(errorCode, _unset)
           ? this.errorCode
           : errorCode as String?,
       canForceClose: canForceClose ?? this.canForceClose,
+      currentUserAccountId: currentUserAccountId ?? this.currentUserAccountId,
     );
   }
 }
@@ -86,25 +131,43 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
   CashSessionRepository get _repo => ref.read(cashSessionRepositoryProvider);
   CashSessionMovementRepository get _movementRepo =>
       ref.read(cashSessionMovementRepositoryProvider);
+  CashSessionSalesRepository get _salesRepo =>
+      ref.read(cashSessionSalesRepositoryProvider);
 
   @override
   CashSessionState build() {
+    final currentUserId = ref.watch(
+      loginControllerProvider.select(
+        (state) => _resolveCurrentAccountId(state.session),
+      ),
+    );
     ref.watch(
       loginControllerProvider.select(
         (state) => state.session?.accessToken ?? '',
       ),
     );
     ref.watch(authActiveBranchIdProvider);
-    return const CashSessionState(isLoading: false);
+    return CashSessionState(
+      isLoading: false,
+      currentUserAccountId: currentUserId,
+    );
   }
 
   Future<void> load() async {
     state = state.copyWith(isLoading: true, error: null, errorCode: null);
-    await _fetchActiveSession(loadMovements: true);
+    await _fetchActiveSession(loadMovements: true, loadSales: true);
   }
 
   void reset() {
-    state = const CashSessionState(isLoading: false);
+    state = state.copyWith(
+      session: null,
+      movements: const <CashMovement>[],
+      sales: const <CashSessionSale>[],
+      isLoading: false,
+      error: null,
+      errorCode: null,
+      canForceClose: false,
+    );
   }
 
   Future<void> startSession({
@@ -120,7 +183,11 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
         note: note,
       );
       _applySession(session);
-      await _loadMovements(session.id);
+      await _loadSessionDetails(
+        session.id,
+        loadMovements: true,
+        loadSales: true,
+      );
     } catch (error) {
       _setError(error);
     }
@@ -176,7 +243,7 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
         amountKhr: amountKhr,
         reason: safeReason,
       );
-      await _fetchActiveSession(loadMovements: true);
+      await _fetchActiveSession(loadMovements: true, loadSales: true);
     } catch (error) {
       _setError(error);
     }
@@ -202,7 +269,7 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
         amountKhr: amountKhr,
         reason: safeReason,
       );
-      await _fetchActiveSession(loadMovements: true);
+      await _fetchActiveSession(loadMovements: true, loadSales: true);
     } catch (error) {
       _setError(error);
     }
@@ -228,7 +295,7 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
         amountKhrDelta: amountKhrDelta,
         reason: safeReason,
       );
-      await _fetchActiveSession(loadMovements: true);
+      await _fetchActiveSession(loadMovements: true, loadSales: true);
     } catch (error) {
       _setError(error);
     }
@@ -250,7 +317,7 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
         countedCashKhr: countedKhr,
         note: note,
       );
-      await _fetchActiveSession(loadMovements: true);
+      await _fetchActiveSession(loadMovements: true, loadSales: true);
     } catch (error) {
       _setError(error);
     }
@@ -274,13 +341,16 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
         reason: reason,
         note: note,
       );
-      await _fetchActiveSession(loadMovements: true);
+      await _fetchActiveSession(loadMovements: true, loadSales: true);
     } catch (error) {
       _setError(error);
     }
   }
 
-  Future<void> _fetchActiveSession({bool loadMovements = false}) async {
+  Future<void> _fetchActiveSession({
+    bool loadMovements = false,
+    bool loadSales = false,
+  }) async {
     try {
       final active = await _repo.getActiveSession();
       if (active == null || active.id.isEmpty) {
@@ -288,20 +358,37 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
         return;
       }
       _applySession(active);
-      if (loadMovements) {
-        await _loadMovements(active.id);
+      if (loadMovements || loadSales) {
+        await _loadSessionDetails(
+          active.id,
+          loadMovements: loadMovements,
+          loadSales: loadSales,
+        );
       }
     } catch (error) {
       _setError(error);
     }
   }
 
-  Future<void> _loadMovements(String sessionId) async {
+  Future<void> _loadSessionDetails(
+    String sessionId, {
+    required bool loadMovements,
+    required bool loadSales,
+  }) async {
     try {
-      final movements = await _movementRepo.listMovements(sessionId: sessionId);
+      final movementFuture = loadMovements
+          ? _movementRepo.listMovements(sessionId: sessionId)
+          : Future.value(state.movements);
+      final salesFuture = loadSales
+          ? _salesRepo.listSales(sessionId: sessionId)
+          : Future.value(state.sales);
+      final results = await Future.wait<Object>([movementFuture, salesFuture]);
+      final movements = results[0] as List<CashMovement>;
+      final sales = results[1] as List<CashSessionSale>;
       state = state.copyWith(
         isLoading: false,
         movements: movements,
+        sales: sales,
         error: null,
         errorCode: null,
         canForceClose: _canForceClose(state.session),
@@ -331,6 +418,7 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
       isLoading: false,
       session: null,
       movements: const <CashMovement>[],
+      sales: const <CashSessionSale>[],
       error: null,
       errorCode: null,
       canForceClose: false,
@@ -369,6 +457,45 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
   String? _errorCode(Object error) {
     if (error is ApiClientException) return error.code;
     return null;
+  }
+
+  String _resolveCurrentAccountId(session) {
+    final accessToken = session?.accessToken?.toString() ?? '';
+    final tokenId = _claimString(_decodeJwtClaims(accessToken), const [
+      'sub',
+      'accountId',
+      'userId',
+    ]);
+    if (tokenId.isNotEmpty) return tokenId;
+    return session?.user.id?.toString() ?? '';
+  }
+
+  Map<String, dynamic> _decodeJwtClaims(String token) {
+    final parts = token.split('.');
+    if (parts.length < 2) return const <String, dynamic>{};
+    final payload = parts[1].trim();
+    if (payload.isEmpty) return const <String, dynamic>{};
+
+    try {
+      final normalized = base64Url.normalize(payload);
+      final decoded = utf8.decode(base64Url.decode(normalized));
+      final json = jsonDecode(decoded);
+      if (json is Map<String, dynamic>) return json;
+      if (json is Map) {
+        return json.map((key, value) => MapEntry(key.toString(), value));
+      }
+    } catch (_) {
+      return const <String, dynamic>{};
+    }
+    return const <String, dynamic>{};
+  }
+
+  String _claimString(Map<String, dynamic> claims, List<String> keys) {
+    for (final key in keys) {
+      final value = claims[key]?.toString() ?? '';
+      if (value.trim().isNotEmpty) return value.trim();
+    }
+    return '';
   }
 }
 

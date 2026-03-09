@@ -30,6 +30,8 @@ class ReportingRepository {
       closedAt: dto.closedAt,
       openingFloatUsd: dto.openingFloatUsd,
       openingFloatKhr: dto.openingFloatKhr,
+      totalSalesKhqrUsd: dto.totalSalesKhqrUsd,
+      totalSalesKhqrKhr: dto.totalSalesKhqrKhr,
       totalSalesCashUsd: dto.totalSalesCashUsd,
       totalSalesCashKhr: dto.totalSalesCashKhr,
       totalPaidInUsd: dto.totalPaidInUsd,

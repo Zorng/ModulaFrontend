@@ -1,13 +1,19 @@
 import 'package:modular_pos/features/cash_session/data/cash_session_api.dart';
 import 'package:modular_pos/features/cash_session/data/cash_session_movement_repository.dart';
 import 'package:modular_pos/features/cash_session/data/cash_session_repository.dart';
+import 'package:modular_pos/features/cash_session/data/cash_session_sales_repository.dart';
 import 'package:modular_pos/features/cash_session/data/dto/cash_movement_dto.dart';
 import 'package:modular_pos/features/cash_session/data/dto/cash_session_dto.dart';
+import 'package:modular_pos/features/cash_session/data/dto/cash_session_sale_dto.dart';
 import 'package:modular_pos/features/cash_session/domain/models/cash_movement.dart';
 import 'package:modular_pos/features/cash_session/domain/models/cash_session.dart';
+import 'package:modular_pos/features/cash_session/domain/models/cash_session_sale.dart';
 
 class RemoteCashSessionRepository
-    implements CashSessionRepository, CashSessionMovementRepository {
+    implements
+        CashSessionRepository,
+        CashSessionMovementRepository,
+        CashSessionSalesRepository {
   RemoteCashSessionRepository(this._api);
 
   final CashSessionApi _api;
@@ -127,18 +133,30 @@ class RemoteCashSessionRepository
     return list.map(_toMovementDomain).toList();
   }
 
+  @override
+  Future<List<CashSessionSale>> listSales({
+    required String sessionId,
+    int limit = 20,
+    int offset = 0,
+  }) async {
+    final list = await _api.listSales(sessionId, limit: limit, offset: offset);
+    return list.map(_toSaleDomain).toList();
+  }
+
   CashSession _toDomain(CashSessionDto dto) {
     return CashSession(
       id: dto.id,
       tenantId: dto.tenantId,
       branchId: dto.branchId,
       openedByAccountId: dto.openedByAccountId,
+      openedByName: dto.openedByName,
       openedAt: dto.openedAt?.toLocal(),
       status: dto.status,
       openingFloatUsd: dto.openingFloatUsd,
       openingFloatKhr: dto.openingFloatKhr,
       closedAt: dto.closedAt?.toLocal(),
       closedByAccountId: dto.closedByAccountId,
+      closedByName: dto.closedByName,
       closeNote: dto.closeNote,
       totalPaidInUsd: 0,
       totalPaidOutUsd: 0,
@@ -160,5 +178,9 @@ class RemoteCashSessionRepository
       recordedByAccountId: dto.recordedByAccountId,
       occurredAt: dto.occurredAt?.toLocal(),
     );
+  }
+
+  CashSessionSale _toSaleDomain(CashSessionSaleDto dto) {
+    return dto.toDomain();
   }
 }

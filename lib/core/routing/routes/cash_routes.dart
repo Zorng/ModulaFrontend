@@ -1,10 +1,10 @@
 import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
+import 'package:modular_pos/features/cash_session/ui/view/cash_history/cash_session_history_page.dart';
 import 'package:modular_pos/features/cash_session/ui/view/cash_session/cashier_cash_session.dart';
 import 'package:modular_pos/features/cash_session/ui/view/cash_movement/cash_movement_page.dart';
 import 'package:modular_pos/features/cash_session/ui/view/cash_shell/cash_bottom_nav_shell_page.dart';
 import 'package:modular_pos/features/cash_session/ui/view/x_report/x_report_page.dart';
-import 'package:modular_pos/features/cash_session/ui/view/z_report/z_report_page.dart';
 
 List<RouteBase> buildCashRoutes() {
   return [
@@ -35,22 +35,18 @@ List<RouteBase> buildCashRoutes() {
         StatefulShellBranch(
           routes: [
             GoRoute(
-              path: AppRoute.xReport.path,
-              name: AppRoute.xReport.name,
-              builder: (context, state) => const XReportPage(showAppBar: false),
-            ),
-          ],
-        ),
-        StatefulShellBranch(
-          routes: [
-            GoRoute(
               path: AppRoute.zReport.path,
               name: AppRoute.zReport.name,
-              builder: (context, state) => const ZReportPage(),
+              builder: (context, state) => const CashSessionHistoryPage(),
             ),
           ],
         ),
       ],
+    ),
+    GoRoute(
+      path: AppRoute.xReport.path,
+      name: AppRoute.xReport.name,
+      builder: (context, state) => const XReportPage(showAppBar: true),
     ),
   ];
 }

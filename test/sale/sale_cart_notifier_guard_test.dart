@@ -1,5 +1,8 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:modular_pos/features/cash_session/ui/viewmodels/cash_session_viewmodel.dart';
+import 'package:modular_pos/features/cash_session/ui/viewmodels/current_session_summary_provider.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
 import 'package:modular_pos/features/policy/domain/models/policy.dart';
 import 'package:modular_pos/features/policy/ui/viewmodels/policy_viewmodel.dart';
@@ -35,6 +38,20 @@ class _PrefilledCartNotifier extends SaleCartNotifier {
 
   @override
   SaleCartState build() => _initial;
+}
+
+class _SpyCashSessionViewModel extends CashSessionViewModel {
+  int loadCallCount = 0;
+
+  @override
+  CashSessionState build() {
+    return const CashSessionState(currentUserAccountId: 'user-1');
+  }
+
+  @override
+  Future<void> load() async {
+    loadCallCount += 1;
+  }
 }
 
 void main() {
@@ -74,6 +91,89 @@ void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues({});
   });
+
+  test(
+    'SaleCartNotifier.checkout refreshes cash-session session summary and session state after finalize',
+    () async {
+      final repo = _MockSaleRepository();
+      final cashSessionSpy = _SpyCashSessionViewModel();
+      var summaryLoadCount = 0;
+
+      const item = MenuItem(
+        id: 'menu-1',
+        name: 'Item',
+        categoryId: 'cat-1',
+        price: 2.0,
+      );
+
+      when(() => repo.finalizeSale(any())).thenAnswer(
+        (_) async => const SaleFinalizeSaleResultDto(
+          saleId: 'sale-finalized-1',
+          status: 'FINALIZED',
+          receiptId: 'receipt-1',
+          receipt: null,
+          totalUsdExact: 2.0,
+          totalKhrExact: 8000,
+          cashReceivedUsd: 10.0,
+          cashReceivedKhr: 0.0,
+          changeGivenUsd: 8.0,
+          changeGivenKhr: 0.0,
+          idempotentReplay: false,
+        ),
+      );
+
+      final container = createTestContainer(
+        overrides: [
+          policyNotifierProvider.overrideWith(_StaticPolicyNotifier.new),
+          saleRepositoryProvider.overrideWithValue(repo),
+          cashSessionViewModelProvider.overrideWith(() => cashSessionSpy),
+          currentSessionSummaryProvider.overrideWith((ref) async {
+            summaryLoadCount += 1;
+            return null;
+          }),
+          saleCartProvider.overrideWith(
+            () => _PrefilledCartNotifier(
+              const SaleCartState(
+                saleId: 'sale-1',
+                paymentMethod: 'cash',
+                cashUsd: 10,
+                lines: [
+                  CartLine(item: item, quantity: 1, selectedOptionIds: {}),
+                ],
+              ),
+            ),
+          ),
+          saleAccessGateProvider.overrideWithValue(
+            const SaleAccessGate(
+              branchId: 'branch-1',
+              contextLoading: false,
+              branchActive: true,
+              branchFrozen: false,
+              cashSessionOpen: true,
+              canMutateCart: true,
+              canCheckout: true,
+              canPlacePayLater: true,
+            ),
+          ),
+        ],
+      );
+
+      final summarySub = container.listen<AsyncValue<Object?>>(
+        currentSessionSummaryProvider,
+        (_, __) {},
+        fireImmediately: true,
+      );
+      addTearDown(summarySub.close);
+
+      final notifier = container.read(saleCartProvider.notifier);
+      await notifier.checkout();
+      await Future<void>.delayed(Duration.zero);
+
+      verify(() => repo.finalizeSale(any())).called(1);
+      expect(summaryLoadCount, 2);
+      expect(cashSessionSpy.loadCallCount, 1);
+    },
+  );
 
   test(
     'SaleCartNotifier.addSelection throws and does not call repository when branch is frozen',
