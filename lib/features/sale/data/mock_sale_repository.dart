@@ -1428,7 +1428,15 @@ class MockSaleRepository implements SaleCheckoutRepository {
   }) {
     final normalizedSaleId = saleId.trim();
     if (normalizedSaleId.isNotEmpty) {
-      if (_drafts.containsKey(normalizedSaleId)) {
+      final existingDraft = _drafts[normalizedSaleId];
+      if (existingDraft != null) {
+        if (cartLines.isNotEmpty) {
+          existingDraft.items
+            ..clear()
+            ..addAll(cartLines.map(_lineFromCommand));
+          existingDraft.updatedAt = _now();
+          _syncCartFingerprintFromDraft(normalizedSaleId);
+        }
         return normalizedSaleId;
       }
       if (cartLines.isEmpty) {

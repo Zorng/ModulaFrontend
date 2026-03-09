@@ -18,6 +18,7 @@ import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_viewmodel.dart
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_khqr_states.dart';
 import 'package:modular_pos/features/sale/ui/view/sale_cart/widgets/sale_cart_bottom_bar.dart';
 import 'package:modular_pos/features/sale/ui/view/sale_cart/widgets/sale_cart_content.dart';
+import 'package:modular_pos/features/sale/ui/view/sale_cart/widgets/sale_khqr_popup.dart';
 import 'package:modular_pos/features/sale/ui/view/sale_cart/widgets/sale_order_type_selector.dart';
 
 class SaleCartPanel extends ConsumerStatefulWidget {
@@ -234,6 +235,42 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
     }
   }
 
+  Future<void> _showKhqrPopup({
+    required bool readOnly,
+    required double grandTotalUsd,
+    required double grandTotalKhr,
+  }) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => SaleKhqrPopup(
+        readOnly: readOnly,
+        grandTotalUsd: grandTotalUsd,
+        grandTotalKhr: grandTotalKhr,
+      ),
+    );
+    if (result == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('KHQR payment confirmed.')),
+      );
+    }
+  }
+
+  Future<void> _handlePaymentMethodChanged({
+    required String value,
+    required SaleCartNotifier cartNotifier,
+    required bool readOnly,
+    required double grandTotalUsd,
+    required double grandTotalKhr,
+  }) async {
+    await cartNotifier.setPaymentMethod(value);
+    if (!mounted || value.toLowerCase() != 'qr') return;
+    await _showKhqrPopup(
+      readOnly: readOnly,
+      grandTotalUsd: grandTotalUsd,
+      grandTotalKhr: grandTotalKhr,
+    );
+  }
+
   double _lineTotal(CartLine line, Map<String, ModifierGroup> groupLookup) {
     double addons = 0;
     for (final entry in line.selectedOptionIds.entries) {
@@ -379,7 +416,7 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
       unawaited(
         ref
             .read(saleCartProvider.notifier)
-            .checkKhqrStatus()
+            .checkKhqrStatus(silent: true)
             .catchError((_) {}),
       );
     });
@@ -686,9 +723,13 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
                       cartNotifier.updateQuantity(index, line.quantity - 1),
                   paymentMethod: paymentMethod,
                   tenderCurrency: tenderCurrency,
-                  onPaymentMethodChanged: (value) => ref
-                      .read(saleCartProvider.notifier)
-                      .setPaymentMethod(value),
+                  onPaymentMethodChanged: (value) => _handlePaymentMethodChanged(
+                    value: value,
+                    cartNotifier: cartNotifier,
+                    readOnly: readOnly,
+                    grandTotalUsd: grandTotalUsd,
+                    grandTotalKhr: grandTotalKhr,
+                  ),
                   onTenderCurrencyChanged: (value) => ref
                       .read(saleCartProvider.notifier)
                       .setTenderCurrency(value),
@@ -704,69 +745,11 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
                     setState(() {});
                   },
                   khqrStatus: cartState.khqrStatus,
-                  khqrPayload: cartState.khqrQrPayload,
-                  khqrExpiresAt: cartState.khqrExpiresAt,
-                  khqrConfirmedAt: cartState.khqrConfirmedAt,
-                  khqrErrorMessage: cartState.khqrErrorMessage,
-                  khqrErrorCode: cartState.khqrErrorCode,
-                  khqrLoading: cartState.isKhqrLoading,
-                  onGenerateKhqr: readOnly
-                      ? null
-                      : () async {
-                          try {
-                            await cartNotifier.generateKhqrAttempt();
-                          } catch (e) {
-                            if (!context.mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  _actionErrorMessage(
-                                    context: 'Failed to generate KHQR',
-                                    error: e,
-                                  ),
-                                ),
-                              ),
-                            );
-                          }
-                        },
-                  onRefreshKhqrStatus: readOnly
-                      ? null
-                      : () async {
-                          try {
-                            await cartNotifier.checkKhqrStatus();
-                          } catch (e) {
-                            if (!context.mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  _actionErrorMessage(
-                                    context: 'Failed to check KHQR',
-                                    error: e,
-                                  ),
-                                ),
-                              ),
-                            );
-                          }
-                        },
-                  onCancelKhqr: readOnly
-                      ? null
-                      : () async {
-                          try {
-                            await cartNotifier.cancelKhqrAttempt();
-                          } catch (e) {
-                            if (!context.mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  _actionErrorMessage(
-                                    context: 'Failed to cancel KHQR',
-                                    error: e,
-                                  ),
-                                ),
-                              ),
-                            );
-                          }
-                        },
+                  onOpenKhqrPopup: () => _showKhqrPopup(
+                    readOnly: readOnly,
+                    grandTotalUsd: grandTotalUsd,
+                    grandTotalKhr: grandTotalKhr,
+                  ),
                 ),
               ],
             ),

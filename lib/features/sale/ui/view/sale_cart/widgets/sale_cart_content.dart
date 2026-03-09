@@ -3,7 +3,6 @@ import 'package:modular_pos/core/formatters/khr_currency_formatter.dart';
 import 'package:modular_pos/core/input_formatters/khr_text_input_formatter.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_state.dart';
-import 'package:modular_pos/features/sale/ui/viewmodels/sale_checkout_error_message.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_khqr_states.dart';
 import 'package:modular_pos/core/input_formatters/decimal_text_input_formatter.dart';
 import 'package:modular_pos/features/sale/ui/view/sale_cart/widgets/sale_cart_item_row.dart';
@@ -29,15 +28,7 @@ class SaleCartContent extends StatelessWidget {
     required this.readOnly,
     required this.onAmountsChanged,
     required this.khqrStatus,
-    required this.khqrPayload,
-    required this.khqrExpiresAt,
-    required this.khqrConfirmedAt,
-    required this.khqrErrorMessage,
-    required this.khqrErrorCode,
-    required this.khqrLoading,
-    required this.onGenerateKhqr,
-    required this.onRefreshKhqrStatus,
-    required this.onCancelKhqr,
+    required this.onOpenKhqrPopup,
   });
 
   final List<CartLine> items;
@@ -57,15 +48,7 @@ class SaleCartContent extends StatelessWidget {
   final bool readOnly;
   final VoidCallback onAmountsChanged;
   final String khqrStatus;
-  final String? khqrPayload;
-  final DateTime? khqrExpiresAt;
-  final DateTime? khqrConfirmedAt;
-  final String? khqrErrorMessage;
-  final String? khqrErrorCode;
-  final bool khqrLoading;
-  final VoidCallback? onGenerateKhqr;
-  final VoidCallback? onRefreshKhqrStatus;
-  final VoidCallback? onCancelKhqr;
+  final VoidCallback? onOpenKhqrPopup;
 
   @override
   Widget build(BuildContext context) {
@@ -104,65 +87,9 @@ class SaleCartContent extends StatelessWidget {
         !readOnly && (!khrHasInput || (bothFilled && tender == 'usd'));
     final khrEnabled =
         !readOnly && (!usdHasInput || (bothFilled && tender == 'khr'));
-    final normalizedKhqrStatus = SaleKhqrUiStates.normalize(khqrStatus);
-    final khqrStatusLabel = switch (normalizedKhqrStatus) {
-      SaleKhqrUiStates.readyToGenerate => 'Ready to generate',
-      SaleKhqrUiStates.waitingForPayment => 'Waiting for payment',
-      SaleKhqrUiStates.paidConfirmed => 'Paid confirmed',
-      SaleKhqrUiStates.cancelled => 'Cancelled',
-      SaleKhqrUiStates.expired => 'Expired',
-      SaleKhqrUiStates.pendingConfirmation => 'Pending confirmation',
-      SaleKhqrUiStates.superseded => 'Superseded',
-      _ => normalizedKhqrStatus,
-    };
-    final khqrStatusColor = switch (normalizedKhqrStatus) {
-      SaleKhqrUiStates.paidConfirmed => Colors.green.shade700,
-      SaleKhqrUiStates.cancelled => Colors.red.shade700,
-      SaleKhqrUiStates.expired => Colors.orange.shade700,
-      SaleKhqrUiStates.pendingConfirmation => Colors.amber.shade800,
-      SaleKhqrUiStates.superseded => Colors.blueGrey.shade700,
-      _ => Theme.of(context).colorScheme.primary,
-    };
-    final canGenerate = !readOnly && !khqrLoading && onGenerateKhqr != null;
-    final canRefresh =
-        !readOnly &&
-        !khqrLoading &&
-        onRefreshKhqrStatus != null &&
-        khqrPayload != null;
-    final canCancel =
-        !readOnly &&
-        !khqrLoading &&
-        onCancelKhqr != null &&
-        (normalizedKhqrStatus == SaleKhqrUiStates.waitingForPayment ||
-            normalizedKhqrStatus == SaleKhqrUiStates.pendingConfirmation);
-    final khqrPayable = tender == 'khr'
-        ? 'KHR ${formatKhrAmount(grandTotalKhr)}'
-        : '\$${grandTotalUsd.toStringAsFixed(2)}';
-    final showRefreshHint =
-        normalizedKhqrStatus == SaleKhqrUiStates.waitingForPayment ||
-        normalizedKhqrStatus == SaleKhqrUiStates.pendingConfirmation;
-    final lifecycleHint = switch (normalizedKhqrStatus) {
-      SaleKhqrUiStates.readyToGenerate =>
-        'Generate KHQR to start the QR payment flow.',
-      SaleKhqrUiStates.waitingForPayment =>
-        'Customer can scan and pay now. Keep checking for confirmation.',
-      SaleKhqrUiStates.pendingConfirmation =>
-        'Payment may be in progress. Keep checking status before finalizing.',
-      SaleKhqrUiStates.paidConfirmed =>
-        'Payment is confirmed. You can finalize checkout now.',
-      SaleKhqrUiStates.cancelled =>
-        'This KHQR intent was cancelled. Generate a new one to continue.',
-      SaleKhqrUiStates.expired =>
-        'This KHQR intent expired. Generate a new one to continue.',
-      SaleKhqrUiStates.superseded =>
-        'This KHQR intent is no longer valid. Generate a new one to continue.',
-      _ => null,
-    };
-    final khqrDisplayError = SaleCheckoutErrorMessage.build(
-      reasonCode: khqrErrorCode,
-      fallback: khqrErrorMessage,
-    );
-
+    final khqrConfirmed =
+        SaleKhqrUiStates.normalize(khqrStatus) ==
+        SaleKhqrUiStates.paidConfirmed;
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -373,132 +300,33 @@ class SaleCartContent extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Text(
-                      'Payable',
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                    const Spacer(),
-                    Text(
-                      khqrPayable,
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
+                Text(
+                  'KHQR will be generated and shown in a popup.',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Text(
-                      'Status',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: khqrStatusColor.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        khqrStatusLabel,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: khqrStatusColor,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
+                const SizedBox(height: 6),
+                Text(
+                  'Use the popup to scan, check status, cancel, or regenerate the payment QR.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 ),
-                if (khqrPayload != null) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    khqrPayload!,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-                if (khqrExpiresAt != null) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    'Expires: ${khqrExpiresAt!.toLocal().toString().substring(0, 19)}',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-                if (khqrConfirmedAt != null) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    'Confirmed: ${khqrConfirmedAt!.toLocal().toString().substring(0, 19)}',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Colors.green.shade700,
-                    ),
-                  ),
-                ],
                 const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Expanded(
-                      child: FilledButton.tonal(
-                        onPressed: canGenerate ? onGenerateKhqr : null,
-                        child: Text(
-                          saleKhqrNeedsRegenerate(normalizedKhqrStatus)
-                              ? 'Regenerate KHQR'
-                              : 'Generate KHQR',
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: canRefresh ? onRefreshKhqrStatus : null,
-                        child: const Text('Check Status'),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
                 SizedBox(
                   width: double.infinity,
-                  child: OutlinedButton(
-                    onPressed: canCancel ? onCancelKhqr : null,
-                    child: const Text('Cancel KHQR'),
+                  child: FilledButton.tonal(
+                    onPressed: readOnly || khqrConfirmed
+                        ? null
+                        : onOpenKhqrPopup,
+                    child: Text(
+                      khqrConfirmed
+                          ? 'KHQR Payment Confirmed'
+                          : 'Open KHQR Popup',
+                    ),
                   ),
                 ),
-                if (lifecycleHint != null) ...[
-                  const SizedBox(height: 6),
-                  Text(
-                    lifecycleHint,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-                if (showRefreshHint) ...[
-                  const SizedBox(height: 6),
-                  Text(
-                    'Keep checking until payment is confirmed.',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-                if (khqrDisplayError.trim().isNotEmpty) ...[
-                  const SizedBox(height: 6),
-                  Text(
-                    khqrDisplayError,
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodySmall?.copyWith(color: Colors.red.shade700),
-                  ),
-                ],
               ],
             ),
           ),

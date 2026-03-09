@@ -281,6 +281,12 @@ void main() {
 
     await tester.pumpAndSettle();
 
+    final openPopupButton = find.widgetWithText(FilledButton, 'Open KHQR Popup');
+    expect(openPopupButton, findsOneWidget);
+    await tester.ensureVisible(openPopupButton);
+    await tester.tap(openPopupButton);
+    await tester.pumpAndSettle();
+
     expect(find.text('Waiting for payment'), findsOneWidget);
     expect(find.widgetWithText(OutlinedButton, 'Cancel KHQR'), findsOneWidget);
     expect(

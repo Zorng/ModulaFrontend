@@ -16,11 +16,13 @@ final saleApiProvider = Provider<SaleApi>((ref) {
 class SaleApi {
   SaleApi(this._dio)
     : _prefix = AppEnv.salesApiPrefix,
-      _checkoutPrefix = '/v0/checkout';
+      _checkoutPrefix = '/v0/checkout',
+      _khqrPaymentsPrefix = '/v0/payments/khqr';
 
   final Dio _dio;
   final String _prefix;
   final String _checkoutPrefix;
+  final String _khqrPaymentsPrefix;
 
   Future<SaleDraftDto> createDraft(Map<String, dynamic> body) async {
     final response = await _dio.post<Map<String, dynamic>>(
@@ -165,6 +167,25 @@ class SaleApi {
       throw _mapSaleDioError(
         error,
         fallbackMessage: 'Failed to finalize sale.',
+      );
+    }
+  }
+
+  Future<SaleKhqrConfirmResponseDto> confirmKhqrPayment(
+    String md5, {
+    required IdempotencyRequest idempotency,
+  }) async {
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        '$_khqrPaymentsPrefix/confirm',
+        data: {'md5': md5},
+        options: withIdempotency(request: idempotency),
+      );
+      return SaleKhqrConfirmResponseDto.fromJson(_unwrap(response.data));
+    } on DioError catch (error) {
+      throw _mapSaleDioError(
+        error,
+        fallbackMessage: 'Failed to confirm KHQR payment.',
       );
     }
   }

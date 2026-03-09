@@ -679,7 +679,7 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
     }
   }
 
-  Future<void> checkKhqrStatus() async {
+  Future<void> checkKhqrStatus({bool silent = false}) async {
     final currentState = state;
     final saleId = currentState.saleId;
     final intentId = currentState.khqrAttemptId;
@@ -692,13 +692,15 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
     }
     if (currentState.isKhqrLoading) return;
 
-    final loadingState = currentState.copyWith(
-      isKhqrLoading: true,
-      khqrErrorMessage: null,
-      khqrErrorCode: null,
-    );
-    state = loadingState;
-    await _persistCart(loadingState);
+    if (!silent) {
+      final loadingState = currentState.copyWith(
+        isKhqrLoading: true,
+        khqrErrorMessage: null,
+        khqrErrorCode: null,
+      );
+      state = loadingState;
+      await _persistCart(loadingState);
+    }
 
     try {
       final status = await _repo.checkKhqrStatus(
@@ -709,7 +711,7 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
         ),
       );
       final newState = _applyKhqrStatusResult(
-        state,
+        silent ? currentState : state,
         saleId: status.saleId,
         status: status.status,
         confirmedAt: status.confirmedAt,
@@ -719,7 +721,7 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
       state = newState;
       await _persistCart(newState);
     } on SaleCheckoutRepositoryException catch (e) {
-      final errorState = state.copyWith(
+      final errorState = (silent ? currentState : state).copyWith(
         isKhqrLoading: false,
         khqrErrorMessage: e.message,
         khqrErrorCode: e.reasonCode,
@@ -728,7 +730,7 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
       await _persistCart(errorState);
       rethrow;
     } catch (e) {
-      final errorState = state.copyWith(
+      final errorState = (silent ? currentState : state).copyWith(
         isKhqrLoading: false,
         khqrErrorMessage: e.toString(),
         khqrErrorCode: SaleCheckoutReasonCodes.unknownError,

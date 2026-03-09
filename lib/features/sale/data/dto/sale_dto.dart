@@ -468,6 +468,53 @@ class SaleKhqrIntentCancelDto {
   }
 }
 
+class SaleKhqrConfirmSaleDto {
+  const SaleKhqrConfirmSaleDto({
+    required this.saleId,
+    required this.status,
+    required this.saleType,
+  });
+
+  final String saleId;
+  final String status;
+  final String saleType;
+
+  factory SaleKhqrConfirmSaleDto.fromJson(Map<String, dynamic> json) {
+    return SaleKhqrConfirmSaleDto(
+      saleId: _readString(json['saleId'] ?? json['id']),
+      status: _readString(json['status']),
+      saleType: _readString(json['saleType']),
+    );
+  }
+}
+
+class SaleKhqrConfirmResponseDto {
+  const SaleKhqrConfirmResponseDto({
+    required this.verificationStatus,
+    required this.saleFinalized,
+    this.sale,
+    this.receipt,
+  });
+
+  final String verificationStatus;
+  final bool saleFinalized;
+  final SaleKhqrConfirmSaleDto? sale;
+  final SaleReceiptProjectionDto? receipt;
+
+  factory SaleKhqrConfirmResponseDto.fromJson(Map<String, dynamic> json) {
+    return SaleKhqrConfirmResponseDto(
+      verificationStatus: _readString(json['verificationStatus']),
+      saleFinalized: json['saleFinalized'] == true,
+      sale: json['sale'] == null
+          ? null
+          : SaleKhqrConfirmSaleDto.fromJson(_asMap(json['sale'])),
+      receipt: json['receipt'] == null
+          ? null
+          : SaleReceiptProjectionDto.fromJson(_asMap(json['receipt'])),
+    );
+  }
+}
+
 class SaleFinalizeResponseDto {
   const SaleFinalizeResponseDto({required this.sale, this.receipt});
 

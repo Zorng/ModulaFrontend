@@ -381,13 +381,53 @@ class SaleRepository implements SaleCheckoutRepository {
         if (command.khqrMd5 != null && command.khqrMd5!.isNotEmpty)
           'khqrMd5': command.khqrMd5,
       };
+      final normalizedSaleId = command.saleId.trim();
+      if (normalizedSaleId.isEmpty) {
+        final md5 = _readString(command.khqrMd5);
+        if (md5.isEmpty) {
+          throw const SaleCheckoutRepositoryException(
+            reasonCode: SaleCheckoutReasonCodes.khqrNotConfirmed,
+            message: 'KHQR proof is missing. Generate KHQR again.',
+          );
+        }
+        final data = await _api.confirmKhqrPayment(
+          md5,
+          idempotency: IdempotencyRequest(
+            actionKey: 'payment.khqr.confirm',
+            intentId: command.clientOpId,
+            payload: {'md5': md5},
+          ),
+        );
+        if (!data.saleFinalized || data.sale == null) {
+          throw const SaleCheckoutRepositoryException(
+            reasonCode: SaleCheckoutReasonCodes.khqrNotConfirmed,
+            message: 'KHQR payment is not confirmed yet.',
+          );
+        }
+        final preview = _estimateCheckoutPreview(
+          saleId: data.sale!.saleId,
+          paymentMethod: 'khqr',
+          cartLines: command.cartLines,
+          tenderCurrency: command.tenderCurrency,
+          cashReceived: null,
+        );
+        return SaleFinalizeSaleResultDto(
+          saleId: data.sale!.saleId,
+          status: SaleMappers.normalizeSaleState(data.sale!.status),
+          totalUsdExact: preview.totalUsdExact,
+          totalKhrExact: preview.totalKhrExact,
+          idempotentReplay: false,
+          receiptId: data.receipt?.receiptId,
+          receipt: SaleMappers.toImmediateReceipt(data.receipt),
+        );
+      }
       final data = await _api.finalizeSaleContract(
-        command.saleId,
+        normalizedSaleId,
         finalizePayload,
         idempotency: IdempotencyRequest(
           actionKey: 'sale.finalize',
           intentId: command.clientOpId,
-          payload: {'saleId': command.saleId, ...finalizePayload},
+          payload: {'saleId': normalizedSaleId, ...finalizePayload},
         ),
       );
       return SaleMappers.toFinalizeResultFromFinalizeResponse(data);
