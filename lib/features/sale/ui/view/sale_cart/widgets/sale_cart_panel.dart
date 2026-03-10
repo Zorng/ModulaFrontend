@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:modular_pos/core/printing/thermal_printer_controller.dart';
 import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/core/formatters/khr_currency_formatter.dart';
 import 'package:modular_pos/core/feedback/user_error_message.dart';
@@ -112,6 +113,27 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
         SnackBar(
           content: Text(
             UserErrorMessage.build(context: 'Failed to load receipt', error: e),
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _handlePrintReceipt({
+    required SaleCartNotifier cartNotifier,
+    required String saleId,
+  }) async {
+    try {
+      await cartNotifier.printReceipt(saleId: saleId);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            UserErrorMessage.build(
+              context: 'Failed to print receipt',
+              error: e,
+            ),
           ),
         ),
       );
@@ -249,9 +271,9 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
       ),
     );
     if (result == true && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('KHQR payment confirmed.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('KHQR payment confirmed.')));
     }
   }
 
@@ -297,7 +319,19 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
     );
   }
 
-  double _grandTotalUsd(double subtotal) => subtotal;
+  double _taxUsd(double subtotal, BranchPolicy branchPolicy) {
+    if (!branchPolicy.saleVatEnabled) {
+      return 0;
+    }
+    final ratePercent = branchPolicy.saleVatRatePercent;
+    if (ratePercent <= 0) {
+      return 0;
+    }
+    return subtotal * (ratePercent / 100);
+  }
+
+  double _grandTotalUsd(double subtotal, {required double taxUsd}) =>
+      subtotal + taxUsd;
 
   double _grandTotalKhr(
     double grandTotalUsd, {
@@ -424,6 +458,25 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<(int, String?, bool)>(
+      thermalPrinterControllerProvider.select(
+        (state) =>
+            (state.lastEventId, state.lastEventMessage, state.lastEventIsError),
+      ),
+      (previous, next) {
+        if (next.$1 == 0 || previous?.$1 == next.$1 || next.$2 == null) {
+          return;
+        }
+        final messenger = ScaffoldMessenger.of(context);
+        messenger.hideCurrentSnackBar();
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(next.$2!),
+            backgroundColor: next.$3 ? Colors.red : null,
+          ),
+        );
+      },
+    );
     final cartState = ref.watch(saleCartProvider);
     final items = cartState.lines;
     final paymentMethod = cartState.paymentMethod.toLowerCase();
@@ -447,7 +500,8 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
       for (final g in menuState.hydratedModifierGroups.entries) g.key: g.value,
     };
     final subtotal = _subtotal(items, groupLookup);
-    final grandTotalUsd = _grandTotalUsd(subtotal);
+    final taxUsd = _taxUsd(subtotal, branchPolicy);
+    final grandTotalUsd = _grandTotalUsd(subtotal, taxUsd: taxUsd);
     final grandTotalKhr = _grandTotalKhr(
       grandTotalUsd,
       fxRate: fxRate,
@@ -581,6 +635,16 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
                       ],
                     ),
                   ),
+                  if (cartState.lastFinalizedSaleId != null)
+                    TextButton(
+                      onPressed: cartState.isFinalizing
+                          ? null
+                          : () => _handlePrintReceipt(
+                              cartNotifier: cartNotifier,
+                              saleId: cartState.lastFinalizedSaleId!,
+                            ),
+                      child: const Text('Print'),
+                    ),
                   if (cartState.lastFinalizedSaleId != null)
                     TextButton(
                       onPressed: cartState.isFinalizing
@@ -723,19 +787,22 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
                       cartNotifier.updateQuantity(index, line.quantity - 1),
                   paymentMethod: paymentMethod,
                   tenderCurrency: tenderCurrency,
-                  onPaymentMethodChanged: (value) => _handlePaymentMethodChanged(
-                    value: value,
-                    cartNotifier: cartNotifier,
-                    readOnly: readOnly,
-                    grandTotalUsd: grandTotalUsd,
-                    grandTotalKhr: grandTotalKhr,
-                  ),
+                  onPaymentMethodChanged: (value) =>
+                      _handlePaymentMethodChanged(
+                        value: value,
+                        cartNotifier: cartNotifier,
+                        readOnly: readOnly,
+                        grandTotalUsd: grandTotalUsd,
+                        grandTotalKhr: grandTotalKhr,
+                      ),
                   onTenderCurrencyChanged: (value) => ref
                       .read(saleCartProvider.notifier)
                       .setTenderCurrency(value),
                   usdController: _usdController,
                   khrController: _khrController,
                   subtotal: subtotal,
+                  taxUsd: taxUsd,
+                  showTaxBreakdown: branchPolicy.saleVatEnabled,
                   grandTotalUsd: grandTotalUsd,
                   grandTotalKhr: grandTotalKhr,
                   fxRate: fxRate,

@@ -16,11 +16,13 @@ final saleApiProvider = Provider<SaleApi>((ref) {
 class SaleApi {
   SaleApi(this._dio)
     : _prefix = AppEnv.salesApiPrefix,
+      _receiptsPrefix = '/v0/receipts',
       _checkoutPrefix = '/v0/checkout',
       _khqrPaymentsPrefix = '/v0/payments/khqr';
 
   final Dio _dio;
   final String _prefix;
+  final String _receiptsPrefix;
   final String _checkoutPrefix;
   final String _khqrPaymentsPrefix;
 
@@ -245,6 +247,17 @@ class SaleApi {
       data: {'reason': reason},
     );
     return SaleDto.fromJson(_unwrap(response.data));
+  }
+
+  Future<SaleReceiptReadDto> getReceiptBySaleId(String saleId) async {
+    try {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '$_receiptsPrefix/sales/$saleId',
+      );
+      return SaleReceiptReadDto.fromJson(_unwrap(response.data));
+    } on DioError catch (error) {
+      throw _mapSaleDioError(error, fallbackMessage: 'Failed to load receipt.');
+    }
   }
 
   String _toUtcIso(DateTime dt) => dt.toUtc().toIso8601String();

@@ -115,6 +115,11 @@ class _SaleKhqrPopupState extends ConsumerState<SaleKhqrPopup> {
   Widget build(BuildContext context) {
     final state = ref.watch(saleCartProvider);
     final normalizedStatus = SaleKhqrUiStates.normalize(state.khqrStatus);
+    final canCancelAttempt =
+        !widget.readOnly &&
+        !state.isKhqrLoading &&
+        (normalizedStatus == SaleKhqrUiStates.waitingForPayment ||
+            normalizedStatus == SaleKhqrUiStates.pendingConfirmation);
     final payload = state.khqrQrPayload?.trim();
 
     if (!_didAttemptAutoGenerate &&
@@ -188,9 +193,12 @@ class _SaleKhqrPopupState extends ConsumerState<SaleKhqrPopup> {
                         const SizedBox(height: 6),
                         Text(
                           'This popup will close automatically.',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
+                              ),
                           textAlign: TextAlign.center,
                         ),
                       ],
@@ -210,16 +218,18 @@ class _SaleKhqrPopupState extends ConsumerState<SaleKhqrPopup> {
                         const Spacer(),
                         Text(
                           _payableLabel(state.tenderCurrency),
-                          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
+                          style: Theme.of(context).textTheme.titleSmall
+                              ?.copyWith(fontWeight: FontWeight.w700),
                         ),
                       ],
                     ),
                     const SizedBox(height: 12),
                     Row(
                       children: [
-                        Text('Status', style: Theme.of(context).textTheme.bodySmall),
+                        Text(
+                          'Status',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
                         const SizedBox(width: 8),
                         Container(
                           padding: const EdgeInsets.symmetric(
@@ -232,10 +242,11 @@ class _SaleKhqrPopupState extends ConsumerState<SaleKhqrPopup> {
                           ),
                           child: Text(
                             _statusLabel(state.khqrStatus),
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: statusColor,
-                              fontWeight: FontWeight.w600,
-                            ),
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: statusColor,
+                                  fontWeight: FontWeight.w600,
+                                ),
                           ),
                         ),
                       ],
@@ -323,6 +334,19 @@ class _SaleKhqrPopupState extends ConsumerState<SaleKhqrPopup> {
       actions: normalizedStatus == SaleKhqrUiStates.paidConfirmed
           ? null
           : [
+              if (canCancelAttempt)
+                OutlinedButton(
+                  onPressed: () async {
+                    try {
+                      await ref
+                          .read(saleCartProvider.notifier)
+                          .cancelKhqrAttempt();
+                    } catch (_) {
+                      if (!mounted) return;
+                    }
+                  },
+                  child: const Text('Cancel KHQR'),
+                ),
               TextButton(
                 onPressed: () => Navigator.of(context).pop(),
                 child: const Text('Close'),

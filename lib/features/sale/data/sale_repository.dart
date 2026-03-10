@@ -513,9 +513,19 @@ class SaleRepository implements SaleCheckoutRepository {
 
   @override
   Future<SaleReceiptDto> getReceipt({required String saleId}) async {
-    throw UnimplementedError(
-      'FE-SALE-14 will implement receipt retrieval in API repository.',
-    );
+    final normalizedSaleId = saleId.trim();
+    if (normalizedSaleId.isEmpty) {
+      throw const SaleCheckoutRepositoryException(
+        reasonCode: SaleCheckoutReasonCodes.invalidRequest,
+        message: 'Receipt identifier is missing for this sale.',
+      );
+    }
+    try {
+      final data = await _api.getReceiptBySaleId(normalizedSaleId);
+      return SaleMappers.toCanonicalReceipt(data);
+    } on ApiClientException catch (error) {
+      throw _toSaleRepoException(error);
+    }
   }
 
   bool _modifiersMatch(
@@ -587,18 +597,45 @@ class SaleRepository implements SaleCheckoutRepository {
   }
 
   Map<String, dynamic> _toCheckoutItemPayload(SaleCartLineInputDto line) {
+    final modifiers = _normalizeModifierSelections(line.modifiers);
     return {
       'menuItemId': line.menuItemId,
       'quantity': line.quantity,
-      'modifierSelections': line.modifiers
-          .map(
-            (modifier) => {
-              'groupId': modifier.groupId,
-              'optionIds': modifier.optionIds,
-            },
-          )
-          .toList(),
+      // Live checkout implementation still consumes `modifiers` here.
+      if (modifiers.isNotEmpty) 'modifiers': modifiers,
     };
+  }
+
+  List<Map<String, dynamic>> _normalizeModifierSelections(
+    List<SaleCartModifierInputDto> modifiers,
+  ) {
+    final groupedOptionIds = <String, Set<String>>{};
+
+    for (final modifier in modifiers) {
+      final groupId = modifier.groupId.trim();
+      if (groupId.isEmpty) continue;
+
+      final optionIds = modifier.optionIds
+          .map((optionId) => optionId.trim())
+          .where((optionId) => optionId.isNotEmpty)
+          .toSet();
+      if (optionIds.isEmpty) continue;
+
+      groupedOptionIds.putIfAbsent(groupId, () => <String>{}).addAll(optionIds);
+    }
+
+    final entries = groupedOptionIds.entries.toList()
+      ..sort((a, b) => a.key.compareTo(b.key));
+
+    return entries
+        .map((entry) {
+          final optionIds = entry.value.toList()..sort();
+          return <String, dynamic>{
+            'groupId': entry.key,
+            'optionIds': optionIds,
+          };
+        })
+        .toList(growable: false);
   }
 
   String _normalizeSaleType(String saleType) {
@@ -610,7 +647,7 @@ class SaleRepository implements SaleCheckoutRepository {
       case 'take_away':
       case 'takeaway':
       default:
-        return 'TAKE_AWAY';
+        return 'TAKEAWAY';
     }
   }
 

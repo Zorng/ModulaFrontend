@@ -1,5 +1,6 @@
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
+import 'package:modular_pos/core/printing/esc_pos_receipt_formatter.dart';
 import 'package:modular_pos/features/sale/data/sale_checkout_repository_contract.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_khqr_states.dart';
 
@@ -73,6 +74,8 @@ class SaleCartState {
     this.lastFinalizedSaleId,
     this.lastReceiptId,
     this.lastReceipt,
+    this.lastPrintableReceipt,
+    this.lastPrintableReceiptData,
     this.lastPlacedOpenTicketId,
     this.lastPlacedSaleId,
     this.khqrStatus = SaleKhqrUiStates.readyToGenerate,
@@ -104,6 +107,8 @@ class SaleCartState {
   final String? lastFinalizedSaleId;
   final String? lastReceiptId;
   final SaleImmediateReceiptDto? lastReceipt;
+  final SaleReceiptDto? lastPrintableReceipt;
+  final ThermalReceiptPrintData? lastPrintableReceiptData;
   final String? lastPlacedOpenTicketId;
   final String? lastPlacedSaleId;
   final String khqrStatus;
@@ -169,6 +174,8 @@ class SaleCartState {
     Object? lastFinalizedSaleId = _unset,
     Object? lastReceiptId = _unset,
     Object? lastReceipt = _unset,
+    Object? lastPrintableReceipt = _unset,
+    Object? lastPrintableReceiptData = _unset,
     Object? lastPlacedOpenTicketId = _unset,
     Object? lastPlacedSaleId = _unset,
     String? khqrStatus,
@@ -210,6 +217,12 @@ class SaleCartState {
       lastReceipt: lastReceipt == _unset
           ? this.lastReceipt
           : lastReceipt as SaleImmediateReceiptDto?,
+      lastPrintableReceipt: lastPrintableReceipt == _unset
+          ? this.lastPrintableReceipt
+          : lastPrintableReceipt as SaleReceiptDto?,
+      lastPrintableReceiptData: lastPrintableReceiptData == _unset
+          ? this.lastPrintableReceiptData
+          : lastPrintableReceiptData as ThermalReceiptPrintData?,
       lastPlacedOpenTicketId: lastPlacedOpenTicketId == _unset
           ? this.lastPlacedOpenTicketId
           : lastPlacedOpenTicketId as String?,
@@ -233,7 +246,9 @@ class SaleCartState {
       khqrToAccountId: khqrToAccountId == _unset
           ? this.khqrToAccountId
           : khqrToAccountId as String?,
-      khqrAmount: khqrAmount == _unset ? this.khqrAmount : khqrAmount as double?,
+      khqrAmount: khqrAmount == _unset
+          ? this.khqrAmount
+          : khqrAmount as double?,
       khqrCurrency: khqrCurrency == _unset
           ? this.khqrCurrency
           : khqrCurrency as String?,
@@ -295,6 +310,8 @@ class SaleCartState {
       lastFinalizedSaleId: null,
       lastReceiptId: null,
       lastReceipt: null,
+      lastPrintableReceipt: null,
+      lastPrintableReceiptData: null,
       lastPlacedOpenTicketId: null,
       lastPlacedSaleId: null,
       khqrStatus: SaleKhqrUiStates.normalize(

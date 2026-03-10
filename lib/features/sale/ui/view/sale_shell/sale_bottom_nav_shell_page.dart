@@ -7,6 +7,7 @@ import 'package:modular_pos/core/widgets/navigation/app_bottom_nav_shell_scaffol
 import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/sale/ui/view/sale_cart/widgets/sale_cart_panel.dart';
+import 'package:modular_pos/features/sale/ui/view/sale_shell/widgets/sale_printer_status_action.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_access_gate.dart';
 
 class SaleBottomNavShellPage extends ConsumerStatefulWidget {
@@ -176,18 +177,26 @@ class _SaleBottomNavShellPageState
   }
 
   List<Widget>? actionsForIndex(int index, BuildContext context) {
-    if (index != 1) return null;
-    return [
-      PopupMenuButton<String>(
-        onSelected: (value) {
-          if (value == 'view_carts') {
-            context.push(AppRoute.saleViewCarts.path);
-          }
-        },
-        itemBuilder: (_) => const [
-          PopupMenuItem<String>(value: 'view_carts', child: Text('View carts')),
-        ],
-      ),
-    ];
+    if (index == 0) {
+      return const [SalePrinterStatusAction()];
+    }
+    if (index == 1) {
+      return [
+        PopupMenuButton<String>(
+          onSelected: (value) {
+            if (value == 'view_carts') {
+              context.push(AppRoute.saleViewCarts.path);
+            }
+          },
+          itemBuilder: (_) => const [
+            PopupMenuItem<String>(
+              value: 'view_carts',
+              child: Text('View carts'),
+            ),
+          ],
+        ),
+      ];
+    }
+    return null;
   }
 }

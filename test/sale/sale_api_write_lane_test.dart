@@ -20,7 +20,7 @@ void main() {
         'items': [
           {'menuItemId': 'item-1', 'quantity': 2, 'modifierSelections': []},
         ],
-        'saleType': 'TAKE_AWAY',
+        'saleType': 'TAKEAWAY',
         'tenderCurrency': 'USD',
         'cashReceivedTenderAmount': 10,
       };

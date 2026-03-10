@@ -22,6 +22,8 @@ class SaleCartContent extends StatelessWidget {
     required this.usdController,
     required this.khrController,
     required this.subtotal,
+    required this.taxUsd,
+    required this.showTaxBreakdown,
     required this.grandTotalUsd,
     required this.grandTotalKhr,
     required this.fxRate,
@@ -42,6 +44,8 @@ class SaleCartContent extends StatelessWidget {
   final TextEditingController usdController;
   final TextEditingController khrController;
   final double subtotal;
+  final double taxUsd;
+  final bool showTaxBreakdown;
   final double grandTotalUsd;
   final double grandTotalKhr;
   final double fxRate;
@@ -110,6 +114,10 @@ class SaleCartContent extends StatelessWidget {
         }),
         const Divider(height: 16),
         SaleCartSummaryRow(label: 'Subtotal', value: subtotal),
+        if (showTaxBreakdown) ...[
+          const SizedBox(height: 8),
+          SaleCartSummaryRow(label: 'Tax', value: taxUsd),
+        ],
         const SizedBox(height: 20),
         Text(
           'Payment Methods',
@@ -302,9 +310,9 @@ class SaleCartContent extends StatelessWidget {
               children: [
                 Text(
                   'KHQR will be generated and shown in a popup.',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 6),
                 Text(

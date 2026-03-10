@@ -449,8 +449,7 @@ class MockSaleRepository implements SaleCheckoutRepository {
         );
         if (!_khqrReceiverConfigured) {
           throw const SaleCheckoutRepositoryException(
-            reasonCode:
-                SaleCheckoutReasonCodes.khqrBranchReceiverNotConfigured,
+            reasonCode: SaleCheckoutReasonCodes.khqrBranchReceiverNotConfigured,
             message:
                 'Configure a Bakong receiver account for this branch before generating KHQR.',
           );
@@ -684,6 +683,7 @@ class MockSaleRepository implements SaleCheckoutRepository {
           saleId: saleId,
           receiptId: receiptId,
           paymentMethod: command.paymentMethod,
+          subtotalUsdExact: totals.subtotalUsdExact,
           totalUsdExact: totals.totalUsdExact,
           totalKhrExact: totals.totalKhrExact,
           items: draft.items,
@@ -923,6 +923,7 @@ class MockSaleRepository implements SaleCheckoutRepository {
           saleId: ticket.saleId,
           receiptId: receiptId,
           paymentMethod: command.paymentMethod,
+          subtotalUsdExact: totals.subtotalUsdExact,
           totalUsdExact: totals.totalUsdExact,
           totalKhrExact: totals.totalKhrExact,
           items: allItems,
@@ -1298,6 +1299,7 @@ class MockSaleRepository implements SaleCheckoutRepository {
     required String saleId,
     required String receiptId,
     required String paymentMethod,
+    required double subtotalUsdExact,
     required double totalUsdExact,
     required double totalKhrExact,
     required List<_MockSaleItem> items,
@@ -1307,6 +1309,8 @@ class MockSaleRepository implements SaleCheckoutRepository {
       saleId: saleId,
       receiptNumber: receiptId,
       paymentMethod: paymentMethod,
+      subtotalUsdExact: subtotalUsdExact,
+      taxUsdExact: 0,
       totalUsdExact: totalUsdExact,
       totalKhrExact: totalKhrExact,
       issuedAt: issuedAt,
@@ -1317,6 +1321,26 @@ class MockSaleRepository implements SaleCheckoutRepository {
               quantity: item.quantity,
               unitPriceUsd: item.unitPriceUsd,
               lineTotalUsdExact: item.lineTotalUsdExact * item.quantity,
+              modifiers: item.modifiers
+                  .expand(
+                    (modifier) =>
+                        ((modifier['options'] as List<dynamic>?) ?? const [])
+                            .whereType<Map<String, dynamic>>()
+                            .map(
+                              (option) => SaleReceiptModifierLineDto(
+                                name:
+                                    option['label']?.toString() ??
+                                    option['name']?.toString() ??
+                                    '',
+                                priceDeltaUsd:
+                                    (option['priceAdjustmentUsd'] as num?)
+                                        ?.toDouble() ??
+                                    0,
+                              ),
+                            ),
+                  )
+                  .where((modifier) => modifier.name.trim().isNotEmpty)
+                  .toList(growable: false),
             ),
           )
           .toList(),

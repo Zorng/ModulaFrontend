@@ -860,12 +860,24 @@ class SaleReceiptLineDto {
     required this.quantity,
     required this.unitPriceUsd,
     required this.lineTotalUsdExact,
+    this.modifiers = const <SaleReceiptModifierLineDto>[],
   });
 
   final String name;
   final int quantity;
   final double unitPriceUsd;
   final double lineTotalUsdExact;
+  final List<SaleReceiptModifierLineDto> modifiers;
+}
+
+class SaleReceiptModifierLineDto {
+  const SaleReceiptModifierLineDto({
+    required this.name,
+    this.priceDeltaUsd = 0,
+  });
+
+  final String name;
+  final double priceDeltaUsd;
 }
 
 class SaleReceiptDto {
@@ -873,6 +885,8 @@ class SaleReceiptDto {
     required this.saleId,
     required this.receiptNumber,
     required this.paymentMethod,
+    required this.subtotalUsdExact,
+    required this.taxUsdExact,
     required this.totalUsdExact,
     required this.totalKhrExact,
     required this.issuedAt,
@@ -882,6 +896,8 @@ class SaleReceiptDto {
   final String saleId;
   final String receiptNumber;
   final String paymentMethod;
+  final double subtotalUsdExact;
+  final double taxUsdExact;
   final double totalUsdExact;
   final double totalKhrExact;
   final DateTime issuedAt;

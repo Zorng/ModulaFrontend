@@ -371,7 +371,6 @@ void main() {
             id: '',
             name: 'Large',
             price: 0.5,
-            priceDelta: 0.5,
             componentDeltas: [
               ModifierDelta(
                 stockItemId: 'stock-1',
@@ -472,18 +471,8 @@ void main() {
           minSelections: 0,
           maxSelections: 1,
           options: [
-            ModifierOption(
-              id: 'opt-existing',
-              name: 'M',
-              price: 0.1,
-              priceDelta: 0.1,
-            ),
-            ModifierOption(
-              id: 'opt-removed',
-              name: 'L',
-              price: 0.3,
-              priceDelta: 0.3,
-            ),
+            ModifierOption(id: 'opt-existing', name: 'M', price: 0.1),
+            ModifierOption(id: 'opt-removed', name: 'L', price: 0.3),
           ],
         );
 
@@ -500,7 +489,6 @@ void main() {
               id: 'opt-existing',
               name: 'M',
               price: 0.2,
-              priceDelta: 0.2,
               componentDeltas: [
                 ModifierDelta(
                   stockItemId: 'stock-1',
@@ -509,7 +497,7 @@ void main() {
                 ),
               ],
             ),
-            ModifierOption(id: '', name: 'XL', price: 0.5, priceDelta: 0.5),
+            ModifierOption(id: '', name: 'XL', price: 0.5),
           ],
         );
 

@@ -301,6 +301,160 @@ class SaleReceiptProjectionDto {
   }
 }
 
+class SaleReceiptReadDto {
+  const SaleReceiptReadDto({
+    required this.receiptId,
+    required this.saleId,
+    required this.receiptNumber,
+    required this.statusDisplay,
+    required this.issuedAt,
+    required this.saleSnapshot,
+    required this.lines,
+  });
+
+  final String receiptId;
+  final String saleId;
+  final String receiptNumber;
+  final String statusDisplay;
+  final DateTime issuedAt;
+  final SaleReceiptSaleSnapshotDto saleSnapshot;
+  final List<SaleReceiptReadLineDto> lines;
+
+  factory SaleReceiptReadDto.fromJson(Map<String, dynamic> json) {
+    final rawLines = json['lines'];
+    final lines = <SaleReceiptReadLineDto>[];
+    if (rawLines is List) {
+      for (final line in rawLines) {
+        if (line is Map<String, dynamic>) {
+          lines.add(SaleReceiptReadLineDto.fromJson(line));
+        } else if (line is Map) {
+          lines.add(
+            SaleReceiptReadLineDto.fromJson(
+              line.map((key, value) => MapEntry(key.toString(), value)),
+            ),
+          );
+        }
+      }
+    }
+
+    return SaleReceiptReadDto(
+      receiptId: _readString(json['receiptId']),
+      saleId: _readString(json['saleId']),
+      receiptNumber: _readString(json['receiptNumber']),
+      statusDisplay: _readString(json['statusDisplay']),
+      issuedAt: _readDateTime(json['issuedAt']),
+      saleSnapshot: SaleReceiptSaleSnapshotDto.fromJson(
+        _asMap(json['saleSnapshot']),
+      ),
+      lines: lines,
+    );
+  }
+}
+
+class SaleReceiptSaleSnapshotDto {
+  const SaleReceiptSaleSnapshotDto({
+    required this.paymentMethod,
+    required this.tenderCurrency,
+    required this.subtotalUsd,
+    required this.vatUsd,
+    required this.grandTotalUsd,
+    required this.grandTotalKhr,
+  });
+
+  final String paymentMethod;
+  final String tenderCurrency;
+  final double subtotalUsd;
+  final double vatUsd;
+  final double grandTotalUsd;
+  final double grandTotalKhr;
+
+  factory SaleReceiptSaleSnapshotDto.fromJson(Map<String, dynamic> json) {
+    return SaleReceiptSaleSnapshotDto(
+      paymentMethod: _readString(json['paymentMethod']),
+      tenderCurrency: _readString(json['tenderCurrency']),
+      subtotalUsd: _readDouble(
+        json['subtotalUsd'] ??
+            json['subtotalUsdExact'] ??
+            json['grandTotalUsd'],
+      ),
+      vatUsd: _readDouble(json['vatUsd'] ?? json['vatAmountUsd'] ?? 0),
+      grandTotalUsd: _readDouble(json['grandTotalUsd']),
+      grandTotalKhr: _readDouble(json['grandTotalKhr']),
+    );
+  }
+}
+
+class SaleReceiptReadLineDto {
+  const SaleReceiptReadLineDto({
+    required this.name,
+    required this.quantity,
+    required this.unitPrice,
+    required this.lineTotalAmount,
+    this.modifiers = const <SaleReceiptReadModifierDto>[],
+  });
+
+  final String name;
+  final int quantity;
+  final double unitPrice;
+  final double lineTotalAmount;
+  final List<SaleReceiptReadModifierDto> modifiers;
+
+  factory SaleReceiptReadLineDto.fromJson(Map<String, dynamic> json) {
+    final modifiers = <SaleReceiptReadModifierDto>[];
+    final rawModifiers = json['modifierSnapshot'];
+    if (rawModifiers is List) {
+      for (final modifier in rawModifiers) {
+        if (modifier is Map<String, dynamic>) {
+          modifiers.add(SaleReceiptReadModifierDto.fromJson(modifier));
+        } else if (modifier is Map) {
+          modifiers.add(
+            SaleReceiptReadModifierDto.fromJson(
+              modifier.map((key, value) => MapEntry(key.toString(), value)),
+            ),
+          );
+        }
+      }
+    }
+
+    return SaleReceiptReadLineDto(
+      name: _readString(json['menuItemNameSnapshot'] ?? json['name']),
+      quantity: _readInt(json['quantity']),
+      unitPrice: _readDouble(json['unitPrice']),
+      lineTotalAmount: _readDouble(
+        json['lineTotalAmount'] ?? json['lineTotalUsdExact'],
+      ),
+      modifiers: modifiers,
+    );
+  }
+}
+
+class SaleReceiptReadModifierDto {
+  const SaleReceiptReadModifierDto({
+    required this.name,
+    this.priceDeltaUsd = 0,
+  });
+
+  final String name;
+  final double priceDeltaUsd;
+
+  factory SaleReceiptReadModifierDto.fromJson(Map<String, dynamic> json) {
+    return SaleReceiptReadModifierDto(
+      name: _readString(
+        json['label'] ??
+            json['name'] ??
+            json['optionLabel'] ??
+            json['optionNameSnapshot'],
+      ),
+      priceDeltaUsd: _readDouble(
+        json['priceAdjustmentUsd'] ??
+            json['priceDeltaUsd'] ??
+            json['price'] ??
+            0,
+      ),
+    );
+  }
+}
+
 class SaleCashCheckoutResponseDto {
   const SaleCashCheckoutResponseDto({required this.sale, this.receipt});
 
@@ -603,6 +757,11 @@ double? _readNullableDouble(dynamic value) {
   if (value is num) return value.toDouble();
   final parsed = double.tryParse(value?.toString() ?? '');
   return parsed;
+}
+
+int _readInt(dynamic value) {
+  if (value is num) return value.toInt();
+  return int.tryParse(value?.toString() ?? '') ?? 0;
 }
 
 DateTime _readDateTime(dynamic value) {

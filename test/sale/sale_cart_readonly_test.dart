@@ -36,6 +36,21 @@ class _StaticPolicyNotifier extends PolicyNotifier {
   }
 }
 
+class _VatPolicyNotifier extends PolicyNotifier {
+  @override
+  PolicyState build() {
+    return const PolicyState(
+      isLoading: false,
+      branchPolicy: BranchPolicy(
+        saleVatEnabled: true,
+        saleVatRatePercent: 10,
+        saleFxRateKhrPerUsd: 4000,
+        saleAllowPayLater: true,
+      ),
+    );
+  }
+}
+
 class _StaticMenuViewModel extends MenuViewModel {
   _StaticMenuViewModel(this._state);
 
@@ -220,6 +235,74 @@ void main() {
     expect(find.text('KHR 14,000'), findsOneWidget);
   });
 
+  testWidgets(
+    'Cart shows tax row and tax-inclusive change when VAT is enabled',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final store = AuthSessionStore(prefs);
+
+      const item = MenuItem(
+        id: 'menu-1',
+        name: 'Latte',
+        categoryId: 'cat-1',
+        price: 1.5,
+      );
+
+      final container = createTestContainer(
+        overrides: [
+          authSessionStoreProvider.overrideWithValue(store),
+          authRepositoryProvider.overrideWithValue(FakeAuthRepository()),
+          saleRepositoryProvider.overrideWithValue(_MockSaleRepository()),
+          policyNotifierProvider.overrideWith(_VatPolicyNotifier.new),
+          menuViewModelProvider.overrideWith(
+            () => _StaticMenuViewModel(const MenuState(isLoading: false)),
+          ),
+          saleCartProvider.overrideWith(
+            () => _PrefilledCartNotifier(
+              const SaleCartState(
+                saleId: 'sale-1',
+                lines: [
+                  CartLine(item: item, quantity: 1, selectedOptionIds: {}),
+                ],
+              ),
+            ),
+          ),
+          saleAccessGateProvider.overrideWithValue(
+            const SaleAccessGate(
+              branchId: 'branch-1',
+              contextLoading: false,
+              branchActive: true,
+              branchFrozen: false,
+              cashSessionOpen: true,
+              canMutateCart: true,
+              canCheckout: true,
+              canPlacePayLater: true,
+            ),
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(home: SaleCartPage()),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      expect(find.text('Tax'), findsOneWidget);
+      expect(find.text('\$0.15'), findsOneWidget);
+
+      await tester.enterText(find.byType(TextField).first, '5');
+      await tester.pumpAndSettle();
+
+      expect(find.text('Change (៛)'), findsOneWidget);
+      expect(find.text('KHR 13,400'), findsOneWidget);
+    },
+  );
+
   testWidgets('KHQR waiting state shows cancel action and lifecycle guidance', (
     tester,
   ) async {
@@ -281,7 +364,10 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    final openPopupButton = find.widgetWithText(FilledButton, 'Open KHQR Popup');
+    final openPopupButton = find.widgetWithText(
+      FilledButton,
+      'Open KHQR Popup',
+    );
     expect(openPopupButton, findsOneWidget);
     await tester.ensureVisible(openPopupButton);
     await tester.tap(openPopupButton);

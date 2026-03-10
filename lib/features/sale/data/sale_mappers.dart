@@ -18,6 +18,39 @@ class SaleMappers {
     );
   }
 
+  static SaleReceiptDto toCanonicalReceipt(SaleReceiptReadDto receipt) {
+    return SaleReceiptDto(
+      saleId: receipt.saleId,
+      receiptNumber: receipt.receiptNumber.isEmpty
+          ? receipt.receiptId
+          : receipt.receiptNumber,
+      paymentMethod: toUiPaymentMethod(receipt.saleSnapshot.paymentMethod),
+      subtotalUsdExact: receipt.saleSnapshot.subtotalUsd,
+      taxUsdExact: receipt.saleSnapshot.vatUsd,
+      totalUsdExact: receipt.saleSnapshot.grandTotalUsd,
+      totalKhrExact: receipt.saleSnapshot.grandTotalKhr,
+      issuedAt: receipt.issuedAt.toLocal(),
+      lines: receipt.lines
+          .map(
+            (line) => SaleReceiptLineDto(
+              name: line.name,
+              quantity: line.quantity,
+              unitPriceUsd: line.unitPrice,
+              lineTotalUsdExact: line.lineTotalAmount,
+              modifiers: line.modifiers
+                  .map(
+                    (modifier) => SaleReceiptModifierLineDto(
+                      name: modifier.name,
+                      priceDeltaUsd: modifier.priceDeltaUsd,
+                    ),
+                  )
+                  .toList(growable: false),
+            ),
+          )
+          .toList(growable: false),
+    );
+  }
+
   static Sale toDomainSale(SaleDto dto) {
     return Sale(
       id: dto.id,
@@ -121,7 +154,7 @@ class SaleMappers {
       amount: amount,
       currency:
           normalizeTenderCurrency(response.paymentRequest.currency ?? '') ==
-              'USD' &&
+                  'USD' &&
               (response.paymentRequest.currency ?? '').trim().isEmpty
           ? normalizedCurrency
           : normalizeTenderCurrency(response.paymentRequest.currency ?? ''),
@@ -156,8 +189,12 @@ class SaleMappers {
     SaleCashCheckoutResponseDto response, {
     bool idempotentReplay = false,
   }) {
-    return SaleFinalizeSaleResultDto(
+    final resolvedSaleId = _resolveFinalizeSaleId(
       saleId: response.sale.id,
+      receipt: response.receipt,
+    );
+    return SaleFinalizeSaleResultDto(
+      saleId: resolvedSaleId,
       status: normalizeSaleState(response.sale.state),
       totalUsdExact: response.sale.totalUsdExact,
       totalKhrExact: response.sale.totalKhrExact,
@@ -176,8 +213,12 @@ class SaleMappers {
     SaleFinalizeResponseDto response, {
     bool idempotentReplay = false,
   }) {
-    return SaleFinalizeSaleResultDto(
+    final resolvedSaleId = _resolveFinalizeSaleId(
       saleId: response.sale.id,
+      receipt: response.receipt,
+    );
+    return SaleFinalizeSaleResultDto(
+      saleId: resolvedSaleId,
       status: normalizeSaleState(response.sale.state),
       totalUsdExact: response.sale.totalUsdExact,
       totalKhrExact: response.sale.totalKhrExact,
@@ -251,6 +292,23 @@ class SaleMappers {
       'CASH' => 'cash',
       _ => normalized.toLowerCase(),
     };
+  }
+
+  static String _resolveFinalizeSaleId({
+    required String saleId,
+    required SaleReceiptProjectionDto? receipt,
+  }) {
+    final normalizedSaleId = saleId.trim();
+    if (normalizedSaleId.isNotEmpty) {
+      return normalizedSaleId;
+    }
+
+    final receiptSaleId = receipt?.saleId.trim() ?? '';
+    if (receiptSaleId.isNotEmpty) {
+      return receiptSaleId;
+    }
+
+    return receipt?.receiptId.trim() ?? '';
   }
 }
 

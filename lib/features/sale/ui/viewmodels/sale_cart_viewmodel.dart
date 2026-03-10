@@ -1,9 +1,17 @@
 import 'dart:async';
 import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/core/logging/app_log.dart';
-import 'package:modular_pos/features/policy/ui/viewmodels/policy_viewmodel.dart';
+import 'package:modular_pos/core/printing/esc_pos_receipt_formatter.dart';
+import 'package:modular_pos/core/printing/thermal_printer_controller.dart';
+import 'package:modular_pos/features/auth/domain/active_branch_context_provider.dart';
+import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
+import 'package:modular_pos/features/auth/domain/models/auth_session.dart';
+import 'package:modular_pos/features/auth/domain/models/user.dart';
+import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/cash_session/ui/viewmodels/x_report_viewmodel.dart';
+import 'package:modular_pos/features/policy/ui/viewmodels/policy_viewmodel.dart';
 import 'package:modular_pos/features/sale/data/sale_checkout_repository_contract.dart';
 import 'package:modular_pos/features/sale/data/sale_repository.dart';
 import 'package:modular_pos/features/sale/domain/models/sale.dart';
@@ -593,13 +601,55 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
       lastFinalizedSaleId: null,
       lastReceiptId: null,
       lastReceipt: null,
+      lastPrintableReceipt: null,
+      lastPrintableReceiptData: null,
       lastPlacedOpenTicketId: null,
       lastPlacedSaleId: null,
     );
   }
 
-  Future<SaleReceiptDto> getReceipt({required String saleId}) {
-    return _repo.getReceipt(saleId: saleId);
+  Future<SaleReceiptDto> getReceipt({
+    required String saleId,
+    bool forceRemote = false,
+  }) async {
+    final lookupId = _resolveReceiptLookupId(saleId);
+    if (!forceRemote) {
+      final cachedReceipt = _cachedReceiptForSale(lookupId);
+      if (cachedReceipt != null) {
+        return cachedReceipt;
+      }
+    }
+    if (lookupId.isEmpty) {
+      throw const SaleCheckoutRepositoryException(
+        reasonCode: SaleCheckoutReasonCodes.invalidRequest,
+        message: 'Receipt identifier is missing for this sale.',
+      );
+    }
+    return _repo.getReceipt(saleId: lookupId);
+  }
+
+  Future<bool> printReceipt({required String saleId}) async {
+    final lookupId = _resolveReceiptLookupId(saleId);
+    final cachedThermalReceipt = _cachedThermalReceiptForSale(lookupId);
+    final receipt = await getReceipt(saleId: saleId, forceRemote: true);
+    return ref
+        .read(thermalPrinterControllerProvider.notifier)
+        .printReceipt(
+          _toThermalReceiptPrintData(receipt, fallback: cachedThermalReceipt),
+        );
+  }
+
+  Future<bool> _printCheckoutSnapshot({required String saleId}) async {
+    final cachedThermalReceipt = _cachedThermalReceiptForSale(saleId);
+    if (cachedThermalReceipt == null) {
+      throw const SaleCheckoutRepositoryException(
+        reasonCode: SaleCheckoutReasonCodes.invalidRequest,
+        message: 'Checkout receipt data is not available for printing.',
+      );
+    }
+    return ref
+        .read(thermalPrinterControllerProvider.notifier)
+        .printReceipt(cachedThermalReceipt);
   }
 
   Future<SaleOpenTicketDetailDto> getOpenTicketDetail({
@@ -881,6 +931,8 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
       lastFinalizedSaleId: null,
       lastReceiptId: null,
       lastReceipt: null,
+      lastPrintableReceipt: null,
+      lastPrintableReceiptData: null,
     );
 
     try {
@@ -898,7 +950,7 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
       );
 
       final summary = SaleCheckoutSummary(
-        saleId: finalizeResult.saleId,
+        saleId: _resolveFinalizeSaleId(finalizeResult),
         tenderCurrency: tenderCurrency.toLowerCase(),
         paymentMethod: paymentMethod,
         totalUsdExact: finalizeResult.totalUsdExact,
@@ -913,11 +965,25 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
       ref.invalidate(xReportDetailProvider);
 
       await _clearPersistedCart();
+      final resolvedSaleId = _resolveFinalizeSaleId(finalizeResult);
+      final printableReceipt = _buildCheckoutReceiptSnapshot(
+        previousState: currentState,
+        finalizeResult: finalizeResult,
+      );
+      final printableReceiptData = _buildCheckoutPrintData(
+        previousState: currentState,
+        finalizeResult: finalizeResult,
+        receiptNumber: printableReceipt.receiptNumber,
+        issuedAt: printableReceipt.issuedAt,
+      );
       state = SaleCartState(
-        lastFinalizedSaleId: finalizeResult.saleId,
+        lastFinalizedSaleId: resolvedSaleId,
         lastReceiptId: finalizeResult.receiptId,
         lastReceipt: finalizeResult.receipt,
+        lastPrintableReceipt: printableReceipt,
+        lastPrintableReceiptData: printableReceiptData,
       );
+      unawaited(_attemptAutoPrint(resolvedSaleId));
 
       return SaleCheckoutResult(
         summary: summary,
@@ -940,6 +1006,425 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
       );
       rethrow;
     }
+  }
+
+  Future<void> _attemptAutoPrint(String saleId) async {
+    final printerState = ref.read(thermalPrinterControllerProvider);
+    if (!printerState.isConnected) return;
+
+    try {
+      await _printCheckoutSnapshot(saleId: saleId);
+    } catch (error, stackTrace) {
+      AppLog.e(
+        '[SaleCartNotifier] Auto-print failed',
+        error: error,
+        stackTrace: stackTrace,
+      );
+    }
+  }
+
+  ThermalReceiptPrintData _toThermalReceiptPrintData(
+    SaleReceiptDto receipt, {
+    ThermalReceiptPrintData? fallback,
+  }) {
+    return ThermalReceiptPrintData(
+      receiptNumber: receipt.receiptNumber,
+      tenantName: _resolveTenantName(ref.read(loginControllerProvider).session),
+      branchName: _activeBranchName(),
+      cashierName: _cashierName(),
+      paymentMethod: receipt.paymentMethod,
+      issuedAt: receipt.issuedAt,
+      subtotalUsd: receipt.subtotalUsdExact,
+      taxUsd: receipt.taxUsdExact,
+      totalUsd: receipt.totalUsdExact,
+      totalKhr: receipt.totalKhrExact,
+      items: receipt.lines
+          .toList(growable: false)
+          .asMap()
+          .entries
+          .map(
+            (entry) => ThermalReceiptItemLine(
+              name: entry.value.name,
+              quantity: entry.value.quantity,
+              basePriceUsd: entry.value.unitPriceUsd,
+              modifiers: entry.value.modifiers.isNotEmpty
+                  ? entry.value.modifiers
+                        .map(
+                          (modifier) => ThermalReceiptModifierLine(
+                            name: modifier.name,
+                            priceDeltaUsd: modifier.priceDeltaUsd,
+                          ),
+                        )
+                        .toList(growable: false)
+                  : _fallbackModifiersForIndex(
+                      fallback,
+                      index: entry.key,
+                      itemName: entry.value.name,
+                    ),
+            ),
+          )
+          .toList(growable: false),
+      paidAmount: fallback?.paidAmount,
+      paidAmountCurrency: fallback?.paidAmountCurrency,
+      changeKhr: fallback?.changeKhr,
+    );
+  }
+
+  SaleReceiptDto? _cachedReceiptForSale(String saleId) {
+    final cachedReceipt = state.lastPrintableReceipt;
+    if (cachedReceipt == null) {
+      return null;
+    }
+
+    final normalizedSaleId = saleId.trim();
+    if (normalizedSaleId.isEmpty) {
+      return cachedReceipt;
+    }
+
+    if (state.lastFinalizedSaleId?.trim() == normalizedSaleId) {
+      return cachedReceipt;
+    }
+
+    return cachedReceipt.saleId.trim() == normalizedSaleId
+        ? cachedReceipt
+        : null;
+  }
+
+  ThermalReceiptPrintData? _cachedThermalReceiptForSale(String saleId) {
+    final cachedReceipt = state.lastPrintableReceiptData;
+    if (cachedReceipt == null) {
+      return null;
+    }
+
+    final normalizedSaleId = saleId.trim();
+    if (normalizedSaleId.isEmpty) {
+      return cachedReceipt;
+    }
+
+    if (state.lastFinalizedSaleId?.trim() == normalizedSaleId) {
+      return cachedReceipt;
+    }
+
+    return state.lastPrintableReceipt?.saleId.trim() == normalizedSaleId
+        ? cachedReceipt
+        : null;
+  }
+
+  String _resolveReceiptLookupId(String saleId) {
+    final normalizedSaleId = saleId.trim();
+    if (normalizedSaleId.isNotEmpty) {
+      return normalizedSaleId;
+    }
+
+    final lastFinalizedSaleId = state.lastFinalizedSaleId?.trim() ?? '';
+    if (lastFinalizedSaleId.isNotEmpty) {
+      return lastFinalizedSaleId;
+    }
+
+    final receiptSaleId = state.lastReceipt?.saleId.trim() ?? '';
+    if (receiptSaleId.isNotEmpty) {
+      return receiptSaleId;
+    }
+
+    final cachedReceiptSaleId = state.lastPrintableReceipt?.saleId.trim() ?? '';
+    if (cachedReceiptSaleId.isNotEmpty) {
+      return cachedReceiptSaleId;
+    }
+
+    return state.lastReceiptId?.trim() ?? '';
+  }
+
+  String _resolveFinalizeSaleId(SaleFinalizeSaleResultDto finalizeResult) {
+    final normalizedSaleId = finalizeResult.saleId.trim();
+    if (normalizedSaleId.isNotEmpty) {
+      return normalizedSaleId;
+    }
+
+    final receiptSaleId = finalizeResult.receipt?.saleId.trim() ?? '';
+    if (receiptSaleId.isNotEmpty) {
+      return receiptSaleId;
+    }
+
+    return finalizeResult.receiptId?.trim() ?? '';
+  }
+
+  ThermalReceiptPrintData _buildCheckoutPrintData({
+    required SaleCartState previousState,
+    required SaleFinalizeSaleResultDto finalizeResult,
+    required String receiptNumber,
+    required DateTime issuedAt,
+  }) {
+    final subtotalUsd = _cartSubtotalUsd(previousState);
+    final taxUsd = _checkoutTaxUsd(
+      subtotalUsd: subtotalUsd,
+      totalUsdExact: finalizeResult.totalUsdExact,
+    );
+    final tenderCurrency = previousState.tenderCurrency.trim().toUpperCase();
+    final paymentMethod = previousState.paymentMethod.trim().toLowerCase();
+    final paidAmount = paymentMethod == 'cash'
+        ? tenderCurrency == 'KHR'
+              ? previousState.cashKhr
+              : previousState.cashUsd
+        : null;
+    final changeKhr = paymentMethod == 'cash'
+        ? _resolvedCashChangeKhr(
+            finalizeResult: finalizeResult,
+            previousState: previousState,
+            tenderCurrency: tenderCurrency,
+          )
+        : null;
+
+    return ThermalReceiptPrintData(
+      receiptNumber: receiptNumber,
+      tenantName: _resolveTenantName(ref.read(loginControllerProvider).session),
+      branchName: _activeBranchName(),
+      cashierName: _cashierName(),
+      paymentMethod: paymentMethod == 'qr' ? 'khqr' : paymentMethod,
+      issuedAt: issuedAt,
+      subtotalUsd: subtotalUsd,
+      taxUsd: taxUsd,
+      totalUsd: finalizeResult.totalUsdExact,
+      totalKhr: finalizeResult.totalKhrExact,
+      items: previousState.lines
+          .map(_toThermalReceiptItemLine)
+          .toList(growable: false),
+      paidAmount: paidAmount,
+      paidAmountCurrency: paymentMethod == 'cash' ? tenderCurrency : null,
+      changeKhr: changeKhr,
+    );
+  }
+
+  SaleReceiptDto _buildCheckoutReceiptSnapshot({
+    required SaleCartState previousState,
+    required SaleFinalizeSaleResultDto finalizeResult,
+  }) {
+    final issuedAt = finalizeResult.receipt?.issuedAt ?? DateTime.now();
+    final resolvedSaleId = _resolveFinalizeSaleId(finalizeResult);
+    final receiptNumber = finalizeResult.receiptId?.trim().isNotEmpty == true
+        ? finalizeResult.receiptId!.trim()
+        : resolvedSaleId;
+    final subtotalUsd = _cartSubtotalUsd(previousState);
+    final taxUsd = _checkoutTaxUsd(
+      subtotalUsd: subtotalUsd,
+      totalUsdExact: finalizeResult.totalUsdExact,
+    );
+
+    return SaleReceiptDto(
+      saleId: resolvedSaleId,
+      receiptNumber: receiptNumber,
+      paymentMethod: previousState.paymentMethod,
+      subtotalUsdExact: subtotalUsd,
+      taxUsdExact: taxUsd,
+      totalUsdExact: finalizeResult.totalUsdExact,
+      totalKhrExact: finalizeResult.totalKhrExact,
+      issuedAt: issuedAt,
+      lines: previousState.lines.map(_toCachedReceiptLine).toList(),
+    );
+  }
+
+  ThermalReceiptItemLine _toThermalReceiptItemLine(CartLine line) {
+    return ThermalReceiptItemLine(
+      name: line.item.name,
+      quantity: line.quantity,
+      basePriceUsd: line.item.price,
+      modifiers: _toThermalReceiptModifiers(line),
+    );
+  }
+
+  List<ThermalReceiptModifierLine> _toThermalReceiptModifiers(CartLine line) {
+    final zeroPriceModifiers = <ThermalReceiptModifierLine>[];
+    final pricedModifiers = <ThermalReceiptModifierLine>[];
+
+    for (final options in line.selectedOptions.values) {
+      for (final option in options) {
+        final name = option.name.trim();
+        if (name.isEmpty) continue;
+        final modifier = ThermalReceiptModifierLine(
+          name: name,
+          priceDeltaUsd: option.price,
+        );
+        if (modifier.hasPriceDelta) {
+          pricedModifiers.add(modifier);
+        } else {
+          zeroPriceModifiers.add(modifier);
+        }
+      }
+    }
+
+    return <ThermalReceiptModifierLine>[
+      ...zeroPriceModifiers,
+      ...pricedModifiers,
+    ];
+  }
+
+  SaleReceiptLineDto _toCachedReceiptLine(CartLine line) {
+    final payload = SaleCartPayloadBuilder.fromLine(line);
+    return SaleReceiptLineDto(
+      name: _receiptLineName(line),
+      quantity: line.quantity,
+      unitPriceUsd: payload.unitPriceUsd ?? 0,
+      lineTotalUsdExact: payload.lineTotalUsdExact ?? 0,
+      modifiers: _toReceiptModifierLines(line),
+    );
+  }
+
+  List<SaleReceiptModifierLineDto> _toReceiptModifierLines(CartLine line) {
+    return _toThermalReceiptModifiers(line)
+        .map(
+          (modifier) => SaleReceiptModifierLineDto(
+            name: modifier.name,
+            priceDeltaUsd: modifier.priceDeltaUsd,
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  String _receiptLineName(CartLine line) {
+    final optionNames = line.selectedOptions.values
+        .expand((options) => options)
+        .map((option) => option.name.trim())
+        .where((name) => name.isNotEmpty)
+        .toList();
+    if (optionNames.isEmpty) {
+      return line.item.name;
+    }
+    return '${line.item.name} (${optionNames.join(', ')})';
+  }
+
+  double _cartSubtotalUsd(SaleCartState state) {
+    return state.lines.fold<double>(
+      0,
+      (sum, line) =>
+          sum + (SaleCartPayloadBuilder.fromLine(line).lineTotalUsdExact ?? 0),
+    );
+  }
+
+  double _checkoutTaxUsd({
+    required double subtotalUsd,
+    required double totalUsdExact,
+  }) {
+    if (totalUsdExact <= subtotalUsd) {
+      return 0;
+    }
+    return (totalUsdExact - subtotalUsd).toDouble();
+  }
+
+  double _resolvedCashChangeKhr({
+    required SaleFinalizeSaleResultDto finalizeResult,
+    required SaleCartState previousState,
+    required String tenderCurrency,
+  }) {
+    final backendChangeKhr = finalizeResult.changeGivenKhr;
+    if (backendChangeKhr != null && backendChangeKhr > 0) {
+      return backendChangeKhr;
+    }
+    return _cashChangeKhr(
+      tenderCurrency: tenderCurrency,
+      cashUsd: previousState.cashUsd,
+      cashKhr: previousState.cashKhr,
+      totalKhr: finalizeResult.totalKhrExact,
+    );
+  }
+
+  double _cashChangeKhr({
+    required String tenderCurrency,
+    required double cashUsd,
+    required double cashKhr,
+    required double totalKhr,
+  }) {
+    final fxRate = _fxRate();
+    final tenderKhr = tenderCurrency == 'KHR'
+        ? cashKhr
+        : cashUsd * (fxRate == 0 ? 1 : fxRate);
+    final change = tenderKhr - totalKhr;
+    return change > 0 ? change : 0;
+  }
+
+  String _cashierName() {
+    final cashierName =
+        ref.read(loginControllerProvider).session?.user.name.trim() ?? '';
+    return cashierName.isNotEmpty ? cashierName : 'Cashier';
+  }
+
+  List<ThermalReceiptModifierLine> _fallbackModifiersForIndex(
+    ThermalReceiptPrintData? fallback, {
+    required int index,
+    required String itemName,
+  }) {
+    if (fallback == null || index >= fallback.items.length) {
+      return const <ThermalReceiptModifierLine>[];
+    }
+
+    final fallbackItem = fallback.items[index];
+    if (fallbackItem.name.trim() == itemName.trim()) {
+      return fallbackItem.modifiers;
+    }
+
+    for (final item in fallback.items) {
+      if (item.name.trim() == itemName.trim()) {
+        return item.modifiers;
+      }
+    }
+
+    return const <ThermalReceiptModifierLine>[];
+  }
+
+  String _activeBranchName() {
+    final session = ref.read(loginControllerProvider).session;
+    return _resolveBranchName(
+      ref.read(authActiveBranchProvider),
+      session?.user.branches ?? const <UserBranch>[],
+      activeBranchId: ref.read(activeBranchContextIdProvider),
+      activeBranchNameOverride: ref.read(authActiveBranchNameOverrideProvider),
+    );
+  }
+
+  String _resolveTenantName(AuthSession? session) {
+    if (session == null || session.memberships.isEmpty) {
+      return 'Tenant name';
+    }
+
+    final activeTenantId = (session.activeTenantId ?? '').trim();
+    for (final membership in session.memberships) {
+      if (membership.tenantId == activeTenantId &&
+          membership.tenantName.trim().isNotEmpty) {
+        return membership.tenantName.trim();
+      }
+    }
+
+    final firstTenantName = session.memberships.first.tenantName.trim();
+    return firstTenantName.isNotEmpty ? firstTenantName : 'Tenant name';
+  }
+
+  String _resolveBranchName(
+    UserBranch? active,
+    List<UserBranch> branches, {
+    required String? activeBranchId,
+    required String? activeBranchNameOverride,
+  }) {
+    final overriddenName = (activeBranchNameOverride ?? '').trim();
+    if (overriddenName.isNotEmpty) {
+      return overriddenName;
+    }
+
+    final activeName = active?.name.trim() ?? '';
+    if (activeName.isNotEmpty) {
+      return activeName;
+    }
+
+    final normalizedActiveId = (activeBranchId ?? '').trim();
+    if (normalizedActiveId.isNotEmpty) {
+      for (final branch in branches) {
+        final matchesId =
+            branch.branchId.trim() == normalizedActiveId ||
+            branch.id.trim() == normalizedActiveId;
+        if (matchesId && branch.name.trim().isNotEmpty) {
+          return branch.name.trim();
+        }
+      }
+    }
+
+    return 'No branch selected';
   }
 
   Future<SalePlaceOrderResult> placeOrder() async {

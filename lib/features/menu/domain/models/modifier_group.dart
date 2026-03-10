@@ -36,13 +36,14 @@ class ModifierOption {
     required this.id,
     required this.name,
     this.groupId = '',
-    this.price = 0,
-    this.priceDelta = 0,
+    double? price,
+    double? priceDelta,
     this.status = 'ACTIVE',
     this.componentDeltas = const [],
     this.isDefault = false,
     this.isActive = true,
-  });
+  }) : price = priceDelta ?? price ?? 0,
+       priceDelta = priceDelta ?? price ?? 0;
 
   final String id;
   final String name;

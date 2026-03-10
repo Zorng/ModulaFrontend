@@ -149,6 +149,47 @@ void main() {
     expect(result.idempotentReplay, isFalse);
   });
 
+  test(
+    'maps cash checkout response sale id from receipt when sale.id is blank',
+    () {
+      final result = SaleMappers.toFinalizeResultFromCashCheckout(
+        SaleCashCheckoutResponseDto.fromJson({
+          'sale': {
+            'id': '',
+            'clientUuid': 'client-1',
+            'tenantId': 'tenant-1',
+            'branchId': 'branch-1',
+            'employeeId': 'user-1',
+            'saleType': 'take_away',
+            'state': 'FINALIZED',
+            'fxRateUsed': 4100,
+            'tenderCurrency': 'USD',
+            'paymentMethod': 'cash',
+            'fulfillmentStatus': 'in_prep',
+            'subtotalUsdExact': 5,
+            'subtotalKhrExact': 20500,
+            'totalUsdExact': 5,
+            'totalKhrExact': 20500,
+            'cashReceivedTenderAmount': 10,
+            'cashChangeTenderAmount': 5,
+            'createdAt': '2026-03-07T10:00:00.000Z',
+            'updatedAt': '2026-03-07T10:05:00.000Z',
+            'items': const [],
+          },
+          'receipt': {
+            'receiptId': 'sale-2',
+            'saleId': 'sale-2',
+            'statusDisplay': 'Paid',
+            'issuedAt': '2026-03-07T10:05:00.000Z',
+          },
+        }),
+      );
+
+      expect(result.saleId, 'sale-2');
+      expect(result.receiptId, 'sale-2');
+    },
+  );
+
   test('normalizes live and legacy sale lifecycle enums', () {
     expect(SaleMappers.normalizeSaleState('FINALIZED'), 'FINALIZED');
     expect(SaleMappers.normalizeSaleState('void_pending'), 'VOID_PENDING');
