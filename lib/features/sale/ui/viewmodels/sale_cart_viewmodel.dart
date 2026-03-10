@@ -10,6 +10,8 @@ import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
 import 'package:modular_pos/features/auth/domain/models/auth_session.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
+import 'package:modular_pos/features/cash_session/ui/viewmodels/cash_session_viewmodel.dart';
+import 'package:modular_pos/features/cash_session/ui/viewmodels/current_session_summary_provider.dart';
 import 'package:modular_pos/features/cash_session/ui/viewmodels/x_report_viewmodel.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
@@ -966,6 +968,8 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
 
       ref.invalidate(xReportEntriesProvider);
       ref.invalidate(xReportDetailProvider);
+      ref.invalidate(currentSessionSummaryProvider);
+      unawaited(ref.read(cashSessionViewModelProvider.notifier).load());
 
       await _clearPersistedCart();
       final resolvedSaleId = _resolveFinalizeSaleId(finalizeResult);

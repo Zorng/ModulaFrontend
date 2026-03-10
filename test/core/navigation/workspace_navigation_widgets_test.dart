@@ -259,4 +259,31 @@ void main() {
     expect(find.text('Branches'), findsNothing);
     expect(find.byIcon(Icons.arrow_back), findsOneWidget);
   });
+
+  testWidgets('wide rail keeps cash history in branch operations layer', (
+    tester,
+  ) async {
+    _setWideViewport(tester);
+    addTearDown(() => _resetViewport(tester));
+
+    await tester.pumpWidget(
+      _railHarness(
+        session: _session(role: 'manager', branches: activeBranch),
+        path: '/cash/session/history',
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('OPERATIONS'), findsOneWidget);
+    expect(find.text('Cash Sessions'), findsOneWidget);
+    expect(find.text('Sale'), findsOneWidget);
+    expect(find.text('Attendance'), findsOneWidget);
+    expect(find.text('Branches'), findsNothing);
+    expect(find.byIcon(Icons.arrow_back), findsOneWidget);
+
+    final cashTile = tester.widget<ListTile>(
+      find.widgetWithText(ListTile, 'Cash Sessions'),
+    );
+    expect(cashTile.selected, isTrue);
+  });
 }

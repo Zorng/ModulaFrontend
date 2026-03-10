@@ -8,18 +8,11 @@ import 'package:modular_pos/features/cash_session/ui/viewmodels/unsaved_input_pr
 import 'package:modular_pos/features/cash_session/ui/viewmodels/modal_form_state_provider.dart';
 
 class CashBottomNavShellPage extends ConsumerWidget {
-  const CashBottomNavShellPage({
-    super.key,
-    required this.navigationShell,
-  });
+  const CashBottomNavShellPage({super.key, required this.navigationShell});
 
   final StatefulNavigationShell navigationShell;
 
-  static const _titles = <String>[
-    'Session',
-    'Movement',
-    'Report',
-  ];
+  static const _titles = <String>['Session', 'Movement', 'History'];
 
   static const _items = <BottomNavigationBarItem>[
     BottomNavigationBarItem(
@@ -31,8 +24,8 @@ class CashBottomNavShellPage extends ConsumerWidget {
       label: 'Movement',
     ),
     BottomNavigationBarItem(
-      icon: Icon(Icons.description_outlined),
-      label: 'Report',
+      icon: Icon(Icons.history_outlined),
+      label: 'History',
     ),
   ];
 
@@ -98,7 +91,7 @@ class CashBottomNavShellPage extends ConsumerWidget {
       canPop: !unsavedState.hasAnyUnsavedData,
       onPopInvokedWithResult: (bool didPop, dynamic result) async {
         if (didPop) return;
-        
+
         final shouldLeave = await checkUnsavedData();
         if (shouldLeave && context.mounted) {
           context.go(AppRoute.portal.path);

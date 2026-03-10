@@ -1,12 +1,20 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:modular_pos/features/cash_session/data/cash_session_history_repository.dart';
 import 'package:modular_pos/features/cash_session/data/cash_session_movement_repository.dart';
 import 'package:modular_pos/features/cash_session/data/cash_session_repository.dart';
+import 'package:modular_pos/features/cash_session/data/cash_session_sales_repository.dart';
 import 'package:modular_pos/features/cash_session/domain/models/cash_movement.dart';
 import 'package:modular_pos/features/cash_session/domain/models/cash_session.dart';
+import 'package:modular_pos/features/cash_session/domain/models/cash_session_history_entry.dart';
+import 'package:modular_pos/features/cash_session/domain/models/cash_session_sale.dart';
 
 /// Mock repository for testing cash session features without backend
 class MockCashSessionRepository
-    implements CashSessionRepository, CashSessionMovementRepository {
+    implements
+        CashSessionRepository,
+        CashSessionHistoryRepository,
+        CashSessionMovementRepository,
+        CashSessionSalesRepository {
   // In-memory state
   CashSession? _activeSession;
   final List<CashMovement> _movements = <CashMovement>[];
@@ -28,12 +36,14 @@ class MockCashSessionRepository
       tenantId: 'mock-tenant-001',
       branchId: 'mock-branch-001',
       openedByAccountId: '',
+      openedByName: '',
       openedAt: DateTime.now(),
       status: CashSessionStatuses.open,
       openingFloatUsd: openingFloatUsd,
       openingFloatKhr: openingFloatKhr,
       closedAt: null,
       closedByAccountId: null,
+      closedByName: null,
       closeNote: note,
       totalPaidInUsd: 0.0,
       totalPaidOutUsd: 0.0,
@@ -63,12 +73,14 @@ class MockCashSessionRepository
       tenantId: _activeSession!.tenantId,
       branchId: _activeSession!.branchId,
       openedByAccountId: _activeSession!.openedByAccountId,
+      openedByName: _activeSession!.openedByName,
       openedAt: _activeSession!.openedAt,
       status: CashSessionStatuses.forceClosed,
       openingFloatUsd: _activeSession!.openingFloatUsd,
       openingFloatKhr: _activeSession!.openingFloatKhr,
       closedAt: DateTime.now(),
       closedByAccountId: '',
+      closedByName: null,
       closeNote: note ?? reason,
       totalPaidInUsd: _movementTotalUsd(CashMovementTypes.manualIn),
       totalPaidOutUsd: _movementTotalUsd(CashMovementTypes.manualOut),
@@ -95,12 +107,14 @@ class MockCashSessionRepository
       tenantId: _activeSession!.tenantId,
       branchId: _activeSession!.branchId,
       openedByAccountId: _activeSession!.openedByAccountId,
+      openedByName: _activeSession!.openedByName,
       openedAt: _activeSession!.openedAt,
       status: CashSessionStatuses.closed,
       openingFloatUsd: _activeSession!.openingFloatUsd,
       openingFloatKhr: _activeSession!.openingFloatKhr,
       closedAt: DateTime.now(),
       closedByAccountId: '',
+      closedByName: null,
       closeNote: note,
       totalPaidInUsd: _movementTotalUsd(CashMovementTypes.manualIn),
       totalPaidOutUsd: _movementTotalUsd(CashMovementTypes.manualOut),
@@ -122,12 +136,14 @@ class MockCashSessionRepository
         tenantId: _activeSession!.tenantId,
         branchId: _activeSession!.branchId,
         openedByAccountId: _activeSession!.openedByAccountId,
+        openedByName: _activeSession!.openedByName,
         openedAt: _activeSession!.openedAt,
         status: _activeSession!.status,
         openingFloatUsd: _activeSession!.openingFloatUsd,
         openingFloatKhr: _activeSession!.openingFloatKhr,
         closedAt: _activeSession!.closedAt,
         closedByAccountId: _activeSession!.closedByAccountId,
+        closedByName: _activeSession!.closedByName,
         closeNote: _activeSession!.closeNote,
         totalPaidInUsd: _movementTotalUsd(CashMovementTypes.manualIn),
         totalPaidOutUsd: _movementTotalUsd(CashMovementTypes.manualOut),
@@ -198,6 +214,49 @@ class MockCashSessionRepository
     final start = offset.clamp(0, _movements.length);
     final end = (start + limit).clamp(0, _movements.length);
     return List<CashMovement>.unmodifiable(_movements.sublist(start, end));
+  }
+
+  @override
+  Future<List<CashSessionSale>> listSales({
+    required String sessionId,
+    int limit = 20,
+    int offset = 0,
+  }) async {
+    await Future.delayed(const Duration(milliseconds: 200));
+    return const [];
+  }
+
+  @override
+  Future<List<CashSessionHistoryEntry>> listClosedSessions({
+    DateTime? from,
+    DateTime? to,
+    int limit = 50,
+    int offset = 0,
+  }) async {
+    await Future.delayed(const Duration(milliseconds: 200));
+    final session = _activeSession;
+    if (session == null || !CashSessionStatuses.isClosed(session.status)) {
+      return const [];
+    }
+    final closedAt = session.closedAt;
+    if (closedAt == null) {
+      return const [];
+    }
+    if (from != null && closedAt.isBefore(from)) {
+      return const [];
+    }
+    if (to != null && closedAt.isAfter(to)) {
+      return const [];
+    }
+    return [
+      CashSessionHistoryEntry(
+        id: session.id,
+        status: session.status,
+        openedByName: session.openedByName,
+        openedAt: session.openedAt,
+        closedAt: session.closedAt,
+      ),
+    ];
   }
 
   Future<void> _recordMovement({

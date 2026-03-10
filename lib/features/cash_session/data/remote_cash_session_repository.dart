@@ -1,13 +1,23 @@
 import 'package:modular_pos/features/cash_session/data/cash_session_api.dart';
+import 'package:modular_pos/features/cash_session/data/cash_session_history_repository.dart';
 import 'package:modular_pos/features/cash_session/data/cash_session_movement_repository.dart';
 import 'package:modular_pos/features/cash_session/data/cash_session_repository.dart';
+import 'package:modular_pos/features/cash_session/data/cash_session_sales_repository.dart';
 import 'package:modular_pos/features/cash_session/data/dto/cash_movement_dto.dart';
 import 'package:modular_pos/features/cash_session/data/dto/cash_session_dto.dart';
+import 'package:modular_pos/features/cash_session/data/dto/cash_session_history_entry_dto.dart';
+import 'package:modular_pos/features/cash_session/data/dto/cash_session_sale_dto.dart';
 import 'package:modular_pos/features/cash_session/domain/models/cash_movement.dart';
 import 'package:modular_pos/features/cash_session/domain/models/cash_session.dart';
+import 'package:modular_pos/features/cash_session/domain/models/cash_session_history_entry.dart';
+import 'package:modular_pos/features/cash_session/domain/models/cash_session_sale.dart';
 
 class RemoteCashSessionRepository
-    implements CashSessionRepository, CashSessionMovementRepository {
+    implements
+        CashSessionRepository,
+        CashSessionHistoryRepository,
+        CashSessionMovementRepository,
+        CashSessionSalesRepository {
   RemoteCashSessionRepository(this._api);
 
   final CashSessionApi _api;
@@ -127,18 +137,55 @@ class RemoteCashSessionRepository
     return list.map(_toMovementDomain).toList();
   }
 
+  @override
+  Future<List<CashSessionSale>> listSales({
+    required String sessionId,
+    int limit = 20,
+    int offset = 0,
+  }) async {
+    final list = await _api.listSales(sessionId, limit: limit, offset: offset);
+    return list.map(_toSaleDomain).toList();
+  }
+
+  @override
+  Future<List<CashSessionHistoryEntry>> listClosedSessions({
+    DateTime? from,
+    DateTime? to,
+    int limit = 50,
+    int offset = 0,
+  }) async {
+    final list = await _api.listSessions(
+      from: from,
+      to: to,
+      limit: limit,
+      offset: offset,
+    );
+    final filtered = list
+        .where((entry) => CashSessionStatuses.isClosed(entry.status))
+        .map(_toHistoryDomain)
+        .toList(growable: false);
+    filtered.sort((a, b) {
+      final aTime = a.closedAt ?? a.openedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final bTime = b.closedAt ?? b.openedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      return bTime.compareTo(aTime);
+    });
+    return filtered;
+  }
+
   CashSession _toDomain(CashSessionDto dto) {
     return CashSession(
       id: dto.id,
       tenantId: dto.tenantId,
       branchId: dto.branchId,
       openedByAccountId: dto.openedByAccountId,
+      openedByName: dto.openedByName,
       openedAt: dto.openedAt?.toLocal(),
       status: dto.status,
       openingFloatUsd: dto.openingFloatUsd,
       openingFloatKhr: dto.openingFloatKhr,
       closedAt: dto.closedAt?.toLocal(),
       closedByAccountId: dto.closedByAccountId,
+      closedByName: dto.closedByName,
       closeNote: dto.closeNote,
       totalPaidInUsd: 0,
       totalPaidOutUsd: 0,
@@ -159,6 +206,20 @@ class RemoteCashSessionRepository
       sourceRefId: dto.sourceRefId,
       recordedByAccountId: dto.recordedByAccountId,
       occurredAt: dto.occurredAt?.toLocal(),
+    );
+  }
+
+  CashSessionSale _toSaleDomain(CashSessionSaleDto dto) {
+    return dto.toDomain();
+  }
+
+  CashSessionHistoryEntry _toHistoryDomain(CashSessionHistoryEntryDto dto) {
+    return CashSessionHistoryEntry(
+      id: dto.id,
+      status: dto.status,
+      openedByName: dto.openedByName,
+      openedAt: dto.openedAt?.toLocal(),
+      closedAt: dto.closedAt?.toLocal(),
     );
   }
 }

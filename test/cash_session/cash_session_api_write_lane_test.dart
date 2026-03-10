@@ -214,11 +214,7 @@ void main() {
               (o) => o.extra?[idempotencyRequestExtraKey],
               'idempotencyRequest',
               isA<IdempotencyRequest>()
-                  .having(
-                    (r) => r.actionKey,
-                    'actionKey',
-                    'cashSession.movement.paidIn',
-                  )
+                  .having((r) => r.actionKey, 'actionKey', 'cashSession.paidIn')
                   .having((r) => r.payload, 'payload', {
                     'sessionId': 'session-1',
                     ...body,
@@ -270,7 +266,7 @@ void main() {
                   .having(
                     (r) => r.actionKey,
                     'actionKey',
-                    'cashSession.movement.paidOut',
+                    'cashSession.paidOut',
                   )
                   .having((r) => r.payload, 'payload', {
                     'sessionId': 'session-1',
@@ -320,11 +316,7 @@ void main() {
               (o) => o.extra?[idempotencyRequestExtraKey],
               'idempotencyRequest',
               isA<IdempotencyRequest>()
-                  .having(
-                    (r) => r.actionKey,
-                    'actionKey',
-                    'cashSession.movement.adjustment',
-                  )
+                  .having((r) => r.actionKey, 'actionKey', 'cashSession.adjust')
                   .having((r) => r.payload, 'payload', {
                     'sessionId': 'session-1',
                     ...body,

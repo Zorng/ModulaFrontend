@@ -151,7 +151,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           !isAdminOrOwner) {
         return '/404';
       }
-      if (isPathInGroup(path, AppRoute.cashSession.path) &&
+      if ((isPathInGroup(path, AppRoute.cashSession.path) ||
+              isPathInGroup(path, AppRoute.cashHistory.path)) &&
           !isCashier &&
           !isManager &&
           !isAdminOrOwner) {
@@ -254,6 +255,7 @@ bool _isBranchScopedRoute(String path) {
   return path == AppRoute.branchPortal.path ||
       isPathInGroup(path, AppRoute.branchSubscription.path) ||
       isPathInGroup(path, AppRoute.cashSession.path) ||
+      isPathInGroup(path, AppRoute.cashHistory.path) ||
       isPathInGroup(path, AppRoute.policy.path) ||
       isPathInGroup(path, AppRoute.sale.path) ||
       isPathInGroup(path, AppRoute.attendance.path) ||
