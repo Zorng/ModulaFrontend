@@ -88,9 +88,32 @@ CashSession _buildCashSession({
   );
 }
 
+List<CashSessionSale> _buildSalesPage(int count, {int startAt = 0}) {
+  return List.generate(
+    count,
+    (index) => CashSessionSale(
+      saleId: 'sale-${startAt + index + 1}',
+      status: CashSessionSaleStatuses.finalized,
+      paymentMethod: 'CASH',
+      saleType: 'TAKEAWAY',
+      finalizedAt: DateTime.utc(2026, 3, 9, 9, index),
+      totalItems: 1,
+      grandTotalUsd: 5.0 + index,
+      grandTotalKhr: 20000.0 + index,
+      cashierAccountId: 'cashier-1',
+      cashierName: 'John Smith',
+      voidedAt: null,
+    ),
+  );
+}
+
 void _stubEmptySales(_MockCashSessionSalesRepository repo) {
   when(
-    () => repo.listSales(sessionId: any(named: 'sessionId')),
+    () => repo.listSales(
+      sessionId: any(named: 'sessionId'),
+      limit: any(named: 'limit'),
+      offset: any(named: 'offset'),
+    ),
   ).thenAnswer((_) async => const <CashSessionSale>[]);
 }
 
@@ -172,7 +195,11 @@ void main() {
       () => movementRepo.listMovements(sessionId: any(named: 'sessionId')),
     ).thenAnswer((_) async => const []);
     when(
-      () => salesRepo.listSales(sessionId: any(named: 'sessionId')),
+      () => salesRepo.listSales(
+        sessionId: any(named: 'sessionId'),
+        limit: any(named: 'limit'),
+        offset: any(named: 'offset'),
+      ),
     ).thenAnswer(
       (_) async => [
         CashSessionSale(
@@ -207,6 +234,53 @@ void main() {
     expect(state.sales, hasLength(1));
     expect(state.sales.first.saleId, 'sale-1');
     expect(state.sales.first.cashierName, 'John Smith');
+  });
+
+  test('loadMoreSales appends the next sales page', () async {
+    final repo = _MockCashSessionRepository();
+    final movementRepo = _MockCashSessionMovementRepository();
+    final salesRepo = _MockCashSessionSalesRepository();
+
+    when(
+      () => repo.getActiveSession(),
+    ).thenAnswer((_) async => _buildCashSession());
+    when(
+      () => movementRepo.listMovements(sessionId: any(named: 'sessionId')),
+    ).thenAnswer((_) async => const []);
+    when(
+      () => salesRepo.listSales(
+        sessionId: 'session-1',
+        limit: any(named: 'limit'),
+        offset: 0,
+      ),
+    ).thenAnswer((_) async => _buildSalesPage(20));
+    when(
+      () => salesRepo.listSales(
+        sessionId: 'session-1',
+        limit: any(named: 'limit'),
+        offset: 20,
+      ),
+    ).thenAnswer((_) async => _buildSalesPage(1, startAt: 20));
+
+    final container = createTestContainer(
+      overrides: [
+        cashSessionRepositoryProvider.overrideWithValue(repo),
+        cashSessionMovementRepositoryProvider.overrideWithValue(movementRepo),
+        cashSessionSalesRepositoryProvider.overrideWithValue(salesRepo),
+        loginControllerProvider.overrideWith(_TestLoginController.new),
+      ],
+    );
+
+    final notifier = container.read(cashSessionViewModelProvider.notifier);
+    await notifier.load();
+    expect(container.read(cashSessionViewModelProvider).hasMoreSales, isTrue);
+
+    await notifier.loadMoreSales();
+
+    final state = container.read(cashSessionViewModelProvider);
+    expect(state.sales, hasLength(21));
+    expect(state.sales.last.saleId, 'sale-21');
+    expect(state.hasMoreSales, isFalse);
   });
 
   test(

@@ -170,6 +170,20 @@ class ReportingApi {
       throw ReportingApiException.fromDio(error);
     }
   }
+
+  Future<ZReportDetailDto> fetchZReportDetail({
+    required String sessionId,
+  }) async {
+    try {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '$_cashPrefix/sessions/$sessionId/z',
+      );
+      final data = _requireDataMap(response.data);
+      return ZReportDetailDto.fromJson(data);
+    } on DioError catch (error) {
+      throw ReportingApiException.fromDio(error);
+    }
+  }
 }
 
 class ReportingApiException implements Exception {

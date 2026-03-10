@@ -88,4 +88,33 @@ class ReportingRepository {
       expectedCashKhr: dto.expectedCashKhr,
     );
   }
+
+  Future<ZReportDetail> fetchZReportDetail({required String sessionId}) async {
+    final dto = await _api.fetchZReportDetail(sessionId: sessionId);
+    return ZReportDetail(
+      sessionId: dto.sessionId,
+      status: dto.status,
+      openedByName: dto.openedByName,
+      openedAt: dto.openedAt,
+      closedAt: dto.closedAt,
+      openingFloatUsd: dto.openingFloatUsd,
+      openingFloatKhr: dto.openingFloatKhr,
+      totalSalesKhqrUsd: dto.totalSalesKhqrUsd,
+      totalSalesKhqrKhr: dto.totalSalesKhqrKhr,
+      totalSalesCashUsd: dto.totalSalesCashUsd,
+      totalSalesCashKhr: dto.totalSalesCashKhr,
+      totalPaidInUsd: dto.totalPaidInUsd,
+      totalPaidInKhr: dto.totalPaidInKhr,
+      totalPaidOutUsd: dto.totalPaidOutUsd,
+      totalPaidOutKhr: dto.totalPaidOutKhr,
+      expectedCashUsd: dto.expectedCashUsd,
+      expectedCashKhr: dto.expectedCashKhr,
+      countedCashUsd: dto.countedCashUsd,
+      countedCashKhr: dto.countedCashKhr,
+      varianceUsd: dto.varianceUsd,
+      varianceKhr: dto.varianceKhr,
+      closedByName: dto.closedByName,
+      closeReason: dto.closeReason,
+    );
+  }
 }

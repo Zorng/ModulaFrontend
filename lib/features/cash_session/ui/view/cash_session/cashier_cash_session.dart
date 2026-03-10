@@ -77,6 +77,11 @@ class CashSessionScreen extends ConsumerWidget {
         SessionSalesSection(
           sessionStatus: sessionState.sessionStatus,
           sales: sessionState.sales,
+          hasMoreSales: sessionState.hasMoreSales,
+          isLoadingMoreSales: sessionState.isLoadingMoreSales,
+          onLoadMore: sessionState.hasOpenSession
+              ? notifier.loadMoreSales
+              : null,
         ),
       ],
     );
@@ -169,6 +174,11 @@ class CashSessionScreen extends ConsumerWidget {
         SessionSalesSection(
           sessionStatus: sessionState.sessionStatus,
           sales: sessionState.sales,
+          hasMoreSales: sessionState.hasMoreSales,
+          isLoadingMoreSales: sessionState.isLoadingMoreSales,
+          onLoadMore: sessionState.hasOpenSession
+              ? notifier.loadMoreSales
+              : null,
         ),
       ],
     );

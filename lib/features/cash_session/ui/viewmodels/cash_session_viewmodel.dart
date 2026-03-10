@@ -16,26 +16,35 @@ enum SessionStatus { notStarted, open, closed, forceClosed }
 
 class CashSessionState {
   static const _unset = Object();
+  static const defaultSalesFetchLimit = 20;
 
   const CashSessionState({
     this.session,
     this.movements = const [],
     this.sales = const [],
+    this.hasMoreSales = false,
+    this.isLoadingMoreSales = false,
+    this.salesFetchLimit = defaultSalesFetchLimit,
     this.isLoading = false,
     this.error,
     this.errorCode,
     this.canForceClose = false,
     this.currentUserAccountId = '',
+    this.currentUserRole = AuthRole.unknown,
   });
 
   final CashSession? session;
   final List<CashMovement> movements;
   final List<CashSessionSale> sales;
+  final bool hasMoreSales;
+  final bool isLoadingMoreSales;
+  final int salesFetchLimit;
   final bool isLoading;
   final String? error;
   final String? errorCode;
   final bool canForceClose;
   final String currentUserAccountId;
+  final AuthRole currentUserRole;
 
   SessionStatus get sessionStatus {
     final currentSession = session;
@@ -92,15 +101,53 @@ class CashSessionState {
     return null;
   }
 
+  bool get canRecordPaidIn => switch (currentUserRole) {
+    AuthRole.cashier ||
+    AuthRole.manager ||
+    AuthRole.admin ||
+    AuthRole.owner => true,
+    _ => false,
+  };
+
+  bool get canRecordPaidOut => switch (currentUserRole) {
+    AuthRole.cashier ||
+    AuthRole.manager ||
+    AuthRole.admin ||
+    AuthRole.owner => true,
+    _ => false,
+  };
+
+  bool get canRecordAdjustment => switch (currentUserRole) {
+    AuthRole.manager || AuthRole.admin || AuthRole.owner => true,
+    _ => false,
+  };
+
+  bool get canWriteAnyMovement =>
+      canRecordPaidIn || canRecordPaidOut || canRecordAdjustment;
+
+  bool canRecordMovementType(String type) {
+    final normalizedType = type.trim().toUpperCase().replaceAll(' ', '_');
+    return switch (normalizedType) {
+      'PAID_IN' => canRecordPaidIn,
+      'PAID_OUT' => canRecordPaidOut,
+      'ADJUSTMENT' => canRecordAdjustment,
+      _ => false,
+    };
+  }
+
   CashSessionState copyWith({
     Object? session = _unset,
     Object? movements = _unset,
     Object? sales = _unset,
+    bool? hasMoreSales,
+    bool? isLoadingMoreSales,
+    int? salesFetchLimit,
     bool? isLoading,
     Object? error = _unset,
     Object? errorCode = _unset,
     bool? canForceClose,
     String? currentUserAccountId,
+    AuthRole? currentUserRole,
   }) {
     return CashSessionState(
       session: identical(session, _unset)
@@ -116,6 +163,9 @@ class CashSessionState {
           : List<CashSessionSale>.unmodifiable(
               List<CashSessionSale>.from(sales as List),
             ),
+      hasMoreSales: hasMoreSales ?? this.hasMoreSales,
+      isLoadingMoreSales: isLoadingMoreSales ?? this.isLoadingMoreSales,
+      salesFetchLimit: salesFetchLimit ?? this.salesFetchLimit,
       isLoading: isLoading ?? this.isLoading,
       error: identical(error, _unset) ? this.error : error as String?,
       errorCode: identical(errorCode, _unset)
@@ -123,6 +173,7 @@ class CashSessionState {
           : errorCode as String?,
       canForceClose: canForceClose ?? this.canForceClose,
       currentUserAccountId: currentUserAccountId ?? this.currentUserAccountId,
+      currentUserRole: currentUserRole ?? this.currentUserRole,
     );
   }
 }
@@ -136,20 +187,19 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
 
   @override
   CashSessionState build() {
+    final authSession = ref.watch(
+      loginControllerProvider.select((state) => state.session),
+    );
     final currentUserId = ref.watch(
       loginControllerProvider.select(
         (state) => _resolveCurrentAccountId(state.session),
-      ),
-    );
-    ref.watch(
-      loginControllerProvider.select(
-        (state) => state.session?.accessToken ?? '',
       ),
     );
     ref.watch(authActiveBranchIdProvider);
     return CashSessionState(
       isLoading: false,
       currentUserAccountId: currentUserId,
+      currentUserRole: resolveSessionAuthRole(authSession),
     );
   }
 
@@ -163,6 +213,8 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
       session: null,
       movements: const <CashMovement>[],
       sales: const <CashSessionSale>[],
+      hasMoreSales: false,
+      isLoadingMoreSales: false,
       isLoading: false,
       error: null,
       errorCode: null,
@@ -246,6 +298,39 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
       await _fetchActiveSession(loadMovements: true, loadSales: true);
     } catch (error) {
       _setError(error);
+    }
+  }
+
+  Future<void> loadMoreSales() async {
+    final sessionId = state.sessionId;
+    if (sessionId == null ||
+        sessionId.isEmpty ||
+        state.isLoadingMoreSales ||
+        !state.hasMoreSales) {
+      return;
+    }
+
+    state = state.copyWith(isLoadingMoreSales: true);
+    try {
+      final nextPage = await _salesRepo.listSales(
+        sessionId: sessionId,
+        limit: state.salesFetchLimit,
+        offset: state.sales.length,
+      );
+      final merged = List<CashSessionSale>.from(state.sales)..addAll(nextPage);
+      state = state.copyWith(
+        sales: merged,
+        hasMoreSales: nextPage.length == state.salesFetchLimit,
+        isLoadingMoreSales: false,
+        error: null,
+        errorCode: null,
+      );
+    } catch (error) {
+      state = state.copyWith(
+        isLoadingMoreSales: false,
+        error: _errorMessage(error),
+        errorCode: _errorCode(error),
+      );
     }
   }
 
@@ -380,7 +465,11 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
           ? _movementRepo.listMovements(sessionId: sessionId)
           : Future.value(state.movements);
       final salesFuture = loadSales
-          ? _salesRepo.listSales(sessionId: sessionId)
+          ? _salesRepo.listSales(
+              sessionId: sessionId,
+              limit: state.salesFetchLimit,
+              offset: 0,
+            )
           : Future.value(state.sales);
       final results = await Future.wait<Object>([movementFuture, salesFuture]);
       final movements = results[0] as List<CashMovement>;
@@ -389,6 +478,10 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
         isLoading: false,
         movements: movements,
         sales: sales,
+        hasMoreSales: loadSales
+            ? sales.length == state.salesFetchLimit
+            : state.hasMoreSales,
+        isLoadingMoreSales: false,
         error: null,
         errorCode: null,
         canForceClose: _canForceClose(state.session),
@@ -419,6 +512,8 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
       session: null,
       movements: const <CashMovement>[],
       sales: const <CashSessionSale>[],
+      hasMoreSales: false,
+      isLoadingMoreSales: false,
       error: null,
       errorCode: null,
       canForceClose: false,
@@ -430,6 +525,7 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
       isLoading: false,
       error: _errorMessage(error),
       errorCode: _errorCode(error),
+      isLoadingMoreSales: false,
       canForceClose: _canForceClose(state.session),
     );
   }

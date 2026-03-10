@@ -8,6 +8,7 @@ import 'package:modular_pos/features/cash_session/data/dto/cash_movement_dto.dar
 import 'package:modular_pos/features/cash_session/data/dto/cash_session_api_envelope.dart';
 import 'package:modular_pos/features/cash_session/data/dto/cash_session_dto.dart';
 import 'package:modular_pos/features/cash_session/data/dto/cash_session_envelope_dto.dart';
+import 'package:modular_pos/features/cash_session/data/dto/cash_session_history_entry_dto.dart';
 import 'package:modular_pos/features/cash_session/data/dto/cash_session_sale_dto.dart';
 import 'package:modular_pos/features/cash_session/data/cash_session_error_codes.dart';
 
@@ -128,7 +129,7 @@ class CashSessionApi {
         data: body,
         options: withIdempotency(
           request: IdempotencyRequest(
-            actionKey: 'cashSession.movement.paidIn',
+            actionKey: 'cashSession.paidIn',
             payload: {'sessionId': sessionId, ...body},
           ),
         ),
@@ -155,7 +156,7 @@ class CashSessionApi {
         data: body,
         options: withIdempotency(
           request: IdempotencyRequest(
-            actionKey: 'cashSession.movement.paidOut',
+            actionKey: 'cashSession.paidOut',
             payload: {'sessionId': sessionId, ...body},
           ),
         ),
@@ -182,7 +183,7 @@ class CashSessionApi {
         data: body,
         options: withIdempotency(
           request: IdempotencyRequest(
-            actionKey: 'cashSession.movement.adjustment',
+            actionKey: 'cashSession.adjust',
             payload: {'sessionId': sessionId, ...body},
           ),
         ),
@@ -241,6 +242,36 @@ class CashSessionApi {
       throw _mapCashSessionDioError(
         error,
         fallbackMessage: 'Failed to load session sales.',
+      );
+    }
+  }
+
+  Future<List<CashSessionHistoryEntryDto>> listSessions({
+    DateTime? from,
+    DateTime? to,
+    int limit = 50,
+    int offset = 0,
+  }) async {
+    try {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '$_prefix/sessions',
+        queryParameters: {
+          'status': 'all',
+          if (from != null) 'from': from.toIso8601String(),
+          if (to != null) 'to': to.toIso8601String(),
+          'limit': limit,
+          'offset': offset,
+        },
+      );
+      final items = CashSessionApiEnvelope.unwrapDataList(
+        response.data,
+        fallbackMessage: 'Failed to load cash sessions.',
+      );
+      return items.map(CashSessionHistoryEntryDto.fromJson).toList();
+    } on DioError catch (error) {
+      throw _mapCashSessionDioError(
+        error,
+        fallbackMessage: 'Failed to load cash sessions.',
       );
     }
   }

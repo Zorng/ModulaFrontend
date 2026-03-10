@@ -29,4 +29,25 @@ void main() {
     expect(dto.recordedByAccountId, 'user-1');
     expect(dto.occurredAt, DateTime.parse('2026-03-07T09:30:00.000Z'));
   });
+
+  test('CashMovementDto parses numeric strings and delta fallback fields', () {
+    final dto = CashMovementDto.fromJson({
+      'id': 'movement-2',
+      'sessionId': 'session-1',
+      'tenantId': 'tenant-1',
+      'branchId': 'branch-1',
+      'movementType': 'adjustment',
+      'amountUsdDelta': '-2.5',
+      'amountKhrDelta': '0',
+      'reason': 'Correction after count review',
+      'sourceRefType': 'MANUAL',
+      'sourceRefId': null,
+      'recordedByAccountId': 'user-2',
+      'occurredAt': '2026-03-07T10:00:00.000Z',
+    });
+
+    expect(dto.movementType, CashMovementTypes.adjustment);
+    expect(dto.amountUsd, -2.5);
+    expect(dto.amountKhr, 0);
+  });
 }

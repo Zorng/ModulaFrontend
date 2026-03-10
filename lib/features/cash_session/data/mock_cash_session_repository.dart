@@ -1,15 +1,18 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:modular_pos/features/cash_session/data/cash_session_history_repository.dart';
 import 'package:modular_pos/features/cash_session/data/cash_session_movement_repository.dart';
 import 'package:modular_pos/features/cash_session/data/cash_session_repository.dart';
 import 'package:modular_pos/features/cash_session/data/cash_session_sales_repository.dart';
 import 'package:modular_pos/features/cash_session/domain/models/cash_movement.dart';
 import 'package:modular_pos/features/cash_session/domain/models/cash_session.dart';
+import 'package:modular_pos/features/cash_session/domain/models/cash_session_history_entry.dart';
 import 'package:modular_pos/features/cash_session/domain/models/cash_session_sale.dart';
 
 /// Mock repository for testing cash session features without backend
 class MockCashSessionRepository
     implements
         CashSessionRepository,
+        CashSessionHistoryRepository,
         CashSessionMovementRepository,
         CashSessionSalesRepository {
   // In-memory state
@@ -221,6 +224,39 @@ class MockCashSessionRepository
   }) async {
     await Future.delayed(const Duration(milliseconds: 200));
     return const [];
+  }
+
+  @override
+  Future<List<CashSessionHistoryEntry>> listClosedSessions({
+    DateTime? from,
+    DateTime? to,
+    int limit = 50,
+    int offset = 0,
+  }) async {
+    await Future.delayed(const Duration(milliseconds: 200));
+    final session = _activeSession;
+    if (session == null || !CashSessionStatuses.isClosed(session.status)) {
+      return const [];
+    }
+    final closedAt = session.closedAt;
+    if (closedAt == null) {
+      return const [];
+    }
+    if (from != null && closedAt.isBefore(from)) {
+      return const [];
+    }
+    if (to != null && closedAt.isAfter(to)) {
+      return const [];
+    }
+    return [
+      CashSessionHistoryEntry(
+        id: session.id,
+        status: session.status,
+        openedByName: session.openedByName,
+        openedAt: session.openedAt,
+        closedAt: session.closedAt,
+      ),
+    ];
   }
 
   Future<void> _recordMovement({

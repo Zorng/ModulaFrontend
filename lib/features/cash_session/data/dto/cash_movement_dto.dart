@@ -36,16 +36,23 @@ class CashMovementDto {
       return DateTime.tryParse(raw);
     }
 
-    double numOrZero(dynamic value) => (value is num) ? value.toDouble() : 0.0;
+    double numOrZero(dynamic value) {
+      if (value is num) return value.toDouble();
+      final raw = value?.toString().trim() ?? '';
+      if (raw.isEmpty) return 0.0;
+      return double.tryParse(raw) ?? 0.0;
+    }
 
     return CashMovementDto(
       id: json['id']?.toString() ?? '',
       sessionId: json['sessionId']?.toString() ?? '',
       tenantId: json['tenantId']?.toString() ?? '',
       branchId: json['branchId']?.toString() ?? '',
-      movementType: CashMovementTypes.normalize(json['movementType']?.toString()),
-      amountUsd: numOrZero(json['amountUsd']),
-      amountKhr: numOrZero(json['amountKhr']),
+      movementType: CashMovementTypes.normalize(
+        json['movementType']?.toString(),
+      ),
+      amountUsd: numOrZero(json['amountUsd'] ?? json['amountUsdDelta']),
+      amountKhr: numOrZero(json['amountKhr'] ?? json['amountKhrDelta']),
       reason: json['reason']?.toString(),
       sourceRefType: json['sourceRefType']?.toString() ?? 'MANUAL',
       sourceRefId: json['sourceRefId']?.toString(),

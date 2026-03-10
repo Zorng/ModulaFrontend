@@ -79,6 +79,37 @@ class _FakeReportingApi extends ReportingApi {
       expectedCashKhr: 0,
     );
   }
+
+  @override
+  Future<ZReportDetailDto> fetchZReportDetail({
+    required String sessionId,
+  }) async {
+    return ZReportDetailDto(
+      sessionId: sessionId,
+      status: 'CLOSED',
+      openedByName: 'John Smith',
+      openedAt: DateTime.parse('2025-12-23T08:00:00.000Z'),
+      closedAt: DateTime.parse('2025-12-23T16:00:00.000Z'),
+      openingFloatUsd: 20,
+      openingFloatKhr: 0,
+      totalSalesKhqrUsd: 7.5,
+      totalSalesKhqrKhr: 0,
+      totalSalesCashUsd: 15,
+      totalSalesCashKhr: 0,
+      totalPaidInUsd: 5,
+      totalPaidInKhr: 0,
+      totalPaidOutUsd: 2,
+      totalPaidOutKhr: 0,
+      expectedCashUsd: 37,
+      expectedCashKhr: 0,
+      countedCashUsd: 37,
+      countedCashKhr: 0,
+      varianceUsd: 0,
+      varianceKhr: 0,
+      closedByName: 'Jane Doe',
+      closeReason: 'NORMAL_CLOSE',
+    );
+  }
 }
 
 void main() {
@@ -153,6 +184,47 @@ void main() {
       expect(dto.sessionCount, 2);
       expect(dto.expectedCashUsd, 180);
     });
+
+    test('parses Z report detail response', () {
+      final data = <String, dynamic>{
+        'sessionId': 'session-1',
+        'status': 'CLOSED',
+        'openedByName': 'John Smith',
+        'openedAt': '2026-03-10T01:00:00.000Z',
+        'closedAt': '2026-03-10T09:00:00.000Z',
+        'openingFloatUsd': 20,
+        'openingFloatKhr': 50000,
+        'totalSalesNonCashUsd': 7.5,
+        'totalSalesNonCashKhr': 0,
+        'totalSalesKhqrUsd': 7.5,
+        'totalSalesKhqrKhr': 0,
+        'totalSaleInUsd': 15,
+        'totalSaleInKhr': 0,
+        'totalRefundOutUsd': 0,
+        'totalRefundOutKhr': 0,
+        'totalManualInUsd': 5,
+        'totalManualInKhr': 0,
+        'totalManualOutUsd': 2,
+        'totalManualOutKhr': 0,
+        'totalAdjustmentUsd': -1,
+        'totalAdjustmentKhr': 0,
+        'expectedCashUsd': 37,
+        'expectedCashKhr': 50000,
+        'countedCashUsd': 37,
+        'countedCashKhr': 50000,
+        'varianceUsd': 0,
+        'varianceKhr': 0,
+        'closedByName': 'Jane Doe',
+        'closeReason': 'NORMAL_CLOSE',
+      };
+      final dto = ZReportDetailDto.fromJson(data);
+
+      expect(dto.sessionId, 'session-1');
+      expect(dto.totalSalesKhqrUsd, 7.5);
+      expect(dto.countedCashUsd, 37);
+      expect(dto.varianceUsd, 0);
+      expect(dto.closedByName, 'Jane Doe');
+    });
   });
 
   group('Reporting repository mapping', () {
@@ -189,6 +261,22 @@ void main() {
       expect(summary, isA<ZReportSummary>());
       expect(summary.sessionCount, 2);
       expect(summary.expectedCashUsd, 180);
+    });
+
+    test('maps Z report detail to domain', () async {
+      final container = createTestContainer(
+        overrides: [
+          reportingApiProvider.overrideWithValue(_FakeReportingApi()),
+        ],
+      );
+
+      final repo = container.read(reportingRepositoryProvider);
+      final detail = await repo.fetchZReportDetail(sessionId: 'session-1');
+
+      expect(detail, isA<ZReportDetail>());
+      expect(detail.sessionId, 'session-1');
+      expect(detail.closedByName, 'Jane Doe');
+      expect(detail.countedCashUsd, 37);
     });
   });
 }
