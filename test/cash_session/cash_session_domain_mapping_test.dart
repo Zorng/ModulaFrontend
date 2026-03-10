@@ -8,12 +8,14 @@ void main() {
       tenantId: 'tenant-1',
       branchId: 'branch-1',
       openedByAccountId: 'account-1',
+      openedByName: 'John Smith',
       openedAt: null,
       status: 'OPEN',
       openingFloatUsd: 20,
       openingFloatKhr: 50000,
       closedAt: null,
       closedByAccountId: null,
+      closedByName: null,
       closeNote: null,
       totalPaidInUsd: 0,
       totalPaidOutUsd: 0,
@@ -22,7 +24,9 @@ void main() {
     expect(session.tenantId, 'tenant-1');
     expect(session.branchId, 'branch-1');
     expect(session.openedByAccountId, 'account-1');
+    expect(session.openedByName, 'John Smith');
     expect(session.closedByAccountId, isNull);
+    expect(session.closedByName, isNull);
     expect(session.closeNote, isNull);
   });
 
@@ -32,12 +36,14 @@ void main() {
       tenantId: 'tenant-1',
       branchId: 'branch-1',
       openedByAccountId: 'account-1',
+      openedByName: 'John Smith',
       openedAt: null,
       status: ' force_closed ',
       openingFloatUsd: 20,
       openingFloatKhr: 50000,
       closedAt: null,
       closedByAccountId: null,
+      closedByName: null,
       closeNote: null,
       totalPaidInUsd: 0,
       totalPaidOutUsd: 0,

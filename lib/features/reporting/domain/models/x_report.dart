@@ -25,6 +25,8 @@ class XReportDetail {
     required this.closedAt,
     required this.openingFloatUsd,
     required this.openingFloatKhr,
+    required this.totalSalesKhqrUsd,
+    required this.totalSalesKhqrKhr,
     required this.totalSalesCashUsd,
     required this.totalSalesCashKhr,
     required this.totalPaidInUsd,
@@ -42,6 +44,8 @@ class XReportDetail {
   final DateTime? closedAt;
   final double openingFloatUsd;
   final double openingFloatKhr;
+  final double totalSalesKhqrUsd;
+  final double totalSalesKhqrKhr;
   final double totalSalesCashUsd;
   final double totalSalesCashKhr;
   final double totalPaidInUsd;

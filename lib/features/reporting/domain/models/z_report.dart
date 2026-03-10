@@ -27,3 +27,55 @@ class ZReportSummary {
   final double expectedCashUsd;
   final double expectedCashKhr;
 }
+
+class ZReportDetail {
+  const ZReportDetail({
+    required this.sessionId,
+    required this.status,
+    required this.openedByName,
+    required this.openedAt,
+    required this.closedAt,
+    required this.openingFloatUsd,
+    required this.openingFloatKhr,
+    required this.totalSalesKhqrUsd,
+    required this.totalSalesKhqrKhr,
+    required this.totalSalesCashUsd,
+    required this.totalSalesCashKhr,
+    required this.totalPaidInUsd,
+    required this.totalPaidInKhr,
+    required this.totalPaidOutUsd,
+    required this.totalPaidOutKhr,
+    required this.expectedCashUsd,
+    required this.expectedCashKhr,
+    required this.countedCashUsd,
+    required this.countedCashKhr,
+    required this.varianceUsd,
+    required this.varianceKhr,
+    required this.closedByName,
+    required this.closeReason,
+  });
+
+  final String sessionId;
+  final String status;
+  final String openedByName;
+  final DateTime? openedAt;
+  final DateTime? closedAt;
+  final double openingFloatUsd;
+  final double openingFloatKhr;
+  final double totalSalesKhqrUsd;
+  final double totalSalesKhqrKhr;
+  final double totalSalesCashUsd;
+  final double totalSalesCashKhr;
+  final double totalPaidInUsd;
+  final double totalPaidInKhr;
+  final double totalPaidOutUsd;
+  final double totalPaidOutKhr;
+  final double expectedCashUsd;
+  final double expectedCashKhr;
+  final double countedCashUsd;
+  final double countedCashKhr;
+  final double varianceUsd;
+  final double varianceKhr;
+  final String closedByName;
+  final String closeReason;
+}

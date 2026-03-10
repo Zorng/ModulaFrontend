@@ -25,12 +25,14 @@ class CashSession {
     required this.tenantId,
     required this.branchId,
     required this.openedByAccountId,
+    required this.openedByName,
     required this.openedAt,
     required String status,
     required this.openingFloatUsd,
     required this.openingFloatKhr,
     required this.closedAt,
     required this.closedByAccountId,
+    required this.closedByName,
     required this.closeNote,
     required this.totalPaidInUsd,
     required this.totalPaidOutUsd,
@@ -40,12 +42,14 @@ class CashSession {
   final String tenantId;
   final String branchId;
   final String openedByAccountId;
+  final String openedByName;
   final DateTime? openedAt;
   final String status;
   final double openingFloatUsd;
   final double openingFloatKhr;
   final DateTime? closedAt;
   final String? closedByAccountId;
+  final String? closedByName;
   final String? closeNote;
   final double totalPaidInUsd;
   final double totalPaidOutUsd;

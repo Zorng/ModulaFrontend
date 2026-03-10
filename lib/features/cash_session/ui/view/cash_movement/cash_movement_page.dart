@@ -4,7 +4,8 @@ import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/features/cash_session/ui/viewmodels/cash_session_error_message.dart';
 import 'package:modular_pos/features/cash_session/ui/viewmodels/cash_session_viewmodel.dart';
 import 'package:modular_pos/features/cash_session/ui/widgets/cash_movement_card.dart';
-import 'package:modular_pos/features/cash_session/ui/widgets/session_overview_card.dart';
+import 'package:modular_pos/features/cash_session/ui/widgets/cash_movement_context_card.dart';
+import 'package:modular_pos/features/cash_session/ui/widgets/manual_movement_history_section.dart';
 
 class CashMovementPage extends ConsumerWidget {
   const CashMovementPage({super.key});
@@ -19,21 +20,41 @@ class CashMovementPage extends ConsumerWidget {
     final screenWidth = MediaQuery.of(context).size.width;
     final hasNavigationRail = AppBreakpoints.isLarge(screenWidth);
 
-    void handleMovementAdded(
+    Future<CashMovementSubmitResult> handleMovementAdded(
       String type,
       double usdAmount,
       double khrAmount,
       String reason,
-    ) {
+    ) async {
       if (!isSessionOpen) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Open a cash session to add a movement.'),
+        return const CashMovementSubmitResult.failure(
+          'Open a cash session to add a movement.',
+        );
+      }
+      if (!sessionState.canRecordMovementType(type)) {
+        return const CashMovementSubmitResult.failure(
+          'You do not have permission to record this movement type.',
+        );
+      }
+      await notifier.addCashMovement(
+        type,
+        usdAmount,
+        khrAmount,
+        reason: reason,
+      );
+
+      final latestState = ref.read(cashSessionViewModelProvider);
+      if (latestState.error != null) {
+        return CashMovementSubmitResult.failure(
+          mapCashSessionErrorMessage(
+            context: 'Unable to add cash movement',
+            errorCode: latestState.errorCode,
+            error: latestState.error,
           ),
         );
-        return;
       }
-      notifier.addCashMovement(type, usdAmount, khrAmount, reason: reason);
+
+      return const CashMovementSubmitResult.success();
     }
 
     return SafeArea(
@@ -45,22 +66,22 @@ class CashMovementPage extends ConsumerWidget {
 
   Widget _buildMobileLayout(
     CashSessionState sessionState,
-    void Function(String, double, double, String) onMovementAdded,
+    CashMovementSubmitCallback onMovementAdded,
   ) {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
         if (sessionState.error != null) _buildErrorCard(sessionState),
-        const SessionOverviewCard(),
-        const SizedBox(height: 16),
         CashMovementCard(onAddCashMovement: onMovementAdded),
+        const SizedBox(height: 16),
+        ManualMovementHistorySection(movements: sessionState.movements),
       ],
     );
   }
 
   Widget _buildWideLayout(
     CashSessionState sessionState,
-    void Function(String, double, double, String) onMovementAdded,
+    CashMovementSubmitCallback onMovementAdded,
   ) {
     return ListView(
       padding: const EdgeInsets.all(24),
@@ -69,16 +90,22 @@ class CashMovementPage extends ConsumerWidget {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Left column: Session Overview
-            const Expanded(flex: 1, child: SessionOverviewCard()),
-            const SizedBox(width: 24),
-            // Right column: Cash Movement Card
             Expanded(
-              flex: 1,
-              child: CashMovementCard(onAddCashMovement: onMovementAdded),
+              flex: 7,
+              child: CashMovementCard(
+                isWide: true,
+                onAddCashMovement: onMovementAdded,
+              ),
+            ),
+            const SizedBox(width: 24),
+            Expanded(
+              flex: 5,
+              child: CashMovementContextCard(sessionState: sessionState),
             ),
           ],
         ),
+        const SizedBox(height: 24),
+        ManualMovementHistorySection(movements: sessionState.movements),
       ],
     );
   }

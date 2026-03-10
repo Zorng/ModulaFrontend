@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
-import 'package:modular_pos/core/theme/app_buttons.dart';
 import 'package:modular_pos/core/theme/app_gradient.dart';
 import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/features/auth/domain/auth_role.dart';
+import 'package:modular_pos/features/auth/ui/view/login/widgets/login_form_content.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 
 class LoginPage extends ConsumerStatefulWidget {
@@ -87,40 +88,42 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         builder: (context, constraints) {
           final isSmall = AppBreakpoints.isSmall(constraints.maxWidth);
 
-          return Container(
-            decoration: const BoxDecoration(
-              gradient: AppGradients.backgroundGradient,
-            ),
-            child: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(18),
-                child: isSmall
-                    ? _MobileLoginForm(
-                        state: state,
-                        controller: controller,
-                        phoneCtrl: _phoneCtrl,
-                        passwordCtrl: _passwordCtrl,
-                        obscurePassword: _obscurePassword,
-                        toggleObscure: () {
-                          setState(() {
-                            _obscurePassword = !_obscurePassword;
-                          });
-                        },
-                      )
-                    : _DesktopLoginForm(
-                        state: state,
-                        controller: controller,
-                        phoneCtrl: _phoneCtrl,
-                        passwordCtrl: _passwordCtrl,
-                        obscurePassword: _obscurePassword,
-                        toggleObscure: () {
-                          setState(() {
-                            _obscurePassword = !_obscurePassword;
-                          });
-                        },
-                      ),
+          if (isSmall) {
+            return Container(
+              decoration: const BoxDecoration(
+                gradient: AppGradients.backgroundGradient,
               ),
-            ),
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(18),
+                  child: _MobileLoginForm(
+                    state: state,
+                    controller: controller,
+                    phoneCtrl: _phoneCtrl,
+                    passwordCtrl: _passwordCtrl,
+                    obscurePassword: _obscurePassword,
+                    toggleObscure: () {
+                      setState(() {
+                        _obscurePassword = !_obscurePassword;
+                      });
+                    },
+                  ),
+                ),
+              ),
+            );
+          }
+
+          return _DesktopLoginForm(
+            state: state,
+            controller: controller,
+            phoneCtrl: _phoneCtrl,
+            passwordCtrl: _passwordCtrl,
+            obscurePassword: _obscurePassword,
+            toggleObscure: () {
+              setState(() {
+                _obscurePassword = !_obscurePassword;
+              });
+            },
           );
         },
       ),
@@ -148,77 +151,46 @@ class _MobileLoginForm extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        ShaderMask(
-          shaderCallback: (bounds) =>
-              AppGradients.textGradient.createShader(bounds),
-          child: Text(
-            'Modula',
-            style: Theme.of(
-              context,
-            ).textTheme.headlineSmall?.copyWith(color: Colors.white),
-            textAlign: TextAlign.left,
-          ),
-        ),
-        Text(
-          'Login to Modula',
-          style: Theme.of(context).textTheme.displaySmall,
-          textAlign: TextAlign.left,
-        ),
-        const SizedBox(height: 28),
-        TextField(
-          controller: phoneCtrl,
-          keyboardType: TextInputType.phone,
-          decoration: const InputDecoration(labelText: 'Phone number'),
-        ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: passwordCtrl,
-          decoration: InputDecoration(
-            labelText: 'Password',
-            suffixIcon: IconButton(
-              icon: Icon(
-                obscurePassword ? Icons.visibility_off : Icons.visibility,
+        Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SvgPicture.asset(
+                'assets/images/modula.svg',
+                width: 88,
+                height: 88,
               ),
-              onPressed: toggleObscure,
-            ),
+              const SizedBox(height: 16),
+              Text(
+                'Login to Modula',
+                style: Theme.of(context).textTheme.displaySmall,
+                textAlign: TextAlign.center,
+              ),
+            ],
           ),
-          obscureText: obscurePassword,
         ),
-        const SizedBox(height: 16),
-        if (state.error != null)
-          Text(state.error!, style: const TextStyle(color: Colors.red)),
-        const SizedBox(height: 8),
-        FilledButton(
-          style: AppButtons.primary(context),
-          onPressed: state.isLoading
-              ? null
-              : () {
-                  controller.login(
-                    phoneCtrl.text.trim(),
-                    passwordCtrl.text.trim(),
-                  );
-                },
-          child: state.isLoading
-              ? const CircularProgressIndicator(strokeWidth: 2.5)
-              : const Text('Login'),
-        ),
-        const SizedBox(height: 8),
-        TextButton(
-          onPressed: state.isLoading
-              ? null
-              : () {
-                  context.go(AppRoute.signup.path);
-                },
-          child: const Text('Create account'),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          state.user != null
-              ? 'Welcome ${state.user!.name}'
-              : 'login to continue',
+        const SizedBox(height: 30),
+        LoginFormContent(
+          state: state,
+          phoneCtrl: phoneCtrl,
+          passwordCtrl: passwordCtrl,
+          obscurePassword: obscurePassword,
+          onToggleObscure: toggleObscure,
+          onLogin: () {
+            controller.login(phoneCtrl.text.trim(), passwordCtrl.text.trim());
+          },
+          onSignup: () {
+            context.go(AppRoute.signup.path);
+          },
+          useFramedInputs: true,
+          phoneHintText: 'your phone number',
+          passwordHintText: 'your password',
+          buttonLabel: 'Log in',
+          signupLabel: 'Sign up',
+          signupPromptText: 'Don’t have an account ?',
         ),
       ],
     );
@@ -244,23 +216,121 @@ class _DesktopLoginForm extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 420),
-      child: Card(
-        elevation: 4,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: _MobileLoginForm(
-            state: state,
-            controller: controller,
-            phoneCtrl: phoneCtrl,
-            passwordCtrl: passwordCtrl,
-            obscurePassword: obscurePassword,
-            toggleObscure: toggleObscure,
+    return Row(
+      children: [
+        const Expanded(child: _DesktopBrandPanel()),
+        Expanded(
+          child: ColoredBox(
+            color: const Color(0xFFF5F5F5),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 72, vertical: 48),
+              child: Align(
+                alignment: Alignment.center,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 480),
+                  child: _DesktopFormPanel(
+                    state: state,
+                    controller: controller,
+                    phoneCtrl: phoneCtrl,
+                    passwordCtrl: passwordCtrl,
+                    obscurePassword: obscurePassword,
+                    toggleObscure: toggleObscure,
+                  ),
+                ),
+              ),
+            ),
           ),
         ),
+      ],
+    );
+  }
+}
+
+class _DesktopBrandPanel extends StatelessWidget {
+  const _DesktopBrandPanel();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: AppGradients.loginDesktopBrandGradient,
       ),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SvgPicture.asset(
+              'assets/images/modula.svg',
+              width: 186,
+              height: 186,
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'Modula',
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DesktopFormPanel extends StatelessWidget {
+  const _DesktopFormPanel({
+    required this.state,
+    required this.controller,
+    required this.phoneCtrl,
+    required this.passwordCtrl,
+    required this.obscurePassword,
+    required this.toggleObscure,
+  });
+
+  final LoginState state;
+  final LoginController controller;
+  final TextEditingController phoneCtrl;
+  final TextEditingController passwordCtrl;
+  final bool obscurePassword;
+  final VoidCallback toggleObscure;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Log into Modula',
+          style: Theme.of(context).textTheme.displaySmall?.copyWith(
+            color: const Color(0xFF3E3E42),
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 32),
+        LoginFormContent(
+          state: state,
+          phoneCtrl: phoneCtrl,
+          passwordCtrl: passwordCtrl,
+          obscurePassword: obscurePassword,
+          onToggleObscure: toggleObscure,
+          onLogin: () {
+            controller.login(phoneCtrl.text.trim(), passwordCtrl.text.trim());
+          },
+          onSignup: () {
+            context.go(AppRoute.signup.path);
+          },
+          showDesktopFieldLabels: true,
+          phoneHintText: 'your phone number',
+          passwordHintText: 'your password',
+          showForgotPasswordHint: true,
+          buttonLabel: 'Log in',
+          signupLabel: 'Sign up',
+          signupPromptText: 'Don’t have an account ?',
+        ),
+      ],
     );
   }
 }
