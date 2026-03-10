@@ -1,6 +1,6 @@
 # Modular POS (Frontend)
 
-Flutter frontend for the Modular POS system (web-first, mobile later).
+Flutter frontenddd for the Modular POS system (web-first, mobile later).
 
 ## Start here
 - Handover index: `handbook/handover/README.md`
