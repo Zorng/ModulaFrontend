@@ -3,7 +3,7 @@ set -euo pipefail
 
 REPO_ROOT="${PWD}"
 FLUTTER_CHANNEL="${FLUTTER_CHANNEL:-stable}"
-FLUTTER_REVISION="${FLUTTER_REVISION:-adc901062556672b4138e18a4dc62a4be8f4b3c2}"
+FLUTTER_VERSION="${FLUTTER_VERSION:-3.41.4}"
 CACHE_ROOT="${NETLIFY_CACHE_DIR:-$HOME/.cache}"
 FLUTTER_DIR="${CACHE_ROOT}/flutter-sdk"
 
@@ -14,8 +14,8 @@ if [ ! -d "${FLUTTER_DIR}/.git" ]; then
     "${FLUTTER_DIR}"
 fi
 
-git -C "${FLUTTER_DIR}" fetch --depth 1 origin "${FLUTTER_REVISION}"
-git -C "${FLUTTER_DIR}" checkout "${FLUTTER_REVISION}"
+git -C "${FLUTTER_DIR}" fetch --depth 1 origin "${FLUTTER_VERSION}"
+git -C "${FLUTTER_DIR}" checkout "${FLUTTER_VERSION}"
 
 export PATH="${FLUTTER_DIR}/bin:${PATH}"
 
