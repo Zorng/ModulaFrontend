@@ -11,6 +11,9 @@ import 'package:modular_pos/features/auth/domain/models/auth_session.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/cash_session/ui/viewmodels/x_report_viewmodel.dart';
+import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
+import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
+import 'package:modular_pos/features/policy/domain/models/policy.dart';
 import 'package:modular_pos/features/policy/ui/viewmodels/policy_viewmodel.dart';
 import 'package:modular_pos/features/sale/data/sale_checkout_repository_contract.dart';
 import 'package:modular_pos/features/sale/data/sale_repository.dart';
@@ -972,7 +975,6 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
       );
       final printableReceiptData = _buildCheckoutPrintData(
         previousState: currentState,
-        finalizeResult: finalizeResult,
         receiptNumber: printableReceipt.receiptNumber,
         issuedAt: printableReceipt.issuedAt,
       );
@@ -1048,14 +1050,14 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
               quantity: entry.value.quantity,
               basePriceUsd: entry.value.unitPriceUsd,
               modifiers: entry.value.modifiers.isNotEmpty
-                  ? entry.value.modifiers
-                        .map(
-                          (modifier) => ThermalReceiptModifierLine(
-                            name: modifier.name,
-                            priceDeltaUsd: modifier.priceDeltaUsd,
-                          ),
-                        )
-                        .toList(growable: false)
+                  ? _toThermalReceiptReceiptModifiers(
+                      entry.value.modifiers,
+                      fallback: _fallbackModifiersForIndex(
+                        fallback,
+                        index: entry.key,
+                        itemName: entry.value.name,
+                      ),
+                    )
                   : _fallbackModifiersForIndex(
                       fallback,
                       index: entry.key,
@@ -1150,15 +1152,10 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
 
   ThermalReceiptPrintData _buildCheckoutPrintData({
     required SaleCartState previousState,
-    required SaleFinalizeSaleResultDto finalizeResult,
     required String receiptNumber,
     required DateTime issuedAt,
   }) {
-    final subtotalUsd = _cartSubtotalUsd(previousState);
-    final taxUsd = _checkoutTaxUsd(
-      subtotalUsd: subtotalUsd,
-      totalUsdExact: finalizeResult.totalUsdExact,
-    );
+    final totals = _checkoutCartTotals(previousState);
     final tenderCurrency = previousState.tenderCurrency.trim().toUpperCase();
     final paymentMethod = previousState.paymentMethod.trim().toLowerCase();
     final paidAmount = paymentMethod == 'cash'
@@ -1168,9 +1165,9 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
         : null;
     final changeKhr = paymentMethod == 'cash'
         ? _resolvedCashChangeKhr(
-            finalizeResult: finalizeResult,
             previousState: previousState,
             tenderCurrency: tenderCurrency,
+            totalKhr: totals.totalKhr,
           )
         : null;
 
@@ -1181,10 +1178,10 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
       cashierName: _cashierName(),
       paymentMethod: paymentMethod == 'qr' ? 'khqr' : paymentMethod,
       issuedAt: issuedAt,
-      subtotalUsd: subtotalUsd,
-      taxUsd: taxUsd,
-      totalUsd: finalizeResult.totalUsdExact,
-      totalKhr: finalizeResult.totalKhrExact,
+      subtotalUsd: totals.subtotalUsd,
+      taxUsd: totals.taxUsd,
+      totalUsd: totals.totalUsd,
+      totalKhr: totals.totalKhr,
       items: previousState.lines
           .map(_toThermalReceiptItemLine)
           .toList(growable: false),
@@ -1203,20 +1200,16 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
     final receiptNumber = finalizeResult.receiptId?.trim().isNotEmpty == true
         ? finalizeResult.receiptId!.trim()
         : resolvedSaleId;
-    final subtotalUsd = _cartSubtotalUsd(previousState);
-    final taxUsd = _checkoutTaxUsd(
-      subtotalUsd: subtotalUsd,
-      totalUsdExact: finalizeResult.totalUsdExact,
-    );
+    final totals = _checkoutCartTotals(previousState);
 
     return SaleReceiptDto(
       saleId: resolvedSaleId,
       receiptNumber: receiptNumber,
       paymentMethod: previousState.paymentMethod,
-      subtotalUsdExact: subtotalUsd,
-      taxUsdExact: taxUsd,
-      totalUsdExact: finalizeResult.totalUsdExact,
-      totalKhrExact: finalizeResult.totalKhrExact,
+      subtotalUsdExact: totals.subtotalUsd,
+      taxUsdExact: totals.taxUsd,
+      totalUsdExact: totals.totalUsd,
+      totalKhrExact: totals.totalKhr,
       issuedAt: issuedAt,
       lines: previousState.lines.map(_toCachedReceiptLine).toList(),
     );
@@ -1232,15 +1225,24 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
   }
 
   List<ThermalReceiptModifierLine> _toThermalReceiptModifiers(CartLine line) {
+    final groupLookup = _modifierGroupLookup();
     final zeroPriceModifiers = <ThermalReceiptModifierLine>[];
     final pricedModifiers = <ThermalReceiptModifierLine>[];
 
-    for (final options in line.selectedOptions.values) {
+    for (final entry in line.selectedOptionIds.entries) {
+      final group = groupLookup[entry.key];
+      final options = _resolveModifierOptions(
+        line: line,
+        groupId: entry.key,
+        optionIds: entry.value,
+        group: group,
+      );
       for (final option in options) {
         final name = option.name.trim();
         if (name.isEmpty) continue;
         final modifier = ThermalReceiptModifierLine(
           name: name,
+          groupName: _groupNameForModifier(group),
           priceDeltaUsd: option.price,
         );
         if (modifier.hasPriceDelta) {
@@ -1272,7 +1274,7 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
     return _toThermalReceiptModifiers(line)
         .map(
           (modifier) => SaleReceiptModifierLineDto(
-            name: modifier.name,
+            name: modifier.displayName,
             priceDeltaUsd: modifier.priceDeltaUsd,
           ),
         )
@@ -1299,30 +1301,58 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
     );
   }
 
-  double _checkoutTaxUsd({
-    required double subtotalUsd,
-    required double totalUsdExact,
-  }) {
-    if (totalUsdExact <= subtotalUsd) {
+  ({double subtotalUsd, double taxUsd, double totalUsd, double totalKhr})
+  _checkoutCartTotals(SaleCartState state) {
+    final branchPolicy = ref.read(policyNotifierProvider).branchPolicy;
+    final subtotalUsd = _cartSubtotalUsd(state);
+    final taxUsd = _cartTaxUsd(subtotalUsd, branchPolicy);
+    final totalUsd = subtotalUsd + taxUsd;
+    final totalKhr = _cartGrandTotalKhr(totalUsd, branchPolicy);
+    return (
+      subtotalUsd: subtotalUsd,
+      taxUsd: taxUsd,
+      totalUsd: totalUsd,
+      totalKhr: totalKhr,
+    );
+  }
+
+  double _cartTaxUsd(double subtotalUsd, BranchPolicy branchPolicy) {
+    if (!branchPolicy.saleVatEnabled) {
       return 0;
     }
-    return (totalUsdExact - subtotalUsd).toDouble();
+    final ratePercent = branchPolicy.saleVatRatePercent;
+    if (ratePercent <= 0) {
+      return 0;
+    }
+    return subtotalUsd * (ratePercent / 100);
+  }
+
+  double _cartGrandTotalKhr(double totalUsd, BranchPolicy branchPolicy) {
+    final roundingMode = BranchPolicyRoundingModes.normalize(
+      branchPolicy.saleKhrRoundingMode,
+    );
+    final roundingGranularity = BranchPolicyRoundingGranularities.asAmount(
+      branchPolicy.saleKhrRoundingGranularity,
+    );
+    final baseKhr = totalUsd * branchPolicy.saleFxRateKhrPerUsd;
+    return _roundKhr(
+      baseKhr,
+      enabled: branchPolicy.saleKhrRoundingEnabled,
+      mode: roundingMode,
+      granularity: roundingGranularity,
+    );
   }
 
   double _resolvedCashChangeKhr({
-    required SaleFinalizeSaleResultDto finalizeResult,
     required SaleCartState previousState,
     required String tenderCurrency,
+    required double totalKhr,
   }) {
-    final backendChangeKhr = finalizeResult.changeGivenKhr;
-    if (backendChangeKhr != null && backendChangeKhr > 0) {
-      return backendChangeKhr;
-    }
     return _cashChangeKhr(
       tenderCurrency: tenderCurrency,
       cashUsd: previousState.cashUsd,
       cashKhr: previousState.cashKhr,
-      totalKhr: finalizeResult.totalKhrExact,
+      totalKhr: totalKhr,
     );
   }
 
@@ -1340,10 +1370,118 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
     return change > 0 ? change : 0;
   }
 
+  double _roundKhr(
+    double amount, {
+    required bool enabled,
+    required String mode,
+    required double granularity,
+  }) {
+    if (!enabled) {
+      return amount;
+    }
+    final step = granularity <= 0 ? 100.0 : granularity;
+    final ratio = amount / step;
+    switch (mode.toUpperCase()) {
+      case BranchPolicyRoundingModes.up:
+        return ratio.ceil() * step;
+      case BranchPolicyRoundingModes.down:
+        return ratio.floor() * step;
+      default:
+        return ratio.round() * step;
+    }
+  }
+
   String _cashierName() {
     final cashierName =
         ref.read(loginControllerProvider).session?.user.name.trim() ?? '';
     return cashierName.isNotEmpty ? cashierName : 'Cashier';
+  }
+
+  Map<String, ModifierGroup> _modifierGroupLookup() {
+    final menuState = ref.read(menuViewModelProvider);
+    return <String, ModifierGroup>{
+      for (final group in menuState.modifierGroups) group.id: group,
+      for (final entry in menuState.hydratedModifierGroups.entries)
+        entry.key: entry.value,
+    };
+  }
+
+  List<ModifierOption> _resolveModifierOptions({
+    required CartLine line,
+    required String groupId,
+    required List<String> optionIds,
+    required ModifierGroup? group,
+  }) {
+    final selectedOptions = line.selectedOptions[groupId];
+    if (selectedOptions != null && selectedOptions.isNotEmpty) {
+      return selectedOptions;
+    }
+    if (group == null) {
+      return const <ModifierOption>[];
+    }
+
+    final resolved = <ModifierOption>[];
+    for (final optionId in optionIds) {
+      final option = group.options.firstWhere(
+        (candidate) => candidate.id == optionId,
+        orElse: () => const ModifierOption(id: '', name: '', price: 0),
+      );
+      if (option.id.isNotEmpty) {
+        resolved.add(option);
+      }
+    }
+    return resolved;
+  }
+
+  String? _groupNameForModifier(ModifierGroup? group) {
+    final name = group?.name.trim() ?? '';
+    return name.isEmpty ? null : name;
+  }
+
+  List<ThermalReceiptModifierLine> _toThermalReceiptReceiptModifiers(
+    List<SaleReceiptModifierLineDto> modifiers, {
+    required List<ThermalReceiptModifierLine> fallback,
+  }) {
+    return modifiers
+        .map((modifier) {
+          final fallbackModifier = _matchFallbackModifier(modifier, fallback);
+          final fallbackGroupName = fallbackModifier?.groupName;
+          return ThermalReceiptModifierLine(
+            name: modifier.name,
+            groupName:
+                _shouldApplyFallbackGroupName(modifier.name, fallbackGroupName)
+                ? fallbackGroupName
+                : null,
+            priceDeltaUsd: modifier.priceDeltaUsd,
+          );
+        })
+        .toList(growable: false);
+  }
+
+  ThermalReceiptModifierLine? _matchFallbackModifier(
+    SaleReceiptModifierLineDto modifier,
+    List<ThermalReceiptModifierLine> fallback,
+  ) {
+    final normalizedName = modifier.name.trim().toLowerCase();
+    for (final fallbackModifier in fallback) {
+      if (fallbackModifier.name.trim().toLowerCase() != normalizedName) {
+        continue;
+      }
+      if ((fallbackModifier.priceDeltaUsd - modifier.priceDeltaUsd).abs() <
+          0.005) {
+        return fallbackModifier;
+      }
+    }
+    return null;
+  }
+
+  bool _shouldApplyFallbackGroupName(String name, String? groupName) {
+    final normalizedGroupName = (groupName ?? '').trim();
+    if (normalizedGroupName.isEmpty) {
+      return false;
+    }
+    final normalizedName = name.trim().toLowerCase();
+    return !normalizedName.startsWith('${normalizedGroupName.toLowerCase()}:');
   }
 
   List<ThermalReceiptModifierLine> _fallbackModifiersForIndex(

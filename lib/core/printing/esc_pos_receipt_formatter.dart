@@ -5,13 +5,23 @@ import 'package:modular_pos/core/printing/thermal_printer_profiles.dart';
 class ThermalReceiptModifierLine {
   const ThermalReceiptModifierLine({
     required this.name,
+    this.groupName,
     this.priceDeltaUsd = 0,
   });
 
   final String name;
+  final String? groupName;
   final double priceDeltaUsd;
 
   bool get hasPriceDelta => priceDeltaUsd.abs() >= 0.005;
+
+  String get displayName {
+    final normalizedGroupName = (groupName ?? '').trim();
+    if (normalizedGroupName.isEmpty) {
+      return name;
+    }
+    return '$normalizedGroupName: $name';
+  }
 }
 
 class ThermalReceiptItemLine {
@@ -151,7 +161,10 @@ class EscPosReceiptFormatter {
       for (final modifier in _orderedModifiers(item.modifiers)) {
         bytes.addAll(
           generator.row([
-            PosColumn(text: '  ${_sanitizeCell(modifier.name)}', width: 7),
+            PosColumn(
+              text: '  ${_sanitizeCell(modifier.displayName)}',
+              width: 7,
+            ),
             PosColumn(text: '', width: 2),
             PosColumn(
               text: modifier.hasPriceDelta

@@ -89,9 +89,13 @@ void main() {
             quantity: 1,
             basePriceUsd: 4.5,
             modifiers: [
-              ThermalReceiptModifierLine(name: 'Less Ice'),
+              ThermalReceiptModifierLine(
+                name: 'Less Ice',
+                groupName: 'Ice Level',
+              ),
               ThermalReceiptModifierLine(
                 name: 'Extra Shot',
+                groupName: 'Add-ons',
                 priceDeltaUsd: 0.75,
               ),
             ],
@@ -101,6 +105,7 @@ void main() {
     );
 
     final text = printableText(bytes);
+    final flattenedText = text.replaceAll('\n', '');
 
     expect(text, contains('Acme Coffee'));
     expect(text, contains('BKK 1'));
@@ -112,9 +117,12 @@ void main() {
     expect(text, contains('Qty'));
     expect(text, contains('Price'));
     expect(text, contains('Iced Latte'));
-    expect(text, contains('  Less Ice'));
-    expect(text, contains('  Extra Shot'));
-    expect(text.indexOf('  Less Ice'), lessThan(text.indexOf('  Extra Shot')));
+    expect(flattenedText, contains('  Ice Level: Less Ice'));
+    expect(flattenedText, contains('  Add-ons: Extra S'));
+    expect(
+      flattenedText.indexOf('  Ice Level: Less Ice'),
+      lessThan(flattenedText.indexOf('  Add-ons: Extra S')),
+    );
     expect(text, contains(r'+$0.75'));
     expect(text, contains('Subtotal'));
     expect(text, contains('Tax'));

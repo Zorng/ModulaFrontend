@@ -4,6 +4,9 @@ import 'package:modular_pos/core/printing/esc_pos_receipt_formatter.dart';
 import 'package:modular_pos/core/printing/thermal_printer_controller.dart';
 import 'package:modular_pos/core/printing/thermal_printer_state.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
+import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
+import 'package:modular_pos/features/menu/ui/viewmodels/menu_state.dart';
+import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
 import 'package:modular_pos/features/policy/domain/models/policy.dart';
 import 'package:modular_pos/features/policy/ui/viewmodels/policy_viewmodel.dart';
 import 'package:modular_pos/features/sale/data/sale_checkout_repository_contract.dart';
@@ -25,11 +28,40 @@ class _StaticPolicyNotifier extends PolicyNotifier {
     return const PolicyState(
       isLoading: false,
       branchPolicy: BranchPolicy(
+        saleVatEnabled: true,
+        saleVatRatePercent: 10,
         saleFxRateKhrPerUsd: 4000,
         saleAllowPayLater: true,
       ),
     );
   }
+}
+
+class _RoundedPolicyNotifier extends PolicyNotifier {
+  @override
+  PolicyState build() {
+    return const PolicyState(
+      isLoading: false,
+      branchPolicy: BranchPolicy(
+        saleVatEnabled: true,
+        saleVatRatePercent: 10,
+        saleFxRateKhrPerUsd: 4100,
+        saleKhrRoundingEnabled: true,
+        saleKhrRoundingMode: BranchPolicyRoundingModes.nearest,
+        saleKhrRoundingGranularity: BranchPolicyRoundingGranularities.hundred,
+        saleAllowPayLater: true,
+      ),
+    );
+  }
+}
+
+class _PrefilledMenuNotifier extends MenuViewModel {
+  _PrefilledMenuNotifier(this._initialState);
+
+  final MenuState _initialState;
+
+  @override
+  MenuState build() => _initialState;
 }
 
 class _PrefilledSaleCartNotifier extends SaleCartNotifier {
@@ -216,6 +248,184 @@ void main() {
       );
       expect(container.read(saleCartProvider).lastFinalizedSaleId, 'sale-2');
       verifyNever(() => repo.getReceipt(saleId: any(named: 'saleId')));
+    },
+  );
+
+  test('checkout print uses cart tax and KHR rounding rules', () async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    final repo = _MockSaleRepository();
+    final printerController = _RecordingPrinterController();
+
+    when(() => repo.finalizeSale(any())).thenAnswer(
+      (_) async => SaleFinalizeSaleResultDto(
+        saleId: 'sale-4',
+        status: 'FINALIZED',
+        totalUsdExact: 1.35,
+        totalKhrExact: 5547.3,
+        idempotentReplay: false,
+        receiptId: 'RCP-1004',
+        receipt: SaleImmediateReceiptDto(
+          receiptId: 'RCP-1004',
+          saleId: 'sale-4',
+          statusDisplay: 'NORMAL',
+          issuedAt: DateTime(2026, 3, 10, 9, 15),
+        ),
+      ),
+    );
+    const menuItem = MenuItem(
+      id: 'menu-1',
+      name: 'Espresso',
+      categoryId: 'cat-1',
+      price: 1.23,
+    );
+
+    final container = createTestContainer(
+      overrides: [
+        saleRepositoryProvider.overrideWithValue(repo),
+        saleCartProvider.overrideWith(
+          () => _PrefilledSaleCartNotifier(
+            const SaleCartState(
+              saleId: 'sale-4',
+              lines: [
+                CartLine(item: menuItem, quantity: 1, selectedOptionIds: {}),
+              ],
+              cashUsd: 2,
+            ),
+          ),
+        ),
+        policyNotifierProvider.overrideWith(_RoundedPolicyNotifier.new),
+        saleAccessGateProvider.overrideWithValue(
+          const SaleAccessGate(
+            branchId: 'branch-1',
+            contextLoading: false,
+            branchActive: true,
+            branchFrozen: false,
+            cashSessionOpen: true,
+            canMutateCart: true,
+            canCheckout: true,
+            canPlacePayLater: true,
+          ),
+        ),
+        thermalPrinterControllerProvider.overrideWith(() => printerController),
+      ],
+    );
+
+    await container.read(saleCartProvider.notifier).checkout();
+    await Future<void>.delayed(Duration.zero);
+
+    expect(printerController.printedReceipts, hasLength(1));
+    expect(
+      printerController.printedReceipts.single.taxUsd,
+      moreOrLessEquals(0.123),
+    );
+    expect(
+      printerController.printedReceipts.single.totalUsd,
+      moreOrLessEquals(1.353),
+    );
+    expect(printerController.printedReceipts.single.totalKhr, 5500);
+    expect(printerController.printedReceipts.single.changeKhr, 2700);
+  });
+
+  test(
+    'checkout print includes modifier group name for zero-price modifiers',
+    () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final repo = _MockSaleRepository();
+      final printerController = _RecordingPrinterController();
+
+      when(() => repo.finalizeSale(any())).thenAnswer(
+        (_) async => SaleFinalizeSaleResultDto(
+          saleId: 'sale-5',
+          status: 'FINALIZED',
+          totalUsdExact: 2.2,
+          totalKhrExact: 8800,
+          idempotentReplay: false,
+          receiptId: 'RCP-1005',
+          receipt: SaleImmediateReceiptDto(
+            receiptId: 'RCP-1005',
+            saleId: 'sale-5',
+            statusDisplay: 'NORMAL',
+            issuedAt: DateTime(2026, 3, 10, 9, 30),
+          ),
+        ),
+      );
+      const menuItem = MenuItem(
+        id: 'menu-1',
+        name: 'Milk Tea',
+        categoryId: 'cat-1',
+        price: 2,
+      );
+      const sugarGroup = ModifierGroup(
+        id: 'sugar',
+        name: 'Sugar Level',
+        selectionType: 'single',
+        pricingBehavior: 'none',
+        options: [ModifierOption(id: '50', name: '50%', price: 0)],
+      );
+
+      final container = createTestContainer(
+        overrides: [
+          saleRepositoryProvider.overrideWithValue(repo),
+          saleCartProvider.overrideWith(
+            () => _PrefilledSaleCartNotifier(
+              const SaleCartState(
+                saleId: 'sale-5',
+                lines: [
+                  CartLine(
+                    item: menuItem,
+                    quantity: 1,
+                    selectedOptionIds: {
+                      'sugar': ['50'],
+                    },
+                  ),
+                ],
+                cashUsd: 5,
+              ),
+            ),
+          ),
+          menuViewModelProvider.overrideWith(
+            () => _PrefilledMenuNotifier(
+              const MenuState(
+                isLoading: false,
+                modifierGroups: [sugarGroup],
+                hydratedModifierGroups: {'sugar': sugarGroup},
+              ),
+            ),
+          ),
+          policyNotifierProvider.overrideWith(_StaticPolicyNotifier.new),
+          saleAccessGateProvider.overrideWithValue(
+            const SaleAccessGate(
+              branchId: 'branch-1',
+              contextLoading: false,
+              branchActive: true,
+              branchFrozen: false,
+              cashSessionOpen: true,
+              canMutateCart: true,
+              canCheckout: true,
+              canPlacePayLater: true,
+            ),
+          ),
+          thermalPrinterControllerProvider.overrideWith(
+            () => printerController,
+          ),
+        ],
+      );
+
+      await container.read(saleCartProvider.notifier).checkout();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(printerController.printedReceipts, hasLength(1));
+      expect(
+        printerController
+            .printedReceipts
+            .single
+            .items
+            .single
+            .modifiers
+            .single
+            .displayName,
+        'Sugar Level: 50%',
+      );
     },
   );
 
