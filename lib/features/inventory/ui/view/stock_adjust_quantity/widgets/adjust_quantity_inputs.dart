@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
+import 'package:modular_pos/features/inventory/ui/widgets/inventory_field_label.dart';
 
 class AdjustQuantityInputs extends StatelessWidget {
   const AdjustQuantityInputs({
@@ -9,12 +10,14 @@ class AdjustQuantityInputs extends StatelessWidget {
     required this.pcsCtrl,
     required this.baseCtrl,
     required this.mode,
+    this.errorText,
   });
 
   final StockItem item;
   final TextEditingController pcsCtrl;
   final TextEditingController baseCtrl;
   final AdjustQuantityInputMode mode;
+  final String? errorText;
 
   @override
   Widget build(BuildContext context) {
@@ -32,39 +35,64 @@ class AdjustQuantityInputs extends StatelessWidget {
         'Additional counted ${item.baseUnit}',
     };
     if (item.pieceSize <= 1) {
-      return TextFormField(
-        controller: baseCtrl,
-        keyboardType: TextInputType.number,
-        decoration: InputDecoration(
-          labelText: '$quantityLabel (${item.baseUnit})',
-          hintText: 'Enter amount',
+      return InventoryFieldLabel(
+        text: '$quantityLabel (${item.baseUnit})',
+        isRequired: true,
+        child: TextFormField(
+          controller: baseCtrl,
+          keyboardType: TextInputType.number,
+          decoration: InputDecoration(
+            hintText: 'Enter ${item.baseUnit} quantity',
+            errorText: errorText,
+            errorMaxLines: 3,
+          ),
         ),
       );
     }
 
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: TextFormField(
-            controller: pcsCtrl,
-            keyboardType: TextInputType.number,
-            decoration: InputDecoration(
-              labelText: pieceLabel,
-              hintText: 'e.g., number of cartons',
+        Row(
+          children: [
+            Expanded(
+              child: InventoryFieldLabel(
+                text: pieceLabel,
+                isRequired: true,
+                child: TextFormField(
+                  controller: pcsCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(hintText: 'Enter pieces'),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: InventoryFieldLabel(
+                text: extraLabel,
+                child: TextFormField(
+                  controller: baseCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    hintText: 'Enter additional ${item.baseUnit}',
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        if (errorText != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            errorText!,
+            softWrap: true,
+            maxLines: 3,
+            overflow: TextOverflow.visible,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Theme.of(context).colorScheme.error,
             ),
           ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: TextFormField(
-            controller: baseCtrl,
-            keyboardType: TextInputType.number,
-            decoration: InputDecoration(
-              labelText: extraLabel,
-              hintText: 'Optional remainder',
-            ),
-          ),
-        ),
+        ],
       ],
     );
   }

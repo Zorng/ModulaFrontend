@@ -163,9 +163,6 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
       tenantBranches: tenantBranches,
       fallbackBranches: loginState.user?.branches ?? const <UserBranch>[],
     );
-    if (_selectedBranchId == null && branchEntries.isNotEmpty) {
-      _selectedBranchId = branchEntries.first.key;
-    }
 
     final branchItems = [...items]..sort((a, b) => a.name.compareTo(b.name));
     final hasItemSelection =
@@ -249,24 +246,24 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
         ? <Widget>[
             stockItemField,
             branchSelector,
-            if (selectedItem != null) receivedDateField,
             if (selectedItem != null)
               RestockQuantityInputs(
                 item: selectedItem,
                 pcsCtrl: _pcsCtrl,
                 extraCtrl: _extraCtrl,
               ),
+            if (selectedItem != null) receivedDateField,
           ]
         : <Widget>[
             stockItemField,
             branchSelector,
-            if (selectedItem != null) receivedDateField,
             if (selectedItem != null)
               RestockQuantityInputs(
                 item: selectedItem,
                 pcsCtrl: _pcsCtrl,
                 extraCtrl: _extraCtrl,
               ),
+            if (selectedItem != null) receivedDateField,
           ];
 
     return Form(

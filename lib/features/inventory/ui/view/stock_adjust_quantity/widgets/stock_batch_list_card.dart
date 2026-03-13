@@ -8,15 +8,15 @@ class StockBatchListCard extends StatelessWidget {
   const StockBatchListCard({
     super.key,
     required this.batches,
-    required this.selectedId,
     required this.item,
-    required this.onSelected,
+    this.selectedId,
+    this.onSelected,
   });
 
   final List<StockBatch> batches;
   final String? selectedId;
   final StockItem item;
-  final ValueChanged<String> onSelected;
+  final ValueChanged<String>? onSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -26,17 +26,16 @@ class StockBatchListCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Batches',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
+            Text('Batches', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 12),
             for (var i = 0; i < batches.length; i++) ...[
               _BatchTile(
                 batch: batches[i],
                 isSelected: batches[i].id == selectedId,
                 item: item,
-                onTap: () => onSelected(batches[i].id),
+                onTap: onSelected == null
+                    ? null
+                    : () => onSelected!(batches[i].id),
               ),
               if (i < batches.length - 1) const Divider(height: 1),
             ],
@@ -58,7 +57,7 @@ class _BatchTile extends StatelessWidget {
   final StockBatch batch;
   final bool isSelected;
   final StockItem item;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -87,4 +86,3 @@ class _BatchTile extends StatelessWidget {
     );
   }
 }
-
