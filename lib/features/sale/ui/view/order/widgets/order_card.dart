@@ -8,12 +8,12 @@ class OrderCard extends StatelessWidget {
     super.key,
     required this.order,
     required this.onTap,
-    required this.onStatusTap,
+    this.onStatusTap,
   });
 
   final Order order;
   final VoidCallback onTap;
-  final VoidCallback onStatusTap;
+  final VoidCallback? onStatusTap;
 
   @override
   Widget build(BuildContext context) {
@@ -61,6 +61,13 @@ class OrderCard extends StatelessWidget {
                   ),
                 ],
               ),
+              if (order.isSettleableOpenTicket) ...[
+                const SizedBox(height: 6),
+                Text(
+                  'Unpaid open ticket. Settlement remains available even when new pay-later orders are disabled.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
               const SizedBox(height: 6),
               Row(
                 children: [

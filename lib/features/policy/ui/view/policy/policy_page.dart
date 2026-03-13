@@ -1,16 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
 import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/core/widgets/forms/app_search_bar.dart';
 import 'package:modular_pos/core/widgets/navigation/app_back_button.dart';
+import 'package:modular_pos/features/policy/domain/models/policy.dart';
+import 'package:modular_pos/features/policy/data/policy_error_codes.dart';
 import 'package:modular_pos/features/policy/ui/models/policy_models.dart';
 import 'package:modular_pos/features/policy/ui/view/policy/policy_route_args.dart';
 import 'package:modular_pos/features/policy/ui/viewmodels/policy_viewmodel.dart';
 import 'package:modular_pos/features/policy/ui/widgets/policy_section.dart';
+import 'package:modular_pos/features/policy/ui/widgets/policy_branch_banner.dart';
+import 'package:modular_pos/features/auth/domain/active_branch_context_provider.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
+import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
+import 'package:modular_pos/features/auth/domain/auth_role.dart';
+import 'package:modular_pos/features/auth/domain/models/user.dart';
+import 'package:modular_pos/features/branchV2/ui/viewmodels/branch_controller.dart';
 
 /// Mobile-first Policy screen backed by policy API.
 class PolicyPage extends ConsumerStatefulWidget {
@@ -23,58 +30,43 @@ class PolicyPage extends ConsumerStatefulWidget {
 class _PolicyPageState extends ConsumerState<PolicyPage> {
   String _search = '';
 
-  // Local-only settings not yet backed by the API.
-  final Map<String, bool> _localToggleValues = {'use_recipes': false};
-
-  final Map<String, String> _localSelectorValues = {};
-
   List<PolicySectionData> get _sections => const [
     PolicySectionData(
-      title: 'Tax & Currency',
+      title: 'Branch Sales Policy',
       items: [
         PolicyItem(
           id: 'apply_vat',
           title: 'Apply VAT',
           icon: Icons.receipt_long_outlined,
-          subtitle: 'Show VAT line on sales and receipts',
+          subtitle:
+              'Vat is a tax added to the prices. When enabled, VAT is calculated and shown as a separate line on every sale and printed receipt.',
           type: PolicyItemType.toggle,
         ),
         PolicyItem(
           id: 'usd_to_khr',
-          title: 'KHR per USD',
+          title: 'Currency Exchange Rate',
           icon: Icons.attach_money_outlined,
-          subtitle: 'Used to show KHR equivalent',
+          subtitle:
+              'Sets the exchange rate used to convert US Dollar amounts into Cambodian Riel.',
           type: PolicyItemType.selector,
           options: ['4000', '4100', '4150', '4200'],
           defaultValue: '4100',
         ),
         PolicyItem(
-          id: 'rounding_mode',
-          title: 'Rounding mode',
-          icon: Icons.swap_vert,
-          subtitle: 'Nearest, up, or down',
-          type: PolicyItemType.selector,
-          options: ['Nearest', 'Up', 'Down'],
-          defaultValue: 'Nearest',
-        ),
-      ],
-    ),
-    PolicySectionData(
-      title: 'Inventory Behavior',
-      items: [
-        PolicyItem(
-          id: 'subtract_stock',
-          title: 'Subtract stock on sale',
-          icon: Icons.inventory_2_outlined,
-          subtitle: 'Coming soon',
-          type: PolicyItemType.info,
+          id: 'khr_rounding_enabled',
+          title: 'KHR Rounding',
+          icon: Icons.calculate_outlined,
+          subtitle:
+              'Turns Cambodian Riel rounding on or off for branch pricing and payment display.',
+          type: PolicyItemType.toggle,
         ),
         PolicyItem(
-          id: 'expiry_tracking',
-          title: 'Expiry tracking',
-          icon: Icons.event_available_outlined,
-          subtitle: 'Coming soon',
-          type: PolicyItemType.info,
+          id: 'allow_pay_later',
+          title: 'Allow Pay Later',
+          icon: Icons.receipt_outlined,
+          subtitle:
+              'Controls whether this branch can place open tickets before payment is collected.',
+          type: PolicyItemType.toggle,
         ),
       ],
     ),
@@ -99,19 +91,47 @@ class _PolicyPageState extends ConsumerState<PolicyPage> {
     }
     final policyNotifier = ref.read(policyNotifierProvider.notifier);
     final policyState = ref.read(policyNotifierProvider);
+    if (policyState.isOffline) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Policy editing is unavailable while offline. Reconnect and try again.',
+          ),
+        ),
+      );
+      return;
+    }
 
     if (item.id == 'apply_vat') {
       final result = await context.push<VatPolicySaveResult>(
         AppRoute.policyVatDetail.path,
         extra: VatPolicyDetailArgs(
-          enabled: policyState.salesPolicy.saleVatEnabled,
-          ratePercent: policyState.salesPolicy.saleVatRatePercent,
+          enabled: policyState.branchPolicy.saleVatEnabled,
+          ratePercent: policyState.branchPolicy.saleVatRatePercent,
         ),
       );
       if (result == null) return;
       await policyNotifier.updateVat(
         enabled: result.enabled,
         ratePercent: result.ratePercent,
+      );
+      return;
+    }
+
+    if (item.id == 'khr_rounding_enabled') {
+      final result = await context.push<KhrRoundingPolicySaveResult>(
+        AppRoute.policyRoundingDetail.path,
+        extra: KhrRoundingPolicyDetailArgs(
+          enabled: policyState.branchPolicy.saleKhrRoundingEnabled,
+          mode: policyState.branchPolicy.saleKhrRoundingMode,
+          granularity: policyState.branchPolicy.saleKhrRoundingGranularity,
+        ),
+      );
+      if (result == null) return;
+      await policyNotifier.updateRounding(
+        roundingEnabled: result.enabled,
+        roundingMode: result.mode,
+        roundingGranularity: result.granularity,
       );
       return;
     }
@@ -128,23 +148,15 @@ class _PolicyPageState extends ConsumerState<PolicyPage> {
       return;
     }
 
-    if (item.id == 'rounding_mode') {
-      final backendValue = _roundingToBackend(newValue.toString());
-      await policyNotifier.updateRounding(roundingMode: backendValue);
+    if (item.id == 'allow_pay_later') {
+      await policyNotifier.updatePayLater(enabled: newValue as bool);
       return;
     }
-
-    if (item.type == PolicyItemType.toggle) {
-      _localToggleValues[item.id] = newValue as bool;
-    } else {
-      _localSelectorValues[item.id] = newValue.toString();
-    }
-    setState(() {});
   }
 
   bool _isReadOnly(LoginState state) {
-    final role = (state.user?.role ?? 'cashier').trim().toLowerCase();
-    return role != 'admin';
+    final role = resolveSessionAuthRole(state.session);
+    return role != AuthRole.admin && role != AuthRole.owner;
   }
 
   @override
@@ -153,15 +165,24 @@ class _PolicyPageState extends ConsumerState<PolicyPage> {
     final policyState = ref.watch(policyNotifierProvider);
     final isLoading = policyState.isLoading;
     final toggleValues = _composeToggleValues(policyState);
+
     final selectorValues = _composeSelectorValues(policyState);
     final isReadOnly = _isReadOnly(loginState);
     final portalPath = AppRoute.portal.path;
+    final branchName = _resolveBranchName(ref);
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isSmall = AppBreakpoints.isSmall(constraints.maxWidth);
-        final horizontalPadding = isSmall ? 16.0 : 24.0;
-        final maxWidth = isSmall ? double.infinity : 720.0;
+        final width = constraints.maxWidth;
+        final isCompact = width < AppBreakpoints.compact;
+        final isSmall = AppBreakpoints.isSmall(width);
+        final isMedium = AppBreakpoints.isMedium(width);
+        final isLarge = AppBreakpoints.isLarge(width);
+
+        // Responsive values based on breakpoints
+        final horizontalPadding = isLarge ? 32.0 : (isMedium ? 24.0 : 16.0);
+        final showAppBar = !isLarge;
+        final showBackButton = isSmall;
 
         final filteredSections = _sections
             .map(
@@ -182,80 +203,129 @@ class _PolicyPageState extends ConsumerState<PolicyPage> {
             .toList();
 
         return Scaffold(
-          appBar: AppBar(
-            automaticallyImplyLeading: false,
-            leading: isSmall
-                ? AppBackButton(
-                    icon: Icons.home_outlined,
-                    tooltip: 'Home',
-                    onPressed: () => context.go(portalPath),
-                  )
-                : null,
-            titleSpacing: 0,
-            centerTitle: false,
-            title: const Text('Settings'),
-          ),
-          body: SafeArea(
-            child: Center(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: maxWidth),
-                child: ListView(
+          appBar: showAppBar
+              ? AppBar(
+                  automaticallyImplyLeading: false,
+                  leading: showBackButton
+                      ? AppBackButton(
+                          icon: Icons.home_outlined,
+                          tooltip: 'Home',
+                          onPressed: () => context.go(portalPath),
+                        )
+                      : null,
+                  backgroundColor: Colors.white,
+                  centerTitle: false,
+                  title: const Text('Policy'),
+                )
+              : null,
+          body: Column(
+            children: [
+              if (isLarge)
+                Container(
+                  width: double.infinity,
+                  color: Theme.of(context).colorScheme.surface,
                   padding: EdgeInsets.fromLTRB(
                     horizontalPadding,
-                    12,
+                    24,
                     horizontalPadding,
                     24,
                   ),
-                  children: [
-                    AppSearchBar(
-                      hintText: 'Search settings',
-                      onChanged: (value) =>
-                          setState(() => _search = value.toLowerCase()),
+                  child: Text(
+                    'Policy',
+                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
                     ),
-                    const SizedBox(height: 12),
-                    if (isLoading) const LinearProgressIndicator(minHeight: 2),
-                    if (isReadOnly)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8, bottom: 4),
-                        child: Text(
-                          'Read-only: contact an admin to update policies.',
-                          style: Theme.of(context).textTheme.labelMedium
-                              ?.copyWith(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSurfaceVariant,
-                              ),
+                  ),
+                ),
+              Expanded(
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    horizontalPadding,
+                    isLarge ? 16 : 0,
+                    horizontalPadding,
+                    24,
+                  ),
+                  child: ListView(
+                    children: [
+                      if (isLarge) ...[
+                        PolicyBranchBanner(
+                          branchName: branchName,
+                          isSubtle: false,
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+                      if (!isLarge) ...[
+                        const SizedBox(height: 8),
+                        PolicyBranchBanner(
+                          branchName: branchName,
+                          isSubtle: true,
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+                      AppSearchBar(
+                        hintText: 'Search',
+                        onChanged: (value) =>
+                            setState(() => _search = value.toLowerCase()),
+                      ),
+                      const SizedBox(height: 16),
+                      if (isLoading)
+                        const LinearProgressIndicator(minHeight: 2),
+                      if (isReadOnly && showAppBar)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8, bottom: 4),
+                          child: Text(
+                            'Read-only: contact an admin to update policies.',
+                            style: Theme.of(context).textTheme.labelMedium
+                                ?.copyWith(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
+                                ),
+                          ),
+                        ),
+                      if (policyState.isOffline || policyState.error != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8, bottom: 4),
+                          child: Text(
+                            _statusMessage(policyState),
+                            style: Theme.of(context).textTheme.labelMedium
+                                ?.copyWith(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
+                                ),
+                          ),
+                        ),
+                      const SizedBox(height: 4),
+                      ...filteredSections.map(
+                        (section) => Padding(
+                          padding: const EdgeInsets.only(bottom: 16),
+                          child: PolicySection(
+                            title: section.title,
+                            items: section.items,
+                            isCompact: isCompact || isSmall,
+                            toggleValues: toggleValues,
+                            selectorValues: selectorValues,
+                            readOnly: isReadOnly,
+                            onItemTap: (item, value) =>
+                                _openPolicyDetail(context, item, value),
+                          ),
                         ),
                       ),
-                    const SizedBox(height: 4),
-                    ...filteredSections.map(
-                      (section) => Padding(
-                        padding: const EdgeInsets.only(bottom: 16),
-                        child: PolicySection(
-                          title: section.title,
-                          items: section.items,
-                          isCompact: isSmall,
-                          toggleValues: toggleValues,
-                          selectorValues: selectorValues,
-                          readOnly: isReadOnly,
-                          onItemTap: (item, value) =>
-                              _openPolicyDetail(context, item, value),
+                      if (filteredSections.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 32),
+                          child: Text(
+                            'No settings match "$_search".',
+                            style: Theme.of(context).textTheme.bodyMedium,
+                            textAlign: TextAlign.center,
+                          ),
                         ),
-                      ),
-                    ),
-                    if (filteredSections.isEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 32),
-                        child: Text(
-                          'No settings match "$_search".',
-                          style: Theme.of(context).textTheme.bodyMedium,
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
+            ],
           ),
         );
       },
@@ -264,67 +334,118 @@ class _PolicyPageState extends ConsumerState<PolicyPage> {
 
   Map<String, bool> _composeToggleValues(PolicyState state) {
     return {
-      ..._localToggleValues,
-      'apply_vat': state.salesPolicy.saleVatEnabled,
-      'subtract_stock': state.inventoryPolicy.inventoryAutoSubtractOnSale,
-      'expiry_tracking': state.inventoryPolicy.inventoryExpiryTrackingEnabled,
-      'cash_session_attendance':
-          state.attendancePolicy.attendanceAutoFromCashSession,
-      'out_of_shift_approval':
-          state.attendancePolicy.attendanceRequireOutOfShiftApproval,
-      'early_check_in_buffer':
-          state.attendancePolicy.attendanceEarlyCheckinBufferEnabled,
-      'allow_paid_out': state.cashSessionPolicy.cashAllowPaidOut,
-      'cash_refund_approval': state.cashSessionPolicy.cashRequireRefundApproval,
-      'manual_cash_adjustment':
-          state.cashSessionPolicy.cashAllowManualAdjustment,
+      'apply_vat': state.branchPolicy.saleVatEnabled,
+      'khr_rounding_enabled': state.branchPolicy.saleKhrRoundingEnabled,
+      'allow_pay_later': state.branchPolicy.saleAllowPayLater,
     };
   }
 
   Map<String, String> _composeSelectorValues(PolicyState state) {
     return {
-      ..._localSelectorValues,
-      'vat_rate': _formatPercent(state.salesPolicy.saleVatRatePercent),
-      'usd_to_khr': state.salesPolicy.saleFxRateKhrPerUsd.toStringAsFixed(0),
-      'rounding_mode': _roundingLabel(state.salesPolicy.saleKhrRoundingMode),
-      'early_check_in_duration': _durationLabel(
-        state.attendancePolicy.attendanceCheckinBufferMinutes,
-      ),
+      'vat_rate': _formatPercent(state.branchPolicy.saleVatRatePercent),
+      'usd_to_khr': state.branchPolicy.saleFxRateKhrPerUsd.toStringAsFixed(0),
+      'rounding_mode': _roundingLabel(state.branchPolicy.saleKhrRoundingMode),
+      'rounding_granularity': state.branchPolicy.saleKhrRoundingGranularity,
     };
   }
 
   String _formatPercent(double value) => '${value.toStringAsFixed(0)}%';
 
   String _roundingLabel(String backendValue) {
-    switch (backendValue.toUpperCase()) {
-      case 'UP':
+    switch (BranchPolicyRoundingModes.normalize(backendValue)) {
+      case BranchPolicyRoundingModes.up:
         return 'Up';
-      case 'DOWN':
+      case BranchPolicyRoundingModes.down:
         return 'Down';
       default:
         return 'Nearest';
     }
   }
 
-  String _roundingToBackend(String label) {
-    switch (label.toLowerCase()) {
-      case 'up':
-        return 'UP';
-      case 'down':
-        return 'DOWN';
+  String _statusMessage(PolicyState state) {
+    if (state.isOffline && state.isStale) {
+      return 'Offline: showing last known branch policy. Editing is unavailable until you reconnect.';
+    }
+    if (state.isOffline) {
+      return 'Offline: unable to load branch policy. Reconnect and try again.';
+    }
+    final reasonMessage = _reasonCodeMessage(state.errorCode);
+    if (reasonMessage != null) {
+      return reasonMessage;
+    }
+    if (state.error != null && state.error!.trim().isNotEmpty) {
+      return state.error!.trim();
+    }
+    return '';
+  }
+
+  String? _reasonCodeMessage(String? code) {
+    switch ((code ?? '').trim()) {
+      case PolicyErrorCodes.tenantContextRequired:
+      case PolicyErrorCodes.branchContextRequired:
+        return 'Select a branch context to load this policy.';
+      case PolicyErrorCodes.noMembership:
+      case PolicyErrorCodes.noBranchAccess:
+        return 'You do not have access to this branch policy.';
+      case PolicyErrorCodes.permissionDenied:
+        return 'You do not have permission to update this branch policy.';
+      case PolicyErrorCodes.branchFrozen:
+        return 'This branch is frozen. Policy updates are unavailable.';
+      case PolicyErrorCodes.subscriptionFrozen:
+        return 'This tenant subscription is frozen. Policy updates are unavailable.';
+      case PolicyErrorCodes.idempotencyConflict:
+      case PolicyErrorCodes.idempotencyInProgress:
+        return 'Another policy update is already being processed. Try again.';
+      case PolicyErrorCodes.policyPatchEmpty:
+        return 'No policy changes were submitted.';
+      case PolicyErrorCodes.policyValidationFailed:
+        return 'One or more policy values are invalid. Review the form and try again.';
       default:
-        return 'NEAREST';
+        return null;
     }
   }
 
-  String _durationLabel(int minutes) {
-    switch (minutes) {
-      case 30:
-        return '30 min';
-      case 60:
-        return '1 hour';
-      default:
-        return '15 min';
+  String _resolveBranchName(WidgetRef ref) {
+    final activeBranch = ref.watch(authActiveBranchProvider);
+    final activeBranchId = ref.watch(activeBranchContextIdProvider);
+    final activeBranchNameOverride = ref.watch(
+      authActiveBranchNameOverrideProvider,
+    );
+    final knownBranches = ref.watch(
+      branchControllerProvider.select((state) => state.branches),
+    );
+    final session = ref.watch(loginControllerProvider).session;
+
+    final overriddenName = (activeBranchNameOverride ?? '').trim();
+    if (overriddenName.isNotEmpty) return overriddenName;
+
+    final activeName = activeBranch?.name.trim() ?? '';
+    if (activeName.isNotEmpty) return activeName;
+
+    final normalizedActiveId = (activeBranchId ?? '').trim();
+    if (normalizedActiveId.isNotEmpty) {
+      for (final branch in knownBranches) {
+        if (branch.branchId == normalizedActiveId &&
+            branch.branchName.trim().isNotEmpty) {
+          return branch.branchName.trim();
+        }
+      }
+
+      final sessionBranches = session?.user.branches ?? const <UserBranch>[];
+      for (final branch in sessionBranches) {
+        final matchesId =
+            branch.branchId.trim() == normalizedActiveId ||
+            branch.id.trim() == normalizedActiveId;
+        if (matchesId && branch.name.trim().isNotEmpty) {
+          return branch.name.trim();
+        }
+      }
     }
+
+    for (final branch in session?.user.branches ?? const <UserBranch>[]) {
+      if (branch.name.trim().isNotEmpty) return branch.name.trim();
+    }
+
+    return 'Branch';
   }
 }

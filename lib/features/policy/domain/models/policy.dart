@@ -1,227 +1,97 @@
-class SalesPolicy {
-  const SalesPolicy({
+class BranchPolicyRoundingModes {
+  const BranchPolicyRoundingModes._();
+
+  static const nearest = 'NEAREST';
+  static const up = 'UP';
+  static const down = 'DOWN';
+
+  static const values = <String>{nearest, up, down};
+
+  static String normalize(String? value) {
+    final normalized = (value ?? '').trim().toUpperCase();
+    if (values.contains(normalized)) return normalized;
+    return nearest;
+  }
+}
+
+class BranchPolicyRoundingGranularities {
+  const BranchPolicyRoundingGranularities._();
+
+  static const hundred = '100';
+  static const thousand = '1000';
+
+  static const values = <String>{hundred, thousand};
+
+  static String normalize(String? value) {
+    final normalized = (value ?? '').trim();
+    if (values.contains(normalized)) return normalized;
+    return hundred;
+  }
+
+  static double asAmount(String? value) {
+    return double.tryParse(normalize(value)) ?? 100;
+  }
+}
+
+class BranchPolicy {
+  const BranchPolicy({
+    this.tenantId = '',
+    this.branchId = '',
     this.saleVatEnabled = false,
     this.saleVatRatePercent = 0,
     this.saleFxRateKhrPerUsd = 4100,
     this.saleKhrRoundingEnabled = false,
-    this.saleKhrRoundingMode = 'NEAREST',
-    this.saleKhrRoundingGranularity = '100',
+    this.saleKhrRoundingMode = BranchPolicyRoundingModes.nearest,
+    this.saleKhrRoundingGranularity = BranchPolicyRoundingGranularities.hundred,
+    this.saleAllowPayLater = false,
+    this.createdAt = '',
+    this.updatedAt = '',
   });
 
+  final String tenantId;
+  final String branchId;
   final bool saleVatEnabled;
   final double saleVatRatePercent;
   final double saleFxRateKhrPerUsd;
   final bool saleKhrRoundingEnabled;
   final String saleKhrRoundingMode; // NEAREST | UP | DOWN
   final String saleKhrRoundingGranularity; // "100" | "1000"
+  final bool saleAllowPayLater;
+  final String createdAt;
+  final String updatedAt;
 
-  SalesPolicy copyWith({
+  BranchPolicy copyWith({
+    String? tenantId,
+    String? branchId,
     bool? saleVatEnabled,
     double? saleVatRatePercent,
     double? saleFxRateKhrPerUsd,
     bool? saleKhrRoundingEnabled,
     String? saleKhrRoundingMode,
     String? saleKhrRoundingGranularity,
+    bool? saleAllowPayLater,
+    String? createdAt,
+    String? updatedAt,
   }) {
-    return SalesPolicy(
+    return BranchPolicy(
+      tenantId: tenantId ?? this.tenantId,
+      branchId: branchId ?? this.branchId,
       saleVatEnabled: saleVatEnabled ?? this.saleVatEnabled,
       saleVatRatePercent: saleVatRatePercent ?? this.saleVatRatePercent,
       saleFxRateKhrPerUsd: saleFxRateKhrPerUsd ?? this.saleFxRateKhrPerUsd,
       saleKhrRoundingEnabled:
           saleKhrRoundingEnabled ?? this.saleKhrRoundingEnabled,
-      saleKhrRoundingMode: saleKhrRoundingMode ?? this.saleKhrRoundingMode,
-      saleKhrRoundingGranularity:
-          saleKhrRoundingGranularity ?? this.saleKhrRoundingGranularity,
+      saleKhrRoundingMode: saleKhrRoundingMode == null
+          ? this.saleKhrRoundingMode
+          : BranchPolicyRoundingModes.normalize(saleKhrRoundingMode),
+      saleKhrRoundingGranularity: saleKhrRoundingGranularity == null
+          ? this.saleKhrRoundingGranularity
+          : BranchPolicyRoundingGranularities.normalize(
+              saleKhrRoundingGranularity,
+            ),
+      saleAllowPayLater: saleAllowPayLater ?? this.saleAllowPayLater,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
     );
   }
-
-  factory SalesPolicy.fromJson(Map<String, dynamic> json) {
-    final root = _unwrapPolicyData(json);
-    final src = (root['sales'] is Map<String, dynamic>)
-        ? root['sales'] as Map<String, dynamic>
-        : root;
-    return SalesPolicy(
-      saleVatEnabled: (src['saleVatEnabled'] as bool?) ?? false,
-      saleVatRatePercent:
-          (src['saleVatRatePercent'] as num?)?.toDouble() ?? 0,
-      saleFxRateKhrPerUsd:
-          (src['saleFxRateKhrPerUsd'] as num?)?.toDouble() ?? 4100,
-      saleKhrRoundingEnabled:
-          (src['saleKhrRoundingEnabled'] as bool?) ?? false,
-      saleKhrRoundingMode: src['saleKhrRoundingMode']?.toString() ?? 'NEAREST',
-      saleKhrRoundingGranularity:
-          src['saleKhrRoundingGranularity']?.toString() ?? '100',
-    );
-  }
-}
-
-class InventoryPolicy {
-  const InventoryPolicy({
-    this.inventoryAutoSubtractOnSale = false,
-    this.inventoryExpiryTrackingEnabled = false,
-  });
-
-  final bool inventoryAutoSubtractOnSale;
-  final bool inventoryExpiryTrackingEnabled;
-
-  InventoryPolicy copyWith({
-    bool? inventoryAutoSubtractOnSale,
-    bool? inventoryExpiryTrackingEnabled,
-  }) {
-    return InventoryPolicy(
-      inventoryAutoSubtractOnSale:
-          inventoryAutoSubtractOnSale ?? this.inventoryAutoSubtractOnSale,
-      inventoryExpiryTrackingEnabled:
-          inventoryExpiryTrackingEnabled ?? this.inventoryExpiryTrackingEnabled,
-    );
-  }
-
-  factory InventoryPolicy.fromJson(Map<String, dynamic> json) {
-    final root = _unwrapPolicyData(json);
-    final src = (root['inventory'] is Map<String, dynamic>)
-        ? root['inventory'] as Map<String, dynamic>
-        : root;
-    return InventoryPolicy(
-      inventoryAutoSubtractOnSale:
-          (src['inventoryAutoSubtractOnSale'] as bool?) ?? false,
-      inventoryExpiryTrackingEnabled:
-          (src['inventoryExpiryTrackingEnabled'] as bool?) ?? false,
-    );
-  }
-}
-
-class CashSessionPolicy {
-  const CashSessionPolicy({
-    this.cashAllowPaidOut = false,
-    this.cashRequireRefundApproval = false,
-    this.cashAllowManualAdjustment = false,
-  });
-
-  final bool cashAllowPaidOut;
-  final bool cashRequireRefundApproval;
-  final bool cashAllowManualAdjustment;
-
-  CashSessionPolicy copyWith({
-    bool? cashAllowPaidOut,
-    bool? cashRequireRefundApproval,
-    bool? cashAllowManualAdjustment,
-  }) {
-    return CashSessionPolicy(
-      cashAllowPaidOut: cashAllowPaidOut ?? this.cashAllowPaidOut,
-      cashRequireRefundApproval:
-          cashRequireRefundApproval ?? this.cashRequireRefundApproval,
-      cashAllowManualAdjustment:
-          cashAllowManualAdjustment ?? this.cashAllowManualAdjustment,
-    );
-  }
-
-  factory CashSessionPolicy.fromJson(Map<String, dynamic> json) {
-    final root = _unwrapPolicyData(json);
-    final src = (root['cashSession'] is Map<String, dynamic>)
-        ? root['cashSession'] as Map<String, dynamic>
-        : (root['cash'] is Map<String, dynamic>)
-            ? root['cash'] as Map<String, dynamic>
-            : root;
-
-    return CashSessionPolicy(
-      cashAllowPaidOut: (src['cashAllowPaidOut'] as bool?) ??
-          (src['allowPaidOut'] as bool?) ??
-          false,
-      cashRequireRefundApproval:
-          (src['cashRequireRefundApproval'] as bool?) ??
-              (src['requireRefundApproval'] as bool?) ??
-              false,
-      cashAllowManualAdjustment:
-          (src['cashAllowManualAdjustment'] as bool?) ??
-              (src['allowManualAdjustment'] as bool?) ??
-              false,
-    );
-  }
-}
-
-class AttendancePolicy {
-  const AttendancePolicy({
-    this.attendanceAutoFromCashSession = false,
-    this.attendanceRequireOutOfShiftApproval = false,
-    this.attendanceEarlyCheckinBufferEnabled = false,
-    this.attendanceCheckinBufferMinutes = 15,
-    this.attendanceAllowManagerEdits = false,
-  });
-
-  final bool attendanceAutoFromCashSession;
-  final bool attendanceRequireOutOfShiftApproval;
-  final bool attendanceEarlyCheckinBufferEnabled;
-  final int attendanceCheckinBufferMinutes;
-  final bool attendanceAllowManagerEdits;
-
-  AttendancePolicy copyWith({
-    bool? attendanceAutoFromCashSession,
-    bool? attendanceRequireOutOfShiftApproval,
-    bool? attendanceEarlyCheckinBufferEnabled,
-    int? attendanceCheckinBufferMinutes,
-    bool? attendanceAllowManagerEdits,
-  }) {
-    return AttendancePolicy(
-      attendanceAutoFromCashSession:
-          attendanceAutoFromCashSession ?? this.attendanceAutoFromCashSession,
-      attendanceRequireOutOfShiftApproval: attendanceRequireOutOfShiftApproval ??
-          this.attendanceRequireOutOfShiftApproval,
-      attendanceEarlyCheckinBufferEnabled:
-          attendanceEarlyCheckinBufferEnabled ??
-              this.attendanceEarlyCheckinBufferEnabled,
-      attendanceCheckinBufferMinutes:
-          attendanceCheckinBufferMinutes ?? this.attendanceCheckinBufferMinutes,
-      attendanceAllowManagerEdits:
-          attendanceAllowManagerEdits ?? this.attendanceAllowManagerEdits,
-    );
-  }
-
-  factory AttendancePolicy.fromJson(Map<String, dynamic> json) {
-    final root = _unwrapPolicyData(json);
-    final src = (root['attendance'] is Map<String, dynamic>)
-        ? root['attendance'] as Map<String, dynamic>
-        : root;
-    return AttendancePolicy(
-      attendanceAutoFromCashSession:
-          (src['attendanceAutoFromCashSession'] as bool?) ??
-              (src['autoFromCashSession'] as bool?) ??
-              false,
-      attendanceRequireOutOfShiftApproval:
-          (src['attendanceRequireOutOfShiftApproval'] as bool?) ??
-              (src['requireOutOfShiftApproval'] as bool?) ??
-              false,
-      attendanceEarlyCheckinBufferEnabled:
-          (src['attendanceEarlyCheckinBufferEnabled'] as bool?) ??
-              (src['earlyCheckinBufferEnabled'] as bool?) ??
-              false,
-      attendanceCheckinBufferMinutes:
-          (src['attendanceCheckinBufferMinutes'] as num?)?.toInt() ??
-              (src['checkinBufferMinutes'] as num?)?.toInt() ??
-              15,
-      attendanceAllowManagerEdits:
-          (src['attendanceAllowManagerEdits'] as bool?) ??
-              (src['allowManagerEdits'] as bool?) ??
-              false,
-    );
-  }
-}
-
-class PolicyBundle {
-  const PolicyBundle({
-    required this.sales,
-    required this.inventory,
-    required this.cashSession,
-    required this.attendance,
-  });
-
-  final SalesPolicy sales;
-  final InventoryPolicy inventory;
-  final CashSessionPolicy cashSession;
-  final AttendancePolicy attendance;
-}
-
-Map<String, dynamic> _unwrapPolicyData(Map<String, dynamic> json) {
-  final data = json['data'];
-  if (data is Map<String, dynamic>) return data;
-  return json;
 }

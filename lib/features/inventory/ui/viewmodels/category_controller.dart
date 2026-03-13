@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/features/inventory/data/inventory_category_repository.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_category.dart';
+import 'package:modular_pos/features/inventory/ui/viewmodels/inventory_error_mapper.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/category_state.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_controller.dart';
 
@@ -18,24 +19,50 @@ class CategoryController extends Notifier<CategoryState> {
     return const CategoryState();
   }
 
-  Future<void> loadCategories() async {
+  Future<void> loadCategories({String status = 'all'}) async {
     try {
-      state = state.copyWith(isLoading: true, error: null);
-      final categories = await _repository.fetchCategories();
+      state = state.copyWith(isLoading: true, error: null, errorCode: null);
+      final categories = await _repository.fetchCategories(status: status);
       state = state.copyWith(isLoading: false, categories: categories);
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      final mapped = mapInventoryError(
+        e,
+        fallbackMessage: 'Failed to load categories.',
+      );
+      state = state.copyWith(
+        isLoading: false,
+        error: mapped.message,
+        errorCode: mapped.code,
+      );
     }
   }
 
-  Future<void> addCategory(String name) async {
+  Future<void> addCategory(
+    String name, {
+    String? description,
+    bool isActive = true,
+  }) async {
     try {
       final created = await _repository.createCategory(
-        InventoryCategory(id: '', name: name, isActive: true),
+        InventoryCategory(
+          id: '',
+          name: name,
+          isActive: isActive,
+          description: description,
+        ),
       );
-      state = state.copyWith(categories: [...state.categories, created]);
+      state = state.copyWith(
+        categories: [...state.categories, created],
+        error: null,
+        errorCode: null,
+      );
     } catch (e) {
-      state = state.copyWith(error: e.toString());
+      final mapped = mapInventoryError(
+        e,
+        fallbackMessage: 'Failed to create category.',
+      );
+      state = state.copyWith(error: mapped.message, errorCode: mapped.code);
+      rethrow;
     }
   }
 
@@ -46,10 +73,19 @@ class CategoryController extends Notifier<CategoryState> {
         for (final existing in state.categories)
           if (existing.id == updated.id) updated else existing,
       ];
-      state = state.copyWith(categories: categories, error: null);
+      state = state.copyWith(
+        categories: categories,
+        error: null,
+        errorCode: null,
+      );
       await _refreshInventory();
     } catch (e) {
-      state = state.copyWith(error: e.toString());
+      final mapped = mapInventoryError(
+        e,
+        fallbackMessage: 'Failed to update category.',
+      );
+      state = state.copyWith(error: mapped.message, errorCode: mapped.code);
+      rethrow;
     }
   }
 
@@ -61,10 +97,16 @@ class CategoryController extends Notifier<CategoryState> {
             .where((category) => category.id != id)
             .toList(),
         error: null,
+        errorCode: null,
       );
       await _refreshInventory();
     } catch (e) {
-      state = state.copyWith(error: e.toString());
+      final mapped = mapInventoryError(
+        e,
+        fallbackMessage: 'Failed to archive category.',
+      );
+      state = state.copyWith(error: mapped.message, errorCode: mapped.code);
+      rethrow;
     }
   }
 

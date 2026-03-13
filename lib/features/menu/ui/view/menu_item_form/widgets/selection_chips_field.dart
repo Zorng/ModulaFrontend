@@ -9,6 +9,7 @@ class SelectionChipsField extends StatelessWidget {
     required this.addButtonLabel,
     required this.onAddTap,
     required this.onRemove,
+    this.editable = true,
   });
 
   final Iterable<String> selectedIds;
@@ -16,6 +17,7 @@ class SelectionChipsField extends StatelessWidget {
   final String addButtonLabel;
   final VoidCallback onAddTap;
   final void Function(String id) onRemove;
+  final bool editable;
 
   @override
   Widget build(BuildContext context) {
@@ -29,39 +31,41 @@ class SelectionChipsField extends StatelessWidget {
               .map(
                 (id) => Chip(
                   label: Text(labelResolver(id)),
-                  onDeleted: () => onRemove(id),
+                  onDeleted: editable ? () => onRemove(id) : null,
                 ),
               )
               .toList(),
         ),
-        const SizedBox(height: 12),
-        SizedBox(
-          width: double.infinity,
-          child: InkWell(
-            onTap: onAddTap,
-            child: CustomPaint(
-              foregroundPainter: DashedBorderPainter(
-                color: Theme.of(context).primaryColor,
-              ),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
+        if (editable) ...[
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: InkWell(
+              onTap: onAddTap,
+              child: CustomPaint(
+                foregroundPainter: DashedBorderPainter(
+                  color: Theme.of(context).primaryColor,
                 ),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  addButtonLabel,
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodyMedium,
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    addButtonLabel,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
                 ),
               ),
             ),
           ),
-        ),
+        ],
       ],
     );
   }

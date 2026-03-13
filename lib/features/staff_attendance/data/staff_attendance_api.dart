@@ -1,6 +1,6 @@
 import 'package:dio/dio.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:modular_pos/core/config/app_env.dart';
 import 'package:modular_pos/core/network/dio_client.dart';
 import 'package:modular_pos/features/staff_attendance/data/dto/attendance_record_dto.dart';
 import 'package:modular_pos/features/staff_attendance/data/dto/attendance_shift_schedule_dto.dart';
@@ -12,8 +12,7 @@ final staffAttendanceApiProvider = Provider<StaffAttendanceApi>((ref) {
 });
 
 class StaffAttendanceApi {
-  StaffAttendanceApi(this._dio)
-      : _prefix = dotenv.env['ATTENDANCE_API_PREFIX'] ?? '/v1/attendance';
+  StaffAttendanceApi(this._dio) : _prefix = AppEnv.attendanceApiPrefix;
 
   final Dio _dio;
   final String _prefix;
@@ -30,7 +29,8 @@ class StaffAttendanceApi {
       '$_prefix/all',
       queryParameters: {
         if (branchId != null && branchId.isNotEmpty) 'branchId': branchId,
-        if (employeeId != null && employeeId.isNotEmpty) 'employeeId': employeeId,
+        if (employeeId != null && employeeId.isNotEmpty)
+          'employeeId': employeeId,
         if (from != null && from.isNotEmpty) 'from': from,
         if (to != null && to.isNotEmpty) 'to': to,
         'limit': limit,
@@ -65,15 +65,20 @@ class StaffAttendanceApi {
   }) async {
     final response = await _dio.get<Map<String, dynamic>>(
       '$_prefix/me/shifts',
-      queryParameters:
-          branchId != null && branchId.isNotEmpty ? {'branchId': branchId} : null,
+      queryParameters: branchId != null && branchId.isNotEmpty
+          ? {'branchId': branchId}
+          : null,
     );
     final root = response.data ?? const <String, dynamic>{};
     final raw = root['data'];
     if (raw is! List) return const [];
     return raw
         .whereType<Map>()
-        .map((e) => AttendanceShiftScheduleEntryDto.fromJson(Map<String, dynamic>.from(e)))
+        .map(
+          (e) => AttendanceShiftScheduleEntryDto.fromJson(
+            Map<String, dynamic>.from(e),
+          ),
+        )
         .toList();
   }
 
@@ -101,6 +106,28 @@ class StaffAttendanceApi {
     return CheckInResultDto.fromJson(data);
   }
 
+  Future<Map<String, dynamic>?> getAttendanceContext({
+    required String branchId,
+  }) async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '$_prefix/context',
+      queryParameters: <String, dynamic>{'branch_id': branchId},
+    );
+    return _parseDataMap(response.data);
+  }
+
+  Future<Map<String, dynamic>?> checkInV1(
+    Map<String, dynamic> payload, {
+    Options? options,
+  }) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '$_prefix/check-in',
+      data: payload,
+      options: options,
+    );
+    return _parseDataMap(response.data);
+  }
+
   Future<AttendanceRecordDto?> checkOut({
     required String occurredAt,
     Map<String, num>? location,
@@ -118,7 +145,21 @@ class StaffAttendanceApi {
     return null;
   }
 
-  List<AttendanceRecordDto> _parseAttendanceList(Map<String, dynamic>? payload) {
+  Future<Map<String, dynamic>?> checkOutV1(
+    Map<String, dynamic> payload, {
+    Options? options,
+  }) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '$_prefix/check-out',
+      data: payload,
+      options: options,
+    );
+    return _parseDataMap(response.data);
+  }
+
+  List<AttendanceRecordDto> _parseAttendanceList(
+    Map<String, dynamic>? payload,
+  ) {
     final root = payload ?? const <String, dynamic>{};
     final raw = root['data'];
     if (raw is! List) return const [];
@@ -126,5 +167,15 @@ class StaffAttendanceApi {
         .whereType<Map>()
         .map((e) => AttendanceRecordDto.fromJson(Map<String, dynamic>.from(e)))
         .toList();
+  }
+
+  Map<String, dynamic>? _parseDataMap(Map<String, dynamic>? payload) {
+    final root = payload ?? const <String, dynamic>{};
+    final data = root['data'];
+    if (data is Map<String, dynamic>) return data;
+    if (data is Map) {
+      return data.map((key, value) => MapEntry(key.toString(), value));
+    }
+    return null;
   }
 }

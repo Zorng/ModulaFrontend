@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:modular_pos/features/menu/data/menu_repository.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_state.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
+import 'package:modular_pos/features/sale/data/sale_checkout_repository_contract.dart';
 import 'package:modular_pos/features/sale/ui/view/sale_item_detail/sale_item_detail_page.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_access_gate.dart';
 
@@ -23,7 +25,10 @@ class _StaticMenuViewModel extends MenuViewModel {
   MenuState build() => stateValue;
 
   @override
-  Future<void> loadMenu({String? branchId}) async {}
+  Future<void> loadMenu({
+    String? branchId,
+    MenuReadLane readLane = MenuReadLane.management,
+  }) async {}
 
   @override
   Future<(MenuItem, List<ModifierGroup>)> loadItemWithModifiers(
@@ -36,7 +41,7 @@ class _StaticMenuViewModel extends MenuViewModel {
 }
 
 void main() {
-  testWidgets('SaleItemDetailPage disables Add Item when blocked', (
+  testWidgets('SaleItemDetailPage disables Add Item when branch is frozen', (
     tester,
   ) async {
     await tester.binding.setSurfaceSize(const Size(800, 1200));
@@ -73,8 +78,14 @@ void main() {
           saleAccessGateProvider.overrideWithValue(
             const SaleAccessGate(
               branchId: 'branch-1',
-              cashSessionOpen: false,
-              cashSessionLoading: false,
+              contextLoading: false,
+              branchActive: true,
+              branchFrozen: true,
+              cashSessionOpen: true,
+              canMutateCart: false,
+              canCheckout: false,
+              canPlacePayLater: false,
+              reasonCode: SaleCheckoutReasonCodes.branchFrozen,
             ),
           ),
         ],
@@ -84,9 +95,9 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    final addButton = find.widgetWithText(FilledButton, 'Add Item');
+    final addButton = find.widgetWithText(FilledButton, 'Add to Cart');
     expect(addButton, findsOneWidget);
     expect(tester.widget<FilledButton>(addButton).onPressed, isNull);
-    expect(find.textContaining('Cash session required'), findsOneWidget);
+    expect(find.textContaining('branch is frozen'), findsOneWidget);
   });
 }

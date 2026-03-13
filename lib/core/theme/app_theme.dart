@@ -4,11 +4,37 @@ class AppTheme {
   const AppTheme._();
 
   static const _surfaceColor = Color(0xFFF5F7FA);
+  static const _disabledFillColor = Color(0xFFF6B8AD);
   static const _fontFamily = 'DMSans';
   static const _bodyColor = Color(0xFF1E1F20);
+  static const editActionColor = Color(0xFFED533C);
+  static const ButtonStyle editActionButtonStyle = ButtonStyle(
+    backgroundColor: WidgetStatePropertyAll(editActionColor),
+    foregroundColor: WidgetStatePropertyAll(Colors.white),
+    padding: WidgetStatePropertyAll(
+      EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+    ),
+    shape: WidgetStatePropertyAll(
+      RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(Radius.circular(8)),
+      ),
+    ),
+  );
+  static const ButtonStyle cancelActionButtonStyle = ButtonStyle(
+    backgroundColor: WidgetStatePropertyAll(Color(0xFFF7F7F7)),
+    foregroundColor: WidgetStatePropertyAll(Color(0xFF696969)),
+    padding: WidgetStatePropertyAll(
+      EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+    ),
+    shape: WidgetStatePropertyAll(
+      RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(Radius.circular(8)),
+      ),
+    ),
+  );
 
-  
-  static ThemeData get light { // use color scheme from seed for now. defined whole custome color scheme later
+  static ThemeData get light {
+    // use color scheme from seed for now. defined whole custome color scheme later
     final baseScheme = ColorScheme.fromSeed(
       seedColor: const Color(0xFFED533C),
       brightness: Brightness.light,
@@ -50,6 +76,8 @@ class AppTheme {
         style: FilledButton.styleFrom(
           backgroundColor: baseScheme.primary,
           foregroundColor: Colors.white,
+          disabledBackgroundColor: _disabledFillColor,
+          disabledForegroundColor: Colors.white,
           minimumSize: const Size.fromHeight(48),
           padding: const EdgeInsets.symmetric(horizontal: 16),
           shape: RoundedRectangleBorder(
@@ -61,6 +89,10 @@ class AppTheme {
             letterSpacing: 0.2,
           ),
         ),
+      ),
+      appBarTheme: const AppBarTheme(
+        backgroundColor: _surfaceColor,
+        foregroundColor: _bodyColor,
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
@@ -77,8 +109,10 @@ class AppTheme {
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: baseScheme.primary, width: 1.5),
         ),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
       ),
     );
   }
@@ -124,7 +158,7 @@ class AppTheme {
       titleMedium: TextStyle(
         fontFamily: _fontFamily,
         fontWeight: FontWeight.w500,
-        fontSize: 18,
+        fontSize: 22,
         color: _bodyColor,
       ),
       titleSmall: TextStyle(

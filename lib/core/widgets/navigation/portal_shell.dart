@@ -1,56 +1,39 @@
 import 'package:flutter/material.dart';
-import 'package:modular_pos/core/widgets/navigation/portal_action.dart';
+import 'package:go_router/go_router.dart';
+import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/widgets/navigation/tenant_profile_header.dart';
 
-class PortalShell extends StatefulWidget {
+class PortalShell extends StatelessWidget {
   const PortalShell({
     super.key,
     required this.title,
     required this.subtitle,
-    required this.actions,
-    this.initialActionId,
+    required this.body,
     this.tenantName,
     this.branchName,
     this.tenantInitial,
     this.onSettingsTap,
     this.onProfileTap,
+    this.onTenantTap,
+    this.onTenantBackPressed,
+    this.tenantBackTooltip,
   });
 
   final String title;
   final String subtitle;
-  final List<PortalAction> actions;
-  final String? initialActionId;
+  final Widget body;
   final String? tenantName;
   final String? branchName;
   final String? tenantInitial;
   final VoidCallback? onSettingsTap;
   final VoidCallback? onProfileTap;
-
-  @override
-  State<PortalShell> createState() => _PortalShellState();
-}
-
-class _PortalShellState extends State<PortalShell> {
-  late int _selectedIndex;
-
-  @override
-  void initState() {
-    super.initState();
-    _selectedIndex = _initialIndex();
-  }
-
-  int _initialIndex() {
-    if (widget.initialActionId == null) return 0;
-    final idx = widget.actions.indexWhere(
-      (a) => a.id == widget.initialActionId,
-    );
-    return idx >= 0 ? idx : 0;
-  }
+  final VoidCallback? onTenantTap;
+  final VoidCallback? onTenantBackPressed;
+  final String? tenantBackTooltip;
 
   @override
   Widget build(BuildContext context) {
-    final action = widget.actions[_selectedIndex];
-    final content = action.builder(context);
+    final content = body;
 
     return Scaffold(
       appBar: AppBar(
@@ -65,18 +48,31 @@ class _PortalShellState extends State<PortalShell> {
           child: Row(
             children: [
               TenantProfileHeader(
-                tenantName: widget.tenantName ?? widget.title,
-                branchName: widget.branchName ?? widget.subtitle,
+                tenantName: tenantName ?? title,
+                branchName: branchName ?? subtitle,
                 initial:
-                    widget.tenantInitial ??
-                    (widget.tenantName?.characters.first.toUpperCase() ?? '?'),
+                    tenantInitial ??
+                    (tenantName?.characters.first.toUpperCase() ?? '?'),
+                onTap:
+                    onTenantTap ??
+                    () =>
+                        context.go('${AppRoute.tenantSelection.path}?switch=1'),
+                onBackPressed: onTenantBackPressed,
+                backTooltip: tenantBackTooltip,
               ),
               const Spacer(),
-              IconButton(
-                onPressed: widget.onSettingsTap,
-                icon: const Icon(Icons.settings_outlined),
-                tooltip: 'Settings',
-              ),
+              if (onProfileTap != null)
+                IconButton(
+                  onPressed: onProfileTap,
+                  icon: const Icon(Icons.person_outline),
+                  tooltip: 'Account',
+                ),
+              if (onSettingsTap != null)
+                IconButton(
+                  onPressed: onSettingsTap,
+                  icon: const Icon(Icons.settings_outlined),
+                  tooltip: 'Settings',
+                ),
             ],
           ),
         ),
@@ -88,10 +84,7 @@ class _PortalShellState extends State<PortalShell> {
                 ? content
                 : ListView(
                     padding: const EdgeInsets.all(16),
-                    children: [
-                      const SizedBox(height: 12),
-                      content,
-                    ],
+                    children: [const SizedBox(height: 12), content],
                   ),
           ),
         ],

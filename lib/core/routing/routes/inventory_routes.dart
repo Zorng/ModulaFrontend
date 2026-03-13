@@ -1,12 +1,15 @@
 import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_journal_summary.dart';
+import 'package:modular_pos/features/inventory/domain/models/inventory_category.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
 import 'package:modular_pos/features/inventory/ui/view/add_stock_item/add_stock_item_page.dart';
 import 'package:modular_pos/features/inventory/ui/view/category_management/category_management_page.dart';
 import 'package:modular_pos/features/inventory/ui/view/inventory_home/inventory_home_page.dart';
 import 'package:modular_pos/features/inventory/ui/view/inventory_journal/inventory_journal_page.dart';
 import 'package:modular_pos/features/inventory/ui/view/inventory_journal_detail/inventory_journal_detail_page.dart';
+import 'package:modular_pos/features/inventory/ui/view/add_category/add_category_page.dart';
+import 'package:modular_pos/features/inventory/ui/components/category_form.dart';
 import 'package:modular_pos/features/inventory/ui/view/inventory_shell/inventory_bottom_nav_shell_page.dart';
 import 'package:modular_pos/features/inventory/ui/view/inventory_stock_items/inventory_stock_items_page.dart';
 import 'package:modular_pos/features/inventory/ui/view/restock_stock_item/restock_stock_item_page.dart';
@@ -64,6 +67,32 @@ List<RouteBase> buildInventoryRoutes() {
       builder: (context, state) => const AddStockItemPage(),
     ),
     GoRoute(
+      path: AppRoute.inventoryAddCategory.path,
+      name: AppRoute.inventoryAddCategory.name,
+      builder: (context, state) => const AddInventoryCategoryPage(),
+    ),
+    GoRoute(
+      path: AppRoute.inventoryCategoryDetail.path,
+      name: AppRoute.inventoryCategoryDetail.name,
+      builder: (context, state) {
+        final extra = state.extra;
+        if (extra == null) {
+          throw ArgumentError('Missing category route data');
+        }
+        final category = extra is InventoryCategory
+            ? extra
+            : extra is Map
+            ? _inventoryCategoryFromRouteMap(Map<String, dynamic>.from(extra))
+            : throw ArgumentError(
+                'Invalid category route data type: ${extra.runtimeType}',
+              );
+        return CategoryFormPage(
+          mode: CategoryFormMode.view,
+          category: category,
+        );
+      },
+    ),
+    GoRoute(
       path: AppRoute.inventoryStockDetail.path,
       name: AppRoute.inventoryStockDetail.name,
       builder: (context, state) {
@@ -72,7 +101,6 @@ List<RouteBase> buildInventoryRoutes() {
             : const StockItem(
                 id: 'unknown',
                 name: 'Unknown item',
-                category: 'Uncategorized',
                 baseUnit: 'pcs',
                 pieceSize: 1,
                 branchId: 'main',
@@ -106,4 +134,20 @@ List<RouteBase> buildInventoryRoutes() {
       },
     ),
   ];
+}
+
+InventoryCategory _inventoryCategoryFromRouteMap(Map<String, dynamic> json) {
+  final isActiveRaw = json['isActive'];
+  final isActive = switch (isActiveRaw) {
+    bool b => b,
+    num n => n != 0,
+    String s => s.trim().toLowerCase() == 'true' || s.trim() == '1',
+    _ => true,
+  };
+  return InventoryCategory(
+    id: json['id']?.toString() ?? '',
+    name: json['name']?.toString() ?? 'Category',
+    isActive: isActive,
+    description: json['description']?.toString(),
+  );
 }

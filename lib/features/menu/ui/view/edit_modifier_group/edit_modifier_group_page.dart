@@ -51,7 +51,9 @@ class _EditModifierGroupPageState extends ConsumerState<EditModifierGroupPage> {
         )
         .toList();
 
-    _selectedPricingBehavior = _mapPricingBehavior(widget.group.pricingBehavior);
+    _selectedPricingBehavior = _mapPricingBehavior(
+      widget.group.pricingBehavior,
+    );
     _selectedSelectionType = widget.group.selectionType == 'multiple'
         ? _selectionTypes.last
         : _selectionTypes.first;
@@ -97,23 +99,25 @@ class _EditModifierGroupPageState extends ConsumerState<EditModifierGroupPage> {
     final updated = widget.group.copyWith(
       name: name,
       pricingBehavior: _mapPricingBehaviorToValue(_selectedPricingBehavior),
-      selectionType:
-          _selectedSelectionType == 'Multiple Selection' ? 'multiple' : 'single',
-      defaultOptionId: _isSingleSelection && _selectedDefault != _noneDefaultValue
+      selectionType: _selectedSelectionType == 'Multiple Selection'
+          ? 'multiple'
+          : 'single',
+      defaultOptionId:
+          _isSingleSelection && _selectedDefault != _noneDefaultValue
           ? _selectedDefault
           : null,
-      options: _options
-          .map(
-            (row) => ModifierOption(
-              id: row.id,
-              name: row.nameController.text.trim(),
-              price: _requiresPriceInput
-                  ? double.tryParse(row.priceController.text) ?? 0
-                  : 0,
-              isDefault: _isSingleSelection && _selectedDefault == row.id,
-            ),
-          )
-          .toList(),
+      options: _options.map((row) {
+        final double priceDelta = _requiresPriceInput
+            ? double.tryParse(row.priceController.text) ?? 0.0
+            : 0.0;
+        return ModifierOption(
+          id: row.id,
+          name: row.nameController.text.trim(),
+          price: priceDelta,
+          priceDelta: priceDelta,
+          isDefault: _isSingleSelection && _selectedDefault == row.id,
+        );
+      }).toList(),
     );
 
     await ref.read(menuViewModelProvider.notifier).updateModifierGroup(updated);
@@ -139,7 +143,9 @@ class _EditModifierGroupPageState extends ConsumerState<EditModifierGroupPage> {
       return;
     }
     try {
-      await ref.read(menuViewModelProvider.notifier).deleteModifierGroup(widget.group.id);
+      await ref
+          .read(menuViewModelProvider.notifier)
+          .deleteModifierGroup(widget.group.id);
       if (mounted) {
         Navigator.of(context)
           ..pop()
@@ -157,7 +163,8 @@ class _EditModifierGroupPageState extends ConsumerState<EditModifierGroupPage> {
     }
   }
 
-  void _addOption() => setState(() => _options.add(EditModifierOptionRowModel()));
+  void _addOption() =>
+      setState(() => _options.add(EditModifierOptionRowModel()));
 
   void _removeOption(EditModifierOptionRowModel option) {
     setState(() {
@@ -170,7 +177,10 @@ class _EditModifierGroupPageState extends ConsumerState<EditModifierGroupPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(centerTitle: false, title: const Text('Edit Modifier Group')),
+      appBar: AppBar(
+        centerTitle: false,
+        title: const Text('Edit Modifier Group'),
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
@@ -179,7 +189,9 @@ class _EditModifierGroupPageState extends ConsumerState<EditModifierGroupPage> {
             const MenuFormFieldLabel(text: 'Group Name', isRequired: true),
             TextField(
               controller: _groupNameController,
-              decoration: const InputDecoration(hintText: 'e.g., Size, Toppings'),
+              decoration: const InputDecoration(
+                hintText: 'e.g., Size, Toppings',
+              ),
             ),
             const SizedBox(height: 24),
             const MenuFormFieldLabel(text: 'Pricing Behavior'),
@@ -188,7 +200,10 @@ class _EditModifierGroupPageState extends ConsumerState<EditModifierGroupPage> {
               onSelected: (value) =>
                   setState(() => _selectedPricingBehavior = value),
               dropdownMenuEntries: _pricingBehaviors
-                  .map((behavior) => DropdownMenuEntry(value: behavior, label: behavior))
+                  .map(
+                    (behavior) =>
+                        DropdownMenuEntry(value: behavior, label: behavior),
+                  )
                   .toList(),
             ),
             const SizedBox(height: 24),
@@ -236,7 +251,8 @@ class _EditModifierGroupPageState extends ConsumerState<EditModifierGroupPage> {
                 requiresPriceInput: _requiresPriceInput,
                 isSingleSelection: _isSingleSelection,
                 isDefaultSelected: _selectedDefault == option.id,
-                onDefaultSelected: () => setState(() => _selectedDefault = option.id),
+                onDefaultSelected: () =>
+                    setState(() => _selectedDefault = option.id),
                 onRemove: () => _removeOption(option),
               ),
             ),
@@ -268,8 +284,13 @@ class _EditModifierGroupPageState extends ConsumerState<EditModifierGroupPage> {
               alignment: Alignment.centerRight,
               child: FilledButton(
                 style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
+                  backgroundColor: Theme.of(
+                    context,
+                  ).colorScheme.secondaryContainer,
                 ),
                 onPressed: _tryDeleteGroup,
                 child: Text(

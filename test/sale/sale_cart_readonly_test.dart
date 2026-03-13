@@ -4,11 +4,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:modular_pos/features/auth/data/auth_repository.dart';
 import 'package:modular_pos/features/auth/data/auth_session_store.dart';
+import 'package:modular_pos/features/menu/data/menu_repository.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_state.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
 import 'package:modular_pos/features/policy/domain/models/policy.dart';
 import 'package:modular_pos/features/policy/ui/viewmodels/policy_viewmodel.dart';
+import 'package:modular_pos/features/sale/data/sale_checkout_repository_contract.dart';
 import 'package:modular_pos/features/sale/data/sale_repository.dart';
 import 'package:modular_pos/features/sale/ui/view/sale_cart/sale_cart_page.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_access_gate.dart';
@@ -26,9 +28,25 @@ class _StaticPolicyNotifier extends PolicyNotifier {
   PolicyState build() {
     return const PolicyState(
       isLoading: false,
-      salesPolicy: SalesPolicy(saleFxRateKhrPerUsd: 4000),
-      inventoryPolicy: InventoryPolicy(),
-      cashSessionPolicy: CashSessionPolicy(),
+      branchPolicy: BranchPolicy(
+        saleFxRateKhrPerUsd: 4000,
+        saleAllowPayLater: true,
+      ),
+    );
+  }
+}
+
+class _VatPolicyNotifier extends PolicyNotifier {
+  @override
+  PolicyState build() {
+    return const PolicyState(
+      isLoading: false,
+      branchPolicy: BranchPolicy(
+        saleVatEnabled: true,
+        saleVatRatePercent: 10,
+        saleFxRateKhrPerUsd: 4000,
+        saleAllowPayLater: true,
+      ),
     );
   }
 }
@@ -42,7 +60,10 @@ class _StaticMenuViewModel extends MenuViewModel {
   MenuState build() => _state;
 
   @override
-  Future<void> loadMenu({String? branchId}) async {}
+  Future<void> loadMenu({
+    String? branchId,
+    MenuReadLane readLane = MenuReadLane.management,
+  }) async {}
 }
 
 class _PrefilledCartNotifier extends SaleCartNotifier {
@@ -59,8 +80,13 @@ class _TestSaleAccessGateNotifier extends Notifier<SaleAccessGate> {
   SaleAccessGate build() {
     return const SaleAccessGate(
       branchId: 'branch-1',
+      contextLoading: false,
+      branchActive: true,
+      branchFrozen: false,
       cashSessionOpen: true,
-      cashSessionLoading: false,
+      canMutateCart: true,
+      canCheckout: true,
+      canPlacePayLater: true,
     );
   }
 
@@ -79,8 +105,8 @@ void main() {
 
     final gateStateProvider =
         NotifierProvider<_TestSaleAccessGateNotifier, SaleAccessGate>(
-      _TestSaleAccessGateNotifier.new,
-    );
+          _TestSaleAccessGateNotifier.new,
+        );
 
     const item = MenuItem(
       id: 'menu-1',
@@ -130,13 +156,351 @@ void main() {
 
     container.read(gateStateProvider.notifier).state = const SaleAccessGate(
       branchId: 'branch-1',
+      contextLoading: false,
+      branchActive: true,
+      branchFrozen: true,
       cashSessionOpen: false,
-      cashSessionLoading: false,
+      canMutateCart: false,
+      canCheckout: false,
+      canPlacePayLater: false,
+      reasonCode: SaleCheckoutReasonCodes.branchFrozen,
     );
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('Cash session required'), findsOneWidget);
-    expect(find.widgetWithText(FilledButton, 'Cash session'), findsOneWidget);
+    expect(find.textContaining('Cash session required'), findsNothing);
+    expect(find.widgetWithText(FilledButton, 'Cash session'), findsNothing);
     expect(tester.widget<FilledButton>(checkoutButton).onPressed, isNull);
+  });
+
+  testWidgets('Cash checkout shows KHR change only', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final store = AuthSessionStore(prefs);
+
+    const item = MenuItem(
+      id: 'menu-1',
+      name: 'Latte',
+      categoryId: 'cat-1',
+      price: 1.5,
+    );
+
+    final container = createTestContainer(
+      overrides: [
+        authSessionStoreProvider.overrideWithValue(store),
+        authRepositoryProvider.overrideWithValue(FakeAuthRepository()),
+        saleRepositoryProvider.overrideWithValue(_MockSaleRepository()),
+        policyNotifierProvider.overrideWith(_StaticPolicyNotifier.new),
+        menuViewModelProvider.overrideWith(
+          () => _StaticMenuViewModel(const MenuState(isLoading: false)),
+        ),
+        saleCartProvider.overrideWith(
+          () => _PrefilledCartNotifier(
+            const SaleCartState(
+              saleId: 'sale-1',
+              lines: [CartLine(item: item, quantity: 1, selectedOptionIds: {})],
+            ),
+          ),
+        ),
+        saleAccessGateProvider.overrideWithValue(
+          const SaleAccessGate(
+            branchId: 'branch-1',
+            contextLoading: false,
+            branchActive: true,
+            branchFrozen: false,
+            cashSessionOpen: true,
+            canMutateCart: true,
+            canCheckout: true,
+            canPlacePayLater: true,
+          ),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: SaleCartPage()),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(find.text('Estimated payable'), findsNothing);
+    expect(find.text('VAT'), findsNothing);
+
+    await tester.enterText(find.byType(TextField).first, '5');
+    await tester.pumpAndSettle();
+
+    expect(find.text('Change (៛)'), findsOneWidget);
+    expect(find.text('KHR 14,000'), findsOneWidget);
+  });
+
+  testWidgets(
+    'Cart shows tax row and tax-inclusive change when VAT is enabled',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final store = AuthSessionStore(prefs);
+
+      const item = MenuItem(
+        id: 'menu-1',
+        name: 'Latte',
+        categoryId: 'cat-1',
+        price: 1.5,
+      );
+
+      final container = createTestContainer(
+        overrides: [
+          authSessionStoreProvider.overrideWithValue(store),
+          authRepositoryProvider.overrideWithValue(FakeAuthRepository()),
+          saleRepositoryProvider.overrideWithValue(_MockSaleRepository()),
+          policyNotifierProvider.overrideWith(_VatPolicyNotifier.new),
+          menuViewModelProvider.overrideWith(
+            () => _StaticMenuViewModel(const MenuState(isLoading: false)),
+          ),
+          saleCartProvider.overrideWith(
+            () => _PrefilledCartNotifier(
+              const SaleCartState(
+                saleId: 'sale-1',
+                lines: [
+                  CartLine(item: item, quantity: 1, selectedOptionIds: {}),
+                ],
+              ),
+            ),
+          ),
+          saleAccessGateProvider.overrideWithValue(
+            const SaleAccessGate(
+              branchId: 'branch-1',
+              contextLoading: false,
+              branchActive: true,
+              branchFrozen: false,
+              cashSessionOpen: true,
+              canMutateCart: true,
+              canCheckout: true,
+              canPlacePayLater: true,
+            ),
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(home: SaleCartPage()),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      expect(find.text('Tax'), findsOneWidget);
+      expect(find.text('\$0.15'), findsOneWidget);
+
+      await tester.enterText(find.byType(TextField).first, '5');
+      await tester.pumpAndSettle();
+
+      expect(find.text('Change (៛)'), findsOneWidget);
+      expect(find.text('KHR 13,400'), findsOneWidget);
+    },
+  );
+
+  testWidgets('KHQR waiting state shows cancel action and lifecycle guidance', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final store = AuthSessionStore(prefs);
+
+    const item = MenuItem(
+      id: 'menu-1',
+      name: 'Latte',
+      categoryId: 'cat-1',
+      price: 1.5,
+    );
+
+    final container = createTestContainer(
+      overrides: [
+        authSessionStoreProvider.overrideWithValue(store),
+        authRepositoryProvider.overrideWithValue(FakeAuthRepository()),
+        saleRepositoryProvider.overrideWithValue(_MockSaleRepository()),
+        policyNotifierProvider.overrideWith(_StaticPolicyNotifier.new),
+        menuViewModelProvider.overrideWith(
+          () => _StaticMenuViewModel(const MenuState(isLoading: false)),
+        ),
+        saleCartProvider.overrideWith(
+          () => _PrefilledCartNotifier(
+            const SaleCartState(
+              saleId: 'sale-1',
+              paymentMethod: 'qr',
+              tenderCurrency: 'USD',
+              khqrStatus: 'WAITING_FOR_PAYMENT',
+              khqrAttemptId: 'intent-1',
+              khqrMd5: 'md5-1',
+              khqrQrPayload: 'KHQR:md5-1',
+              lines: [CartLine(item: item, quantity: 1, selectedOptionIds: {})],
+            ),
+          ),
+        ),
+        saleAccessGateProvider.overrideWithValue(
+          const SaleAccessGate(
+            branchId: 'branch-1',
+            contextLoading: false,
+            branchActive: true,
+            branchFrozen: false,
+            cashSessionOpen: true,
+            canMutateCart: true,
+            canCheckout: true,
+            canPlacePayLater: true,
+          ),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: SaleCartPage()),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    final openPopupButton = find.widgetWithText(FilledButton, 'View Code');
+    expect(openPopupButton, findsOneWidget);
+    await tester.ensureVisible(openPopupButton);
+    await tester.tap(openPopupButton);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Waiting for payment'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, 'Cancel KHQR'), findsOneWidget);
+    expect(
+      find.text(
+        'Customer can scan and pay now. Keep checking for confirmation.',
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('Finalized sale shows receipt-aware success banner', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final store = AuthSessionStore(prefs);
+
+    final container = createTestContainer(
+      overrides: [
+        authSessionStoreProvider.overrideWithValue(store),
+        authRepositoryProvider.overrideWithValue(FakeAuthRepository()),
+        saleRepositoryProvider.overrideWithValue(_MockSaleRepository()),
+        policyNotifierProvider.overrideWith(_StaticPolicyNotifier.new),
+        menuViewModelProvider.overrideWith(
+          () => _StaticMenuViewModel(const MenuState(isLoading: false)),
+        ),
+        saleCartProvider.overrideWith(
+          () => _PrefilledCartNotifier(
+            SaleCartState(
+              lastFinalizedSaleId: 'sale-1',
+              lastReceiptId: 'receipt-1',
+              lastReceipt: SaleImmediateReceiptDto(
+                receiptId: 'receipt-1',
+                saleId: 'sale-1',
+                statusDisplay: 'ISSUED',
+                issuedAt: DateTime(2026, 3, 7),
+              ),
+            ),
+          ),
+        ),
+        saleAccessGateProvider.overrideWithValue(
+          const SaleAccessGate(
+            branchId: 'branch-1',
+            contextLoading: false,
+            branchActive: true,
+            branchFrozen: false,
+            cashSessionOpen: true,
+            canMutateCart: true,
+            canCheckout: true,
+            canPlacePayLater: true,
+          ),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: SaleCartPage()),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(find.text('Sale finalized successfully.'), findsOneWidget);
+    expect(find.text('Receipt #: receipt-1'), findsOneWidget);
+    expect(find.text('Receipt status: ISSUED'), findsOneWidget);
+    expect(find.widgetWithText(TextButton, 'Receipt'), findsOneWidget);
+  });
+
+  testWidgets('Checkout error banner uses deterministic reason-code message', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final store = AuthSessionStore(prefs);
+
+    const item = MenuItem(
+      id: 'menu-1',
+      name: 'Latte',
+      categoryId: 'cat-1',
+      price: 1.5,
+    );
+
+    final container = createTestContainer(
+      overrides: [
+        authSessionStoreProvider.overrideWithValue(store),
+        authRepositoryProvider.overrideWithValue(FakeAuthRepository()),
+        saleRepositoryProvider.overrideWithValue(_MockSaleRepository()),
+        policyNotifierProvider.overrideWith(_StaticPolicyNotifier.new),
+        menuViewModelProvider.overrideWith(
+          () => _StaticMenuViewModel(const MenuState(isLoading: false)),
+        ),
+        saleCartProvider.overrideWith(
+          () => _PrefilledCartNotifier(
+            const SaleCartState(
+              saleId: 'sale-1',
+              lines: [CartLine(item: item, quantity: 1, selectedOptionIds: {})],
+              checkoutErrorCode: SaleCheckoutReasonCodes.offlineUnreachable,
+              checkoutErrorMessage: 'Raw backend text should not leak.',
+            ),
+          ),
+        ),
+        saleAccessGateProvider.overrideWithValue(
+          const SaleAccessGate(
+            branchId: 'branch-1',
+            contextLoading: false,
+            branchActive: true,
+            branchFrozen: false,
+            cashSessionOpen: true,
+            canMutateCart: true,
+            canCheckout: true,
+            canPlacePayLater: true,
+          ),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: SaleCartPage()),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('This action requires online connectivity.'),
+      findsOneWidget,
+    );
+    expect(find.text('Raw backend text should not leak.'), findsNothing);
   });
 }

@@ -3,8 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/hydration/app_hydration_listener.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
+import 'package:modular_pos/core/routing/workspace_route_guard.dart';
 import 'package:modular_pos/core/routing/routes/account_routes.dart';
 import 'package:modular_pos/core/routing/routes/attendance_routes.dart';
+import 'package:modular_pos/core/routing/routes/branch_routes.dart';
 import 'package:modular_pos/core/routing/routes/cash_routes.dart';
 import 'package:modular_pos/core/routing/routes/core_routes.dart';
 import 'package:modular_pos/core/routing/routes/inventory_routes.dart';
@@ -16,13 +18,23 @@ import 'package:modular_pos/core/routing/routes/staff_routes.dart';
 import 'package:modular_pos/core/theme/app_theme.dart';
 import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/core/widgets/navigation/app_wide_navigation_rail_shell.dart';
+import 'package:modular_pos/features/auth/domain/active_branch_context_provider.dart';
+import 'package:modular_pos/features/auth/domain/auth_role.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 
 final appRouterProvider = Provider<GoRouter>((ref) {
+  final routerRefresh = ValueNotifier<int>(0);
+  ref
+    ..listen<LoginState>(loginControllerProvider, (_, __) {
+      routerRefresh.value++;
+    })
+    ..onDispose(routerRefresh.dispose);
+
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
+    refreshListenable: routerRefresh,
     errorBuilder: (context, state) => const Scaffold(
       body: Center(
         child: Text(
@@ -34,116 +46,150 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     redirect: (context, state) {
       final authState = ref.read(loginControllerProvider);
       final session = authState.session;
-      final path = state.uri.path; // current path
+      final path = state.uri.path;
+      final isWide = _isWide(context);
 
       final isLoggingIn = path == AppRoute.login.path;
+      final isSignup = path == AppRoute.signup.path;
+      final isOtpVerification = path == AppRoute.otpVerification.path;
       final isTenantSelection = path == AppRoute.tenantSelection.path;
+      final isInvitationInbox = path == AppRoute.invitationInbox.path;
+      final isBranchSelection = path == AppRoute.branchSelection.path;
       final isPortal = path == AppRoute.portal.path;
+      final isBranchPortal = path == AppRoute.branchPortal.path;
+      final isExplicitTenantSwitch = state.uri.queryParameters['switch'] == '1';
+      final isExplicitBranchSwitch = state.uri.queryParameters['switch'] == '1';
 
-      // Developer-only gallery should be reachable without auth.
       if (path == AppRoute.components.path) {
         return null;
       }
 
-      // Not authenticated: only allow /login
       if (session == null) {
-        return isLoggingIn ? null : AppRoute.login.path;
+        if (isLoggingIn || isSignup || isOtpVerification) return null;
+        return AppRoute.login.path;
       }
 
-      // Authenticated, but tenant context not selected yet.
       if (session.requiresTenantSelection) {
-        return isTenantSelection ? null : AppRoute.tenantSelection.path;
+        return (isTenantSelection || isInvitationInbox)
+            ? null
+            : AppRoute.tenantSelection.path;
       }
 
-      final role = session.user.role.trim().toLowerCase();
+      final role = resolveSessionAuthRole(session);
+      final isAdminOrOwner = role == AuthRole.admin || role == AuthRole.owner;
+      final isCashier = role == AuthRole.cashier;
+      final isManager = role == AuthRole.manager;
+      final activeBranchId = ref.read(activeBranchContextIdProvider) ?? '';
+      final hasActiveBranchContext = activeBranchId.isNotEmpty;
+      final currentTarget = state.uri.toString();
 
-      String homeForRole() {
-        switch (role) {
-          case 'admin':
-          case 'cashier':
-          case 'manager':
-          default:
-            return AppRoute.sale.path;
+      if (authState.requiresBranchSelection) {
+        return (isBranchSelection || isTenantSelection)
+            ? null
+            : AppRoute.branchSelection.path;
+      }
+
+      final homePath = _homeForRole(
+        role: role,
+        isWide: isWide,
+        hasActiveBranchContext: hasActiveBranchContext,
+      );
+
+      if (isLoggingIn || isSignup || isOtpVerification) {
+        return homePath;
+      }
+
+      if (isTenantSelection) {
+        if (isExplicitTenantSwitch) return null;
+        return homePath;
+      }
+
+      if (isBranchSelection) {
+        if (isAdminOrOwner) {
+          return isWide ? AppRoute.branch.path : AppRoute.portal.path;
         }
-      }
-
-      // Already authenticated: prevent going back to /login
-      if (isLoggingIn) {
-        return homeForRole();
+        if (isExplicitBranchSwitch) return null;
+        return hasActiveBranchContext
+            ? (isWide ? AppRoute.cashSession.path : AppRoute.branchPortal.path)
+            : null;
       }
 
       if (isPortal) {
-        final mediaQuery = MediaQuery.maybeOf(context);
-        if (mediaQuery != null &&
-            AppBreakpoints.isLarge(mediaQuery.size.width)) {
-          return homeForRole();
+        if (isWide) return homePath;
+        if (!isAdminOrOwner) return homePath;
+        return null;
+      }
+
+      if (isBranchPortal) {
+        if (isWide) return homePath;
+        if (!hasActiveBranchContext) {
+          return buildBranchScopedRedirectForRole(
+            role: role,
+            continuePath: currentTarget,
+            reasonCode: branchContextRequiredReasonCode,
+          );
         }
+        return null;
       }
 
-      // Authenticated but not allowed to access admin portal/menu → 404
-      bool isInPathGroup(String root) {
-        return path == root || path.startsWith('$root/');
-      }
-
-      if (isInPathGroup(AppRoute.adminMenu.path) && role != 'admin') {
+      if (_isTenantAdminRoute(path) && !isAdminOrOwner) {
         return '/404';
       }
 
-      // Authenticated but not allowed to access policy → 404
-      if (isInPathGroup(AppRoute.policy.path) &&
-          role != 'admin' &&
-          role != 'cashier') {
-        return '/404';
-      }
-      if (isInPathGroup(AppRoute.inventory.path) && role != 'admin') {
-        return '/404';
-      }
-      if (isInPathGroup(AppRoute.staff.path) && role != 'admin') {
-        return '/404';
-      }
-      // Portal routes removed; role gating handled per feature.
-
-      // Authenticated but not allowed to access cashier dashboard → 404
-      if (isInPathGroup(AppRoute.cashSession.path) &&
-          role != 'cashier' &&
-          role != 'admin') {
-        return '/404';
-      }
-      if (isInPathGroup(AppRoute.attendance.path) &&
-          role != 'cashier' &&
-          role != 'manager') {
-        return '/404';
-      }
-      if (path == AppRoute.xReport.path &&
-          role != 'admin' &&
-          role != 'cashier') {
-        return '/404';
-      }
-      if (path == AppRoute.zReport.path && role != 'admin') {
-        return '/404';
-      }
-      if (path == AppRoute.attendanceManagement.path && role != 'admin') {
-        return '/404';
+      if (_isBranchScopedRoute(path) && !hasActiveBranchContext) {
+        return buildBranchScopedRedirectForRole(
+          role: role,
+          continuePath: currentTarget,
+          reasonCode: branchContextRequiredReasonCode,
+        );
       }
 
-      // For other paths (including unknown ones), don't redirect here.
-      // If no route matches, errorBuilder will show "Page not found".
+      if (isPathInGroup(path, AppRoute.policy.path) && !isAdminOrOwner) {
+        return '/404';
+      }
+      if (isPathInGroup(path, AppRoute.branchSubscription.path) &&
+          !isAdminOrOwner) {
+        return '/404';
+      }
+      if ((isPathInGroup(path, AppRoute.cashSession.path) ||
+              isPathInGroup(path, AppRoute.cashHistory.path)) &&
+          !isCashier &&
+          !isManager &&
+          !isAdminOrOwner) {
+        return '/404';
+      }
+      if (isPathInGroup(path, AppRoute.attendance.path) &&
+          !isCashier &&
+          !isManager) {
+        return '/404';
+      }
+      if (path == AppRoute.xReport.path && !isAdminOrOwner && !isCashier) {
+        return '/404';
+      }
+      if (path == AppRoute.zReport.path && !isAdminOrOwner) {
+        return '/404';
+      }
+      if (path == AppRoute.attendanceManagement.path &&
+          !isAdminOrOwner &&
+          !isManager) {
+        return '/404';
+      }
+
       return null;
     },
     initialLocation: AppRoute.login.path,
     routes: [
       ...buildCoreRoutes(),
       ShellRoute(
-        builder: (context, state, child) => AppScaffoldShell(
-          currentPath: state.uri.path,
-          child: child,
-        ),
+        builder: (context, state, child) =>
+            AppScaffoldShell(currentPath: state.uri.path, child: child),
         routes: [
-          buildPortalRoute(ref),
+          ...buildPortalRoutes(ref),
           ...buildMenuRoutes(),
           ...buildPolicyRoutes(),
           ...buildAccountRoutes(),
           ...buildAttendanceRoutes(),
+          ...buildBranchRoutes(),
           ...buildInventoryRoutes(),
           ...buildSaleRoutes(),
           ...buildCashRoutes(),
@@ -170,4 +216,50 @@ class ModulaApp extends ConsumerWidget {
       ),
     );
   }
+}
+
+bool _isWide(BuildContext context) {
+  final mediaQuery = MediaQuery.maybeOf(context);
+  if (mediaQuery == null) return false;
+  return AppBreakpoints.isLarge(mediaQuery.size.width);
+}
+
+String _homeForRole({
+  required AuthRole role,
+  required bool isWide,
+  required bool hasActiveBranchContext,
+}) {
+  if (role == AuthRole.admin || role == AuthRole.owner) {
+    if (isWide) {
+      return hasActiveBranchContext
+          ? AppRoute.cashSession.path
+          : AppRoute.branch.path;
+    }
+    return AppRoute.portal.path;
+  }
+  if (!hasActiveBranchContext) {
+    return AppRoute.branchSelection.path;
+  }
+  return isWide ? AppRoute.cashSession.path : AppRoute.branchPortal.path;
+}
+
+bool _isTenantAdminRoute(String path) {
+  if (isPathInGroup(path, AppRoute.attendanceManagement.path)) return false;
+  return isPathInGroup(path, AppRoute.branch.path) ||
+      isPathInGroup(path, AppRoute.adminMenu.path) ||
+      isPathInGroup(path, AppRoute.inventory.path) ||
+      isPathInGroup(path, AppRoute.staff.path);
+}
+
+bool _isBranchScopedRoute(String path) {
+  return path == AppRoute.branchPortal.path ||
+      isPathInGroup(path, AppRoute.branchSubscription.path) ||
+      isPathInGroup(path, AppRoute.cashSession.path) ||
+      isPathInGroup(path, AppRoute.cashHistory.path) ||
+      isPathInGroup(path, AppRoute.policy.path) ||
+      isPathInGroup(path, AppRoute.sale.path) ||
+      isPathInGroup(path, AppRoute.attendance.path) ||
+      isPathInGroup(path, AppRoute.xReport.path) ||
+      isPathInGroup(path, AppRoute.zReport.path) ||
+      path == AppRoute.attendanceManagement.path;
 }

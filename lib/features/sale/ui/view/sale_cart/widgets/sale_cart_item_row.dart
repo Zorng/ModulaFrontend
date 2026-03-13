@@ -74,11 +74,15 @@ class SaleCartItemRow extends StatelessWidget {
               children: [
                 Text(
                   item.item.name,
-                  style: Theme.of(context).textTheme.titleMedium,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  optionNames.isNotEmpty ? optionNames.join(', ') : 'No modifiers',
+                  optionNames.isNotEmpty
+                      ? optionNames.join(', ')
+                      : 'No modifiers',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ],
@@ -98,7 +102,9 @@ class SaleCartItemRow extends StatelessWidget {
               const SizedBox(height: 4),
               Text(
                 '\$${_lineTotal().toStringAsFixed(2)}',
-                style: Theme.of(context).textTheme.titleMedium,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
               ),
             ],
           ),

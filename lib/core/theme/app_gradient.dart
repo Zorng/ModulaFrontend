@@ -11,6 +11,17 @@ class AppGradients {
     end: Alignment.bottomCenter,
   );
 
+  static const LinearGradient loginDesktopBrandGradient = LinearGradient(
+    colors: [
+      Color(0xFFF6ECF1),
+      Color(0xFFBB9E9A),
+      Color(0xFFEF8777),
+    ],
+    stops: [0.0, 0.56, 1.0],
+    begin: Alignment.topRight,
+    end: Alignment.bottomLeft,
+  );
+
   static const LinearGradient textGradient = LinearGradient(
     colors: [
       Color(0xFF696969),

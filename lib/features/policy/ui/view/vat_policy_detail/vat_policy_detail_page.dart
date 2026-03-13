@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:modular_pos/core/widgets/navigation/unsaved_changes_guard.dart';
 import 'package:modular_pos/features/policy/ui/widgets/policy_detail_controls.dart';
 import 'package:modular_pos/features/policy/ui/view/vat_policy_detail/widgets/vat_rate_bottom_sheet.dart';
 import 'package:modular_pos/features/policy/ui/view/policy/policy_route_args.dart';
@@ -22,7 +23,6 @@ class _VatPolicyDetailPageState extends State<VatPolicyDetailPage> {
   bool _isEditing = false;
   late bool _enabled;
   late TextEditingController _rateController;
-  String? _errorText;
   late bool _initialEnabled;
   late String _initialRate;
 
@@ -51,76 +51,113 @@ class _VatPolicyDetailPageState extends State<VatPolicyDetailPage> {
       _isEditing = false;
       _enabled = _initialEnabled;
       _rateController.text = _initialRate;
-      _errorText = null;
     });
   }
 
   void _saveChanges() {
-    var rate = _rateController.text.trim();
-    if (rate.isEmpty) {
-      rate = '0';
-    }
-    final parsed = int.tryParse(rate);
-    if (parsed == null || parsed <= 0) {
-      setState(() => _errorText = 'Enter a positive number');
-      return;
-    }
-    setState(() => _errorText = null);
-    context.pop(
-      VatPolicySaveResult(enabled: _enabled, ratePercent: parsed.toDouble()),
-    );
+    if (!_canSave) return;
+    final parsed = _parsedRate ?? 0;
+    context.pop(VatPolicySaveResult(enabled: _enabled, ratePercent: parsed));
+  }
+
+  bool get _isDirty {
+    if (!_isEditing) return false;
+    final currentRate = _rateController.text.trim();
+    return _enabled != _initialEnabled || currentRate != _initialRate;
   }
 
   @override
   Widget build(BuildContext context) {
-    return PolicyDetailScaffold(
-      title: 'Apply VAT',
-      isEditing: _isEditing,
-      onEditToggle: _isEditing ? _cancelEdit : _startEdit,
-      onSave: _saveChanges,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          PolicySettingGroup(
-            children: [
-              PolicySwitchTile(
-                title: 'Apply VAT',
-                subtitle: 'Show VAT line on sales and receipts',
-                value: _enabled,
-                enabled: _isEditing,
-                onChanged: (val) => setState(() => _enabled = val),
+    return UnsavedChangesGuard(
+      isDirty: _isDirty,
+      child: PolicyDetailScaffold(
+        title: 'Apply VAT',
+        isEditing: _isEditing,
+        onEditToggle: _isEditing ? _cancelEdit : _startEdit,
+        onSave: _saveChanges,
+        canSave: _canSave,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            PolicySettingGroup(
+              children: [
+                PolicySwitchTile(
+                  title: 'Apply VAT',
+                  value: _enabled,
+                  enabled: _isEditing,
+                  onChanged: (val) => setState(() => _enabled = val),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'VAT is a tax added to branch sale prices. Use this setting to control whether VAT appears on sales and receipts and what percentage is applied when it is enabled.',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            if (_enabled) ...[
+              const SizedBox(height: 16),
+              PolicySettingGroup(
+                children: [
+                  PolicyValueTile(
+                    title: 'VAT rate (%)',
+                    valueText: _formattedRate,
+                    enabled: _rateInteractionEnabled,
+                    onTap: _openRateSheet,
+                  ),
+                ],
               ),
-              PolicyValueTile(
-                title: 'VAT rate (%)',
-                valueText: _formattedRate,
-                enabled: _rateInteractionEnabled,
-                onTap: _openRateSheet,
-                hint: 'Enable and edit rate',
+              const SizedBox(height: 8),
+              Text(
+                'The VAT rate must stay between 0% and 100%.',
+                style: Theme.of(context).textTheme.bodyMedium,
               ),
             ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'The VAT rate is applied only when VAT is enabled.',
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-          if (_errorText != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text(
-                _errorText!,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
+            if (_rateError != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                _rateError!,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.error,
+                ),
               ),
-            ),
-        ],
+            ],
+          ],
+        ),
       ),
     );
   }
 
-  String get _formattedRate =>
-      '${_rateController.text.isEmpty ? '0' : _rateController.text}%';
+  String get _formattedRate => '$_displayRateText%';
 
   bool get _rateInteractionEnabled => _isEditing && _enabled;
+
+  double? get _parsedRate => double.tryParse(_rateController.text.trim());
+
+  String get _displayRateText {
+    final parsed = _parsedRate;
+    if (parsed == null) {
+      final raw = _rateController.text.trim();
+      return raw.isEmpty ? '0' : raw;
+    }
+    if (parsed == parsed.roundToDouble()) {
+      return parsed.toInt().toString();
+    }
+    return parsed.toString();
+  }
+
+  String? get _rateError {
+    if (!_isEditing || !_enabled) return null;
+    final raw = _rateController.text.trim();
+    if (raw.isEmpty) return 'VAT rate is required.';
+    final parsed = _parsedRate;
+    if (parsed == null) return 'VAT rate must be a valid number.';
+    if (parsed < 0 || parsed > 100) {
+      return 'VAT rate must be between 0 and 100.';
+    }
+    return null;
+  }
+
+  bool get _canSave => !_isEditing || _rateError == null;
 
   Future<void> _openRateSheet() async {
     final result = await showModalBottomSheet<String>(
@@ -131,17 +168,9 @@ class _VatPolicyDetailPageState extends State<VatPolicyDetailPage> {
       },
     );
 
-    if (result == null || result.isEmpty) {
-      return;
-    }
-    final parsed = int.tryParse(result);
-    if (parsed == null || parsed <= 0) {
-      setState(() => _errorText = 'Enter a positive number');
-      return;
-    }
+    if (result == null || result.isEmpty) return;
     setState(() {
-      _errorText = null;
-      _rateController.text = parsed.toString();
+      _rateController.text = result;
     });
   }
 }

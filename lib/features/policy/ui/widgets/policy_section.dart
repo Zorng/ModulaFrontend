@@ -25,70 +25,62 @@ class PolicySection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cardColor = Theme.of(context).colorScheme.surface;
-    final border = BorderSide(
-      color: Theme.of(context).colorScheme.outlineVariant,
-      width: 0.7,
-    );
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6),
-          child: Text(
-            title,
-            style: Theme.of(context)
-                .textTheme
-                .labelLarge
-                ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
-          ),
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: Theme.of(
+            context,
+          ).colorScheme.outlineVariant.withValues(alpha: 0.5),
         ),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: Container(
-            decoration: BoxDecoration(
-              color: cardColor,
-              border: Border.fromBorderSide(border),
-              borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        children: [
+          for (int i = 0; i < items.length; i++) ...[
+            PolicyTile(
+              item: items[i],
+              isCompact: isCompact,
+              value: items[i].type == PolicyItemType.toggle
+                  ? (toggleValues[items[i].id] ?? false)
+                  : selectorValues[items[i].id] ?? items[i].defaultValue ?? '',
+              displayValue: _displayValueForItem(items[i]),
+              readOnly: readOnly,
+              showDivider: i != items.length - 1,
+              onTap: () => onItemTap(
+                items[i],
+                items[i].type == PolicyItemType.toggle
+                    ? (toggleValues[items[i].id] ?? false)
+                    : selectorValues[items[i].id] ??
+                          items[i].defaultValue ??
+                          '',
+              ),
             ),
-            child: Column(
-              children: [
-                for (int i = 0; i < items.length; i++) ...[
-                  PolicyTile(
-                    item: items[i],
-                    isCompact: isCompact,
-                    value: items[i].type == PolicyItemType.toggle
-                        ? (toggleValues[items[i].id] ?? false)
-                        : selectorValues[items[i].id] ??
-                            items[i].defaultValue ??
-                            '',
-                    displayValue: _displayValueForItem(items[i]),
-                    readOnly: readOnly,
-                    showDivider: i != items.length - 1,
-                    onTap: () => onItemTap(
-                      items[i],
-                      items[i].type == PolicyItemType.toggle
-                          ? (toggleValues[items[i].id] ?? false)
-                          : selectorValues[items[i].id] ??
-                              items[i].defaultValue ??
-                              '',
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
-      ],
+          ],
+        ],
+      ),
     );
   }
 
   String? _displayValueForItem(PolicyItem item) {
     if (item.id == 'apply_vat') {
       final enabled = toggleValues[item.id] ?? false;
-      final rate = selectorValues['vat_rate'] ?? item.defaultValue ?? '';
+      final rate = selectorValues['vat_rate'] ?? '0%';
       return enabled ? 'On ($rate)' : 'Off';
+    }
+    if (item.id == 'vat_rate') {
+      return selectorValues[item.id] ?? '0%';
+    }
+    if (item.id == 'khr_rounding_enabled') {
+      final enabled = toggleValues[item.id] ?? false;
+      if (!enabled) return 'Off';
+      final granularity = selectorValues['rounding_granularity'] ?? '100';
+      final mode = selectorValues['rounding_mode'] ?? 'Nearest';
+      return 'On ($granularity, $mode)';
+    }
+    if (item.id == 'rounding_granularity') {
+      final granularity = selectorValues[item.id] ?? item.defaultValue ?? '100';
+      return '$granularity riel';
     }
     if (item.type == PolicyItemType.selector) {
       return selectorValues[item.id] ?? item.defaultValue ?? '';
@@ -132,56 +124,86 @@ class PolicyTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tilePadding = EdgeInsets.symmetric(
-      horizontal: 12,
-      vertical: isCompact ? 8 : 12,
+      horizontal: 16,
+      vertical: isCompact ? 12 : 16,
     );
 
-    final titleStyle = Theme.of(context).textTheme.titleMedium;
+    final titleStyle = Theme.of(
+      context,
+    ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w500);
+    final subtitleStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
+      color: Theme.of(context).colorScheme.onSurfaceVariant,
+    );
 
     return Column(
       children: [
         Material(
           color: Colors.transparent,
-          child: ListTile(
-            contentPadding: tilePadding,
-            leading: CircleAvatar(
-              backgroundColor:
-                  Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-              child: Icon(
-                item.icon,
-                color: Theme.of(context).colorScheme.primary,
+          child: InkWell(
+            onTap: item.type == PolicyItemType.info ? null : onTap,
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: tilePadding,
+              child: Row(
+                children: [
+                  Icon(
+                    item.icon,
+                    size: 20,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [Text(item.title, style: titleStyle)],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  if (item.type == PolicyItemType.toggle)
+                    Text(
+                      _valueLabel,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: (value as bool? ?? false)
+                            ? Theme.of(context).colorScheme.primary
+                            : Theme.of(context).colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    )
+                  else if (item.type == PolicyItemType.selector)
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _valueLabel,
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
+                              ),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(
+                          Icons.chevron_right,
+                          size: 20,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ],
+                    )
+                  else
+                    Text(_valueLabel, style: subtitleStyle),
+                ],
               ),
             ),
-            title: Text(item.title, style: titleStyle),
-            subtitle: null,
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  _valueLabel,
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodyMedium
-                      ?.copyWith(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .onSurfaceVariant,
-                      ),
-                ),
-                const SizedBox(width: 4),
-                const Icon(Icons.chevron_right),
-              ],
-            ),
-            onTap: readOnly ? null : onTap,
           ),
         ),
         if (showDivider)
           Divider(
             height: 1,
-            thickness: 0.7,
-            indent: 12,
-            endIndent: 12,
-            color: Theme.of(context).colorScheme.outlineVariant,
+            indent: 48,
+            color: Theme.of(
+              context,
+            ).colorScheme.outlineVariant.withValues(alpha: 0.3),
           ),
       ],
     );

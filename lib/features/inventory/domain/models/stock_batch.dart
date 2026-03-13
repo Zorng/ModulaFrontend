@@ -37,26 +37,13 @@ class StockBatch extends Equatable {
     );
   }
 
-  factory StockBatch.fromJson(Map<String, dynamic> json) {
-    return StockBatch(
-      id: json['id'] as String,
-      stockItemId: json['stockItemId'] as String,
-      branchId: json['branchId'] as String,
-      onHand: json['onHand'] as int,
-      receivedDate: json['receivedDate'] as String,
-      expiryDate: json['expiryDate'] as String?,
-    );
-  }
-
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'stockItemId': stockItemId,
-        'branchId': branchId,
-        'onHand': onHand,
-        'receivedDate': receivedDate,
-        'expiryDate': expiryDate,
-      };
-
   @override
-  List<Object?> get props => [id, stockItemId, branchId, onHand, receivedDate, expiryDate];
+  List<Object?> get props => [
+    id,
+    stockItemId,
+    branchId,
+    onHand,
+    receivedDate,
+    expiryDate,
+  ];
 }

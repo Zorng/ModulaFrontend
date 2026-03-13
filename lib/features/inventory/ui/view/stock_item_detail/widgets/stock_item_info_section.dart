@@ -38,7 +38,8 @@ class StockItemInfoSection extends StatelessWidget {
   final List<String> usageTags;
   final String categoryLabel;
   final String barcodeLabel;
-  final void Function(String? categoryId, String categoryName) onCategoryChanged;
+  final void Function(String? categoryId, String categoryName)
+  onCategoryChanged;
   final void Function(String tag, bool selected) onToggleUsageTag;
   final ValueChanged<bool> onActiveChanged;
   final VoidCallback onPieceSizeChanged;
@@ -100,7 +101,10 @@ class StockItemInfoSection extends StatelessWidget {
                 ),
                 onChanged: (_) => onPieceSizeChanged(),
               )
-            : InventoryDetailField(label: 'Piece size', value: pieceDescription),
+            : InventoryDetailField(
+                label: 'Piece size',
+                value: pieceDescription,
+              ),
         isEditing
             ? TextFormField(
                 controller: barcodeController,
@@ -128,10 +132,8 @@ class StockItemInfoSection extends StatelessWidget {
                 runSpacing: 8,
                 children: usageTags
                     .map(
-                      (tag) => Chip(
-                        label: Text(tag),
-                        backgroundColor: chipColor,
-                      ),
+                      (tag) =>
+                          Chip(label: Text(tag), backgroundColor: chipColor),
                     )
                     .toList(),
               ),
@@ -144,7 +146,7 @@ class StockItemInfoSection extends StatelessWidget {
               )
             : InventoryDetailField(
                 label: 'Status',
-                value: isActive ? 'Active' : 'Inactive',
+                value: isActive ? 'Active' : 'Archived',
               ),
       ],
     );

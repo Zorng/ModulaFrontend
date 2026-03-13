@@ -27,8 +27,9 @@ class _EditCategoryPageState extends ConsumerState<EditCategoryPage> {
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.category.name);
-    _descriptionController =
-        TextEditingController(text: widget.category.description);
+    _descriptionController = TextEditingController(
+      text: widget.category.description,
+    );
     _isActive = widget.category.isActive;
   }
 
@@ -43,11 +44,20 @@ class _EditCategoryPageState extends ConsumerState<EditCategoryPage> {
     final updated = widget.category.copyWith(
       name: _nameController.text.trim(),
       description: _descriptionController.text.trim(),
-      isActive: _isActive,
+      status: _isActive ? 'ACTIVE' : 'ARCHIVED',
     );
     await ref.read(menuViewModelProvider.notifier).updateCategory(updated);
     if (!mounted) return;
     context.pop();
+  }
+
+  void _cancelEdit() {
+    setState(() {
+      _isEditing = false;
+      _nameController.text = widget.category.name;
+      _descriptionController.text = widget.category.description;
+      _isActive = widget.category.isActive;
+    });
   }
 
   @override
@@ -55,13 +65,7 @@ class _EditCategoryPageState extends ConsumerState<EditCategoryPage> {
     return Scaffold(
       appBar: AppBar(
         centerTitle: false,
-        title: Text(_isEditing ? 'Edit Category' : widget.category.name),
-        actions: [
-          TextButton(
-            onPressed: () => setState(() => _isEditing = !_isEditing),
-            child: Text(_isEditing ? 'Cancel' : 'Edit'),
-          ),
-        ],
+        title: Text(_isEditing ? 'Edit Category' : 'Category details'),
       ),
       body: AbsorbPointer(
         absorbing: !_isEditing,
@@ -73,8 +77,9 @@ class _EditCategoryPageState extends ConsumerState<EditCategoryPage> {
               const MenuFormFieldLabel(text: 'Category Name', isRequired: true),
               TextField(
                 controller: _nameController,
-                decoration:
-                    const InputDecoration(hintText: 'e.g., Coffee, Pastries'),
+                decoration: const InputDecoration(
+                  hintText: 'e.g., Coffee, Pastries',
+                ),
               ),
               const SizedBox(height: 24),
               const MenuFormFieldLabel(text: 'Description'),
@@ -89,8 +94,10 @@ class _EditCategoryPageState extends ConsumerState<EditCategoryPage> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('Set Active',
-                      style: Theme.of(context).textTheme.titleMedium),
+                  Text(
+                    'Set Active',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
                   CupertinoSwitch(
                     value: _isActive,
                     activeTrackColor: Theme.of(context).primaryColor,
@@ -98,53 +105,43 @@ class _EditCategoryPageState extends ConsumerState<EditCategoryPage> {
                   ),
                 ],
               ),
-              const SizedBox(height: 24),
-              Align(
-                alignment: Alignment.centerRight,
-                child: FilledButton(
-                  style: FilledButton.styleFrom(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                    backgroundColor:
-                        Theme.of(context).colorScheme.secondaryContainer,
-                  ),
-                  onPressed: _isEditing
-                      ? () async {
-                          final navigator = Navigator.of(context);
-                          await ref
-                              .read(menuViewModelProvider.notifier)
-                              .deleteCategory(widget.category.id);
-                          if (!context.mounted) return;
-                          navigator.pop();
-                        }
-                      : null,
-                  child: Text(
-                    'Delete',
-                    style: TextStyle(
-                      color: _isEditing
-                          ? Colors.red.shade700
-                          : Colors.grey.shade500,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ),
             ],
           ),
         ),
       ),
-      bottomNavigationBar: Visibility(
-        visible: _isEditing,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: ElevatedButton(
-            onPressed: _save,
-            style: ElevatedButton.styleFrom(
-              minimumSize: const Size(double.infinity, 50),
-            ),
-            child: const Text('Save Changes'),
-          ),
-        ),
+      bottomNavigationBar: Padding(
+        padding: const EdgeInsets.all(16),
+        child: _isEditing
+            ? Row(
+                children: [
+                  Expanded(
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: Theme.of(
+                          context,
+                        ).textTheme.bodyLarge?.color,
+                      ),
+                      onPressed: _cancelEdit,
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: _save,
+                      child: const Text('Save'),
+                    ),
+                  ),
+                ],
+              )
+            : SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: () => setState(() => _isEditing = true),
+                  child: const Text('Edit'),
+                ),
+              ),
       ),
     );
   }

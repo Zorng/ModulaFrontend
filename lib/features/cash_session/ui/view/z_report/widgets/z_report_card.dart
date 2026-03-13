@@ -30,7 +30,7 @@ class ZReportCard extends StatelessWidget {
             Row(
               children: [
                 Text(
-                  'Z Report Summary',
+                  'Closed Session Summary',
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const Spacer(),
@@ -55,14 +55,14 @@ class ZReportCard extends StatelessWidget {
                     width: double.infinity,
                     child: FilledButton(
                       onPressed: onGenerate,
-                      child: const Text('Generate Z report'),
+                      child: const Text('Load history'),
                     ),
                   ),
                   if (state.error != null) ...[
                     const SizedBox(height: 8),
                     Text(
                       UserErrorMessage.build(
-                        context: 'Failed to generate Z report',
+                        context: 'Failed to load session history',
                         error: state.error,
                       ),
                       style: Theme.of(context).textTheme.bodySmall,
@@ -76,7 +76,7 @@ class ZReportCard extends StatelessWidget {
                   if (state.error != null) ...[
                     Text(
                       UserErrorMessage.build(
-                        context: 'Failed to load Z report',
+                        context: 'Failed to load session history',
                         error: state.error,
                       ),
                       style: Theme.of(context).textTheme.bodySmall,
@@ -167,4 +167,3 @@ class ZReportCard extends StatelessWidget {
     return '${value.toStringAsFixed(2)} $currency';
   }
 }
-

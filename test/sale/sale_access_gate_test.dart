@@ -1,26 +1,42 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:modular_pos/features/sale/data/sale_checkout_repository_contract.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_access_gate.dart';
 
 void main() {
-  test('SaleAccessGate blocks mutations when no session', () {
-    const gate = SaleAccessGate(
-      branchId: 'branch-1',
-      cashSessionOpen: false,
-      cashSessionLoading: false,
-    );
+  test(
+    'SaleAccessGate allows add-to-cart but blocks checkout when no session',
+    () {
+      const gate = SaleAccessGate(
+        branchId: 'branch-1',
+        contextLoading: false,
+        branchActive: true,
+        branchFrozen: false,
+        cashSessionOpen: false,
+        canMutateCart: false,
+        canCheckout: false,
+        canPlacePayLater: false,
+        reasonCode: SaleCheckoutReasonCodes.cashSessionRequired,
+      );
 
-    expect(gate.canCreateDraftSale, isFalse);
-    expect(gate.canAddToCart, isFalse);
-    expect(gate.canCheckout, isFalse);
-    expect(gate.canMutateCart, isFalse);
-    expect(gate.blockingMessage, isNotNull);
-  });
+      expect(gate.canCreateDraftSale, isTrue);
+      expect(gate.canAddToCart, isTrue);
+      expect(gate.canCheckout, isFalse);
+      expect(gate.canMutateCart, isFalse);
+      expect(gate.hasBlockingReason, isTrue);
+      expect(gate.blockingMessage, isNotNull);
+    },
+  );
 
   test('SaleAccessGate allows mutations when session is open', () {
     const gate = SaleAccessGate(
       branchId: 'branch-1',
+      contextLoading: false,
+      branchActive: true,
+      branchFrozen: false,
       cashSessionOpen: true,
-      cashSessionLoading: false,
+      canMutateCart: true,
+      canCheckout: true,
+      canPlacePayLater: true,
     );
 
     expect(gate.canCreateDraftSale, isTrue);
@@ -30,13 +46,19 @@ void main() {
     expect(gate.blockingMessage, isNull);
   });
 
-  test('SaleAccessGate blocks mutations while session is loading', () {
+  test('SaleAccessGate allows add-to-cart while session status is loading', () {
     const gate = SaleAccessGate(
       branchId: 'branch-1',
+      contextLoading: true,
+      branchActive: true,
+      branchFrozen: false,
       cashSessionOpen: true,
-      cashSessionLoading: true,
+      canMutateCart: false,
+      canCheckout: false,
+      canPlacePayLater: false,
     );
 
     expect(gate.canMutateCart, isFalse);
+    expect(gate.canAddToCart, isTrue);
   });
 }

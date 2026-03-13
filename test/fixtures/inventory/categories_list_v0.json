@@ -1,0 +1,21 @@
+{
+  "success": true,
+  "data": [
+    {
+      "id": "cat-1",
+      "tenantId": "tenant-1",
+      "name": "Dairy",
+      "status": "ACTIVE",
+      "createdAt": "2026-02-20T00:00:00.000Z",
+      "updatedAt": "2026-02-21T00:00:00.000Z"
+    },
+    {
+      "id": "cat-2",
+      "tenantId": "tenant-1",
+      "name": "Archived Category",
+      "status": "ARCHIVED",
+      "createdAt": "2026-02-19T00:00:00.000Z",
+      "updatedAt": "2026-02-21T00:00:00.000Z"
+    }
+  ]
+}

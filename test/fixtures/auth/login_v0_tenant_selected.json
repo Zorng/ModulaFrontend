@@ -1,0 +1,19 @@
+{
+  "success": true,
+  "data": {
+    "accessToken": "e30.eyJzdWIiOiJhY2NvdW50LTEiLCJyb2xlIjoiQURNSU4iLCJ0ZW5hbnRJZCI6InRlbmFudC0xIn0.sig",
+    "refreshToken": "refresh-v0-2",
+    "account": {
+      "id": "account-1",
+      "phone": "+85511111111",
+      "firstName": "Demo",
+      "lastName": "Owner",
+      "phoneVerifiedAt": "2026-02-20T10:00:00.000Z"
+    },
+    "context": {
+      "tenantId": "tenant-1",
+      "branchId": null
+    },
+    "activeMembershipsCount": 1
+  }
+}

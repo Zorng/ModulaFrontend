@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart'; // Required for DateFormat
 
-/// A widget that displays the current status of a cash register session.
+/// A legacy status card for cash-session flows.
 ///
 /// This is a placeholder implementation and will be connected to a
 /// Riverpod provider to display real data.
@@ -97,7 +97,11 @@ class RegisterStatusCard extends StatelessWidget {
           ),
           child: Text(
             statusText,
-            style: TextStyle(color: statusTextColor, fontSize: 13, fontWeight: FontWeight.bold),
+            style: TextStyle(
+              color: statusTextColor,
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ),
       ],

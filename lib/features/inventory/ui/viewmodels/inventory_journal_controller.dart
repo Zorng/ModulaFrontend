@@ -4,73 +4,131 @@ import 'package:modular_pos/features/inventory/data/inventory_journal_repository
 import 'package:modular_pos/features/inventory/data/stock_item_repository.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_journal_entry.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
+import 'package:modular_pos/features/inventory/ui/viewmodels/inventory_error_mapper.dart';
+import 'package:modular_pos/features/inventory/ui/viewmodels/inventory_journal_state.dart';
 
 final inventoryJournalControllerProvider =
-    NotifierProvider<InventoryJournalController, List<InventoryJournalEntry>>(
-  InventoryJournalController.new,
-);
+    NotifierProvider<InventoryJournalController, InventoryJournalState>(
+      InventoryJournalController.new,
+    );
 
-class InventoryJournalController extends Notifier<List<InventoryJournalEntry>> {
+class InventoryJournalController extends Notifier<InventoryJournalState> {
   late final InventoryJournalRepository _repo;
   late final StockItemRepository _stockRepo;
 
   @override
-  List<InventoryJournalEntry> build() {
+  InventoryJournalState build() {
     _repo = ref.read(inventoryJournalRepositoryProvider);
     _stockRepo = ref.read(stockItemRepositoryProvider);
-    return const [];
+    return const InventoryJournalState();
   }
 
-  Future<void> load({String? branchId, String? stockItemId}) async {
-    final userBranches = ref.read(loginControllerProvider).user?.branches ?? const [];
-    final entries = <InventoryJournalEntry>[];
-
-    // When a specific branch is requested, only fetch that branch.
-    if (branchId != null && branchId.isNotEmpty && branchId != 'all') {
-      final fetched = await _repo.fetch(branchId: branchId, stockItemId: stockItemId);
-      entries.addAll(
-        fetched.map(
-          (e) => _withBranchFallback(
-            e,
-            id: branchId,
-            name: _lookupBranchName(userBranches, branchId),
-          ),
-        ),
+  Future<void> load({
+    String? branchId,
+    String? stockItemId,
+    InventoryJournalReason? reason,
+    int limit = 50,
+    int offset = 0,
+    bool append = false,
+  }) async {
+    final safeLimit = limit <= 0 ? 50 : limit;
+    final safeOffset = offset < 0 ? 0 : offset;
+    try {
+      state = state.copyWith(
+        isLoading: !append,
+        isLoadingMore: append,
+        error: null,
+        errorCode: null,
+        limit: safeLimit,
       );
-    } else if (userBranches.isNotEmpty) {
-      // Otherwise, fetch all branches the user has access to.
-      for (final branch in userBranches) {
-        final id = branch.branchId.isNotEmpty ? branch.branchId : branch.id;
-        final fetched = await _repo.fetch(branchId: id, stockItemId: stockItemId);
-        entries.addAll(
-          fetched.map(
-            (e) => _withBranchFallback(e, id: id, name: branch.name),
-          ),
-        );
-      }
-    } else {
-      // Fallback to whatever the backend returns when no branch filter is provided.
-      entries.addAll(await _repo.fetch(stockItemId: stockItemId));
+      final userBranches =
+          ref.read(loginControllerProvider).user?.branches ?? const [];
+      final fetched = await _repo.fetch(
+        stockItemId: stockItemId,
+        reason: reason,
+        limit: safeLimit,
+        offset: safeOffset,
+      );
+
+      final entries = fetched
+          .where((entry) {
+            if (branchId == null || branchId.isEmpty || branchId == 'all') {
+              return true;
+            }
+            return entry.branchId == branchId;
+          })
+          .map((entry) {
+            if (entry.branchId.isNotEmpty) return entry;
+            if (branchId != null && branchId.isNotEmpty && branchId != 'all') {
+              return _withBranchFallback(
+                entry,
+                id: branchId,
+                name: _lookupBranchName(userBranches, branchId),
+              );
+            }
+            return entry;
+          })
+          .toList(growable: false);
+
+      // Enrich missing item names from stock items.
+      final nameLookup = await _itemNameLookup();
+      final enriched = entries
+          .map(
+            (e) => _hasRealName(e.itemName)
+                ? e
+                : e.copyWith(itemName: nameLookup[e.itemId] ?? e.itemName),
+          )
+          .toList();
+
+      final nextEntries = append
+          ? _mergeEntries(state.entries, enriched)
+          : enriched;
+      nextEntries.sort((a, b) => b.occurredAt.compareTo(a.occurredAt));
+      final hasMore = fetched.length == safeLimit;
+      state = state.copyWith(
+        isLoading: false,
+        isLoadingMore: false,
+        entries: nextEntries,
+        offset: safeOffset + fetched.length,
+        hasMore: hasMore,
+        error: null,
+        errorCode: null,
+      );
+    } catch (e) {
+      final mapped = mapInventoryError(
+        e,
+        fallbackMessage: 'Failed to load inventory journal.',
+      );
+      state = state.copyWith(
+        isLoading: false,
+        isLoadingMore: false,
+        error: mapped.message,
+        errorCode: mapped.code,
+      );
     }
+  }
 
-    // Enrich missing item names from stock items.
-    final nameLookup = await _itemNameLookup();
-    final enriched = entries
-        .map(
-          (e) => _hasRealName(e.itemName)
-              ? e
-              : e.copyWith(itemName: nameLookup[e.itemId] ?? e.itemName),
-        )
-        .toList();
-
-    enriched.sort((a, b) => b.occurredAt.compareTo(a.occurredAt));
-    state = enriched;
+  Future<void> loadMore({
+    String? branchId,
+    String? stockItemId,
+    InventoryJournalReason? reason,
+  }) async {
+    if (state.isLoading || state.isLoadingMore) return;
+    if (!state.hasMore) return;
+    await load(
+      branchId: branchId,
+      stockItemId: stockItemId,
+      reason: reason,
+      limit: state.limit,
+      offset: state.offset,
+      append: true,
+    );
   }
 
   void recordEntry(InventoryJournalEntry entry) {
-    final next = [entry, ...state];
+    final next = [entry, ...state.entries];
     next.sort((a, b) => b.occurredAt.compareTo(a.occurredAt));
-    state = next;
+    state = state.copyWith(entries: next, error: null, errorCode: null);
   }
 
   InventoryJournalEntry _withBranchFallback(
@@ -103,5 +161,17 @@ class InventoryJournalController extends Notifier<List<InventoryJournalEntry>> {
     if (trimmed.isEmpty) return false;
     if (trimmed.toLowerCase() == 'item') return false;
     return true;
+  }
+
+  List<InventoryJournalEntry> _mergeEntries(
+    List<InventoryJournalEntry> existing,
+    List<InventoryJournalEntry> next,
+  ) {
+    final seen = <String>{for (final entry in existing) entry.id};
+    final merged = <InventoryJournalEntry>[...existing];
+    for (final entry in next) {
+      if (seen.add(entry.id)) merged.add(entry);
+    }
+    return merged;
   }
 }

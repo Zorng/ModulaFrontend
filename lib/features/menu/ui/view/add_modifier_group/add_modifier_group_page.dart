@@ -55,16 +55,18 @@ class _AddModifierGroupPageState extends ConsumerState<AddModifierGroupPage> {
 
   void _validateForm() {
     final hasGroupName = _groupNameController.text.trim().isNotEmpty;
-    final allOptionLabelsFilled =
-        _options.every((opt) => opt.nameController.text.trim().isNotEmpty);
+    final allOptionLabelsFilled = _options.every(
+      (opt) => opt.nameController.text.trim().isNotEmpty,
+    );
     final isValid = hasGroupName && allOptionLabelsFilled;
     if (_isFormValid != isValid) setState(() => _isFormValid = isValid);
   }
 
   Future<void> _saveGroup() async {
     final name = _groupNameController.text.trim();
-    final allOptionLabelsFilled =
-        _options.every((opt) => opt.nameController.text.trim().isNotEmpty);
+    final allOptionLabelsFilled = _options.every(
+      (opt) => opt.nameController.text.trim().isNotEmpty,
+    );
     if (name.isEmpty || !allOptionLabelsFilled) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -78,24 +80,28 @@ class _AddModifierGroupPageState extends ConsumerState<AddModifierGroupPage> {
     final group = ModifierGroup(
       id: '',
       name: name,
-      selectionType:
-          _selectedSelectionType == 'Multiple Selection' ? 'MULTI' : 'SINGLE',
-      pricingBehavior: _selectedPricingBehavior == 'Price Change' ? 'addon' : 'none',
-      defaultOptionId: _isSingleSelection && _selectedDefault != _noneDefaultValue
+      selectionType: _selectedSelectionType == 'Multiple Selection'
+          ? 'MULTI'
+          : 'SINGLE',
+      pricingBehavior: _selectedPricingBehavior == 'Price Change'
+          ? 'addon'
+          : 'none',
+      defaultOptionId:
+          _isSingleSelection && _selectedDefault != _noneDefaultValue
           ? _selectedDefault
           : null,
-      options: _options
-          .map(
-            (row) => ModifierOption(
-              id: row.id,
-              name: row.nameController.text.trim(),
-              price: _requiresPriceInput
-                  ? double.tryParse(row.priceController.text) ?? 0
-                  : 0,
-              isDefault: _isSingleSelection && _selectedDefault == row.id,
-            ),
-          )
-          .toList(),
+      options: _options.map((row) {
+        final double priceDelta = _requiresPriceInput
+            ? double.tryParse(row.priceController.text) ?? 0.0
+            : 0.0;
+        return ModifierOption(
+          id: row.id,
+          name: row.nameController.text.trim(),
+          price: priceDelta,
+          priceDelta: priceDelta,
+          isDefault: _isSingleSelection && _selectedDefault == row.id,
+        );
+      }).toList(),
     );
 
     await ref.read(menuViewModelProvider.notifier).addModifierGroup(group);
@@ -107,7 +113,10 @@ class _AddModifierGroupPageState extends ConsumerState<AddModifierGroupPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(centerTitle: false, title: const Text('Add Modifier Group')),
+      appBar: AppBar(
+        centerTitle: false,
+        title: const Text('Add Modifier Group'),
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
@@ -116,7 +125,9 @@ class _AddModifierGroupPageState extends ConsumerState<AddModifierGroupPage> {
             const MenuFormFieldLabel(text: 'Group Name', isRequired: true),
             TextField(
               controller: _groupNameController,
-              decoration: const InputDecoration(hintText: 'e.g., Size, Toppings'),
+              decoration: const InputDecoration(
+                hintText: 'e.g., Size, Toppings',
+              ),
             ),
             const SizedBox(height: 24),
             const MenuFormFieldLabel(text: 'Pricing Behavior'),
@@ -125,7 +136,10 @@ class _AddModifierGroupPageState extends ConsumerState<AddModifierGroupPage> {
               onSelected: (value) =>
                   setState(() => _selectedPricingBehavior = value),
               dropdownMenuEntries: _pricingBehaviors
-                  .map((behavior) => DropdownMenuEntry(value: behavior, label: behavior))
+                  .map(
+                    (behavior) =>
+                        DropdownMenuEntry(value: behavior, label: behavior),
+                  )
                   .toList(),
             ),
             const SizedBox(height: 24),
@@ -161,7 +175,8 @@ class _AddModifierGroupPageState extends ConsumerState<AddModifierGroupPage> {
                 children: [
                   const Text('None'),
                   IconButton(
-                    onPressed: () => setState(() => _selectedDefault = _noneDefaultValue),
+                    onPressed: () =>
+                        setState(() => _selectedDefault = _noneDefaultValue),
                     icon: Icon(
                       _selectedDefault == _noneDefaultValue
                           ? Icons.radio_button_checked
@@ -180,7 +195,8 @@ class _AddModifierGroupPageState extends ConsumerState<AddModifierGroupPage> {
                 requiresPriceInput: _requiresPriceInput,
                 isSingleSelection: _isSingleSelection,
                 isDefaultSelected: _selectedDefault == option.id,
-                onDefaultSelected: () => setState(() => _selectedDefault = option.id),
+                onDefaultSelected: () =>
+                    setState(() => _selectedDefault = option.id),
                 onChanged: _validateForm,
                 onRemove: () {
                   setState(() {

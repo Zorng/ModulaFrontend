@@ -11,7 +11,9 @@ import 'package:modular_pos/features/cash_session/ui/view/x_report/widgets/x_rep
 import 'package:modular_pos/features/cash_session/ui/view/x_report/widgets/x_report_card.dart';
 
 class XReportPage extends ConsumerWidget {
-  const XReportPage({super.key});
+  const XReportPage({super.key, this.showAppBar = true});
+
+  final bool showAppBar;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -21,25 +23,25 @@ class XReportPage extends ConsumerWidget {
     final cashState = ref.watch(cashSessionViewModelProvider);
     final entriesAsync = ref.watch(xReportEntriesProvider);
     final filters = ref.watch(xReportFiltersProvider);
-    final isSmall = AppBreakpoints.isSmall(
-      MediaQuery.of(context).size.width,
-    );
+    final isSmall = AppBreakpoints.isSmall(MediaQuery.of(context).size.width);
 
     return Scaffold(
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        leading: isSmall
-            ? AppBackButton(
-                icon: Icons.home_outlined,
-                tooltip: 'Home',
-                onPressed: () => context.go(AppRoute.portal.path),
-              )
-            : null,
-        title: const Align(
-          alignment: Alignment.centerLeft,
-          child: Text('X Report'),
-        ),
-      ),
+      appBar: showAppBar
+          ? AppBar(
+              automaticallyImplyLeading: false,
+              leading: isSmall
+                  ? AppBackButton(
+                      icon: Icons.home_outlined,
+                      tooltip: 'Home',
+                      onPressed: () => context.go(AppRoute.portal.path),
+                    )
+                  : null,
+              title: const Align(
+                alignment: Alignment.centerLeft,
+                child: Text('Session Summaries'),
+              ),
+            )
+          : null,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -61,7 +63,7 @@ class XReportPage extends ConsumerWidget {
                         const Center(child: CircularProgressIndicator()),
                     error: (error, _) => Center(
                       child: Text(
-                        'Unable to load X reports.',
+                        'Unable to load session summaries.',
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                     ),
@@ -69,14 +71,13 @@ class XReportPage extends ConsumerWidget {
                       if (entries.isEmpty) {
                         return const Center(
                           child: Text(
-                            'No X reports available for this selection.',
+                            'No session summaries available for this selection.',
                           ),
                         );
                       }
                       return ListView.separated(
                         itemCount: entries.length,
-                        separatorBuilder: (_, __) =>
-                            const SizedBox(height: 12),
+                        separatorBuilder: (_, __) => const SizedBox(height: 12),
                         itemBuilder: (context, index) {
                           return XReportCard(entry: entries[index]);
                         },

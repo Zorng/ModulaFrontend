@@ -1,37 +1,46 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 
 class SalePageAccessBanner extends StatelessWidget {
-  const SalePageAccessBanner({super.key, required this.cashSessionPath});
+  const SalePageAccessBanner({
+    super.key,
+    required this.title,
+    required this.message,
+  });
 
-  final String cashSessionPath;
+  final String title;
+  final String message;
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Theme.of(
-          context,
-        ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+        color: colorScheme.errorContainer.withValues(alpha: 0.35),
+        border: Border.all(color: colorScheme.error.withValues(alpha: 0.4)),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.info_outline),
+          Icon(Icons.info_outline, color: colorScheme.error),
           const SizedBox(width: 10),
-          const Expanded(
-            child: Text(
-              'Read-only: start a cash session to add items and checkout.',
-            ),
-          ),
-          const SizedBox(width: 12),
-          SizedBox(
-            width: 140,
-            height: 40,
-            child: FilledButton(
-              onPressed: () => context.push(cashSessionPath),
-              child: const Text('Cash session'),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  title,
+                  style: textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(message, style: textTheme.bodyMedium),
+              ],
             ),
           ),
         ],

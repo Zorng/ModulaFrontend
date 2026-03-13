@@ -30,7 +30,8 @@ class AccountPage extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           AccountUserTile(user: user),
-          if (user.branches.isNotEmpty) AccountBranchList(branches: user.branches),
+          if (user.branches.isNotEmpty)
+            AccountBranchList(branches: user.branches),
           const AccountActionTiles(),
           const SizedBox(height: 24),
           FilledButton(

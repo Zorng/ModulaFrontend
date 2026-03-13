@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
+import 'package:modular_pos/core/network/api_contract.dart';
+import 'package:modular_pos/features/policy/data/policy_error_codes.dart';
 import 'package:modular_pos/features/policy/data/policy_repository.dart';
 import 'package:modular_pos/features/policy/domain/models/policy.dart';
 
@@ -8,37 +9,41 @@ final policyNotifierProvider = NotifierProvider<PolicyNotifier, PolicyState>(
 );
 
 class PolicyState {
+  static const _unset = Object();
+
   const PolicyState({
     this.isLoading = false,
     this.error,
-    this.salesPolicy = const SalesPolicy(),
-    this.inventoryPolicy = const InventoryPolicy(),
-    this.cashSessionPolicy = const CashSessionPolicy(),
-    this.attendancePolicy = const AttendancePolicy(),
+    this.errorCode,
+    this.isOffline = false,
+    this.isStale = false,
+    this.branchPolicy = const BranchPolicy(),
   });
 
   final bool isLoading;
   final String? error;
-  final SalesPolicy salesPolicy;
-  final InventoryPolicy inventoryPolicy;
-  final CashSessionPolicy cashSessionPolicy;
-  final AttendancePolicy attendancePolicy;
+  final String? errorCode;
+  final bool isOffline;
+  final bool isStale;
+  final BranchPolicy branchPolicy;
 
   PolicyState copyWith({
     bool? isLoading,
-    String? error,
-    SalesPolicy? salesPolicy,
-    InventoryPolicy? inventoryPolicy,
-    CashSessionPolicy? cashSessionPolicy,
-    AttendancePolicy? attendancePolicy,
+    Object? error = _unset,
+    Object? errorCode = _unset,
+    bool? isOffline,
+    bool? isStale,
+    BranchPolicy? branchPolicy,
   }) {
     return PolicyState(
       isLoading: isLoading ?? this.isLoading,
-      error: error,
-      salesPolicy: salesPolicy ?? this.salesPolicy,
-      inventoryPolicy: inventoryPolicy ?? this.inventoryPolicy,
-      cashSessionPolicy: cashSessionPolicy ?? this.cashSessionPolicy,
-      attendancePolicy: attendancePolicy ?? this.attendancePolicy,
+      error: identical(error, _unset) ? this.error : error as String?,
+      errorCode: identical(errorCode, _unset)
+          ? this.errorCode
+          : errorCode as String?,
+      isOffline: isOffline ?? this.isOffline,
+      isStale: isStale ?? this.isStale,
+      branchPolicy: branchPolicy ?? this.branchPolicy,
     );
   }
 }
@@ -51,22 +56,32 @@ class PolicyNotifier extends Notifier<PolicyState> {
     return const PolicyState(isLoading: false);
   }
 
-  String? get _branchId => ref.read(authActiveBranchIdProvider);
-
-  Future<void> load({String? branchId}) async {
-    state = state.copyWith(isLoading: true, error: null);
+  Future<void> load() async {
+    state = state.copyWith(
+      isLoading: true,
+      error: null,
+      errorCode: null,
+      isOffline: false,
+    );
     try {
-      final bundle = await _repo.fetchPolicies(branchId: branchId);
+      final branchPolicy = await _repo.fetchCurrentBranchPolicy();
       state = state.copyWith(
         isLoading: false,
         error: null,
-        salesPolicy: bundle.sales,
-        inventoryPolicy: bundle.inventory,
-        cashSessionPolicy: bundle.cashSession,
-        attendancePolicy: bundle.attendance,
+        errorCode: null,
+        isOffline: false,
+        isStale: false,
+        branchPolicy: branchPolicy,
       );
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      final mapped = _mapPolicyError(e);
+      state = state.copyWith(
+        isLoading: false,
+        error: mapped.message,
+        errorCode: mapped.code,
+        isOffline: mapped.isOffline,
+        isStale: _hasLoadedPolicy(state.branchPolicy),
+      );
     }
   }
 
@@ -78,41 +93,65 @@ class PolicyNotifier extends Notifier<PolicyState> {
     required bool enabled,
     required double ratePercent,
   }) async {
-    state = state.copyWith(isLoading: true, error: null);
+    state = state.copyWith(
+      isLoading: true,
+      error: null,
+      errorCode: null,
+      isOffline: false,
+    );
     try {
-      final bundle = await _repo.updateTax(
-        branchId: _branchId,
+      final branchPolicy = await _repo.updateCurrentBranchPolicy(
         saleVatEnabled: enabled,
         saleVatRatePercent: ratePercent,
       );
       state = state.copyWith(
         isLoading: false,
-        salesPolicy: bundle.sales,
-        inventoryPolicy: bundle.inventory,
-        cashSessionPolicy: bundle.cashSession,
-        attendancePolicy: bundle.attendance,
+        error: null,
+        errorCode: null,
+        isOffline: false,
+        isStale: false,
+        branchPolicy: branchPolicy,
       );
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      final mapped = _mapPolicyError(e);
+      state = state.copyWith(
+        isLoading: false,
+        error: mapped.message,
+        errorCode: mapped.code,
+        isOffline: mapped.isOffline,
+        isStale: _hasLoadedPolicy(state.branchPolicy),
+      );
     }
   }
 
   Future<void> updateCurrency(double fxRateKhrPerUsd) async {
-    state = state.copyWith(isLoading: true, error: null);
+    state = state.copyWith(
+      isLoading: true,
+      error: null,
+      errorCode: null,
+      isOffline: false,
+    );
     try {
-      final bundle = await _repo.updateCurrency(
-        branchId: _branchId,
+      final branchPolicy = await _repo.updateCurrentBranchPolicy(
         saleFxRateKhrPerUsd: fxRateKhrPerUsd,
       );
       state = state.copyWith(
         isLoading: false,
-        salesPolicy: bundle.sales,
-        inventoryPolicy: bundle.inventory,
-        cashSessionPolicy: bundle.cashSession,
-        attendancePolicy: bundle.attendance,
+        error: null,
+        errorCode: null,
+        isOffline: false,
+        isStale: false,
+        branchPolicy: branchPolicy,
       );
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      final mapped = _mapPolicyError(e);
+      state = state.copyWith(
+        isLoading: false,
+        error: mapped.message,
+        errorCode: mapped.code,
+        isOffline: mapped.isOffline,
+        isStale: _hasLoadedPolicy(state.branchPolicy),
+      );
     }
   }
 
@@ -121,100 +160,95 @@ class PolicyNotifier extends Notifier<PolicyState> {
     String? roundingMode,
     String? roundingGranularity,
   }) async {
-    state = state.copyWith(isLoading: true, error: null);
+    state = state.copyWith(
+      isLoading: true,
+      error: null,
+      errorCode: null,
+      isOffline: false,
+    );
     try {
-      final bundle = await _repo.updateRounding(
-        branchId: _branchId,
+      final branchPolicy = await _repo.updateCurrentBranchPolicy(
         saleKhrRoundingEnabled: roundingEnabled,
         saleKhrRoundingMode: roundingMode,
         saleKhrRoundingGranularity: roundingGranularity,
       );
       state = state.copyWith(
         isLoading: false,
-        salesPolicy: bundle.sales,
-        inventoryPolicy: bundle.inventory,
-        cashSessionPolicy: bundle.cashSession,
-        attendancePolicy: bundle.attendance,
+        error: null,
+        errorCode: null,
+        isOffline: false,
+        isStale: false,
+        branchPolicy: branchPolicy,
       );
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      final mapped = _mapPolicyError(e);
+      state = state.copyWith(
+        isLoading: false,
+        error: mapped.message,
+        errorCode: mapped.code,
+        isOffline: mapped.isOffline,
+        isStale: _hasLoadedPolicy(state.branchPolicy),
+      );
     }
   }
 
-  Future<void> updateInventory({
-    bool? autoSubtractOnSale,
-    bool? expiryTrackingEnabled,
-  }) async {
-    state = state.copyWith(isLoading: true, error: null);
+  Future<void> updatePayLater({required bool enabled}) async {
+    state = state.copyWith(
+      isLoading: true,
+      error: null,
+      errorCode: null,
+      isOffline: false,
+    );
     try {
-      final bundle = await _repo.updateInventory(
-        branchId: _branchId,
-        inventoryAutoSubtractOnSale: autoSubtractOnSale,
-        inventoryExpiryTrackingEnabled: expiryTrackingEnabled,
+      final branchPolicy = await _repo.updateCurrentBranchPolicy(
+        saleAllowPayLater: enabled,
       );
       state = state.copyWith(
         isLoading: false,
-        salesPolicy: bundle.sales,
-        inventoryPolicy: bundle.inventory,
-        cashSessionPolicy: bundle.cashSession,
-        attendancePolicy: bundle.attendance,
+        error: null,
+        errorCode: null,
+        isOffline: false,
+        isStale: false,
+        branchPolicy: branchPolicy,
       );
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      final mapped = _mapPolicyError(e);
+      state = state.copyWith(
+        isLoading: false,
+        error: mapped.message,
+        errorCode: mapped.code,
+        isOffline: mapped.isOffline,
+        isStale: _hasLoadedPolicy(state.branchPolicy),
+      );
     }
   }
+}
 
-  Future<void> updateCashSession({
-    bool? allowPaidOut,
-    bool? requireRefundApproval,
-    bool? allowManualAdjustment,
-  }) async {
-    state = state.copyWith(isLoading: true, error: null);
-    try {
-      final bundle = await _repo.updateCashSession(
-        branchId: _branchId,
-        cashAllowPaidOut: allowPaidOut,
-        cashRequireRefundApproval: requireRefundApproval,
-        cashAllowManualAdjustment: allowManualAdjustment,
-      );
-      state = state.copyWith(
-        isLoading: false,
-        salesPolicy: bundle.sales,
-        inventoryPolicy: bundle.inventory,
-        cashSessionPolicy: bundle.cashSession,
-        attendancePolicy: bundle.attendance,
-      );
-    } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
-    }
-  }
+bool _hasLoadedPolicy(BranchPolicy policy) {
+  return policy.branchId.trim().isNotEmpty || policy.tenantId.trim().isNotEmpty;
+}
 
-  Future<void> updateAttendance({
-    bool? autoFromCashSession,
-    bool? requireOutOfShiftApproval,
-    bool? earlyCheckinBufferEnabled,
-    int? checkinBufferMinutes,
-    bool? allowManagerEdits,
-  }) async {
-    state = state.copyWith(isLoading: true, error: null);
-    try {
-      final bundle = await _repo.updateAttendance(
-        branchId: _branchId,
-        attendanceAutoFromCashSession: autoFromCashSession,
-        attendanceRequireOutOfShiftApproval: requireOutOfShiftApproval,
-        attendanceEarlyCheckinBufferEnabled: earlyCheckinBufferEnabled,
-        attendanceCheckinBufferMinutes: checkinBufferMinutes,
-        attendanceAllowManagerEdits: allowManagerEdits,
-      );
-      state = state.copyWith(
-        isLoading: false,
-        salesPolicy: bundle.sales,
-        inventoryPolicy: bundle.inventory,
-        cashSessionPolicy: bundle.cashSession,
-        attendancePolicy: bundle.attendance,
-      );
-    } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
-    }
+_PolicyErrorView _mapPolicyError(Object error) {
+  if (error is ApiClientException) {
+    final code = PolicyErrorCodes.normalize(error.code);
+    final isOffline = PolicyErrorCodes.isOffline(code);
+    return _PolicyErrorView(
+      message: error.message,
+      code: code,
+      isOffline: isOffline,
+    );
   }
+  return _PolicyErrorView(message: error.toString());
+}
+
+class _PolicyErrorView {
+  const _PolicyErrorView({
+    required this.message,
+    this.code,
+    this.isOffline = false,
+  });
+
+  final String message;
+  final String? code;
+  final bool isOffline;
 }

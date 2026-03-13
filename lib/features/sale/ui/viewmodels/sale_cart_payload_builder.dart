@@ -1,4 +1,5 @@
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
+import 'package:modular_pos/features/sale/data/sale_checkout_repository_contract.dart';
 import 'package:modular_pos/features/sale/ui/view/sale_item_detail/sale_item_detail_page.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_state.dart';
 
@@ -23,7 +24,9 @@ class SaleCartPayloadBuilder {
     return true;
   }
 
-  static AddItemPayload fromSelection(SaleItemSelectionResult selection) {
+  static SaleDraftItemInputDto fromSelection(
+    SaleItemSelectionResult selection,
+  ) {
     final unitPriceUsd = selection.unitPriceUsd;
     final lineTotalUsdExact = selection.lineTotalUsd;
     final addonTotalUsd = selection.addonTotalUsd;
@@ -39,7 +42,10 @@ class SaleCartPayloadBuilder {
       pricingSnapshot,
     );
 
-    return AddItemPayload(
+    return SaleDraftItemInputDto(
+      menuItemId: selection.item.id,
+      quantity: selection.quantity,
+      selectedOptionIds: selection.selectedOptionIds,
       modifiers: modifiers,
       unitPriceUsd: unitPriceUsd,
       lineTotalUsdExact: lineTotalUsdExact,
@@ -48,10 +54,10 @@ class SaleCartPayloadBuilder {
     );
   }
 
-  static AddItemPayload fromLine(CartLine line) {
+  static SaleDraftItemInputDto fromLine(CartLine line) {
     double addonTotalUsd = 0;
     final entries = line.selectedOptionIds.entries.toList();
-    final modifiers = <Map<String, dynamic>>[];
+    final modifiers = <SaleDraftModifierInputDto>[];
     for (var i = 0; i < entries.length; i++) {
       final entry = entries[i];
       final options =
@@ -78,13 +84,10 @@ class SaleCartPayloadBuilder {
       lineTotalUsdExact: lineTotalUsdExact,
     );
 
-    if (modifiers.isNotEmpty) {
-      modifiers.first['pricingSnapshot'] = pricingSnapshot;
-    } else {
-      modifiers.add({'pricingSnapshot': pricingSnapshot});
-    }
-
-    return AddItemPayload(
+    return SaleDraftItemInputDto(
+      menuItemId: line.item.id,
+      quantity: line.quantity,
+      selectedOptionIds: line.selectedOptionIds,
       modifiers: modifiers,
       unitPriceUsd: unitPriceUsd,
       lineTotalUsdExact: lineTotalUsdExact,
@@ -93,31 +96,30 @@ class SaleCartPayloadBuilder {
     );
   }
 
-  static Map<String, dynamic> _pricingSnapshot({
+  static SalePricingSnapshotDto _pricingSnapshot({
     required double basePrice,
     required double addonTotalUsd,
     required double unitPriceUsd,
     required double lineTotalUsdExact,
   }) {
-    return {
-      'baseUnitPriceUsd': basePrice,
-      'addonTotalUsd': addonTotalUsd,
-      'unitPriceUsd': unitPriceUsd,
-      'lineTotalUsdExact': lineTotalUsdExact,
-    };
+    return SalePricingSnapshotDto(
+      baseUnitPriceUsd: basePrice,
+      addonTotalUsd: addonTotalUsd,
+      unitPriceUsd: unitPriceUsd,
+      lineTotalUsdExact: lineTotalUsdExact,
+    );
   }
 
-  static List<Map<String, dynamic>> _buildModifiersFromSelection(
+  static List<SaleDraftModifierInputDto> _buildModifiersFromSelection(
     Map<String, List<String>> selectedOptionIds,
     Map<String, List<ModifierOption>> selectedOptions,
-    Map<String, dynamic> pricingSnapshot,
+    SalePricingSnapshotDto pricingSnapshot,
   ) {
-    final modifiers = <Map<String, dynamic>>[];
+    final modifiers = <SaleDraftModifierInputDto>[];
     final entries = selectedOptionIds.entries.toList();
     for (var i = 0; i < entries.length; i++) {
       final entry = entries[i];
-      final options =
-          selectedOptions[entry.key] ?? const <ModifierOption>[];
+      final options = selectedOptions[entry.key] ?? const <ModifierOption>[];
       final optionSummaries = _optionSummaries(options);
       final addonTotal = options.fold<double>(0, (sum, opt) => sum + opt.price);
       final modifierPayload = _modifierPayload(
@@ -125,62 +127,42 @@ class SaleCartPayloadBuilder {
         optionIds: entry.value,
         optionSummaries: optionSummaries,
         addonTotal: addonTotal,
+        pricingSnapshot: i == 0 ? pricingSnapshot : null,
       );
-      if (i == 0) {
-        modifierPayload['pricingSnapshot'] = pricingSnapshot;
-      }
       modifiers.add(modifierPayload);
-    }
-    if (modifiers.isEmpty) {
-      modifiers.add({'pricingSnapshot': pricingSnapshot});
     }
     return modifiers;
   }
 
-  static List<Map<String, dynamic>> _optionSummaries(
+  static List<SaleDraftModifierOptionDto> _optionSummaries(
     List<ModifierOption> options,
   ) {
     return options
         .map(
-          (opt) => {
-            'id': opt.id,
-            'label': opt.name,
-            'priceAdjustmentUsd': opt.price,
-            'isDefault': opt.isDefault,
-          },
+          (opt) => SaleDraftModifierOptionDto(
+            id: opt.id,
+            label: opt.name,
+            priceAdjustmentUsd: opt.price,
+            isDefault: opt.isDefault,
+          ),
         )
         .toList();
   }
 
-  static Map<String, dynamic> _modifierPayload({
+  static SaleDraftModifierInputDto _modifierPayload({
     required String groupId,
     required List<String> optionIds,
-    required List<Map<String, dynamic>> optionSummaries,
+    required List<SaleDraftModifierOptionDto> optionSummaries,
     required double addonTotal,
+    SalePricingSnapshotDto? pricingSnapshot,
   }) {
-    return <String, dynamic>{
-      'groupId': groupId,
-      'optionIds': optionIds,
-      if (optionSummaries.isNotEmpty) 'options': optionSummaries,
-      // Backend saleEntity expects priceAdjustmentUsd at the modifier level.
-      'priceAdjustmentUsd': addonTotal,
-      if (addonTotal != 0) 'priceAdjustmentUsdTotal': addonTotal,
-    };
+    return SaleDraftModifierInputDto(
+      groupId: groupId,
+      optionIds: optionIds,
+      options: optionSummaries,
+      priceAdjustmentUsd: addonTotal,
+      priceAdjustmentUsdTotal: addonTotal != 0 ? addonTotal : null,
+      pricingSnapshot: pricingSnapshot,
+    );
   }
-}
-
-class AddItemPayload {
-  AddItemPayload({
-    required this.modifiers,
-    required this.unitPriceUsd,
-    required this.lineTotalUsdExact,
-    required this.addonTotalUsd,
-    required this.pricingSnapshot,
-  });
-
-  final List<Map<String, dynamic>> modifiers;
-  final double unitPriceUsd;
-  final double lineTotalUsdExact;
-  final double addonTotalUsd;
-  final Map<String, dynamic> pricingSnapshot;
 }

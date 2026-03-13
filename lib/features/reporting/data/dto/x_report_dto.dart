@@ -33,6 +33,8 @@ class XReportDetailDto {
     required this.closedAt,
     required this.openingFloatUsd,
     required this.openingFloatKhr,
+    required this.totalSalesKhqrUsd,
+    required this.totalSalesKhqrKhr,
     required this.totalSalesCashUsd,
     required this.totalSalesCashKhr,
     required this.totalPaidInUsd,
@@ -50,6 +52,8 @@ class XReportDetailDto {
   final DateTime? closedAt;
   final double openingFloatUsd;
   final double openingFloatKhr;
+  final double totalSalesKhqrUsd;
+  final double totalSalesKhqrKhr;
   final double totalSalesCashUsd;
   final double totalSalesCashKhr;
   final double totalPaidInUsd;
@@ -60,20 +64,27 @@ class XReportDetailDto {
   final double expectedCashKhr;
 
   factory XReportDetailDto.fromJson(Map<String, dynamic> json) {
+    final manualOutUsd = _toDouble(json['totalManualOutUsd']);
+    final manualOutKhr = _toDouble(json['totalManualOutKhr']);
+    final refundOutUsd = _toDouble(json['totalRefundOutUsd']);
+    final refundOutKhr = _toDouble(json['totalRefundOutKhr']);
+
     return XReportDetailDto(
-      id: json['id']?.toString() ?? '',
+      id: json['sessionId']?.toString() ?? json['id']?.toString() ?? '',
       status: json['status']?.toString() ?? '',
       openedByName: json['openedByName']?.toString() ?? '',
       openedAt: _parseDate(json['openedAt']),
       closedAt: _parseDate(json['closedAt']),
       openingFloatUsd: _toDouble(json['openingFloatUsd']),
       openingFloatKhr: _toDouble(json['openingFloatKhr']),
-      totalSalesCashUsd: _toDouble(json['totalSalesCashUsd']),
-      totalSalesCashKhr: _toDouble(json['totalSalesCashKhr']),
-      totalPaidInUsd: _toDouble(json['totalPaidInUsd']),
-      totalPaidInKhr: _toDouble(json['totalPaidInKhr']),
-      totalPaidOutUsd: _toDouble(json['totalPaidOutUsd']),
-      totalPaidOutKhr: _toDouble(json['totalPaidOutKhr']),
+      totalSalesKhqrUsd: _toDouble(json['totalSalesKhqrUsd']),
+      totalSalesKhqrKhr: _toDouble(json['totalSalesKhqrKhr']),
+      totalSalesCashUsd: _toDouble(json['totalSaleInUsd']),
+      totalSalesCashKhr: _toDouble(json['totalSaleInKhr']),
+      totalPaidInUsd: _toDouble(json['totalManualInUsd']),
+      totalPaidInKhr: _toDouble(json['totalManualInKhr']),
+      totalPaidOutUsd: manualOutUsd + refundOutUsd,
+      totalPaidOutKhr: manualOutKhr + refundOutKhr,
       expectedCashUsd: _toDouble(json['expectedCashUsd']),
       expectedCashKhr: _toDouble(json['expectedCashKhr']),
     );

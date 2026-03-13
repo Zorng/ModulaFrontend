@@ -6,17 +6,23 @@ class ZReportDatePickerRow extends StatelessWidget {
     super.key,
     required this.date,
     required this.onPick,
+    this.label = 'Date',
+    this.isFilterApplied = true,
+    this.inactiveLabel = 'Any date',
   });
 
   final DateTime date;
   final ValueChanged<DateTime> onPick;
+  final String label;
+  final bool isFilterApplied;
+  final String inactiveLabel;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Date', style: TextStyle(fontWeight: FontWeight.w600)),
+        Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
         const SizedBox(height: 6),
         OutlinedButton.icon(
           onPressed: () async {
@@ -30,10 +36,13 @@ class ZReportDatePickerRow extends StatelessWidget {
             onPick(picked);
           },
           icon: const Icon(Icons.calendar_today_outlined, size: 18),
-          label: Text(DateFormat('yyyy-MM-dd').format(date)),
+          label: Text(
+            isFilterApplied
+                ? DateFormat('yyyy-MM-dd').format(date)
+                : inactiveLabel,
+          ),
         ),
       ],
     );
   }
 }
-

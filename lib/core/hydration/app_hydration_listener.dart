@@ -2,6 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:modular_pos/core/hydration/context_scoped_runtime_resource.dart';
+import 'package:modular_pos/core/logging/app_log.dart';
+import 'package:modular_pos/features/auth/domain/active_branch_context_provider.dart';
 import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
 import 'package:modular_pos/features/auth/domain/auth_tenant_provider.dart';
 import 'package:modular_pos/features/auth/domain/auth_token_provider.dart';
@@ -55,7 +58,7 @@ class _AppHydrationListenerState extends ConsumerState<AppHydrationListener> {
     );
 
     _branchSubscription = ref.listenManual<String?>(
-      authActiveBranchIdProvider,
+      activeBranchContextIdProvider,
       (_, __) => _refreshBranchScopedStateIfNeeded(),
     );
   }
@@ -80,6 +83,7 @@ class _AppHydrationListenerState extends ConsumerState<AppHydrationListener> {
 
       ref.read(policyNotifierProvider.notifier).reset();
       ref.read(cashSessionViewModelProvider.notifier).reset();
+      _notifyContextClearedResources();
       return;
     }
 
@@ -91,13 +95,31 @@ class _AppHydrationListenerState extends ConsumerState<AppHydrationListener> {
   }
 
   void _refreshBranchScopedStateIfNeeded() {
+    final session = ref.read(loginControllerProvider).session;
+    if (session == null) return;
+
     final token = ref.read(authAccessTokenProvider);
     final tenantId = ref.read(authTenantIdProvider);
-    final branchId = ref.read(authActiveBranchIdProvider);
+    final branchId = ref.read(activeBranchContextIdProvider);
 
     if (token == null || token.isEmpty) return;
     if (tenantId == null || tenantId.isEmpty) return;
-    if (branchId == null || branchId.isEmpty) return;
+
+    if (branchId == null || branchId.isEmpty) {
+      final needsReset =
+          _lastHydrationBranchId != null ||
+          _lastHydrationToken != token ||
+          _lastHydrationTenantId != tenantId;
+      _lastHydrationToken = token;
+      _lastHydrationTenantId = tenantId;
+      _lastHydrationBranchId = null;
+      if (!needsReset) return;
+
+      ref.read(policyNotifierProvider.notifier).reset();
+      ref.read(cashSessionViewModelProvider.notifier).reset();
+      _notifyContextClearedResources();
+      return;
+    }
 
     final needsRefresh =
         token != _lastHydrationToken ||
@@ -109,14 +131,56 @@ class _AppHydrationListenerState extends ConsumerState<AppHydrationListener> {
     _lastHydrationTenantId = tenantId;
     _lastHydrationBranchId = branchId;
 
-    unawaited(
-      ref.read(policyNotifierProvider.notifier).load(branchId: branchId),
+    _notifyContextChangedResources(
+      accessToken: token,
+      tenantId: tenantId,
+      branchId: branchId,
     );
-    unawaited(
-      ref
-          .read(cashSessionViewModelProvider.notifier)
-          .load(branchIdOverride: branchId),
-    );
+
+    unawaited(ref.read(policyNotifierProvider.notifier).load());
+    unawaited(ref.read(cashSessionViewModelProvider.notifier).load());
+  }
+
+  void _notifyContextClearedResources() {
+    final resources = ref.read(contextScopedRuntimeResourcesProvider);
+    for (final resource in resources) {
+      unawaited(
+        Future<void>.sync(resource.onContextCleared).catchError((error, stack) {
+          final stackTrace = stack is StackTrace ? stack : null;
+          AppLog.e(
+            'Failed to clear context-scoped runtime resource',
+            error: error,
+            stackTrace: stackTrace,
+          );
+        }),
+      );
+    }
+  }
+
+  void _notifyContextChangedResources({
+    required String accessToken,
+    required String tenantId,
+    required String branchId,
+  }) {
+    final resources = ref.read(contextScopedRuntimeResourcesProvider);
+    for (final resource in resources) {
+      unawaited(
+        Future<void>.sync(
+          () => resource.onContextChanged(
+            accessToken: accessToken,
+            tenantId: tenantId,
+            branchId: branchId,
+          ),
+        ).catchError((error, stack) {
+          final stackTrace = stack is StackTrace ? stack : null;
+          AppLog.e(
+            'Failed to rebind context-scoped runtime resource',
+            error: error,
+            stackTrace: stackTrace,
+          );
+        }),
+      );
+    }
   }
 
   @override

@@ -30,6 +30,7 @@ String formatOrderDate(DateTime date) {
 
 String orderStatusLabel(String status) {
   return switch (status) {
+    'pending' => 'Pending Payment',
     'in_prep' => 'Preparing',
     'ready' => 'Ready',
     'delivered' => 'Delivered',
@@ -40,6 +41,7 @@ String orderStatusLabel(String status) {
 
 Color orderStatusColor(String status) {
   return switch (status) {
+    'pending' => Colors.orange.withValues(alpha: 0.18),
     'delivered' => Colors.green.withValues(alpha: 0.15),
     'cancelled' => Colors.grey.withValues(alpha: 0.15),
     'ready' => Colors.blue.withValues(alpha: 0.15),
@@ -49,6 +51,7 @@ Color orderStatusColor(String status) {
 
 Color orderStatusTextColor(String status) {
   return switch (status) {
+    'pending' => Colors.orange.shade900,
     'delivered' => Colors.green.shade800,
     'cancelled' => Colors.grey.shade700,
     'ready' => Colors.blue.shade800,

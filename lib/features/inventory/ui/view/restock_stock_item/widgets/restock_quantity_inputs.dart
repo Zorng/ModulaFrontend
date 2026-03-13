@@ -19,7 +19,9 @@ class RestockQuantityInputs extends StatelessWidget {
       return TextFormField(
         controller: pcsCtrl,
         keyboardType: TextInputType.number,
-        decoration: InputDecoration(labelText: 'Quantity (${item.baseUnit})'),
+        decoration: InputDecoration(
+          labelText: 'Quantity received (${item.baseUnit})',
+        ),
         validator: (value) {
           final parsed = int.tryParse(value ?? '');
           if (parsed == null || parsed <= 0) {
@@ -36,7 +38,7 @@ class RestockQuantityInputs extends StatelessWidget {
           child: TextFormField(
             controller: pcsCtrl,
             keyboardType: TextInputType.number,
-            decoration: const InputDecoration(labelText: 'Pieces'),
+            decoration: const InputDecoration(labelText: 'Pieces received'),
             validator: (value) {
               final parsed = int.tryParse(value ?? '');
               if (parsed == null || parsed < 0) {
@@ -51,7 +53,9 @@ class RestockQuantityInputs extends StatelessWidget {
           child: TextFormField(
             controller: extraCtrl,
             keyboardType: TextInputType.number,
-            decoration: InputDecoration(labelText: 'Extra (${item.baseUnit})'),
+            decoration: InputDecoration(
+              labelText: 'Additional ${item.baseUnit}',
+            ),
             validator: (value) {
               final parsed = int.tryParse(value ?? '');
               if (parsed == null || parsed < 0) {
@@ -65,4 +69,3 @@ class RestockQuantityInputs extends StatelessWidget {
     );
   }
 }
-

@@ -1,22 +1,16 @@
 {
   "success": true,
   "data": {
-    "sales": {
-      "saleVatEnabled": false,
-      "saleVatRatePercent": 0,
-      "saleFxRateKhrPerUsd": 4000,
-      "saleKhrRoundingEnabled": false,
-      "saleKhrRoundingMode": "NEAREST",
-      "saleKhrRoundingGranularity": "100"
-    },
-    "inventory": {
-      "inventoryAutoSubtractOnSale": false,
-      "inventoryExpiryTrackingEnabled": false
-    },
-    "cashSession": {
-      "cashAllowPaidOut": false,
-      "cashRequireRefundApproval": false,
-      "cashAllowManualAdjustment": false
-    }
+    "tenantId": "tenant-1",
+    "branchId": "branch-1",
+    "saleVatEnabled": false,
+    "saleVatRatePercent": 0,
+    "saleFxRateKhrPerUsd": 4000,
+    "saleKhrRoundingEnabled": true,
+    "saleKhrRoundingMode": "UP",
+    "saleKhrRoundingGranularity": "100",
+    "saleAllowPayLater": true,
+    "createdAt": "2026-02-17T10:00:00.000Z",
+    "updatedAt": "2026-02-17T10:05:00.000Z"
   }
 }

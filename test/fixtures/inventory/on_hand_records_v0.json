@@ -1,0 +1,19 @@
+{
+  "success": true,
+  "data": [
+    {
+      "id": "branch-1:item-1",
+      "tenantId": "tenant-1",
+      "branchId": "branch-1",
+      "stockItemId": "item-1",
+      "onHandInBaseUnit": 6400,
+      "lowStockThreshold": 1000,
+      "updatedAt": "2026-02-21T00:00:00.000Z"
+    },
+    {
+      "stock_item_id": "item-2",
+      "onHandQty": 120,
+      "threshold": 200
+    }
+  ]
+}

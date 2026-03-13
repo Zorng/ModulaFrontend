@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:modular_pos/core/widgets/navigation/unsaved_changes_guard.dart';
 import 'package:modular_pos/features/policy/ui/widgets/policy_detail_controls.dart';
 import 'package:modular_pos/features/policy/ui/models/policy_models.dart';
 
@@ -42,10 +43,14 @@ class _PolicyDetailPageState extends State<PolicyDetailPage> {
     context.pop(_tempValue);
   }
 
+  bool get _isDirty {
+    return _isEditing && _tempValue != _initialValue;
+  }
+
   @override
   Widget build(BuildContext context) {
     Widget content;
-    Widget? header;
+    Widget? footer;
 
     switch (widget.item.type) {
       case PolicyItemType.toggle:
@@ -53,25 +58,25 @@ class _PolicyDetailPageState extends State<PolicyDetailPage> {
           children: [
             PolicySwitchTile(
               title: widget.item.title,
-              subtitle: widget.item.subtitle,
               value: _tempValue as bool? ?? false,
               enabled: _isEditing,
               onChanged: (value) => setState(() => _tempValue = value),
             ),
           ],
         );
-        break;
-      case PolicyItemType.selector:
-        final options = widget.item.options ?? const [];
-        if (widget.item.subtitle != null) {
-          header = Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
+        if (widget.item.subtitle != null &&
+            widget.item.subtitle!.trim().isNotEmpty) {
+          footer = Padding(
+            padding: const EdgeInsets.only(top: 8),
             child: Text(
               widget.item.subtitle!,
               style: Theme.of(context).textTheme.bodyMedium,
             ),
           );
         }
+        break;
+      case PolicyItemType.selector:
+        final options = widget.item.options ?? const [];
         content = PolicySettingGroup(
           children: options
               .map(
@@ -85,6 +90,16 @@ class _PolicyDetailPageState extends State<PolicyDetailPage> {
               )
               .toList(),
         );
+        if (widget.item.subtitle != null &&
+            widget.item.subtitle!.trim().isNotEmpty) {
+          footer = Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              widget.item.subtitle!,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          );
+        }
         break;
       case PolicyItemType.info:
         content = PolicySettingGroup(
@@ -98,17 +113,20 @@ class _PolicyDetailPageState extends State<PolicyDetailPage> {
         break;
     }
 
-    return PolicyDetailScaffold(
-      title: widget.item.title,
-      isEditing: _isEditing,
-      onEditToggle: widget.item.type == PolicyItemType.info
-          ? () {}
-          : (_isEditing ? _cancelEdit : _startEdit),
-      onSave: widget.item.type == PolicyItemType.info ? null : _saveChanges,
-      canSave: widget.item.type != PolicyItemType.info,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [if (header != null) header, content],
+    return UnsavedChangesGuard(
+      isDirty: _isDirty,
+      child: PolicyDetailScaffold(
+        title: widget.item.title,
+        isEditing: _isEditing,
+        onEditToggle: widget.item.type == PolicyItemType.info
+            ? () {}
+            : (_isEditing ? _cancelEdit : _startEdit),
+        onSave: widget.item.type == PolicyItemType.info ? null : _saveChanges,
+        canSave: widget.item.type != PolicyItemType.info,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [content, if (footer != null) footer],
+        ),
       ),
     );
   }

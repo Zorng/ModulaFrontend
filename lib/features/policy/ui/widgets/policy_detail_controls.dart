@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:modular_pos/core/widgets/navigation/app_back_button.dart';
+import 'package:modular_pos/core/theme/responsive.dart';
 
 class PolicySwitchTile extends StatelessWidget {
   const PolicySwitchTile({
@@ -23,9 +24,8 @@ class PolicySwitchTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final thumbColor = WidgetStateProperty.resolveWith<Color?>(
-      (states) => states.contains(WidgetState.selected)
-          ? colorScheme.primary
-          : null,
+      (states) =>
+          states.contains(WidgetState.selected) ? colorScheme.primary : null,
     );
     final trackColor = WidgetStateProperty.resolveWith<Color?>(
       (states) => states.contains(WidgetState.selected)
@@ -35,7 +35,9 @@ class PolicySwitchTile extends StatelessWidget {
 
     return SwitchListTile.adaptive(
       title: Text(title),
-      subtitle: helper != null ? Text(helper!) : (subtitle != null ? Text(subtitle!) : null),
+      subtitle: helper != null
+          ? Text(helper!)
+          : (subtitle != null ? Text(subtitle!) : null),
       value: value,
       onChanged: enabled ? onChanged : null,
       controlAffinity: ListTileControlAffinity.trailing,
@@ -53,6 +55,7 @@ class PolicyValueTile extends StatelessWidget {
     required this.enabled,
     this.onTap,
     this.hint,
+    this.subtitle,
   });
 
   final String title;
@@ -60,6 +63,7 @@ class PolicyValueTile extends StatelessWidget {
   final bool enabled;
   final VoidCallback? onTap;
   final String? hint;
+  final String? subtitle;
 
   @override
   Widget build(BuildContext context) {
@@ -71,26 +75,28 @@ class PolicyValueTile extends StatelessWidget {
 
     return ListTile(
       title: Text(title),
+      subtitle: subtitle != null
+          ? Text(subtitle!)
+          : (!enabled && hint != null ? Text(hint!) : null),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             valueText,
-            style: Theme.of(context)
-                .textTheme
-                .bodyMedium
-                ?.copyWith(color: valueColor),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: valueColor),
           ),
           const SizedBox(width: 6),
           Icon(
             Icons.chevron_right,
-            color:
-                enabled ? null : colorScheme.onSurface.withValues(alpha: 0.4),
+            color: enabled
+                ? null
+                : colorScheme.onSurface.withValues(alpha: 0.4),
           ),
         ],
       ),
       enabled: enabled,
-      subtitle: !enabled && hint != null ? Text(hint!) : null,
       onTap: enabled ? onTap : null,
     );
   }
@@ -135,10 +141,7 @@ class PolicyRadioTile<T> extends StatelessWidget {
 }
 
 class PolicySettingGroup extends StatelessWidget {
-  const PolicySettingGroup({
-    super.key,
-    required this.children,
-  });
+  const PolicySettingGroup({super.key, required this.children});
 
   final List<Widget> children;
 
@@ -197,6 +200,7 @@ class PolicyDetailScaffold extends StatelessWidget {
     required this.child,
     this.onSave,
     this.canSave = true,
+    this.breadcrumb = 'Policy',
   });
 
   final String title;
@@ -205,43 +209,139 @@ class PolicyDetailScaffold extends StatelessWidget {
   final Widget child;
   final VoidCallback? onSave;
   final bool canSave;
+  final String breadcrumb;
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        leading: const AppBackButton(),
-        titleSpacing: 0,
-        centerTitle: false,
-        title: Text(title),
-        actions: [
-          TextButton(
-            onPressed: onEditToggle,
-            child: Text(isEditing ? 'Cancel' : 'Edit'),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isLarge = AppBreakpoints.isLarge(constraints.maxWidth);
+        final colorScheme = Theme.of(context).colorScheme;
+        final textTheme = Theme.of(context).textTheme;
+
+        return Scaffold(
+          appBar: isLarge
+              ? null
+              : AppBar(
+                  automaticallyImplyLeading: false,
+                  leading: const AppBackButton(),
+                  titleSpacing: 0,
+                  centerTitle: false,
+                  title: Text(title),
+                  actions: [
+                    TextButton(
+                      onPressed: onEditToggle,
+                      child: Text(isEditing ? 'Cancel' : 'Edit'),
+                    ),
+                  ],
+                ),
+          body: SafeArea(
+            child: isLarge
+                ? _buildLargeScreenLayout(context, colorScheme, textTheme)
+                : _buildSmallScreenLayout(context),
           ),
-        ],
-      ),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          children: [
-            const SizedBox(height: 8),
-            child,
-            if (isEditing && onSave != null && canSave)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: FilledButton(
-                    onPressed: onSave,
-                    child: const Text('Save'),
+        );
+      },
+    );
+  }
+
+  Widget _buildSmallScreenLayout(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      children: [
+        const SizedBox(height: 8),
+        child,
+        if (isEditing && onSave != null)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: FilledButton(
+                onPressed: canSave ? onSave : null,
+                child: const Text('Save'),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildLargeScreenLayout(
+    BuildContext context,
+    ColorScheme colorScheme,
+    TextTheme textTheme,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Header section with white background
+        Container(
+          color: colorScheme.surface,
+          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+          child: Row(
+            children: [
+              const AppBackButton(),
+              const SizedBox(width: 8),
+              Expanded(child: Text(title, style: textTheme.headlineSmall)),
+              TextButton(
+                onPressed: onEditToggle,
+                child: Text(isEditing ? 'Cancel' : 'Edit'),
+              ),
+            ],
+          ),
+        ),
+        // Content area - edge to edge
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Breadcrumb
+                Text(
+                  '$breadcrumb  >  $title',
+                  style: textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurface.withValues(alpha: 0.6),
                   ),
                 ),
-              ),
-          ],
+                const SizedBox(height: 24),
+                child,
+                if (isEditing && onSave != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 24),
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 400),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SizedBox(
+                              width: 100,
+                              child: TextButton(
+                                onPressed: onEditToggle,
+                                child: const Text('Cancel'),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            SizedBox(
+                              width: 160,
+                              child: FilledButton(
+                                onPressed: canSave ? onSave : null,
+                                child: const Text('Save Changes'),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
         ),
-      ),
+      ],
     );
   }
 }

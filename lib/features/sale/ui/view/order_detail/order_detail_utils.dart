@@ -10,16 +10,22 @@ String orderDetailOrderTypeLabel(String orderType) {
     'dine_in' => 'Dine In',
     'take_away' => 'Take Away',
     'delivery' => 'Delivery',
-    _ => orderType
-        .replaceAll('_', ' ')
-        .split(' ')
-        .map((word) => word.isEmpty ? word : '${word[0].toUpperCase()}${word.substring(1)}')
-        .join(' '),
+    _ =>
+      orderType
+          .replaceAll('_', ' ')
+          .split(' ')
+          .map(
+            (word) => word.isEmpty
+                ? word
+                : '${word[0].toUpperCase()}${word.substring(1)}',
+          )
+          .join(' '),
   };
 }
 
 String orderDetailStatusLabel(String status) {
   return switch (status) {
+    'pending' => 'Pending Payment',
     'in_prep' => 'Preparing',
     'ready' => 'Ready',
     'delivered' => 'Delivered',
@@ -27,4 +33,3 @@ String orderDetailStatusLabel(String status) {
     _ => status,
   };
 }
-

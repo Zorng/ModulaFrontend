@@ -29,22 +29,57 @@ String viewCartsFormatTime(DateTime time) {
 }
 
 String viewCartsStateLabel(String state) {
-  return switch (state) {
-    'draft' => 'Draft',
-    'finalized' => 'Finalized',
-    'voided' => 'Voided',
-    'reopened' => 'Reopened',
-    _ => state,
+  final normalized = state.trim().toUpperCase();
+  return switch (normalized) {
+    'PENDING' => 'Pending',
+    'FINALIZED' => 'Finalized',
+    'VOID_PENDING' => 'Void Pending',
+    'VOIDED' => 'Voided',
+    _ => normalized.isEmpty ? state : normalized,
   };
 }
 
 Color viewCartsStateColor(String state) {
-  return switch (state) {
-    'draft' => Colors.amber.shade700,
-    'finalized' => Colors.green.shade700,
-    'voided' => Colors.red.shade700,
-    'reopened' => Colors.blue.shade700,
+  final normalized = state.trim().toUpperCase();
+  return switch (normalized) {
+    'PENDING' => Colors.amber.shade700,
+    'FINALIZED' => Colors.green.shade700,
+    'VOID_PENDING' => Colors.deepOrange.shade700,
+    'VOIDED' => Colors.red.shade700,
     _ => Colors.grey.shade700,
   };
 }
 
+String viewCartsPaymentMethodLabel(String paymentMethod) {
+  final normalized = paymentMethod.trim().toUpperCase();
+  return switch (normalized) {
+    'KHQR' => 'KHQR',
+    'CASH' => 'Cash',
+    _ => normalized.isEmpty ? paymentMethod : normalized,
+  };
+}
+
+String viewCartsTenderCurrencyLabel(String tenderCurrency) {
+  final normalized = tenderCurrency.trim().toUpperCase();
+  return switch (normalized) {
+    'USD' => 'USD',
+    'KHR' => 'KHR',
+    _ => normalized.isEmpty ? tenderCurrency : normalized,
+  };
+}
+
+String viewCartsFulfillmentLabel(String fulfillmentStatus) {
+  final normalized = fulfillmentStatus.trim().toUpperCase();
+  return switch (normalized) {
+    'PENDING' => 'Pending',
+    'IN_PREP' => 'In Prep',
+    'READY' => 'Ready',
+    'DELIVERED' => 'Delivered',
+    'CANCELLED' => 'Cancelled',
+    _ => normalized.isEmpty ? fulfillmentStatus : normalized,
+  };
+}
+
+String viewCartsFormatUsd(double amount) => '\$${amount.toStringAsFixed(2)}';
+
+String viewCartsFormatKhr(double amount) => '៛${amount.round()}';

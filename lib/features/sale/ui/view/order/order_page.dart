@@ -15,8 +15,14 @@ class OrderPage extends ConsumerStatefulWidget {
 }
 
 class _OrderPageState extends ConsumerState<OrderPage> {
-  String _selectedStatus = 'in_prep';
-  static const _statuses = ['in_prep', 'ready', 'delivered', 'cancelled'];
+  String _selectedStatus = 'pending';
+  static const _statuses = [
+    'pending',
+    'in_prep',
+    'ready',
+    'delivered',
+    'cancelled',
+  ];
   DateTime _selectedDate = DateTime.now();
 
   @override
@@ -90,7 +96,9 @@ class _OrderPageState extends ConsumerState<OrderPage> {
                             ),
                           );
                         },
-                        onStatusTap: () => _openStatusSheet(order),
+                        onStatusTap: order.isSettleableOpenTicket
+                            ? null
+                            : () => _openStatusSheet(order),
                       );
                     },
                   ),

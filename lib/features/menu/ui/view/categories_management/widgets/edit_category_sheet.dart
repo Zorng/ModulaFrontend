@@ -11,9 +11,11 @@ class EditCategorySheet extends ConsumerStatefulWidget {
   const EditCategorySheet({
     super.key,
     required this.category,
+    this.startInEdit = false,
   });
 
   final MenuCategory category;
+  final bool startInEdit;
 
   @override
   ConsumerState<EditCategorySheet> createState() => _EditCategorySheetState();
@@ -29,9 +31,11 @@ class _EditCategorySheetState extends ConsumerState<EditCategorySheet> {
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.category.name);
-    _descriptionController =
-        TextEditingController(text: widget.category.description);
+    _descriptionController = TextEditingController(
+      text: widget.category.description,
+    );
     _isActive = widget.category.isActive;
+    _isEditing = widget.startInEdit;
   }
 
   @override
@@ -45,19 +49,20 @@ class _EditCategorySheetState extends ConsumerState<EditCategorySheet> {
     final updated = widget.category.copyWith(
       name: _nameController.text.trim(),
       description: _descriptionController.text.trim(),
-      isActive: _isActive,
+      status: _isActive ? 'ACTIVE' : 'ARCHIVED',
     );
     await ref.read(menuViewModelProvider.notifier).updateCategory(updated);
     if (!mounted) return;
     context.pop();
   }
 
-  Future<void> _delete() async {
-    await ref
-        .read(menuViewModelProvider.notifier)
-        .deleteCategory(widget.category.id);
-    if (!mounted) return;
-    context.pop();
+  void _cancelEdit() {
+    setState(() {
+      _isEditing = false;
+      _nameController.text = widget.category.name;
+      _descriptionController.text = widget.category.description;
+      _isActive = widget.category.isActive;
+    });
   }
 
   @override
@@ -74,48 +79,17 @@ class _EditCategorySheetState extends ConsumerState<EditCategorySheet> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    _isEditing ? 'Edit Category' : widget.category.name,
+                    _isEditing ? 'Edit Category' : 'Category details',
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
-                  TextButton(
-                    onPressed: () => setState(() => _isEditing = !_isEditing),
-                    child: Text(_isEditing ? 'Cancel' : 'Edit'),
+                  IconButton(
+                    tooltip: 'Close',
+                    onPressed: () => context.pop(),
+                    icon: const Icon(Icons.close),
                   ),
                 ],
               ),
               const SizedBox(height: 12),
-              if (!_isEditing)
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  margin: const EdgeInsets.only(bottom: 12),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .secondaryContainer
-                        .withValues(alpha: 0.6),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.visibility_outlined,
-                        size: 18,
-                        color: Colors.grey.shade700,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'View mode. Tap Edit to make changes.',
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodySmall
-                              ?.copyWith(color: Colors.grey.shade700),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
               AnimatedOpacity(
                 duration: const Duration(milliseconds: 200),
                 opacity: _isEditing ? 1 : 0.65,
@@ -164,42 +138,38 @@ class _EditCategorySheetState extends ConsumerState<EditCategorySheet> {
                 ),
               ),
               const SizedBox(height: 32),
-              Row(
-                children: [
-                  Expanded(
-                    child: FilledButton(
-                      style: FilledButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
+              if (_isEditing)
+                Row(
+                  children: [
+                    Expanded(
+                      child: FilledButton(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: Theme.of(
+                            context,
+                          ).textTheme.bodyLarge?.color,
                         ),
-                        backgroundColor:
-                            Theme.of(context).colorScheme.secondaryContainer,
-                      ),
-                      onPressed: _isEditing ? _delete : null,
-                      child: Text(
-                        'Delete',
-                        style: TextStyle(
-                          color: _isEditing
-                              ? Colors.red.shade700
-                              : Colors.grey.shade500,
-                          fontWeight: FontWeight.w600,
-                        ),
+                        onPressed: _cancelEdit,
+                        child: const Text('Cancel'),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: _isEditing ? _save : null,
-                      style: ElevatedButton.styleFrom(
-                        minimumSize: const Size.fromHeight(48),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: FilledButton(
+                        onPressed: _save,
+                        child: const Text('Save'),
                       ),
-                      child: const Text('Save Changes'),
                     ),
+                  ],
+                )
+              else
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: () => setState(() => _isEditing = true),
+                    child: const Text('Edit'),
                   ),
-                ],
-              ),
+                ),
             ],
           ),
         ),

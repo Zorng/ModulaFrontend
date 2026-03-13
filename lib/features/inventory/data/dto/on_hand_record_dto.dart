@@ -15,11 +15,9 @@ class OnHandRecordDto {
     Map<String, dynamic> json, {
     String? branchIdHint,
   }) {
-    final stockItemId = (json['stockItemId'] ??
-            json['stock_item_id'] ??
-            json['id'] ??
-            '')
-        .toString();
+    final stockItemId =
+        (json['stockItemId'] ?? json['stock_item_id'] ?? json['id'] ?? '')
+            .toString();
     var branchId = (json['branchId'] ?? json['branch_id'] ?? '').toString();
     if (branchId.isEmpty && branchIdHint != null && branchIdHint.isNotEmpty) {
       branchId = branchIdHint;
@@ -27,12 +25,17 @@ class OnHandRecordDto {
     return OnHandRecordDto(
       stockItemId: stockItemId,
       branchId: branchId,
-      onHand: _asInt(json['onHand'] ??
-          json['onHandQty'] ??
-          json['onHandExact'] ??
-          json['quantity'] ??
-          json['qty']),
-      minThreshold: _asInt(json['minThreshold'] ?? json['threshold']),
+      onHand: _asInt(
+        json['onHandInBaseUnit'] ??
+            json['onHand'] ??
+            json['onHandQty'] ??
+            json['onHandExact'] ??
+            json['quantity'] ??
+            json['qty'],
+      ),
+      minThreshold: _asInt(
+        json['lowStockThreshold'] ?? json['minThreshold'] ?? json['threshold'],
+      ),
     );
   }
 }
@@ -42,4 +45,3 @@ int? _asInt(dynamic value) {
   if (value is num) return value.toInt();
   return int.tryParse(value?.toString() ?? '');
 }
-

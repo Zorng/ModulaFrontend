@@ -28,10 +28,19 @@ class InventoryJournalEntryDto {
   final DateTime occurredAt;
 
   factory InventoryJournalEntryDto.fromJson(Map<String, dynamic> json) {
-    final reason = (json['reason'] ?? json['type'] ?? '').toString();
+    final reason = (json['reasonCode'] ?? json['reason'] ?? json['type'] ?? '')
+        .toString();
     final deltaRaw =
-        json['delta'] ?? json['qty'] ?? json['quantity'] ?? json['qtyDeducted'] ?? 0;
-    final createdAtRaw = json['createdAt'] ??
+        json['delta'] ??
+        json['qty'] ??
+        json['quantityInBaseUnit'] ??
+        json['quantity'] ??
+        json['qtyDeducted'] ??
+        0;
+    final direction = (json['direction'] ?? '').toString().trim().toUpperCase();
+    final parsedDelta = _asInt(deltaRaw) ?? 0;
+    final createdAtRaw =
+        json['createdAt'] ??
         json['created_at'] ??
         json['timestamp'] ??
         DateTime.now().toIso8601String();
@@ -47,12 +56,17 @@ class InventoryJournalEntryDto {
       stockItemId:
           json['stockItemId']?.toString() ?? json['itemId']?.toString() ?? '',
       stockItemName:
-          json['stockItemName']?.toString() ?? json['itemName']?.toString() ?? 'Item',
+          json['stockItemName']?.toString() ??
+          json['itemName']?.toString() ??
+          'Item',
       reason: reason,
-      delta: _asInt(deltaRaw) ?? 0,
+      delta: direction == 'OUT' && parsedDelta > 0 ? -parsedDelta : parsedDelta,
       note: json['note']?.toString() ?? '',
       actorId:
-          json['actorId']?.toString() ?? json['createdBy']?.toString() ?? '',
+          json['actorAccountId']?.toString() ??
+          json['actorId']?.toString() ??
+          json['createdBy']?.toString() ??
+          '',
       actorName:
           json['actor']?.toString() ??
           json['createdBy']?.toString() ??
@@ -74,4 +88,3 @@ DateTime? _asDateTime(dynamic value) {
   if (value == null) return null;
   return DateTime.tryParse(value.toString())?.toUtc();
 }
-

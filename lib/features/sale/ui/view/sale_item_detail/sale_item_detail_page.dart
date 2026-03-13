@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
@@ -58,6 +59,7 @@ class _SaleItemDetailPageState extends ConsumerState<SaleItemDetailPage> {
   @override
   Widget build(BuildContext context) {
     final menuState = ref.watch(menuViewModelProvider);
+
     return FutureBuilder<(MenuItem, List<ModifierGroup>)?>(
       future: _loadFuture,
       builder: (context, snapshot) {
@@ -70,13 +72,11 @@ class _SaleItemDetailPageState extends ConsumerState<SaleItemDetailPage> {
             .map((id) => menuState.hydratedModifierGroups[id])
             .whereType<ModifierGroup>()
             .toList();
-        var modifiers = fetchedMods.isNotEmpty ? fetchedMods : hydratedMods;
-        final gate = ref.watch(saleAccessGateProvider);
-        final canAddToCart =
-            gate.canMutateCart &&
-            gate.canAddToCart; // disables while loading too
+        final modifiers = fetchedMods.isNotEmpty ? fetchedMods : hydratedMods;
 
-        // If the first attempt returned empty, trigger one retry automatically.
+        final gate = ref.watch(saleAccessGateProvider);
+        final canAddToCart = gate.canAddToCart;
+
         if (modifiers.isEmpty &&
             !_hasRetried &&
             snapshot.connectionState == ConnectionState.done) {
@@ -105,118 +105,248 @@ class _SaleItemDetailPageState extends ConsumerState<SaleItemDetailPage> {
             snapshot.connectionState != ConnectionState.done;
         final showError = hasError && _hasRetried && modifiers.isEmpty;
 
-        return Scaffold(
-          appBar: AppBar(title: Text(itemToUse.name), centerTitle: false),
-          body: SafeArea(
+        final width = MediaQuery.of(context).size.width;
+        final isLarge = AppBreakpoints.isLarge(width);
+
+        final imageSection = Center(
+          child: SizedBox(
+            width: isLarge ? double.infinity : width * 0.5,
+            child: AspectRatio(
+              aspectRatio: 1,
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: SaleItemDetailImage(imageUrl: itemToUse.imageUrl),
+              ),
+            ),
+          ),
+        );
+
+        final headerSection = Row(
+          children: [
+            Expanded(
+              child: Text(
+                itemToUse.name,
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ),
+            Text(
+              '\$${itemToUse.price.toStringAsFixed(2)}',
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+            ),
+          ],
+        );
+
+        final modifiersSection = isHydrating
+            ? const Center(child: CircularProgressIndicator())
+            : showError
+            ? const Center(child: Text('Unable to load modifiers.'))
+            : modifiers.isEmpty
+            ? const Center(child: Text('No modifiers for this item.'))
+            : ListView.separated(
+                padding: EdgeInsets.fromLTRB(16, 8, 16, isLarge ? 80 : 16),
+                itemCount: modifiers.length,
+                separatorBuilder: (_, __) => const Divider(height: 1),
+                itemBuilder: (context, index) {
+                  final group = modifiers[index];
+                  final selected = _selectedOptionIds[group.id] ?? {};
+                  return SaleItemModifierGroupSection(
+                    group: group,
+                    selectedOptionIds: selected,
+                    onSelectionChanged: (newSelection) {
+                      setState(() {
+                        _selectedOptionIds[group.id] = newSelection;
+                      });
+                    },
+                  );
+                },
+              );
+
+        // Compute pricing breakdown
+        final pricing = _computeSelectionPricing(
+          itemToUse,
+          modifiers,
+          _selectedOptionIds,
+          _quantity,
+        );
+
+        // Check if we're in a dialog context (no Scaffold parent)
+        final isDialog = ModalRoute.of(context) is! PageRoute;
+
+        final bottomBar = SaleItemDetailBottomBar(
+          basePrice: itemToUse.price,
+          addonTotal: pricing.addonTotalUsd,
+          totalUsd: pricing.lineTotalUsd,
+          quantity: _quantity,
+          selectedOptions: pricing.selectedOptions,
+          onQuantityChanged: (value) => setState(() => _quantity = value),
+          canAddToCart: canAddToCart,
+          blockingMessage: canAddToCart ? null : gate.blockingMessage,
+          showPriceBreakdown: true, // Always show price breakdown
+          onAddItem: canAddToCart
+              ? () {
+                  final result = SaleItemSelectionResult(
+                    item: itemToUse,
+                    quantity: _quantity,
+                    selectedOptionIds: {
+                      for (final entry in _selectedOptionIds.entries)
+                        entry.key: entry.value.toList(),
+                    },
+                    selectedOptions: pricing.selectedOptions,
+                    addonTotalUsd: pricing.addonTotalUsd,
+                    unitPriceUsd: pricing.unitPriceUsd,
+                    lineTotalUsd: pricing.lineTotalUsd,
+                  );
+                  context.pop(result);
+                }
+              : null,
+        );
+
+        // Build the modal content for dialogs
+        if (isDialog) {
+          return Material(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            clipBehavior: Clip.antiAlias,
             child: Column(
               children: [
+                // Header with title, description, and close button
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                  child: Center(
-                    child: SizedBox(
-                      width: MediaQuery.of(context).size.width * 0.5,
-                      child: AspectRatio(
-                        aspectRatio: 1,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(12),
-                            color: Theme.of(context)
-                                .colorScheme
-                                .surfaceContainerHighest
-                                .withValues(alpha: 0.3),
-                          ),
-                          clipBehavior: Clip.antiAlias,
-                          child: SaleItemDetailImage(
-                            imageUrl: itemToUse.imageUrl,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  padding: const EdgeInsets.fromLTRB(24, 20, 16, 12),
                   child: Row(
                     children: [
                       Expanded(
-                        child: Text(
-                          itemToUse.name,
-                          style: Theme.of(context).textTheme.titleMedium,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              itemToUse.name,
+                              style: Theme.of(context).textTheme.titleLarge
+                                  ?.copyWith(fontWeight: FontWeight.bold),
+                            ),
+                            if (itemToUse.description.isNotEmpty) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                itemToUse.description,
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onSurfaceVariant,
+                                    ),
+                              ),
+                            ],
+                          ],
                         ),
                       ),
-                      Text(
-                        '\$${itemToUse.price.toStringAsFixed(2)}',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => Navigator.of(context).pop(),
                       ),
                     ],
                   ),
                 ),
-                Expanded(
-                  child: isHydrating
-                      ? const Center(child: CircularProgressIndicator())
-                      : showError
-                      ? const Center(child: Text('Unable to load modifiers.'))
-                      : modifiers.isEmpty
-                      ? const Center(child: Text('No modifiers for this item.'))
-                      : ListView.separated(
-                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                          itemCount: modifiers.length,
-                          separatorBuilder: (_, __) => const Divider(height: 1),
-                          itemBuilder: (context, index) {
-                            final group = modifiers[index];
-                            final selected = _selectedOptionIds[group.id] ?? {};
-                            return SaleItemModifierGroupSection(
-                              group: group,
-                              selectedOptionIds: selected,
-                              onSelectionChanged: (newSelection) {
-                                setState(() {
-                                  _selectedOptionIds[group.id] = newSelection;
-                                });
-                              },
-                            );
-                          },
-                        ),
-                ),
+                const Divider(height: 1),
+                // Modifiers and bottom bar (no image)
+                Expanded(child: modifiersSection),
+                bottomBar,
               ],
             ),
-          ),
-          bottomNavigationBar: SaleItemDetailBottomBar(
-            totalUsd: _computeTotal(
-              itemToUse,
-              modifiers,
-              _selectedOptionIds,
-              _quantity,
-            ),
-            quantity: _quantity,
-            onQuantityChanged: (value) => setState(() => _quantity = value),
-            canAddToCart: canAddToCart,
-            blockingMessage: gate.blockingMessage,
-            onAddItem: canAddToCart
-                ? () {
-                    final pricing = _computeSelectionPricing(
-                      itemToUse,
-                      modifiers,
-                      _selectedOptionIds,
-                      _quantity,
-                    );
-                    final result = SaleItemSelectionResult(
-                      item: itemToUse,
-                      quantity: _quantity,
-                      selectedOptionIds: {
-                        for (final entry in _selectedOptionIds.entries)
-                          entry.key: entry.value.toList(),
-                      },
-                      selectedOptions: pricing.selectedOptions,
-                      addonTotalUsd: pricing.addonTotalUsd,
-                      unitPriceUsd: pricing.unitPriceUsd,
-                      lineTotalUsd: pricing.lineTotalUsd,
-                    );
-                    context.pop(result);
-                  }
-                : null,
-          ),
+          );
+        }
+
+        // Build the content for navigation routes (Scaffold with AppBar)
+        Widget bodyContent = isLarge
+            ? Row(
+                children: [
+                  Expanded(
+                    flex: 4,
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 300),
+                            child: imageSection,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const VerticalDivider(width: 1),
+                  Expanded(
+                    flex: 6,
+                    child: Column(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+                          child: headerSection,
+                        ),
+                        Expanded(child: modifiersSection),
+                        bottomBar,
+                      ],
+                    ),
+                  ),
+                ],
+              )
+            : ListView(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                children: [
+                  imageSection,
+                  const SizedBox(height: 16),
+                  headerSection,
+                  const SizedBox(height: 12),
+                  if (isHydrating)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 24),
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  else if (showError)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 24),
+                      child: Center(child: Text('Unable to load modifiers.')),
+                    )
+                  else if (modifiers.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 24),
+                      child: Center(child: Text('No modifiers for this item.')),
+                    )
+                  else
+                    ...List.generate(modifiers.length, (index) {
+                      final group = modifiers[index];
+                      final selected = _selectedOptionIds[group.id] ?? {};
+                      return Column(
+                        children: [
+                          if (index > 0) const Divider(height: 1),
+                          SaleItemModifierGroupSection(
+                            group: group,
+                            selectedOptionIds: selected,
+                            onSelectionChanged: (newSelection) {
+                              setState(() {
+                                _selectedOptionIds[group.id] = newSelection;
+                              });
+                            },
+                          ),
+                        ],
+                      );
+                    }),
+                  const SizedBox(height: 16),
+                ],
+              );
+
+        // For navigation, use Scaffold
+        return Scaffold(
+          appBar: AppBar(title: Text(itemToUse.name), centerTitle: false),
+          body: SafeArea(child: bodyContent),
+          bottomNavigationBar: isLarge ? null : bottomBar,
         );
       },
     );
@@ -243,40 +373,40 @@ class SaleItemSelectionResult {
   final double lineTotalUsd;
 }
 
-double _computeTotal(
-  MenuItem item,
-  List<ModifierGroup> groups,
-  Map<String, Set<String>> selections,
-  int quantity,
-) {
-  double addon = 0;
-  for (final group in groups) {
-    final selected = selections[group.id];
-    Set<String> chosen;
-    if (selected != null && selected.isNotEmpty) {
-      chosen = selected;
-    } else {
-      // Fallback to defaults
-      final defaults = group.options
-          .where((o) => o.isDefault)
-          .map((o) => o.id)
-          .toSet();
-      if (defaults.isNotEmpty) {
-        chosen = defaults;
-      } else if (group.selectionType == 'single' && group.options.isNotEmpty) {
-        chosen = {group.options.first.id};
-      } else {
-        chosen = {};
-      }
-    }
-    for (final option in group.options) {
-      if (chosen.contains(option.id)) {
-        addon += option.price;
-      }
-    }
-  }
-  return (item.price + addon) * quantity;
-}
+// double _computeTotal(
+//   MenuItem item,
+//   List<ModifierGroup> groups,
+//   Map<String, Set<String>> selections,
+//   int quantity,
+// ) {
+//   double addon = 0;
+//   for (final group in groups) {
+//     final selected = selections[group.id];
+//     Set<String> chosen;
+//     if (selected != null && selected.isNotEmpty) {
+//       chosen = selected;
+//     } else {
+//       // Fallback to defaults
+//       final defaults = group.options
+//           .where((o) => o.isDefault)
+//           .map((o) => o.id)
+//           .toSet();
+//       if (defaults.isNotEmpty) {
+//         chosen = defaults;
+//       } else if (group.selectionType == 'single' && group.options.isNotEmpty) {
+//         chosen = {group.options.first.id};
+//       } else {
+//         chosen = {};
+//       }
+//     }
+//     for (final option in group.options) {
+//       if (chosen.contains(option.id)) {
+//         addon += option.price;
+//       }
+//     }
+//   }
+//   return (item.price + addon) * quantity;
+// }
 
 class _SelectionPricing {
   const _SelectionPricing({
