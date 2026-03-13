@@ -102,7 +102,10 @@ void main() {
         () => api.fetchAggregateStock(includeArchivedItems: true),
       ).thenAnswer((_) async => const []);
       when(
-        () => api.fetchBranchStockItems(includeArchivedItems: true),
+        () => api.fetchBranchStockItems(
+          branchId: 'branch-1',
+          includeArchivedItems: true,
+        ),
       ).thenAnswer(
         (_) async => const [
           BranchStockItemDto(
@@ -133,7 +136,10 @@ void main() {
       final rows = await repository.fetchStockItems(branchId: 'branch-1');
 
       verify(
-        () => api.fetchBranchStockItems(includeArchivedItems: true),
+        () => api.fetchBranchStockItems(
+          branchId: 'branch-1',
+          includeArchivedItems: true,
+        ),
       ).called(1);
       expect(rows, hasLength(1));
       expect(rows.first.id, 'item-1');
@@ -146,7 +152,12 @@ void main() {
     final api = _MockInventoryApi();
     final repository = RemoteBranchStockRepository(api);
 
-    when(() => api.fetchOnHand(includeArchivedItems: true)).thenAnswer(
+    when(
+      () => api.fetchOnHand(
+        branchId: 'branch-1',
+        includeArchivedItems: true,
+      ),
+    ).thenAnswer(
       (_) async => const [
         OnHandRecordDto(
           stockItemId: 'item-1',
@@ -165,6 +176,9 @@ void main() {
 
     final rows = await repository.fetchOnHand(branchId: 'branch-1');
 
+    verify(
+      () => api.fetchOnHand(branchId: 'branch-1', includeArchivedItems: true),
+    ).called(1);
     expect(rows, hasLength(1));
     expect(rows.first.branchId, 'branch-1');
     expect(rows.first.stockItemId, 'item-1');

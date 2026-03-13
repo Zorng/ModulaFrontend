@@ -2,8 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/inventory/data/inventory_journal_repository.dart';
 import 'package:modular_pos/features/inventory/data/stock_item_repository.dart';
-import 'package:modular_pos/features/inventory/domain/models/inventory_journal_entry.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
+import 'package:modular_pos/features/inventory/domain/models/inventory_journal_entry.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/inventory_error_mapper.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/inventory_journal_state.dart';
 
@@ -33,6 +33,11 @@ class InventoryJournalController extends Notifier<InventoryJournalState> {
   }) async {
     final safeLimit = limit <= 0 ? 50 : limit;
     final safeOffset = offset < 0 ? 0 : offset;
+    final normalizedBranchId =
+        (branchId != null && branchId.isNotEmpty && branchId != 'all')
+        ? branchId
+        : null;
+    final normalizedStockItemId = stockItemId ?? '';
     try {
       state = state.copyWith(
         isLoading: !append,
@@ -40,10 +45,18 @@ class InventoryJournalController extends Notifier<InventoryJournalState> {
         error: null,
         errorCode: null,
         limit: safeLimit,
+        scope: normalizedBranchId == null
+            ? InventoryJournalScope.tenantWide
+            : InventoryJournalScope.branch,
+        selectedBranchId: normalizedBranchId ?? 'all',
+        selectedStockItemId: normalizedStockItemId,
+        selectedReason: reason,
       );
       final userBranches =
           ref.read(loginControllerProvider).user?.branches ?? const [];
       final fetched = await _repo.fetch(
+        branchId: normalizedBranchId,
+        tenantWide: normalizedBranchId == null,
         stockItemId: stockItemId,
         reason: reason,
         limit: safeLimit,
@@ -52,18 +65,18 @@ class InventoryJournalController extends Notifier<InventoryJournalState> {
 
       final entries = fetched
           .where((entry) {
-            if (branchId == null || branchId.isEmpty || branchId == 'all') {
+            if (normalizedBranchId == null) {
               return true;
             }
-            return entry.branchId == branchId;
+            return entry.branchId == normalizedBranchId;
           })
           .map((entry) {
             if (entry.branchId.isNotEmpty) return entry;
-            if (branchId != null && branchId.isNotEmpty && branchId != 'all') {
+            if (normalizedBranchId != null) {
               return _withBranchFallback(
                 entry,
-                id: branchId,
-                name: _lookupBranchName(userBranches, branchId),
+                id: normalizedBranchId,
+                name: _lookupBranchName(userBranches, normalizedBranchId),
               );
             }
             return entry;
@@ -115,10 +128,12 @@ class InventoryJournalController extends Notifier<InventoryJournalState> {
   }) async {
     if (state.isLoading || state.isLoadingMore) return;
     if (!state.hasMore) return;
+    final selectedBranchId = branchId ?? state.selectedBranchId;
+    final selectedStockItemId = stockItemId ?? state.selectedStockItemId;
     await load(
-      branchId: branchId,
-      stockItemId: stockItemId,
-      reason: reason,
+      branchId: selectedBranchId == 'all' ? null : selectedBranchId,
+      stockItemId: selectedStockItemId.isEmpty ? null : selectedStockItemId,
+      reason: reason ?? state.selectedReason,
       limit: state.limit,
       offset: state.offset,
       append: true,

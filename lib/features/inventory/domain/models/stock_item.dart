@@ -1,5 +1,7 @@
 import 'package:equatable/equatable.dart';
 
+const Object _stockItemUnset = Object();
+
 class StockItem extends Equatable {
   const StockItem({
     required this.id,
@@ -32,7 +34,7 @@ class StockItem extends Equatable {
   StockItem copyWith({
     String? id,
     String? name,
-    String? categoryId,
+    Object? categoryId = _stockItemUnset,
     String? baseUnit,
     int? pieceSize,
     String? branchId,
@@ -40,12 +42,14 @@ class StockItem extends Equatable {
     int? onHand,
     int? minThreshold,
     bool? isActive,
-    String? imageUrl,
+    Object? imageUrl = _stockItemUnset,
   }) {
     return StockItem(
       id: id ?? this.id,
       name: name ?? this.name,
-      categoryId: categoryId ?? this.categoryId,
+      categoryId: identical(categoryId, _stockItemUnset)
+          ? this.categoryId
+          : categoryId as String?,
       baseUnit: baseUnit ?? this.baseUnit,
       pieceSize: pieceSize ?? this.pieceSize,
       branchId: branchId ?? this.branchId,
@@ -53,7 +57,9 @@ class StockItem extends Equatable {
       onHand: onHand ?? this.onHand,
       minThreshold: minThreshold ?? this.minThreshold,
       isActive: isActive ?? this.isActive,
-      imageUrl: imageUrl ?? this.imageUrl,
+      imageUrl: identical(imageUrl, _stockItemUnset)
+          ? this.imageUrl
+          : imageUrl as String?,
     );
   }
 

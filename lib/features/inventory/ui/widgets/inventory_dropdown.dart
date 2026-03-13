@@ -7,6 +7,7 @@ class InventoryDropdown<T> extends StatelessWidget {
     this.initialValue,
     this.onSelected,
     this.label,
+    this.hintText,
     this.requestFocusOnTap = false,
     this.enabled = true,
     this.leadingIcon,
@@ -20,6 +21,7 @@ class InventoryDropdown<T> extends StatelessWidget {
   final T? initialValue;
   final ValueChanged<T?>? onSelected;
   final Widget? label;
+  final String? hintText;
   final bool requestFocusOnTap;
   final bool enabled;
   final Widget? leadingIcon;
@@ -57,6 +59,7 @@ class InventoryDropdown<T> extends StatelessWidget {
                 requestFocusOnTap: requestFocusOnTap,
                 width: dropdownWidth,
                 label: label,
+                hintText: hintText,
                 dropdownMenuEntries: entries,
                 onSelected: onSelected,
                 enabled: enabled,

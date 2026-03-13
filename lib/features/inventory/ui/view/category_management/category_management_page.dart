@@ -34,6 +34,7 @@ class _CategoryManagementPageState
       ref
           .read(categoryControllerProvider.notifier)
           .loadCategories(status: _statusApiValue(_statusFilter));
+      ref.read(stockInventoryControllerProvider.notifier).loadStockItems();
     });
   }
 
@@ -46,7 +47,7 @@ class _CategoryManagementPageState
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(categoryControllerProvider);
-    final stockItems = ref.watch(stockInventoryControllerProvider).items;
+    final stockItems = ref.watch(stockInventoryControllerProvider).stockItems;
     final isWide = !AppBreakpoints.isSmall(MediaQuery.of(context).size.width);
     final query = _searchController.text.trim().toLowerCase();
     final categories = state.categories.where((category) {
@@ -108,6 +109,16 @@ class _CategoryManagementPageState
                         .loadCategories(status: _statusApiValue(selected));
                   },
                 ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Archiving a category moves linked stock items to Uncategorized.',
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: Theme.of(context).hintColor),
               ),
             ),
             const SizedBox(height: 16),

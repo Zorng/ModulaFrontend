@@ -69,14 +69,6 @@ class StockItemCard extends StatelessWidget {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      item.isActive ? 'Active' : 'Archived',
-                      style: TextStyle(
-                        color: item.isActive ? scheme.primary : scheme.error,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
                   ],
                 ),
               ),

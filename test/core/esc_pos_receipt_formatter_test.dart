@@ -118,10 +118,10 @@ void main() {
     expect(text, contains('Price'));
     expect(text, contains('Iced Latte'));
     expect(flattenedText, contains('  Ice Level: Less Ice'));
-    expect(flattenedText, contains('  Add-ons: Extra S'));
+    expect(flattenedText, contains('  Extra S'));
     expect(
       flattenedText.indexOf('  Ice Level: Less Ice'),
-      lessThan(flattenedText.indexOf('  Add-ons: Extra S')),
+      lessThan(flattenedText.indexOf('  Extra S')),
     );
     expect(text, contains(r'+$0.75'));
     expect(text, contains('Subtotal'));

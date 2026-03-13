@@ -8,13 +8,16 @@ class StockInventoryState extends Equatable {
     this.isLoading = false,
     this.isBatchesLoading = false,
     this.isLoadingMoreBatches = false,
-    this.items = const [],
+    this.inventoryItems = const [],
+    this.stockItems = const [],
+    this.selectedInventoryBranchId = 'all',
     this.batches = const [],
     this.restockBatchLimit = 200,
     this.restockBatchOffset = 0,
     this.hasMoreRestockBatches = true,
     this.restockBatchStatus = 'active',
     this.restockBatchStockItemId = '',
+    this.restockBatchBranchId = '',
     this.error,
     this.errorCode,
   });
@@ -22,13 +25,16 @@ class StockInventoryState extends Equatable {
   final bool isLoading;
   final bool isBatchesLoading;
   final bool isLoadingMoreBatches;
-  final List<StockItem> items;
+  final List<StockItem> inventoryItems;
+  final List<StockItem> stockItems;
+  final String selectedInventoryBranchId;
   final List<StockBatch> batches;
   final int restockBatchLimit;
   final int restockBatchOffset;
   final bool hasMoreRestockBatches;
   final String restockBatchStatus;
   final String restockBatchStockItemId;
+  final String restockBatchBranchId;
   final String? error;
   final InventoryErrorCode? errorCode;
 
@@ -36,13 +42,16 @@ class StockInventoryState extends Equatable {
     bool? isLoading,
     bool? isBatchesLoading,
     bool? isLoadingMoreBatches,
-    List<StockItem>? items,
+    List<StockItem>? inventoryItems,
+    List<StockItem>? stockItems,
+    String? selectedInventoryBranchId,
     List<StockBatch>? batches,
     int? restockBatchLimit,
     int? restockBatchOffset,
     bool? hasMoreRestockBatches,
     String? restockBatchStatus,
     String? restockBatchStockItemId,
+    String? restockBatchBranchId,
     String? error,
     InventoryErrorCode? errorCode,
   }) {
@@ -50,7 +59,10 @@ class StockInventoryState extends Equatable {
       isLoading: isLoading ?? this.isLoading,
       isBatchesLoading: isBatchesLoading ?? this.isBatchesLoading,
       isLoadingMoreBatches: isLoadingMoreBatches ?? this.isLoadingMoreBatches,
-      items: items ?? this.items,
+      inventoryItems: inventoryItems ?? this.inventoryItems,
+      stockItems: stockItems ?? this.stockItems,
+      selectedInventoryBranchId:
+          selectedInventoryBranchId ?? this.selectedInventoryBranchId,
       batches: batches ?? this.batches,
       restockBatchLimit: restockBatchLimit ?? this.restockBatchLimit,
       restockBatchOffset: restockBatchOffset ?? this.restockBatchOffset,
@@ -59,6 +71,7 @@ class StockInventoryState extends Equatable {
       restockBatchStatus: restockBatchStatus ?? this.restockBatchStatus,
       restockBatchStockItemId:
           restockBatchStockItemId ?? this.restockBatchStockItemId,
+      restockBatchBranchId: restockBatchBranchId ?? this.restockBatchBranchId,
       error: error,
       errorCode: errorCode,
     );
@@ -69,13 +82,16 @@ class StockInventoryState extends Equatable {
     isLoading,
     isBatchesLoading,
     isLoadingMoreBatches,
-    items,
+    inventoryItems,
+    stockItems,
+    selectedInventoryBranchId,
     batches,
     restockBatchLimit,
     restockBatchOffset,
     hasMoreRestockBatches,
     restockBatchStatus,
     restockBatchStockItemId,
+    restockBatchBranchId,
     error,
     errorCode,
   ];

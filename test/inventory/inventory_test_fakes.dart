@@ -154,14 +154,20 @@ class FakeStockInventoryController extends StockInventoryController {
   StockInventoryState build() => _state;
 
   @override
-  Future<void> loadStockItems({
+  Future<void> loadStockItems({String status = 'all'}) async {}
+
+  @override
+  Future<void> loadInventoryItems({
     String? branchId,
     String status = 'all',
   }) async {}
 
   @override
   Future<StockItem> loadStockItemDetail(String id) async {
-    return _state.items.firstWhere((item) => item.id == id);
+    return [
+      ..._state.stockItems,
+      ..._state.inventoryItems,
+    ].firstWhere((item) => item.id == id);
   }
 
   @override
@@ -351,7 +357,11 @@ List<Override> inventoryOverrides({
     stockInventoryControllerProvider.overrideWith(
       () => FakeStockInventoryController(
         stockInventoryState ??
-            StockInventoryState(items: testStockItems, batches: testBatches),
+            StockInventoryState(
+              inventoryItems: testStockItems,
+              stockItems: testStockItems,
+              batches: testBatches,
+            ),
       ),
     ),
     inventoryJournalControllerProvider.overrideWith(

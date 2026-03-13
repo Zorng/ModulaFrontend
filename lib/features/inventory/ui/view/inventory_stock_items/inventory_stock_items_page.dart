@@ -5,10 +5,9 @@ import 'package:modular_pos/core/feedback/user_error_message.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/theme/app_table_theme.dart';
 import 'package:modular_pos/core/theme/responsive.dart';
-import 'package:modular_pos/core/widgets/forms/app_search_bar.dart';
 import 'package:modular_pos/core/widgets/buttons/app_add_new_button.dart';
+import 'package:modular_pos/core/widgets/forms/app_search_bar.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
-import 'package:modular_pos/features/inventory/ui/models/inventory_branch_option.dart';
 import 'package:modular_pos/features/inventory/ui/view/inventory_stock_items/inventory_stock_items_utils.dart';
 import 'package:modular_pos/features/inventory/ui/view/inventory_stock_items/widgets/stock_item_card.dart';
 import 'package:modular_pos/features/inventory/ui/view/inventory_stock_items/widgets/stock_item_image.dart';
@@ -16,7 +15,6 @@ import 'package:modular_pos/features/inventory/ui/viewmodels/category_controller
 import 'package:modular_pos/features/inventory/ui/viewmodels/inventory_error_mapper.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_controller.dart';
 import 'package:modular_pos/features/inventory/ui/widgets/inventory_dropdown.dart';
-import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 
 class InventoryStockItemsPage extends ConsumerStatefulWidget {
   const InventoryStockItemsPage({super.key});
@@ -31,13 +29,13 @@ class _InventoryStockItemsPageState
   final _searchController = TextEditingController();
   String _categoryFilter = 'All Categories';
   _ActiveFilter _activeFilter = _ActiveFilter.all;
-  String _selectedBranchId = 'all';
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await ref.read(categoryControllerProvider.notifier).loadCategories();
+      await ref
           .read(stockInventoryControllerProvider.notifier)
           .loadStockItems(status: _statusApiValue(_activeFilter));
     });
@@ -56,24 +54,25 @@ class _InventoryStockItemsPageState
     final categoryLookup = {
       for (final c in categoryState.categories) c.id: c.name,
     };
-    final items = inventoryState.items;
-    final hasNoStockItems = items.isEmpty;
-
-    final userBranches =
-        ref.watch(loginControllerProvider).user?.branches ?? const [];
-    final branchEntries = buildInventoryBranchOptions(
-      items: items,
-      userBranches: userBranches,
+    final compactViewButtonStyle = ElevatedButton.styleFrom(
+      backgroundColor: AppTableTheme.actionButtonColor,
+      foregroundColor: Colors.white,
+      elevation: 0,
+      minimumSize: const Size(0, 48),
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     );
-    final effectiveBranchId =
-        branchEntries.any((entry) => entry.id == _selectedBranchId)
-        ? _selectedBranchId
-        : 'all';
+    final items = inventoryState.stockItems;
+    final hasNoStockItems = items.isEmpty;
 
     final categories = [
       'All Categories',
       ...{for (final entry in categoryLookup.entries) entry.value},
-    ];
+    ]..sort();
+    if (categories.isEmpty || categories.first != 'All Categories') {
+      categories.insert(0, 'All Categories');
+    }
 
     final filtered = items.where((item) {
       final displayCategory = categoryLabel(item, categoryLookup);
@@ -90,17 +89,8 @@ class _InventoryStockItemsPageState
         _ActiveFilter.active => item.isActive,
         _ActiveFilter.inactive => !item.isActive,
       };
-      final matchesBranch =
-          effectiveBranchId == 'all' || item.branchId == effectiveBranchId;
-      return matchesCategory && matchesSearch && matchesActive && matchesBranch;
-    }).toList();
-
-    final unique = <String, StockItem>{};
-    for (final item in filtered) {
-      unique.putIfAbsent(item.name.toLowerCase(), () => item);
-    }
-    final displayed = unique.values.toList()
-      ..sort((a, b) => a.name.compareTo(b.name));
+      return matchesCategory && matchesSearch && matchesActive;
+    }).toList()..sort((a, b) => a.name.compareTo(b.name));
 
     return Scaffold(
       body: Padding(
@@ -118,9 +108,9 @@ class _InventoryStockItemsPageState
                   0.0,
                   double.infinity,
                 );
-                final desktopFilterWidth = (availableWidth * 0.16).clamp(
-                  170.0,
-                  220.0,
+                final desktopFilterWidth = (availableWidth * 0.18).clamp(
+                  180.0,
+                  240.0,
                 );
                 final desktopButtonWidth = 132.0;
                 final compactButtonWidth = contentWidth < 420 ? 108.0 : 120.0;
@@ -163,34 +153,7 @@ class _InventoryStockItemsPageState
                     setState(() => _activeFilter = selected);
                     ref
                         .read(stockInventoryControllerProvider.notifier)
-                        .loadStockItems(
-                          branchId: effectiveBranchId == 'all'
-                              ? null
-                              : effectiveBranchId,
-                          status: _statusApiValue(selected),
-                        );
-                  },
-                );
-
-                final branchFilter = InventoryDropdown<String>(
-                  initialValue: effectiveBranchId,
-                  entries: branchEntries
-                      .map(
-                        (branch) => DropdownMenuEntry(
-                          value: branch.id,
-                          label: branch.name,
-                        ),
-                      )
-                      .toList(),
-                  onSelected: (value) {
-                    final selected = value ?? 'all';
-                    setState(() => _selectedBranchId = selected);
-                    ref
-                        .read(stockInventoryControllerProvider.notifier)
-                        .loadStockItems(
-                          branchId: selected == 'all' ? null : selected,
-                          status: _statusApiValue(_activeFilter),
-                        );
+                        .loadStockItems(status: _statusApiValue(selected));
                   },
                 );
 
@@ -212,8 +175,6 @@ class _InventoryStockItemsPageState
                       ),
                       const SizedBox(width: 12),
                       SizedBox(width: desktopFilterWidth, child: statusFilter),
-                      const SizedBox(width: 12),
-                      SizedBox(width: desktopFilterWidth, child: branchFilter),
                       const SizedBox(width: 12),
                       SizedBox(width: desktopButtonWidth, child: button),
                     ],
@@ -245,8 +206,6 @@ class _InventoryStockItemsPageState
                         Expanded(child: categoryFilter),
                       ],
                     ),
-                    const SizedBox(height: 12),
-                    Row(children: [Expanded(child: branchFilter)]),
                   ],
                 );
               },
@@ -296,22 +255,12 @@ class _InventoryStockItemsPageState
                                 ),
                                 const SizedBox(height: 8),
                                 Text(
-                                  'Create your first stock item to start managing inventory in this tab.',
+                                  'Create your first stock item to start managing inventory.',
                                   style: Theme.of(context).textTheme.bodyMedium
                                       ?.copyWith(
                                         color: Theme.of(context).hintColor,
                                       ),
                                   textAlign: TextAlign.center,
-                                ),
-                                const SizedBox(height: 16),
-                                SizedBox(
-                                  width: 220,
-                                  child: AppAddNewButton(
-                                    label: 'Create Stock Item',
-                                    onPressed: () => context.push(
-                                      AppRoute.inventoryAddItem.path,
-                                    ),
-                                  ),
                                 ),
                               ],
                             ),
@@ -324,7 +273,7 @@ class _InventoryStockItemsPageState
                             MediaQuery.of(context).size.width,
                           );
                           if (!hasNavigationRail) {
-                            if (displayed.isEmpty) {
+                            if (filtered.isEmpty) {
                               return const Center(
                                 child: Text(
                                   'No stock items match your filters. Try a different category, status, or search term.',
@@ -335,7 +284,7 @@ class _InventoryStockItemsPageState
                             }
                             return ListView.separated(
                               itemBuilder: (context, index) {
-                                final item = displayed[index];
+                                final item = filtered[index];
                                 return StockItemCard(
                                   item: item,
                                   categoryLabel: categoryLabel(
@@ -349,10 +298,10 @@ class _InventoryStockItemsPageState
                               },
                               separatorBuilder: (_, __) =>
                                   const SizedBox(height: 12),
-                              itemCount: displayed.length,
+                              itemCount: filtered.length,
                             );
                           }
-                          if (displayed.isEmpty) {
+                          if (filtered.isEmpty) {
                             return Center(
                               child: Container(
                                 padding: const EdgeInsets.symmetric(
@@ -370,7 +319,6 @@ class _InventoryStockItemsPageState
                               ),
                             );
                           }
-                          // Wide screen: DataTable
                           return SingleChildScrollView(
                             scrollDirection: Axis.horizontal,
                             child: ConstrainedBox(
@@ -427,13 +375,7 @@ class _InventoryStockItemsPageState
                                       ),
                                       DataColumn(
                                         label: Text(
-                                          'Assigned Branch (es)',
-                                          style: AppTableTheme.headerText,
-                                        ),
-                                      ),
-                                      DataColumn(
-                                        label: Text(
-                                          'Status',
+                                          'Threshold',
                                           style: AppTableTheme.headerText,
                                         ),
                                       ),
@@ -444,136 +386,97 @@ class _InventoryStockItemsPageState
                                         ),
                                       ),
                                     ],
-                                    rows: List<DataRow>.generate(
-                                      displayed.length,
-                                      (index) {
-                                        final item = displayed[index];
-                                        final bool isActive = item.isActive;
-                                        final assigned = _assignedBranches(
-                                          item,
-                                          items,
-                                        );
+                                    rows: List<DataRow>.generate(filtered.length, (
+                                      index,
+                                    ) {
+                                      final item = filtered[index];
 
-                                        return DataRow(
-                                          cells: [
-                                            DataCell(
-                                              Text(
-                                                '${index + 1}',
-                                                style: AppTableTheme.cellText,
-                                              ),
+                                      return DataRow(
+                                        cells: [
+                                          DataCell(
+                                            Text(
+                                              '${index + 1}',
+                                              style: AppTableTheme.cellText,
                                             ),
-                                            DataCell(
-                                              Row(
-                                                children: [
-                                                  StockItemImage(
-                                                    imageUrl: item.imageUrl,
-                                                  ),
-                                                  const SizedBox(width: 12),
-                                                  Flexible(
-                                                    child: Text(
-                                                      item.name,
-                                                      style: Theme.of(
-                                                        context,
-                                                      ).textTheme.bodyMedium,
-                                                      overflow:
-                                                          TextOverflow.ellipsis,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-
-                                            // Category pill
-                                            DataCell(
-                                              Container(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 12,
-                                                      vertical: 6,
-                                                    ),
-                                                decoration: AppTableTheme
-                                                    .categoryPillDecoration,
-                                                child: Text(
-                                                  categoryLabel(
-                                                    item,
-                                                    categoryLookup,
-                                                  ),
-                                                  style: AppTableTheme
-                                                      .categoryPillText,
+                                          ),
+                                          DataCell(
+                                            Row(
+                                              children: [
+                                                StockItemImage(
+                                                  imageUrl: item.imageUrl,
                                                 ),
-                                              ),
-                                            ),
-
-                                            // branch assignment
-                                            DataCell(
-                                              Text(
-                                                assigned,
-                                                style: AppTableTheme.cellText,
-                                              ),
-                                            ),
-
-                                            // Status pill
-                                            DataCell(
-                                              Container(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 12,
-                                                      vertical: 6,
-                                                    ),
-                                                decoration: isActive
-                                                    ? AppTableTheme
-                                                          .healthyDecoration
-                                                    : AppTableTheme
-                                                          .dangerDecoration,
-                                                child: Text(
-                                                  isActive
-                                                      ? 'Active'
-                                                      : 'Archived',
-                                                  style: isActive
-                                                      ? AppTableTheme
-                                                            .healthyText
-                                                      : AppTableTheme
-                                                            .dangerText,
-                                                ),
-                                              ),
-                                            ),
-
-                                            // View button
-                                            DataCell(
-                                              Wrap(
-                                                spacing: 8,
-                                                runSpacing: 8,
-                                                children: [
-                                                  ElevatedButton(
-                                                    style: AppTableTheme
-                                                        .actionButtonStyle,
-                                                    onPressed: () => context.push(
-                                                      AppRoute
-                                                          .inventoryStockDetail
-                                                          .path,
-                                                      extra: item,
-                                                    ),
-                                                    child: const Text('View'),
+                                                const SizedBox(width: 12),
+                                                Flexible(
+                                                  child: Text(
+                                                    item.name,
+                                                    style: Theme.of(
+                                                      context,
+                                                    ).textTheme.bodyMedium,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
                                                   ),
-                                                  if (!item.isActive)
-                                                    OutlinedButton.icon(
-                                                      onPressed: () =>
-                                                          _restoreItem(item),
-                                                      icon: const Icon(
-                                                        Icons.restore_outlined,
-                                                        size: 18,
-                                                      ),
-                                                      label: const Text(
-                                                        'Restore',
-                                                      ),
-                                                    ),
-                                                ],
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          DataCell(
+                                            Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 12,
+                                                    vertical: 6,
+                                                  ),
+                                              decoration: AppTableTheme
+                                                  .categoryPillDecoration,
+                                              child: Text(
+                                                categoryLabel(
+                                                  item,
+                                                  categoryLookup,
+                                                ),
+                                                style: AppTableTheme
+                                                    .categoryPillText,
                                               ),
                                             ),
-                                          ],
-                                        );
-                                      },
-                                    ),
+                                          ),
+                                          DataCell(
+                                            Text(
+                                              '${item.minThreshold} ${item.baseUnit}',
+                                              style: AppTableTheme.cellText,
+                                            ),
+                                          ),
+                                          DataCell(
+                                            Wrap(
+                                              spacing: 8,
+                                              runSpacing: 8,
+                                              children: [
+                                                ElevatedButton(
+                                                  style: compactViewButtonStyle,
+                                                  onPressed: () => context.push(
+                                                    AppRoute
+                                                        .inventoryStockDetail
+                                                        .path,
+                                                    extra: item,
+                                                  ),
+                                                  child: const Text('View'),
+                                                ),
+                                                if (!item.isActive)
+                                                  OutlinedButton.icon(
+                                                    onPressed: () =>
+                                                        _restoreItem(item),
+                                                    icon: const Icon(
+                                                      Icons.restore_outlined,
+                                                      size: 18,
+                                                    ),
+                                                    label: const Text(
+                                                      'Restore',
+                                                    ),
+                                                  ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      );
+                                    }),
                                   ),
                                 ),
                               ),
@@ -587,22 +490,6 @@ class _InventoryStockItemsPageState
         ),
       ),
     );
-  }
-
-  String _assignedBranches(StockItem item, List<StockItem> allItems) {
-    final branches = <String>{};
-
-    for (final it in allItems) {
-      if (it.name == item.name && it.categoryId == item.categoryId) {
-        branches.add(it.branchName);
-      }
-    }
-
-    if (branches.length <= 1) {
-      return item.branchName;
-    }
-
-    return '${branches.length} branches assigned';
   }
 
   String _statusApiValue(_ActiveFilter filter) {

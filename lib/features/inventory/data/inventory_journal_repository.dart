@@ -70,6 +70,7 @@ abstract class InventoryJournalRepository {
   });
 
   Future<int?> applyAdjustment({
+    required String branchId,
     required String stockItemId,
     required String style,
     int? deltaInBaseUnit,
@@ -79,6 +80,8 @@ abstract class InventoryJournalRepository {
   });
 
   Future<List<InventoryJournalEntry>> fetch({
+    String? branchId,
+    bool tenantWide = false,
     String? stockItemId,
     InventoryJournalReason? reason,
     int limit = 50,
@@ -88,6 +91,7 @@ abstract class InventoryJournalRepository {
   Future<List<InventoryJournalEntry>> lowStockAlerts({String? branchId});
 
   Future<List<StockBatch>> fetchRestockBatches({
+    String? branchId,
     String status = 'all',
     String? stockItemId,
     int? limit,
@@ -96,11 +100,15 @@ abstract class InventoryJournalRepository {
 
   Future<StockBatch> updateRestockBatchMetadata({
     required String batchId,
+    required String branchId,
     String? expiryDate,
     String? supplierName,
     num? purchaseCostUsd,
     String? note,
   });
 
-  Future<void> archiveRestockBatch({required String batchId});
+  Future<void> archiveRestockBatch({
+    required String batchId,
+    required String branchId,
+  });
 }

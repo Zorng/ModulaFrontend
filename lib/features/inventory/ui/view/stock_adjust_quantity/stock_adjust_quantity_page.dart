@@ -1,24 +1,32 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
+import 'package:modular_pos/features/branchV2/ui/viewmodels/branch_controller.dart';
+import 'package:modular_pos/features/inventory/data/branch_stock_repository.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_journal_entry.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_batch.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
 import 'package:modular_pos/features/inventory/domain/utils/stock_quantity_formatter.dart';
-import 'package:modular_pos/features/inventory/ui/viewmodels/inventory_journal_controller.dart';
-import 'package:modular_pos/features/inventory/ui/viewmodels/inventory_error_mapper.dart';
-import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_controller.dart';
+import 'package:modular_pos/features/inventory/ui/models/inventory_branch_option.dart';
 import 'package:modular_pos/features/inventory/ui/view/stock_adjust_quantity/stock_adjust_quantity_utils.dart';
 import 'package:modular_pos/features/inventory/ui/view/stock_adjust_quantity/widgets/adjust_quantity_inputs.dart';
 import 'package:modular_pos/features/inventory/ui/view/stock_adjust_quantity/widgets/stock_batch_list_card.dart';
+import 'package:modular_pos/features/inventory/ui/viewmodels/inventory_error_mapper.dart';
+import 'package:modular_pos/features/inventory/ui/viewmodels/inventory_journal_controller.dart';
+import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_controller.dart';
 import 'package:modular_pos/features/inventory/ui/widgets/inventory_dropdown.dart';
 
 class AdjustStockQuantityPage extends ConsumerStatefulWidget {
-  const AdjustStockQuantityPage({super.key, required this.item});
+  const AdjustStockQuantityPage({
+    super.key,
+    required this.item,
+    this.initialBranchId,
+  });
 
   final StockItem item;
+  final String? initialBranchId;
 
   @override
   ConsumerState<AdjustStockQuantityPage> createState() =>
@@ -33,24 +41,29 @@ class _AdjustStockQuantityPageState
   _AdjustmentMode _mode = _AdjustmentMode.delta;
   _AdjustmentType _type = _AdjustmentType.add;
   _RestockBatchStatus _restockBatchStatus = _RestockBatchStatus.active;
+  String? _selectedBranchId;
+  int? _selectedBranchOnHand;
+  int? _selectedBranchMinThreshold;
+  bool _isBranchContextLoading = false;
   String? _selectedBatchId;
+  String? _branchError;
   String? _submitError;
   bool _isSaving = false;
 
   @override
   void initState() {
     super.initState();
+    _selectedBranchId = _normalizeBranchId(widget.initialBranchId);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      try {
-        await ref
-            .read(stockInventoryControllerProvider.notifier)
-            .loadRestockBatches(
-              status: _restockBatchStatus.apiValue,
-              stockItemId: widget.item.id,
-            );
-      } catch (_) {
-        // Keep existing fallback UX when batch listing is unavailable.
+      final branchState = ref.read(branchControllerProvider);
+      if (branchState.branches.isEmpty) {
+        try {
+          await ref.read(branchControllerProvider.notifier).loadInitial();
+        } catch (_) {
+          // Keep user-branch fallback options when the branch directory fails.
+        }
       }
+      await _loadSelectedBranchContext();
     });
   }
 
@@ -64,48 +77,143 @@ class _AdjustStockQuantityPageState
 
   @override
   Widget build(BuildContext context) {
-    final item = widget.item;
+    final baseItem = widget.item;
     final inventoryState = ref.watch(stockInventoryControllerProvider);
+    final loginState = ref.watch(loginControllerProvider);
+    final activeTenantId =
+        (loginState.session?.activeTenantId ??
+                loginState.session?.user.tenantId)
+            ?.trim() ??
+        '';
+    final tenantBranches = ref
+        .watch(branchControllerProvider.select((state) => state.branches))
+        .where(
+          (branch) =>
+              activeTenantId.isEmpty ||
+              branch.tenantId.trim().isEmpty ||
+              branch.tenantId.trim() == activeTenantId,
+        )
+        .toList(growable: false);
+    final branchOptions = buildInventoryBranchOptions(
+      items: [baseItem],
+      tenantBranches: tenantBranches,
+      userBranches: loginState.user?.branches ?? const [],
+    ).where((entry) => entry.id != 'all').toList(growable: false);
+    final resolvedSelectedBranchId =
+        branchOptions.any((entry) => entry.id == _selectedBranchId)
+        ? _selectedBranchId
+        : null;
+    final selectedBranchEntries = branchOptions
+        .where((entry) => entry.id == resolvedSelectedBranchId)
+        .toList(growable: false);
+    final selectedBranchName = selectedBranchEntries.isNotEmpty
+        ? selectedBranchEntries.first.name
+        : null;
+    final effectiveItem = baseItem.copyWith(
+      branchId: resolvedSelectedBranchId ?? baseItem.branchId,
+      branchName: selectedBranchName ?? baseItem.branchName,
+      onHand: resolvedSelectedBranchId == null
+          ? baseItem.onHand
+          : (_selectedBranchOnHand ?? 0),
+      minThreshold: resolvedSelectedBranchId == null
+          ? baseItem.minThreshold
+          : (_selectedBranchMinThreshold ?? baseItem.minThreshold),
+    );
     final batches =
-        inventoryState.batches
-            .where((batch) => batch.stockItemId == item.id)
-            .toList()
+        resolvedSelectedBranchId == null
+              ? <StockBatch>[]
+              : inventoryState.batches
+                    .where(
+                      (batch) =>
+                          batch.stockItemId == baseItem.id &&
+                          batch.branchId == resolvedSelectedBranchId,
+                    )
+                    .toList()
           ..sort(compareBatches);
     final resolvedBatchId =
-        _selectedBatchId ?? (batches.isNotEmpty ? batches.first.id : null);
+        _selectedBatchId != null &&
+            batches.any((batch) => batch.id == _selectedBatchId)
+        ? _selectedBatchId
+        : (batches.isNotEmpty ? batches.first.id : null);
     final selectedBatch = resolvedBatchId == null
         ? null
-        : batches.firstWhere(
-            (batch) => batch.id == resolvedBatchId,
-            orElse: () => batches.first,
-          );
+        : batches.firstWhere((batch) => batch.id == resolvedBatchId);
+
     return Scaffold(
-      appBar: AppBar(title: Text('Adjust ${item.name}'), centerTitle: false),
+      appBar: AppBar(
+        title: Text('Adjust ${baseItem.name}'),
+        centerTitle: false,
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           Card(
             child: ListTile(
-              title: Text(item.name),
-              subtitle: Text('${item.branchName} • ${_pieceLabel(item)}'),
-              trailing: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    StockQuantityFormatter(
-                      baseQty: item.onHand,
-                      pieceSize: item.pieceSize,
-                      baseUnit: item.baseUnit,
-                    ).format(),
-                  ),
-                  Text(
-                    'Min ${StockQuantityFormatter(baseQty: item.minThreshold, pieceSize: item.pieceSize, baseUnit: item.baseUnit).format()}',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ],
+              title: Text(baseItem.name),
+              subtitle: Text(
+                '${selectedBranchName ?? 'No branch selected'} • ${_pieceLabel(effectiveItem)}',
               ),
+              trailing:
+                  _isBranchContextLoading && resolvedSelectedBranchId != null
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          StockQuantityFormatter(
+                            baseQty: effectiveItem.onHand,
+                            pieceSize: effectiveItem.pieceSize,
+                            baseUnit: effectiveItem.baseUnit,
+                          ).format(),
+                        ),
+                        Text(
+                          'Min ${StockQuantityFormatter(baseQty: effectiveItem.minThreshold, pieceSize: effectiveItem.pieceSize, baseUnit: effectiveItem.baseUnit).format()}',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
             ),
+          ),
+          const SizedBox(height: 16),
+          InventoryDropdown<String>(
+            key: ValueKey(
+              'adjust-branch-${resolvedSelectedBranchId ?? 'none'}',
+            ),
+            initialValue: resolvedSelectedBranchId,
+            label: const Text('Branch'),
+            hintText: 'Select branch',
+            enabled: branchOptions.isNotEmpty,
+            entries: branchOptions
+                .map(
+                  (branch) => DropdownMenuEntry<String>(
+                    value: branch.id,
+                    label: branch.name,
+                  ),
+                )
+                .toList(),
+            helperText: branchOptions.isEmpty
+                ? 'No branches are available for adjustment.'
+                : resolvedSelectedBranchId == null
+                ? 'Select a branch to load branch stock and restock batches.'
+                : _isBranchContextLoading
+                ? 'Loading branch stock and restock batches.'
+                : null,
+            errorText: _branchError,
+            onSelected: (value) async {
+              final selected = _normalizeBranchId(value);
+              setState(() {
+                _selectedBranchId = selected;
+                _selectedBatchId = null;
+                _branchError = null;
+                _submitError = null;
+              });
+              await _loadSelectedBranchContext(showBatchError: true);
+            },
           ),
           const SizedBox(height: 16),
           SegmentedButton<_AdjustmentMode>(
@@ -155,36 +263,23 @@ class _AdjustStockQuantityPageState
                 .toList(),
             onSelected: (value) async {
               final selected = value ?? _RestockBatchStatus.active;
-              final messenger = ScaffoldMessenger.of(context);
               setState(() {
                 _restockBatchStatus = selected;
                 _selectedBatchId = null;
                 _submitError = null;
               });
-              try {
-                await ref
-                    .read(stockInventoryControllerProvider.notifier)
-                    .loadRestockBatches(
-                      status: selected.apiValue,
-                      stockItemId: widget.item.id,
-                    );
-              } catch (_) {
-                if (!mounted) return;
-                messenger.showSnackBar(
-                  const SnackBar(
-                    content: Text('Failed to load restock batches'),
-                  ),
-                );
-              }
+              await _loadSelectedBranchContext(showBatchError: true);
             },
           ),
           const SizedBox(height: 12),
-          if (inventoryState.isBatchesLoading && batches.isEmpty)
+          if (resolvedSelectedBranchId != null &&
+              (inventoryState.isBatchesLoading || _isBranchContextLoading) &&
+              batches.isEmpty)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 8),
               child: Center(child: CircularProgressIndicator()),
             ),
-          if (batches.isEmpty)
+          if (resolvedSelectedBranchId == null)
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -192,7 +287,19 @@ class _AdjustStockQuantityPageState
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
-                'Batch tracking is not available yet. Adjustments apply to the total on-hand quantity for this item.',
+                'Select a branch first. Adjustments and batch data apply to one branch at a time.',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            )
+          else if (batches.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                'Batch tracking is not available yet for the selected branch. Adjustments apply to the branch total on-hand quantity for this item.',
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
             )
@@ -201,16 +308,17 @@ class _AdjustStockQuantityPageState
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Batches are shown for reference only. Inventory adjustments apply to the item total, not an individual batch.',
+                  'Batches are shown for reference only. Inventory adjustments apply to the selected branch total, not an individual batch.',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
                 const SizedBox(height: 12),
                 InventoryDropdown<String>(
+                  key: ValueKey('adjust-batch-${resolvedBatchId ?? 'none'}'),
                   initialValue: resolvedBatchId,
                   label: const Text('Batch'),
                   entries: batches
                       .map(
-                        (batch) => DropdownMenuEntry(
+                        (batch) => DropdownMenuEntry<String>(
                           value: batch.id,
                           label:
                               '${batch.receivedDate} · ${batch.expiryDate ?? 'No expiry'}',
@@ -225,14 +333,14 @@ class _AdjustStockQuantityPageState
                 const SizedBox(height: 12),
                 if (selectedBatch != null)
                   Text(
-                    'Batch on hand: ${StockQuantityFormatter(baseQty: selectedBatch.onHand, pieceSize: item.pieceSize, baseUnit: item.baseUnit).format()}',
+                    'Batch on hand: ${StockQuantityFormatter(baseQty: selectedBatch.onHand, pieceSize: effectiveItem.pieceSize, baseUnit: effectiveItem.baseUnit).format()}',
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
               ],
             ),
           const SizedBox(height: 16),
           AdjustQuantityInputs(
-            item: item,
+            item: effectiveItem,
             pcsCtrl: _pcsCtrl,
             baseCtrl: _baseUnitCtrl,
             mode: _mode == _AdjustmentMode.delta
@@ -243,7 +351,7 @@ class _AdjustStockQuantityPageState
           AnimatedBuilder(
             animation: Listenable.merge([_pcsCtrl, _baseUnitCtrl]),
             builder: (context, _) {
-              final enteredBaseQty = _enteredBaseQuantity(item);
+              final enteredBaseQty = _enteredBaseQuantity(effectiveItem);
               if (enteredBaseQty == null) {
                 return Text(
                   'Enter non-negative whole numbers for quantity fields.',
@@ -252,14 +360,14 @@ class _AdjustStockQuantityPageState
               }
               final projectedOnHand = _mode == _AdjustmentMode.setToCount
                   ? enteredBaseQty
-                  : item.onHand +
+                  : effectiveItem.onHand +
                         (_type == _AdjustmentType.add
                             ? enteredBaseQty
                             : -enteredBaseQty);
               return Text(
                 _mode == _AdjustmentMode.setToCount
-                    ? 'Counted total in base units: ${_formatBaseUnits(item, enteredBaseQty)}'
-                    : 'Projected on-hand after adjustment: ${_formatProjectedOnHand(item, projectedOnHand)}',
+                    ? 'Counted total in base units: ${_formatBaseUnits(effectiveItem, enteredBaseQty)}'
+                    : 'Projected on-hand after adjustment: ${_formatProjectedOnHand(effectiveItem, projectedOnHand)}',
                 style: Theme.of(context).textTheme.bodySmall,
               );
             },
@@ -274,7 +382,12 @@ class _AdjustStockQuantityPageState
           FilledButton(
             onPressed: _isSaving
                 ? null
-                : () => _submit(batches, resolvedBatchId),
+                : () => _submit(
+                    effectiveItem,
+                    batches,
+                    resolvedBatchId,
+                    selectedBranchName: selectedBranchName,
+                  ),
             child: const Text('Apply adjustment'),
           ),
           if (_submitError != null) ...[
@@ -289,15 +402,17 @@ class _AdjustStockQuantityPageState
             StockBatchListCard(
               batches: batches,
               selectedId: resolvedBatchId,
-              item: item,
+              item: effectiveItem,
               onSelected: (id) => setState(() => _selectedBatchId = id),
             ),
-          if (inventoryState.isLoadingMoreBatches)
+          if (resolvedSelectedBranchId != null &&
+              inventoryState.isLoadingMoreBatches)
             const Padding(
               padding: EdgeInsets.only(top: 12),
               child: Center(child: CircularProgressIndicator()),
             )
-          else if (inventoryState.hasMoreRestockBatches &&
+          else if (resolvedSelectedBranchId != null &&
+              inventoryState.hasMoreRestockBatches &&
               !inventoryState.isBatchesLoading)
             Padding(
               padding: const EdgeInsets.only(top: 12),
@@ -327,8 +442,22 @@ class _AdjustStockQuantityPageState
     );
   }
 
-  Future<void> _submit(List<StockBatch> batches, String? batchId) async {
-    final totalBaseQty = _enteredBaseQuantity(widget.item);
+  Future<void> _submit(
+    StockItem item,
+    List<StockBatch> batches,
+    String? batchId, {
+    String? selectedBranchName,
+  }) async {
+    final selectedBranchId = _normalizeBranchId(_selectedBranchId);
+    if (selectedBranchId == null) {
+      setState(() {
+        _branchError = 'Please select a branch';
+        _submitError = null;
+      });
+      return;
+    }
+
+    final totalBaseQty = _enteredBaseQuantity(item);
     if (totalBaseQty == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -351,29 +480,33 @@ class _AdjustStockQuantityPageState
       );
       return;
     }
-    if (_mode == _AdjustmentMode.setToCount &&
-        totalBaseQty == widget.item.onHand) {
+    if (_mode == _AdjustmentMode.setToCount && totalBaseQty == item.onHand) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Count already matches current on-hand')),
       );
       return;
     }
+
     final effectiveBatchId =
         batchId ?? (batches.isNotEmpty ? batches.first.id : null);
     final magnitude = totalBaseQty.abs();
     final delta = _type == _AdjustmentType.add ? magnitude : -magnitude;
     final adjustmentDelta = _mode == _AdjustmentMode.setToCount
-        ? totalBaseQty - widget.item.onHand
+        ? totalBaseQty - item.onHand
         : delta;
+
     setState(() {
       _isSaving = true;
+      _branchError = null;
       _submitError = null;
     });
+
     try {
       await ref
           .read(stockInventoryControllerProvider.notifier)
           .applyInventoryAdjustment(
             stockItemId: widget.item.id,
+            branchId: selectedBranchId,
             batchId: effectiveBatchId,
             style: _mode == _AdjustmentMode.setToCount
                 ? 'SET_TO_COUNT'
@@ -392,8 +525,8 @@ class _AdjustStockQuantityPageState
               id: 'ja-${DateTime.now().microsecondsSinceEpoch}',
               itemId: widget.item.id,
               itemName: widget.item.name,
-              branchId: widget.item.branchId,
-              branchName: widget.item.branchName,
+              branchId: selectedBranchId,
+              branchName: selectedBranchName ?? selectedBranchId,
               reason: adjustmentDelta < 0
                   ? InventoryJournalReason.remove
                   : InventoryJournalReason.add,
@@ -426,6 +559,66 @@ class _AdjustStockQuantityPageState
       ).showSnackBar(SnackBar(content: Text(mapped.message)));
     } finally {
       if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  Future<void> _loadSelectedBranchContext({bool showBatchError = false}) async {
+    final branchId = _normalizeBranchId(_selectedBranchId);
+    if (branchId == null) {
+      if (!mounted) return;
+      setState(() {
+        _selectedBranchOnHand = null;
+        _selectedBranchMinThreshold = null;
+        _isBranchContextLoading = false;
+      });
+      return;
+    }
+
+    if (mounted) {
+      setState(() => _isBranchContextLoading = true);
+    }
+
+    try {
+      final onHandRecords = await ref
+          .read(branchStockRepositoryProvider)
+          .fetchOnHand(branchId: branchId);
+      final matchingRecords = onHandRecords
+          .where((record) => record.stockItemId == widget.item.id)
+          .toList(growable: false);
+      final matchingRecord = matchingRecords.isNotEmpty
+          ? matchingRecords.first
+          : null;
+      if (!mounted) return;
+      setState(() {
+        _selectedBranchOnHand = matchingRecord?.onHand ?? 0;
+        _selectedBranchMinThreshold =
+            matchingRecord?.minThreshold ?? widget.item.minThreshold;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _selectedBranchOnHand = 0;
+        _selectedBranchMinThreshold = widget.item.minThreshold;
+      });
+    }
+
+    try {
+      await ref
+          .read(stockInventoryControllerProvider.notifier)
+          .loadRestockBatches(
+            branchId: branchId,
+            status: _restockBatchStatus.apiValue,
+            stockItemId: widget.item.id,
+          );
+    } catch (_) {
+      if (!mounted || !showBatchError) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to load restock batches')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isBranchContextLoading = false);
+      }
     }
   }
 
@@ -492,6 +685,12 @@ class _AdjustStockQuantityPageState
       return 'Counted stock set to ${_formatBaseUnits(widget.item, countedTotal)}';
     }
     return '${_typeLabel()} of $magnitude applied';
+  }
+
+  String? _normalizeBranchId(String? branchId) {
+    final trimmed = branchId?.trim() ?? '';
+    if (trimmed.isEmpty || trimmed == 'all') return null;
+    return trimmed;
   }
 }
 

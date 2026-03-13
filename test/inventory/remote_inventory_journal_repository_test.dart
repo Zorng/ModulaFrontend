@@ -18,6 +18,7 @@ void main() {
 
       when(
         () => api.createRestockBatch(
+          branchId: 'branch-1',
           stockItemId: 'item-1',
           quantityInBaseUnit: 2400,
           receivedAt: '2026-02-20T00:00:00.000Z',
@@ -55,6 +56,7 @@ void main() {
 
       verify(
         () => api.createRestockBatch(
+          branchId: 'branch-1',
           stockItemId: 'item-1',
           quantityInBaseUnit: 2400,
           receivedAt: '2026-02-20T00:00:00.000Z',
@@ -79,6 +81,7 @@ void main() {
       when(
         () => api.updateRestockBatchMetadata(
           batchId: 'batch-1',
+          branchId: 'branch-1',
           expiryDate: '2026-03-25',
           supplierName: 'Supplier X',
           purchaseCostUsd: 16.25,
@@ -105,6 +108,7 @@ void main() {
 
       final updated = await repository.updateRestockBatchMetadata(
         batchId: 'batch-1',
+        branchId: 'branch-1',
         expiryDate: '2026-03-25',
         supplierName: 'Supplier X',
         purchaseCostUsd: 16.25,
@@ -114,6 +118,7 @@ void main() {
       verify(
         () => api.updateRestockBatchMetadata(
           batchId: 'batch-1',
+          branchId: 'branch-1',
           expiryDate: '2026-03-25',
           supplierName: 'Supplier X',
           purchaseCostUsd: 16.25,
@@ -131,6 +136,7 @@ void main() {
 
     when(
       () => api.applyAdjustment(
+        branchId: 'branch-1',
         stockItemId: 'item-1',
         style: 'DELTA',
         deltaInBaseUnit: -250,
@@ -141,6 +147,7 @@ void main() {
     ).thenAnswer((_) async => 1750);
 
     final resultingOnHand = await repository.applyAdjustment(
+      branchId: 'branch-1',
       stockItemId: 'item-1',
       style: 'DELTA',
       deltaInBaseUnit: -250,
@@ -150,6 +157,7 @@ void main() {
 
     verify(
       () => api.applyAdjustment(
+        branchId: 'branch-1',
         stockItemId: 'item-1',
         style: 'DELTA',
         deltaInBaseUnit: -250,
@@ -166,12 +174,17 @@ void main() {
     final repository = RemoteInventoryJournalRepository(api);
 
     when(
-      () => api.archiveRestockBatch(batchId: 'batch-1'),
+      () => api.archiveRestockBatch(batchId: 'batch-1', branchId: 'branch-1'),
     ).thenAnswer((_) async {});
 
-    await repository.archiveRestockBatch(batchId: 'batch-1');
+    await repository.archiveRestockBatch(
+      batchId: 'batch-1',
+      branchId: 'branch-1',
+    );
 
-    verify(() => api.archiveRestockBatch(batchId: 'batch-1')).called(1);
+    verify(
+      () => api.archiveRestockBatch(batchId: 'batch-1', branchId: 'branch-1'),
+    ).called(1);
   });
 
   test(
@@ -182,6 +195,7 @@ void main() {
 
       when(
         () => api.fetchJournal(
+          branchId: 'branch-1',
           stockItemId: 'item-1',
           reasonCode: 'SALE_DEDUCTION',
           limit: 100,
@@ -207,6 +221,7 @@ void main() {
       );
 
       final rows = await repository.fetch(
+        branchId: 'branch-1',
         stockItemId: 'item-1',
         reason: InventoryJournalReason.sale,
         limit: 100,
@@ -215,6 +230,7 @@ void main() {
 
       verify(
         () => api.fetchJournal(
+          branchId: 'branch-1',
           stockItemId: 'item-1',
           reasonCode: 'SALE_DEDUCTION',
           limit: 100,
@@ -244,18 +260,20 @@ void main() {
         final api = _MockInventoryApi();
         final repository = RemoteInventoryJournalRepository(api);
         when(
-          () => api.fetchJournal(
-            stockItemId: null,
-            reasonCode: expectedReasonCode,
-            limit: 50,
-            offset: 0,
+          () => api.fetchTenantJournal(
+            branchId: any(named: 'branchId'),
+            stockItemId: any(named: 'stockItemId'),
+            reasonCode: any(named: 'reasonCode'),
+            limit: any(named: 'limit'),
+            offset: any(named: 'offset'),
           ),
         ).thenAnswer((_) async => const []);
 
         await repository.fetch(reason: reason);
 
         verify(
-          () => api.fetchJournal(
+          () => api.fetchTenantJournal(
+            branchId: null,
             stockItemId: null,
             reasonCode: expectedReasonCode,
             limit: 50,
@@ -271,7 +289,8 @@ void main() {
     final repository = RemoteInventoryJournalRepository(api);
 
     when(
-      () => api.fetchJournal(
+      () => api.fetchTenantJournal(
+        branchId: null,
         stockItemId: null,
         reasonCode: null,
         limit: 50,

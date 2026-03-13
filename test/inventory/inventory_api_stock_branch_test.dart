@@ -2,7 +2,6 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:modular_pos/core/network/api_contract.dart';
-import 'package:modular_pos/core/network/idempotency_key_store.dart';
 import 'package:modular_pos/features/inventory/data/inventory_api.dart';
 
 class _MockDio extends Mock implements Dio {}
@@ -42,12 +41,18 @@ void main() {
       );
 
       final api = InventoryApi(dio);
-      final rows = await api.fetchBranchStockItems(includeArchivedItems: false);
+      final rows = await api.fetchBranchStockItems(
+        branchId: 'branch-1',
+        includeArchivedItems: false,
+      );
 
       verify(
         () => dio.get<Map<String, dynamic>>(
           '/v0/inventory/stock/branch',
-          queryParameters: {'includeArchivedItems': false},
+          queryParameters: {
+            'branchId': 'branch-1',
+            'includeArchivedItems': false,
+          },
         ),
       ).called(1);
       expect(rows, hasLength(1));
@@ -57,7 +62,7 @@ void main() {
   );
 
   test(
-    'fetchOnHand uses /stock/branch without branch override query',
+    'fetchOnHand uses /stock/branch with explicit branchId query',
     () async {
       final dio = _MockDio();
       when(
@@ -86,12 +91,15 @@ void main() {
       );
 
       final api = InventoryApi(dio);
-      final rows = await api.fetchOnHand();
+      final rows = await api.fetchOnHand(branchId: 'branch-1');
 
       verify(
         () => dio.get<Map<String, dynamic>>(
           '/v0/inventory/stock/branch',
-          queryParameters: {'includeArchivedItems': true},
+          queryParameters: {
+            'branchId': 'branch-1',
+            'includeArchivedItems': true,
+          },
         ),
       ).called(1);
       expect(rows, hasLength(1));
@@ -145,58 +153,26 @@ void main() {
     },
   );
 
-  test('assignStockItemToBranch posts idempotency metadata', () async {
+  test('assignStockItemToBranch is quarantined under the new contract', () async {
     final dio = _MockDio();
-    when(
+    final api = InventoryApi(dio);
+
+    await expectLater(
+      api.assignStockItemToBranch(
+        stockItemId: 'item-1',
+        branchId: 'branch-1',
+        minThreshold: 120,
+      ),
+      throwsA(isA<UnsupportedError>()),
+    );
+
+    verifyNever(
       () => dio.post<Map<String, dynamic>>(
         any(),
         data: any(named: 'data'),
         options: any(named: 'options'),
       ),
-    ).thenAnswer(
-      (_) async => Response<Map<String, dynamic>>(
-        requestOptions: RequestOptions(
-          path: '/v0/inventory/branch/stock-items',
-        ),
-        data: {'success': true, 'data': {}},
-      ),
     );
-
-    final api = InventoryApi(dio);
-    await api.assignStockItemToBranch(
-      stockItemId: 'item-1',
-      branchId: 'branch-1',
-      minThreshold: 120,
-    );
-
-    verify(
-      () => dio.post<Map<String, dynamic>>(
-        '/v0/inventory/branch/stock-items',
-        data: {
-          'stockItemId': 'item-1',
-          'branchId': 'branch-1',
-          'minThreshold': 120,
-        },
-        options: any(
-          named: 'options',
-          that: isA<Options>().having(
-            (o) => o.extra?[idempotencyRequestExtraKey],
-            'idempotencyRequest',
-            isA<IdempotencyRequest>()
-                .having(
-                  (r) => r.actionKey,
-                  'actionKey',
-                  'inventory.branchStock.assign',
-                )
-                .having((r) => r.payload, 'payload', {
-                  'stockItemId': 'item-1',
-                  'branchId': 'branch-1',
-                  'minThreshold': 120,
-                }),
-          ),
-        ),
-      ),
-    ).called(1);
   });
 
   test(
@@ -222,7 +198,7 @@ void main() {
       final api = InventoryApi(dio);
 
       await expectLater(
-        () => api.fetchBranchStockItems(),
+        () => api.fetchBranchStockItems(branchId: 'branch-1'),
         throwsA(
           isA<ApiClientException>().having(
             (e) => e.code,
