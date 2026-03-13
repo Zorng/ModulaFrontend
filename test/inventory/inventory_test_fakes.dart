@@ -210,6 +210,7 @@ class FakeStockInventoryController extends StockInventoryController {
   Future<void> applyInventoryAdjustment({
     required String stockItemId,
     String? batchId,
+    String? branchId,
     String style = 'DELTA',
     int? delta,
     int? countedOnHandInBaseUnit,
