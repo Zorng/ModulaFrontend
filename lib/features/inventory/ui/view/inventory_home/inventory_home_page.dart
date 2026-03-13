@@ -440,161 +440,166 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
                                 minWidth: constraints.maxWidth,
                               ),
                               child: SingleChildScrollView(
-                                child: ClipRRect(
-                                  borderRadius: BorderRadiusGeometry.circular(
-                                    12,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: AppTableTheme.background,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: AppTableTheme.divider,
+                                    ),
                                   ),
-                                  child: DataTable(
-                                    dataRowMinHeight: 60,
-                                    dataRowMaxHeight: 70,
-                                    headingRowColor: WidgetStateProperty.all(
-                                      AppTableTheme.headerBackground,
-                                    ),
-                                    dataRowColor: const WidgetStatePropertyAll(
-                                      AppTableTheme.background,
-                                    ),
-                                    dividerThickness: 1,
-                                    border: const TableBorder(
-                                      top: BorderSide(
-                                        color: AppTableTheme.divider,
-                                      ),
-                                      bottom: BorderSide(
-                                        color: AppTableTheme.divider,
-                                      ),
-                                      left: BorderSide(
-                                        color: AppTableTheme.divider,
-                                      ),
-                                      right: BorderSide(
-                                        color: AppTableTheme.divider,
-                                      ),
-                                    ),
-                                    columns: const [
-                                      DataColumn(
-                                        label: Text(
-                                          'No.',
-                                          style: AppTableTheme.headerText,
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(1),
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(11),
+                                      child: DataTable(
+                                        dataRowMinHeight: 60,
+                                        dataRowMaxHeight: 70,
+                                        headingRowColor:
+                                            WidgetStateProperty.all(
+                                              AppTableTheme.headerBackground,
+                                            ),
+                                        dataRowColor:
+                                            const WidgetStatePropertyAll(
+                                              AppTableTheme.background,
+                                            ),
+                                        dividerThickness: 1,
+                                        border: const TableBorder(
+                                          horizontalInside: BorderSide(
+                                            color: AppTableTheme.divider,
+                                          ),
                                         ),
-                                      ),
-                                      DataColumn(
-                                        label: Text(
-                                          'Item Name',
-                                          style: AppTableTheme.headerText,
-                                        ),
-                                      ),
-                                      DataColumn(
-                                        label: Text(
-                                          'Category',
-                                          style: AppTableTheme.headerText,
-                                        ),
-                                      ),
-                                      DataColumn(
-                                        label: Text(
-                                          'Current On Hand',
-                                          style: AppTableTheme.headerText,
-                                        ),
-                                      ),
-                                      DataColumn(
-                                        label: Text(
-                                          'Action',
-                                          style: AppTableTheme.headerText,
-                                        ),
-                                      ),
-                                    ],
-                                    rows: List<DataRow>.generate(filtered.length, (
-                                      index,
-                                    ) {
-                                      final item = filtered[index];
-
-                                      return DataRow(
-                                        cells: [
-                                          DataCell(
-                                            Text(
-                                              '${index + 1}',
-                                              style: AppTableTheme.cellText,
+                                        columns: const [
+                                          DataColumn(
+                                            label: Text(
+                                              'No.',
+                                              style: AppTableTheme.headerText,
                                             ),
                                           ),
-                                          DataCell(
-                                            Row(
-                                              children: [
-                                                StockItemImage(
-                                                  imageUrl: item.imageUrl,
-                                                ),
-                                                const SizedBox(width: 12),
-                                                Flexible(
-                                                  child: Text(
-                                                    item.name,
-                                                    style: Theme.of(
-                                                      context,
-                                                    ).textTheme.bodyMedium,
-                                                    overflow:
-                                                        TextOverflow.ellipsis,
-                                                  ),
-                                                ),
-                                              ],
+                                          DataColumn(
+                                            label: Text(
+                                              'Item Name',
+                                              style: AppTableTheme.headerText,
                                             ),
                                           ),
-                                          DataCell(
-                                            Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 12,
-                                                    vertical: 6,
-                                                  ),
-                                              decoration: AppTableTheme
-                                                  .categoryPillDecoration,
-                                              child: Text(
-                                                categoryLabel(
-                                                  item,
-                                                  categoryLookup,
-                                                ),
-                                                style: AppTableTheme
-                                                    .categoryPillText,
-                                              ),
+                                          DataColumn(
+                                            label: Text(
+                                              'Category',
+                                              style: AppTableTheme.headerText,
                                             ),
                                           ),
-                                          DataCell(
-                                            Text(
-                                              '${item.onHand} ${item.baseUnit}',
-                                              style: AppTableTheme.cellText,
+                                          DataColumn(
+                                            label: Text(
+                                              'Current On Hand',
+                                              style: AppTableTheme.headerText,
                                             ),
                                           ),
-                                          DataCell(
-                                            SizedBox(
-                                              width: 260,
-                                              child: Row(
-                                                children: [
-                                                  Expanded(
-                                                    child: FilledButton(
-                                                      onPressed: () =>
-                                                          _openAdjust(
-                                                            item,
-                                                            selectedBranchId:
-                                                                effectiveBranchId,
-                                                          ),
-                                                      child: const Text(
-                                                        'Adjust',
-                                                      ),
-                                                    ),
-                                                  ),
-                                                  const SizedBox(width: 8),
-                                                  Expanded(
-                                                    child: OutlinedButton(
-                                                      style:
-                                                          viewHistoryButtonStyle,
-                                                      onPressed: () =>
-                                                          _openHistory(item),
-                                                      child: const Text(
-                                                        'View history',
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
+                                          DataColumn(
+                                            label: Text(
+                                              'Action',
+                                              style: AppTableTheme.headerText,
                                             ),
                                           ),
                                         ],
-                                      );
-                                    }),
+                                        rows: List<DataRow>.generate(filtered.length, (
+                                          index,
+                                        ) {
+                                          final item = filtered[index];
+
+                                          return DataRow(
+                                            cells: [
+                                              DataCell(
+                                                Text(
+                                                  '${index + 1}',
+                                                  style: AppTableTheme.cellText,
+                                                ),
+                                              ),
+                                              DataCell(
+                                                Row(
+                                                  children: [
+                                                    StockItemImage(
+                                                      imageUrl: item.imageUrl,
+                                                    ),
+                                                    const SizedBox(width: 12),
+                                                    Flexible(
+                                                      child: Text(
+                                                        item.name,
+                                                        style: Theme.of(
+                                                          context,
+                                                        ).textTheme.bodyMedium,
+                                                        overflow: TextOverflow
+                                                            .ellipsis,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                              DataCell(
+                                                Container(
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 12,
+                                                        vertical: 6,
+                                                      ),
+                                                  decoration: AppTableTheme
+                                                      .categoryPillDecoration,
+                                                  child: Text(
+                                                    categoryLabel(
+                                                      item,
+                                                      categoryLookup,
+                                                    ),
+                                                    style: AppTableTheme
+                                                        .categoryPillText,
+                                                  ),
+                                                ),
+                                              ),
+                                              DataCell(
+                                                Text(
+                                                  '${item.onHand} ${item.baseUnit}',
+                                                  style: AppTableTheme.cellText,
+                                                ),
+                                              ),
+                                              DataCell(
+                                                SizedBox(
+                                                  width: 260,
+                                                  child: Row(
+                                                    children: [
+                                                      Expanded(
+                                                        child: FilledButton(
+                                                          onPressed: () =>
+                                                              _openAdjust(
+                                                                item,
+                                                                selectedBranchId:
+                                                                    effectiveBranchId,
+                                                              ),
+                                                          child: const Text(
+                                                            'Adjust',
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 8),
+                                                      Expanded(
+                                                        child: OutlinedButton(
+                                                          style:
+                                                              viewHistoryButtonStyle,
+                                                          onPressed: () =>
+                                                              _openHistory(
+                                                                item,
+                                                              ),
+                                                          child: const Text(
+                                                            'View history',
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          );
+                                        }),
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ),
