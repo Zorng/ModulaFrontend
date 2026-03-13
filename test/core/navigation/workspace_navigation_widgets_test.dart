@@ -4,6 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:modular_pos/core/widgets/navigation/app_navigation_config.dart';
 import 'package:modular_pos/core/widgets/navigation/app_navigation_portal_content.dart';
 import 'package:modular_pos/core/widgets/navigation/app_wide_navigation_rail_shell.dart';
+import 'package:modular_pos/core/widgets/navigation/navigation_layer_back_button.dart';
+import 'package:modular_pos/core/widgets/navigation/tenant_profile_header.dart';
 import 'package:modular_pos/features/auth/domain/models/auth_session.dart';
 import 'package:modular_pos/features/auth/domain/models/tenant_membership.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
@@ -196,6 +198,8 @@ void main() {
     expect(find.text('Staff'), findsOneWidget);
     expect(find.text('Cash Sessions'), findsNothing);
     expect(find.byIcon(Icons.arrow_back), findsOneWidget);
+    expect(find.byType(NavigationLayerBackButton), findsOneWidget);
+    expect(find.byType(TenantProfileHeader), findsOneWidget);
     expect(find.byIcon(Icons.person_outline), findsNothing);
     expect(find.byIcon(Icons.settings_outlined), findsNothing);
     expect(find.text('No branch selected'), findsOneWidget);
@@ -227,6 +231,8 @@ void main() {
     expect(find.text('Sale'), findsOneWidget);
     expect(find.text('Branches'), findsNothing);
     expect(find.byIcon(Icons.arrow_back), findsOneWidget);
+    expect(find.byType(NavigationLayerBackButton), findsOneWidget);
+    expect(find.byType(TenantProfileHeader), findsOneWidget);
     expect(find.byIcon(Icons.person_outline), findsNothing);
     expect(find.byIcon(Icons.settings_outlined), findsNothing);
     expect(find.text('Branch A'), findsWidgets);

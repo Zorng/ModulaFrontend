@@ -43,14 +43,9 @@ class _SalePageState extends ConsumerState<SalePage> {
     final saleBranchId = ref.watch(saleAccessBranchIdProvider);
 
     final width = MediaQuery.of(context).size.width;
-    final isSmall = AppBreakpoints.isSmall(width);
     final isLarge = AppBreakpoints.isLarge(width);
-    final gridCount = AppBreakpoints.isLarge(width)
-        ? 4
-        : AppBreakpoints.isMedium(width)
-        ? 3
-        : 2;
-    final itemAspectRatio = isSmall ? 0.72 : 0.85;
+    final gridCount = isLarge ? 6 : 3;
+    final itemAspectRatio = isLarge ? 0.85 : 0.72;
 
     final categories = [
       const MenuCategory(id: 'all', name: 'All'),
@@ -146,7 +141,7 @@ class _SalePageState extends ConsumerState<SalePage> {
     return Scaffold(
       body: SafeArea(
         child: Padding(
-          padding: EdgeInsets.all(isSmall ? 16 : 24),
+          padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [

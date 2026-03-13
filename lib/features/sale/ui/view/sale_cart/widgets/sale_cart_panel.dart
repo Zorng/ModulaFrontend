@@ -567,7 +567,7 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
       paymentMethod: paymentMethod,
       tenderCurrency: tenderCurrency,
     );
-    final isSmall = AppBreakpoints.isSmall(MediaQuery.sizeOf(context).width);
+    final isLarge = AppBreakpoints.isLarge(MediaQuery.sizeOf(context).width);
     final khqrStatus = SaleKhqrUiStates.normalize(cartState.khqrStatus);
     _syncKhqrPolling(
       paymentMethod: paymentMethod,
@@ -635,7 +635,7 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (!isSmall) ...[
+        if (isLarge) ...[
           // Cart Header
           Padding(
             padding: const EdgeInsets.all(20),

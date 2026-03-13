@@ -168,7 +168,7 @@ class _PolicyPageState extends ConsumerState<PolicyPage> {
 
     final selectorValues = _composeSelectorValues(policyState);
     final isReadOnly = _isReadOnly(loginState);
-    final portalPath = AppRoute.portal.path;
+    final portalPath = AppRoute.branchPortal.path;
     final branchName = _resolveBranchName(ref);
 
     return LayoutBuilder(

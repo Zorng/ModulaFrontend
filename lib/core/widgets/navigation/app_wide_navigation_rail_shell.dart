@@ -5,6 +5,7 @@ import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/routing/workspace_route_guard.dart';
 import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/core/widgets/navigation/app_navigation_config.dart';
+import 'package:modular_pos/core/widgets/navigation/navigation_layer_back_button.dart';
 import 'package:modular_pos/core/widgets/navigation/tenant_profile_header.dart';
 import 'package:modular_pos/features/auth/domain/active_branch_context_provider.dart';
 import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
@@ -262,13 +263,26 @@ class _RailHeader extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        TenantProfileHeader(
-          tenantName: tenantName,
-          branchName: branchName,
-          initial: tenantInitial,
-          onTap: () => context.go('${AppRoute.tenantSelection.path}?switch=1'),
-          onBackPressed: onLayerBackPressed,
-          backTooltip: layerBackTooltip,
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            if (onLayerBackPressed != null) ...[
+              NavigationLayerBackButton(
+                onPressed: onLayerBackPressed!,
+                tooltip: layerBackTooltip,
+              ),
+              const SizedBox(width: 12),
+            ],
+            Expanded(
+              child: TenantProfileHeader(
+                tenantName: tenantName,
+                branchName: branchName,
+                initial: tenantInitial,
+                onTap: () =>
+                    context.go('${AppRoute.tenantSelection.path}?switch=1'),
+              ),
+            ),
+          ],
         ),
         if (allowQuickSwitch && availableBranches.isNotEmpty) ...[
           const SizedBox(height: 12),

@@ -31,7 +31,7 @@ class AttendanceBottomNavShellPage extends StatelessWidget {
       titles: _titles,
       items: _items,
       centerTitle: false,
-      onBackPressed: () => context.go(AppRoute.portal.path),
+      onBackPressed: () => context.go(AppRoute.branchPortal.path),
       backIcon: Icons.home_outlined,
       backTooltip: 'Home',
     );

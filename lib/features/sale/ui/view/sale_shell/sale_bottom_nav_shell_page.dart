@@ -22,6 +22,9 @@ class SaleBottomNavShellPage extends ConsumerStatefulWidget {
 class _SaleBottomNavShellPageState
     extends ConsumerState<SaleBottomNavShellPage> {
   static const double _wideBottomTabHorizontalPadding = 210;
+  static const double _wideCartMinWidth = 360;
+  static const double _wideCartMaxWidth = 460;
+  static const double _wideCartWidthFactor = 0.32;
 
   static const _titles = <String>['Sale', 'Cart', 'Orders'];
   static const _mobileTitles = <String>['Sale', 'Cart', 'Orders'];
@@ -116,6 +119,11 @@ class _SaleBottomNavShellPageState
           final wideIndex = index == 2 ? 1 : 0;
 
           final showCartPanel = index == 0;
+          final cartPanelWidth =
+              (constraints.maxWidth * _wideCartWidthFactor).clamp(
+                _wideCartMinWidth,
+                _wideCartMaxWidth,
+              );
           final appBarTitle = index == 2 ? _titles[2] : _titles[0];
           return Scaffold(
             appBar: AppBar(
@@ -130,7 +138,7 @@ class _SaleBottomNavShellPageState
                 if (showCartPanel) ...[
                   const VerticalDivider(width: 1),
                   SizedBox(
-                    width: 360,
+                    width: cartPanelWidth,
                     child: SaleCartPanel(
                       key: const ValueKey('wide_cart_panel'),
                       contentPadding: const EdgeInsets.all(16),
@@ -168,7 +176,7 @@ class _SaleBottomNavShellPageState
           items: _items,
           centerTitle: false,
           actions: actionsForIndex(index, context),
-          onBackPressed: () => context.go(AppRoute.portal.path),
+          onBackPressed: () => context.go(AppRoute.branchPortal.path),
           backIcon: Icons.home_outlined,
           backTooltip: 'Home',
         );
