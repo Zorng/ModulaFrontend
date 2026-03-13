@@ -31,12 +31,15 @@ class CategoryFormPage extends StatelessWidget {
         title: Text(_title()),
         centerTitle: false,
       ),
-      body: SingleChildScrollView(
-        child: CategoryFormBody(
-          mode: mode,
-          category: category,
-          showHeader: false,
-          onClose: () => context.pop(),
+      body: ColoredBox(
+        color: Colors.white,
+        child: SingleChildScrollView(
+          child: CategoryFormBody(
+            mode: mode,
+            category: category,
+            showHeader: false,
+            onClose: () => context.pop(),
+          ),
         ),
       ),
     );

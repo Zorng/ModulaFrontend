@@ -49,6 +49,15 @@ class _CategoryManagementPageState
     final state = ref.watch(categoryControllerProvider);
     final stockItems = ref.watch(stockInventoryControllerProvider).stockItems;
     final isWide = !AppBreakpoints.isSmall(MediaQuery.of(context).size.width);
+    final compactViewButtonStyle = ElevatedButton.styleFrom(
+      backgroundColor: AppTableTheme.actionButtonColor,
+      foregroundColor: Colors.white,
+      elevation: 0,
+      minimumSize: const Size(0, 48),
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    );
     final query = _searchController.text.trim().toLowerCase();
     final categories = state.categories.where((category) {
       if (query.isEmpty) return true;
@@ -75,50 +84,79 @@ class _CategoryManagementPageState
               searchHint: 'Search categories',
               searchController: _searchController,
               onSearchChanged: (_) => setState(() {}),
+              middleChild: isWide
+                  ? InventoryDropdown<_CategoryStatusFilter>(
+                      initialValue: _statusFilter,
+                      label: const Text('Status'),
+                      entries: const [
+                        DropdownMenuEntry(
+                          value: _CategoryStatusFilter.all,
+                          label: 'All statuses',
+                        ),
+                        DropdownMenuEntry(
+                          value: _CategoryStatusFilter.active,
+                          label: 'Active',
+                        ),
+                        DropdownMenuEntry(
+                          value: _CategoryStatusFilter.archived,
+                          label: 'Archived',
+                        ),
+                      ],
+                      onSelected: (value) {
+                        final selected = value ?? _CategoryStatusFilter.all;
+                        setState(() => _statusFilter = selected);
+                        ref
+                            .read(categoryControllerProvider.notifier)
+                            .loadCategories(status: _statusApiValue(selected));
+                      },
+                    )
+                  : null,
               onAddPressed: () =>
                   _openCreateCategory(context, useDialog: isWide),
               addButtonLabel: 'Add new',
             ),
-            const SizedBox(height: 12),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: SizedBox(
-                width: isWide ? 220 : double.infinity,
-                child: InventoryDropdown<_CategoryStatusFilter>(
-                  initialValue: _statusFilter,
-                  label: const Text('Status'),
-                  entries: const [
-                    DropdownMenuEntry(
-                      value: _CategoryStatusFilter.all,
-                      label: 'All statuses',
-                    ),
-                    DropdownMenuEntry(
-                      value: _CategoryStatusFilter.active,
-                      label: 'Active',
-                    ),
-                    DropdownMenuEntry(
-                      value: _CategoryStatusFilter.archived,
-                      label: 'Archived',
-                    ),
-                  ],
-                  onSelected: (value) {
-                    final selected = value ?? _CategoryStatusFilter.all;
-                    setState(() => _statusFilter = selected);
-                    ref
-                        .read(categoryControllerProvider.notifier)
-                        .loadCategories(status: _statusApiValue(selected));
-                  },
+            if (!isWide) ...[
+              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: SizedBox(
+                  width: double.infinity,
+                  child: InventoryDropdown<_CategoryStatusFilter>(
+                    initialValue: _statusFilter,
+                    label: const Text('Status'),
+                    entries: const [
+                      DropdownMenuEntry(
+                        value: _CategoryStatusFilter.all,
+                        label: 'All statuses',
+                      ),
+                      DropdownMenuEntry(
+                        value: _CategoryStatusFilter.active,
+                        label: 'Active',
+                      ),
+                      DropdownMenuEntry(
+                        value: _CategoryStatusFilter.archived,
+                        label: 'Archived',
+                      ),
+                    ],
+                    onSelected: (value) {
+                      final selected = value ?? _CategoryStatusFilter.all;
+                      setState(() => _statusFilter = selected);
+                      ref
+                          .read(categoryControllerProvider.notifier)
+                          .loadCategories(status: _statusApiValue(selected));
+                    },
+                  ),
                 ),
               ),
-            ),
+            ],
             const SizedBox(height: 8),
             Align(
               alignment: Alignment.centerLeft,
               child: Text(
                 'Archiving a category moves linked stock items to Uncategorized.',
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: Theme.of(context).hintColor),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).hintColor,
+                ),
               ),
             ),
             const SizedBox(height: 16),
@@ -233,12 +271,6 @@ class _CategoryManagementPageState
                                       ),
                                       DataColumn(
                                         label: Text(
-                                          'Status',
-                                          style: AppTableTheme.headerText,
-                                        ),
-                                      ),
-                                      DataColumn(
-                                        label: Text(
                                           'Action',
                                           style: AppTableTheme.headerText,
                                         ),
@@ -248,7 +280,6 @@ class _CategoryManagementPageState
                                       categories.length,
                                       (index) {
                                         final category = categories[index];
-                                        final isActive = category.isActive;
                                         final stockCount =
                                             itemCountByCategory[category.id] ??
                                             0;
@@ -305,36 +336,17 @@ class _CategoryManagementPageState
                                               ),
                                             ),
                                             DataCell(
-                                              Container(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 12,
-                                                      vertical: 6,
+                                              ElevatedButton(
+                                                style: compactViewButtonStyle,
+                                                onPressed: () =>
+                                                    InventoryCategoryActionMenu.openView(
+                                                      context,
+                                                      category,
+                                                      useDialog: true,
+                                                      onArchived:
+                                                          _reloadCurrentFilter,
                                                     ),
-                                                decoration: isActive
-                                                    ? AppTableTheme
-                                                          .healthyDecoration
-                                                    : AppTableTheme
-                                                          .dangerDecoration,
-                                                child: Text(
-                                                  isActive
-                                                      ? 'Active'
-                                                      : 'Archived',
-                                                  style: isActive
-                                                      ? AppTableTheme
-                                                            .healthyText
-                                                      : AppTableTheme
-                                                            .dangerText,
-                                                ),
-                                              ),
-                                            ),
-                                            DataCell(
-                                              InventoryCategoryActionMenu(
-                                                category: category,
-                                                compact: false,
-                                                useDialog: true,
-                                                onArchived:
-                                                    _reloadCurrentFilter,
+                                                child: const Text('View'),
                                               ),
                                             ),
                                           ],
@@ -368,11 +380,16 @@ class _CategoryManagementPageState
       context: context,
       builder: (context) => Dialog(
         insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        surfaceTintColor: Theme.of(context).scaffoldBackgroundColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        clipBehavior: Clip.antiAlias,
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 520),
           child: CategoryFormBody(
             mode: CategoryFormMode.create,
             showHeader: true,
+            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
             onClose: () => Navigator.of(context).pop(),
           ),
         ),
