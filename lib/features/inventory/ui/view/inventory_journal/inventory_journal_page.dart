@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:modular_pos/features/branchV2/domain/models/branch_models.dart';
+import 'package:modular_pos/features/branchV2/ui/viewmodels/branch_controller.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_journal_entry.dart';
@@ -24,7 +26,6 @@ class InventoryJournalPage extends ConsumerStatefulWidget {
 
 class _InventoryJournalPageState extends ConsumerState<InventoryJournalPage> {
   static const int _pageSize = 50;
-  String _selectedBranchId = 'all';
   InventoryJournalReasonFilter? _selectedReasonFilter;
   DateTime? _startDate;
   DateTime? _endDate;
@@ -34,8 +35,14 @@ class _InventoryJournalPageState extends ConsumerState<InventoryJournalPage> {
   @override
   void initState() {
     super.initState();
-    // Initial load from backend.
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(branchControllerProvider.notifier).loadInitial();
+      final current = ref.read(inventoryJournalControllerProvider);
+      if (current.entries.isNotEmpty ||
+          current.selectedStockItemId.isNotEmpty ||
+          current.selectedBranchId != 'all') {
+        return;
+      }
       ref
           .read(inventoryJournalControllerProvider.notifier)
           .load(limit: _pageSize);
@@ -51,22 +58,41 @@ class _InventoryJournalPageState extends ConsumerState<InventoryJournalPage> {
 
   @override
   Widget build(BuildContext context) {
-    final userBranches =
-        ref.watch(loginControllerProvider).user?.branches ??
-        const <UserBranch>[];
+    final loginState = ref.watch(loginControllerProvider);
+    final activeTenantId =
+        (loginState.session?.activeTenantId ??
+                loginState.session?.user.tenantId)
+            ?.trim() ??
+        '';
+    final tenantBranches = ref
+        .watch(branchControllerProvider.select((state) => state.branches))
+        .where(
+          (branch) =>
+              activeTenantId.isEmpty ||
+              branch.tenantId.trim().isEmpty ||
+              branch.tenantId.trim() == activeTenantId,
+        )
+        .toList(growable: false);
     final journalState = ref.watch(inventoryJournalControllerProvider);
     final entries = journalState.entries;
-    final branchOptions = _branchOptions(entries, userBranches);
-    if (_selectedBranchId == 'all' && branchOptions.length == 2) {
-      _selectedBranchId = branchOptions.first.key == 'all'
-          ? branchOptions[1].key
-          : branchOptions.first.key;
-    } else if (_selectedBranchId == 'all' && userBranches.length == 1) {
-      final first = userBranches.first;
-      _selectedBranchId = first.branchId.isNotEmpty ? first.branchId : first.id;
-    }
-    final filteredEntries = _filteredEntries(entries);
+    final selectedBranchId = journalState.selectedBranchId;
+    final selectedStockItemId = journalState.selectedStockItemId;
+    final branchOptions = _branchOptions(
+      entries,
+      tenantBranches: tenantBranches,
+      userBranches: loginState.user?.branches ?? const <UserBranch>[],
+    );
+    final filteredEntries = _filteredEntries(entries, selectedBranchId);
     final branchGroups = _groupByBranch(filteredEntries);
+    final selectedItemLabel = selectedStockItemId.isEmpty
+        ? null
+        : entries
+                  .where((entry) => entry.itemId == selectedStockItemId)
+                  .map((entry) => entry.itemName)
+                  .where((name) => name.trim().isNotEmpty)
+                  .cast<String?>()
+                  .firstWhere((name) => name != null, orElse: () => null) ??
+              'selected stock item';
 
     return Scaffold(
       body: Padding(
@@ -78,7 +104,7 @@ class _InventoryJournalPageState extends ConsumerState<InventoryJournalPage> {
               children: [
                 Expanded(
                   child: DropdownMenu<String>(
-                    initialSelection: _selectedBranchId,
+                    initialSelection: selectedBranchId,
                     label: const Text('Branch'),
                     dropdownMenuEntries: branchOptions
                         .map(
@@ -90,9 +116,6 @@ class _InventoryJournalPageState extends ConsumerState<InventoryJournalPage> {
                         .toList(),
                     onSelected: (value) {
                       final branch = value ?? 'all';
-                      setState(() {
-                        _selectedBranchId = branch;
-                      });
                       ref
                           .read(inventoryJournalControllerProvider.notifier)
                           .load(
@@ -129,9 +152,9 @@ class _InventoryJournalPageState extends ConsumerState<InventoryJournalPage> {
                       ref
                           .read(inventoryJournalControllerProvider.notifier)
                           .load(
-                            branchId: _selectedBranchId == 'all'
+                            branchId: selectedBranchId == 'all'
                                 ? null
-                                : _selectedBranchId,
+                                : selectedBranchId,
                             reason: inventoryJournalReasonFilterToDomainReason(
                               value,
                             ),
@@ -146,7 +169,6 @@ class _InventoryJournalPageState extends ConsumerState<InventoryJournalPage> {
                   tooltip: 'Reset filters',
                   onPressed: () {
                     setState(() {
-                      _selectedBranchId = 'all';
                       _selectedReasonFilter = null;
                       _startDate = null;
                       _endDate = null;
@@ -161,6 +183,44 @@ class _InventoryJournalPageState extends ConsumerState<InventoryJournalPage> {
               ],
             ),
             const SizedBox(height: 12),
+            if (selectedStockItemId.isNotEmpty) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Showing history for $selectedItemLabel.',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        ref
+                            .read(inventoryJournalControllerProvider.notifier)
+                            .load(
+                              branchId: selectedBranchId == 'all'
+                                  ? null
+                                  : selectedBranchId,
+                              reason:
+                                  inventoryJournalReasonFilterToDomainReason(
+                                    _selectedReasonFilter,
+                                  ),
+                              limit: _pageSize,
+                            );
+                      },
+                      child: const Text('Clear item filter'),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
             InventoryJournalDateField(
               controller: _startCtrl,
               label: 'Start date',
@@ -211,9 +271,9 @@ class _InventoryJournalPageState extends ConsumerState<InventoryJournalPage> {
                                           .notifier,
                                     )
                                     .loadMore(
-                                      branchId: _selectedBranchId == 'all'
+                                      branchId: selectedBranchId == 'all'
                                           ? null
-                                          : _selectedBranchId,
+                                          : selectedBranchId,
                                       reason:
                                           inventoryJournalReasonFilterToDomainReason(
                                             _selectedReasonFilter,
@@ -242,13 +302,28 @@ class _InventoryJournalPageState extends ConsumerState<InventoryJournalPage> {
   }
 
   List<MapEntry<String, String>> _branchOptions(
-    List<InventoryJournalEntry> entries,
-    List<UserBranch> userBranches,
-  ) {
+    List<InventoryJournalEntry> entries, {
+    List<BranchListItem> tenantBranches = const <BranchListItem>[],
+    List<UserBranch> userBranches = const <UserBranch>[],
+  }) {
     final map = <String, String>{'all': 'All branches'};
-    for (final branch in userBranches) {
-      final id = branch.branchId.isNotEmpty ? branch.branchId : branch.id;
-      map[id] = branch.name;
+    if (tenantBranches.isNotEmpty) {
+      for (final branch in tenantBranches) {
+        final id = branch.branchId.trim();
+        if (id.isEmpty) continue;
+        final name = branch.branchName.trim().isNotEmpty
+            ? branch.branchName.trim()
+            : id;
+        map[id] = name;
+      }
+    } else {
+      for (final branch in userBranches) {
+        final id = (branch.branchId.isNotEmpty ? branch.branchId : branch.id)
+            .trim();
+        if (id.isEmpty) continue;
+        final name = branch.name.trim().isNotEmpty ? branch.name.trim() : id;
+        map[id] = name;
+      }
     }
     for (final entry in entries) {
       if (entry.branchId.isNotEmpty) {
@@ -260,10 +335,11 @@ class _InventoryJournalPageState extends ConsumerState<InventoryJournalPage> {
 
   List<InventoryJournalEntry> _filteredEntries(
     List<InventoryJournalEntry> entries,
+    String selectedBranchId,
   ) {
     return entries.where((entry) {
       final matchesBranch =
-          _selectedBranchId == 'all' || entry.branchId == _selectedBranchId;
+          selectedBranchId == 'all' || entry.branchId == selectedBranchId;
       final matchesStart =
           _startDate == null || !entry.occurredAt.isBefore(_startDate!);
       final matchesEnd =

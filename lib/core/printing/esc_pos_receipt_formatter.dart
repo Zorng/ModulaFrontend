@@ -17,7 +17,7 @@ class ThermalReceiptModifierLine {
 
   String get displayName {
     final normalizedGroupName = (groupName ?? '').trim();
-    if (normalizedGroupName.isEmpty) {
+    if (normalizedGroupName.isEmpty || hasPriceDelta) {
       return name;
     }
     return '$normalizedGroupName: $name';

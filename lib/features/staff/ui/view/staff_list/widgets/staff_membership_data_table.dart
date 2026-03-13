@@ -25,100 +25,117 @@ class StaffMembershipDataTable extends StatelessWidget {
         child: ConstrainedBox(
           constraints: BoxConstraints(minWidth: constraints.maxWidth),
           child: SingleChildScrollView(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: DataTable(
-                columnSpacing: 20,
-                dataRowMinHeight: 60,
-                dataRowMaxHeight: 72,
-                headingRowColor: WidgetStateProperty.all(
-                  AppTableTheme.headerBackground,
-                ),
-                dataRowColor: const WidgetStatePropertyAll(
-                  AppTableTheme.background,
-                ),
-                dividerThickness: 1,
-                border: const TableBorder(
-                  top: BorderSide(color: AppTableTheme.divider),
-                  bottom: BorderSide(color: AppTableTheme.divider),
-                  left: BorderSide(color: AppTableTheme.divider),
-                  right: BorderSide(color: AppTableTheme.divider),
-                ),
-                columns: const [
-                  DataColumn(
-                    label: Text('Staff', style: AppTableTheme.headerText),
-                  ),
-                  DataColumn(
-                    label: Text('Role', style: AppTableTheme.headerText),
-                  ),
-                  DataColumn(
-                    label: Text('Status', style: AppTableTheme.headerText),
-                  ),
-                  DataColumn(
-                    label: Text('Branches', style: AppTableTheme.headerText),
-                  ),
-                  DataColumn(
-                    label: Text('Lifecycle', style: AppTableTheme.headerText),
-                  ),
-                  DataColumn(
-                    label: Text('Action', style: AppTableTheme.headerText),
-                  ),
-                ],
-                rows: memberships
-                    .map(
-                      (membership) => DataRow(
-                        cells: [
-                          DataCell(
-                            Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
+            child: Container(
+              decoration: BoxDecoration(
+                color: AppTableTheme.background,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppTableTheme.divider),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(1),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(11),
+                  child: DataTable(
+                    columnSpacing: 20,
+                    dataRowMinHeight: 60,
+                    dataRowMaxHeight: 72,
+                    headingRowColor: WidgetStateProperty.all(
+                      AppTableTheme.headerBackground,
+                    ),
+                    dataRowColor: const WidgetStatePropertyAll(
+                      AppTableTheme.background,
+                    ),
+                    dividerThickness: 1,
+                    border: const TableBorder(),
+                    columns: const [
+                      DataColumn(
+                        label: Text('Staff', style: AppTableTheme.headerText),
+                      ),
+                      DataColumn(
+                        label: Text('Role', style: AppTableTheme.headerText),
+                      ),
+                      DataColumn(
+                        label: Text('Status', style: AppTableTheme.headerText),
+                      ),
+                      DataColumn(
+                        label: Text(
+                          'Branches',
+                          style: AppTableTheme.headerText,
+                        ),
+                      ),
+                      DataColumn(
+                        label: Text(
+                          'Lifecycle',
+                          style: AppTableTheme.headerText,
+                        ),
+                      ),
+                      DataColumn(
+                        label: Text('Action', style: AppTableTheme.headerText),
+                      ),
+                    ],
+                    rows: memberships
+                        .map(
+                          (membership) => DataRow(
+                            cells: [
+                              DataCell(
+                                Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      membership.displayName,
+                                      style: AppTableTheme.cellText,
+                                    ),
+                                    Text(
+                                      membership.phone,
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.bodySmall,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              DataCell(
+                                StaffRoleChip(roleKey: membership.roleKey),
+                              ),
+                              DataCell(
+                                StaffStatusChip.membership(
+                                  status: membership.membershipStatus,
+                                ),
+                              ),
+                              DataCell(
+                                ConstrainedBox(
+                                  constraints: const BoxConstraints(
+                                    maxWidth: 260,
+                                  ),
+                                  child: Text(
+                                    formatBranchAssignmentSummary(
+                                      membership.branchIds,
+                                      branchNameById,
+                                    ),
+                                    style: AppTableTheme.cellText,
+                                  ),
+                                ),
+                              ),
+                              DataCell(
                                 Text(
-                                  membership.displayName,
+                                  '${membership.primaryLifecycleLabel}: ${formatStaffDateTime(membership.primaryLifecycleTimestamp)}',
                                   style: AppTableTheme.cellText,
                                 ),
-                                Text(
-                                  membership.phone,
-                                  style: Theme.of(context).textTheme.bodySmall,
-                                ),
-                              ],
-                            ),
-                          ),
-                          DataCell(StaffRoleChip(roleKey: membership.roleKey)),
-                          DataCell(
-                            StaffStatusChip.membership(
-                              status: membership.membershipStatus,
-                            ),
-                          ),
-                          DataCell(
-                            ConstrainedBox(
-                              constraints: const BoxConstraints(maxWidth: 260),
-                              child: Text(
-                                formatBranchAssignmentSummary(
-                                  membership.branchIds,
-                                  branchNameById,
-                                ),
-                                style: AppTableTheme.cellText,
                               ),
-                            ),
+                              DataCell(
+                                FilledButton(
+                                  style: AppTableTheme.actionButtonStyle,
+                                  onPressed: () => onView(membership),
+                                  child: const Text('View'),
+                                ),
+                              ),
+                            ],
                           ),
-                          DataCell(
-                            Text(
-                              '${membership.primaryLifecycleLabel}: ${formatStaffDateTime(membership.primaryLifecycleTimestamp)}',
-                              style: AppTableTheme.cellText,
-                            ),
-                          ),
-                          DataCell(
-                            FilledButton(
-                              style: AppTableTheme.actionButtonStyle,
-                              onPressed: () => onView(membership),
-                              child: const Text('View'),
-                            ),
-                          ),
-                        ],
-                      ),
-                    )
-                    .toList(growable: false),
+                        )
+                        .toList(growable: false),
+                  ),
+                ),
               ),
             ),
           ),

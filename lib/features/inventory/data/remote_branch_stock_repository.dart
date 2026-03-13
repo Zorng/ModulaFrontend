@@ -26,17 +26,24 @@ class RemoteBranchStockRepository extends BranchStockRepository {
     String? branchId,
     String status = 'all',
   }) async {
+    final targetBranch = (branchId ?? '').trim().isEmpty
+        ? null
+        : branchId?.trim();
+    if (targetBranch == null) {
+      return const <OnHandRecord>[];
+    }
     final normalizedStatus = _normalizeInventoryStatus(status);
     final records = await _api.fetchOnHand(
+      branchId: targetBranch,
       includeArchivedItems: normalizedStatus != 'active',
     );
     final mapped = records
-        .map((dto) => _toOnHandDomain(dto, branchIdHint: branchId))
+        .map((dto) => _toOnHandDomain(dto, branchIdHint: targetBranch))
         .toList(growable: false);
-    if (branchId == null || branchId.isEmpty) return mapped;
     return mapped
         .where(
-          (record) => record.branchId.isEmpty || record.branchId == branchId,
+          (record) =>
+              record.branchId.isEmpty || record.branchId == targetBranch,
         )
         .toList(growable: false);
   }
@@ -61,45 +68,28 @@ class RemoteBranchStockRepository extends BranchStockRepository {
       final aggregateDtos = await _api.fetchAggregateStock(
         includeArchivedItems: includeArchivedItems,
       );
-      if (aggregateDtos.isNotEmpty) {
-        return aggregateDtos
-            .map(
-              (aggregate) => _toStockItemFromAggregate(
-                aggregate: aggregate,
-                masterById: masterById,
-              ),
-            )
-            .where((item) => _matchesStatus(item, normalizedStatus))
-            .toList(growable: false);
-      }
-    }
-
-    final branchDtos = await _api.fetchBranchStockItems(
-      includeArchivedItems: includeArchivedItems,
-    );
-
-    if (branchDtos.isNotEmpty) {
-      return branchDtos
+      return aggregateDtos
           .map(
-            (assignment) => _toStockItemFromBranchAssignment(
-              assignment: assignment,
+            (aggregate) => _toStockItemFromAggregate(
+              aggregate: aggregate,
               masterById: masterById,
-              branchIdHint: branchId,
             ),
           )
           .where((item) => _matchesStatus(item, normalizedStatus))
           .toList(growable: false);
     }
 
-    // Fallback for flows that need stock items regardless of branch assignment.
-    return masterDtos
+    final branchDtos = await _api.fetchBranchStockItems(
+      branchId: branchId,
+      includeArchivedItems: includeArchivedItems,
+    );
+
+    return branchDtos
         .map(
-          (dto) => _toStockItem(
-            dto: dto,
-            branchId: branchId ?? '',
-            branchName: '',
-            onHand: 0,
-            minThreshold: dto.lowStockThreshold ?? 0,
+          (assignment) => _toStockItemFromBranchAssignment(
+            assignment: assignment,
+            masterById: masterById,
+            branchIdHint: branchId,
           ),
         )
         .where((item) => _matchesStatus(item, normalizedStatus))
@@ -112,10 +102,8 @@ class RemoteBranchStockRepository extends BranchStockRepository {
     required String branchId,
     required int minThreshold,
   }) async {
-    await _api.assignStockItemToBranch(
-      stockItemId: stockItemId,
-      branchId: branchId,
-      minThreshold: minThreshold,
+    throw UnsupportedError(
+      'Branch assignment is not supported by the current inventory contract.',
     );
   }
 }

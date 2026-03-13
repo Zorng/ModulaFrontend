@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
+import 'package:modular_pos/features/inventory/ui/widgets/inventory_field_label.dart';
 
 class RestockQuantityInputs extends StatelessWidget {
   const RestockQuantityInputs({
@@ -16,53 +17,68 @@ class RestockQuantityInputs extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (item.pieceSize <= 1) {
-      return TextFormField(
-        controller: pcsCtrl,
-        keyboardType: TextInputType.number,
-        decoration: InputDecoration(
-          labelText: 'Quantity received (${item.baseUnit})',
+      return InventoryFieldLabel(
+        text: 'Quantity received (${item.baseUnit})',
+        isRequired: true,
+        child: TextFormField(
+          controller: pcsCtrl,
+          keyboardType: TextInputType.number,
+          decoration: InputDecoration(
+            hintText: 'Enter ${item.baseUnit} quantity',
+          ),
+          validator: (value) {
+            final parsed = int.tryParse(value ?? '');
+            if (parsed == null || parsed <= 0) {
+              return 'Enter a quantity greater than 0';
+            }
+            return null;
+          },
         ),
-        validator: (value) {
-          final parsed = int.tryParse(value ?? '');
-          if (parsed == null || parsed <= 0) {
-            return 'Enter a quantity greater than 0';
-          }
-          return null;
-        },
       );
     }
 
     return Row(
       children: [
         Expanded(
-          child: TextFormField(
-            controller: pcsCtrl,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(labelText: 'Pieces received'),
-            validator: (value) {
-              final parsed = int.tryParse(value ?? '');
-              if (parsed == null || parsed < 0) {
-                return 'Enter pcs (0 or more)';
-              }
-              return null;
-            },
+          child: InventoryFieldLabel(
+            text: 'Pieces received',
+            isRequired: true,
+            child: TextFormField(
+              controller: pcsCtrl,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(hintText: 'Enter pieces'),
+              validator: (value) {
+                final trimmed = value?.trim() ?? '';
+                if (trimmed.isEmpty) return null;
+                final parsed = int.tryParse(trimmed);
+                if (parsed == null || parsed < 0) {
+                  return 'Enter pcs (0 or more)';
+                }
+                return null;
+              },
+            ),
           ),
         ),
         const SizedBox(width: 12),
         Expanded(
-          child: TextFormField(
-            controller: extraCtrl,
-            keyboardType: TextInputType.number,
-            decoration: InputDecoration(
-              labelText: 'Additional ${item.baseUnit}',
+          child: InventoryFieldLabel(
+            text: 'Additional ${item.baseUnit}',
+            child: TextFormField(
+              controller: extraCtrl,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                hintText: 'Enter additional ${item.baseUnit}',
+              ),
+              validator: (value) {
+                final trimmed = value?.trim() ?? '';
+                if (trimmed.isEmpty) return null;
+                final parsed = int.tryParse(trimmed);
+                if (parsed == null || parsed < 0) {
+                  return 'Enter a value ≥ 0';
+                }
+                return null;
+              },
             ),
-            validator: (value) {
-              final parsed = int.tryParse(value ?? '');
-              if (parsed == null || parsed < 0) {
-                return 'Enter a value ≥ 0';
-              }
-              return null;
-            },
           ),
         ),
       ],

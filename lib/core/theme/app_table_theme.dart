@@ -56,8 +56,9 @@ class AppTableTheme {
   );
 
   // Action button
+  static const Color actionButtonColor = Color(0xFF393838);
   static const ButtonStyle actionButtonStyle = ButtonStyle(
-    backgroundColor: WidgetStatePropertyAll(Color(0xFF393838)),
+    backgroundColor: WidgetStatePropertyAll(actionButtonColor),
     foregroundColor: WidgetStatePropertyAll(Colors.white),
     elevation: WidgetStatePropertyAll(0),
     padding: WidgetStatePropertyAll(

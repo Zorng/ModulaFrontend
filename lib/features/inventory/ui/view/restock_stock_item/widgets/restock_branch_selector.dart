@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:modular_pos/features/inventory/ui/widgets/inventory_field_label.dart';
 import 'package:modular_pos/features/inventory/ui/widgets/inventory_dropdown.dart';
 
 class RestockBranchSelector extends StatelessWidget {
@@ -7,40 +8,26 @@ class RestockBranchSelector extends StatelessWidget {
     required this.entries,
     required this.selectedBranchId,
     required this.onChanged,
-    this.enabled = true,
   });
 
   final List<MapEntry<String, String>> entries;
   final String? selectedBranchId;
   final ValueChanged<String?> onChanged;
-  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
     // If there are no branch entries, show a non-interactive label instead of
     // trying to access entries.first which would throw.
     if (entries.isEmpty) {
-      return SizedBox(
-        width: double.infinity,
-        child: InputDecorator(
-          decoration: const InputDecoration(labelText: 'Branch'),
-          child: Text('No branches available'),
-        ),
-      );
-    }
-
-    if (!enabled) {
-      final label = entries
-          .firstWhere(
-            (entry) => entry.key == selectedBranchId,
-            orElse: () => entries.first,
-          )
-          .value;
-      return SizedBox(
-        width: double.infinity,
-        child: InputDecorator(
-          decoration: const InputDecoration(labelText: 'Branch'),
-          child: Text(label),
+      return const InventoryFieldLabel(
+        text: 'Branch',
+        isRequired: true,
+        child: SizedBox(
+          width: double.infinity,
+          child: InputDecorator(
+            decoration: InputDecoration(),
+            child: Text('No branches available'),
+          ),
         ),
       );
     }
@@ -48,22 +35,26 @@ class RestockBranchSelector extends StatelessWidget {
     return FormField<String>(
       validator: (_) =>
           selectedBranchId == null ? 'Please select a branch' : null,
-      builder: (state) => SizedBox(
-        width: double.infinity,
-        child: InventoryDropdown<String>(
-          initialValue: selectedBranchId,
-          label: const Text('Branch'),
-          entries: entries
-              .map(
-                (entry) =>
-                    DropdownMenuEntry(value: entry.key, label: entry.value),
-              )
-              .toList(),
-          onSelected: (value) {
-            state.didChange(value);
-            onChanged(value);
-          },
-          errorText: state.errorText,
+      builder: (state) => InventoryFieldLabel(
+        text: 'Branch',
+        isRequired: true,
+        child: SizedBox(
+          width: double.infinity,
+          child: InventoryDropdown<String>(
+            initialValue: selectedBranchId,
+            hintText: 'Select branch',
+            entries: entries
+                .map(
+                  (entry) =>
+                      DropdownMenuEntry(value: entry.key, label: entry.value),
+                )
+                .toList(),
+            onSelected: (value) {
+              state.didChange(value);
+              onChanged(value);
+            },
+            errorText: state.errorText,
+          ),
         ),
       ),
     );

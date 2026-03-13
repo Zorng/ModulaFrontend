@@ -21,7 +21,7 @@ class AppTheme {
     ),
   );
   static const ButtonStyle cancelActionButtonStyle = ButtonStyle(
-    backgroundColor: WidgetStatePropertyAll(Color(0xFFF7F7F7)),
+    backgroundColor: WidgetStatePropertyAll(Color(0xFFFFFFFF)),
     foregroundColor: WidgetStatePropertyAll(Color(0xFF696969)),
     padding: WidgetStatePropertyAll(
       EdgeInsets.symmetric(horizontal: 16, vertical: 10),

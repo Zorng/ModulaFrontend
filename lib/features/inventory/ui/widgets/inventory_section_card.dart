@@ -7,27 +7,33 @@ class InventorySectionCard extends StatelessWidget {
     required this.children,
     this.backgroundColor,
     this.description,
+    this.elevation,
+    this.shadowColor,
+    this.surfaceTintColor,
   });
 
   final String title;
   final List<Widget> children;
   final Color? backgroundColor;
   final String? description;
+  final double? elevation;
+  final Color? shadowColor;
+  final Color? surfaceTintColor;
 
   @override
   Widget build(BuildContext context) {
     return Card(
       color: backgroundColor,
+      elevation: elevation,
+      shadowColor: shadowColor,
+      surfaceTintColor: surfaceTintColor,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              title,
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
+            Text(title, style: Theme.of(context).textTheme.titleMedium),
             if (description != null && description!.isNotEmpty) ...[
               const SizedBox(height: 6),
               Text(

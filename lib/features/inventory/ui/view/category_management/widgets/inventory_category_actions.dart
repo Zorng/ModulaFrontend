@@ -26,6 +26,7 @@ class InventoryCategoryActionMenu extends ConsumerWidget {
     BuildContext context,
     InventoryCategory category, {
     bool useDialog = false,
+    VoidCallback? onArchived,
   }) async {
     if (useDialog) {
       await showDialog<void>(
@@ -35,12 +36,21 @@ class InventoryCategoryActionMenu extends ConsumerWidget {
             horizontal: 24,
             vertical: 24,
           ),
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+          surfaceTintColor: Theme.of(context).scaffoldBackgroundColor,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          clipBehavior: Clip.antiAlias,
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 520),
             child: CategoryFormBody(
               mode: CategoryFormMode.view,
               category: category,
               showHeader: true,
+              allowArchiveInViewMode: true,
+              backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+              onArchived: onArchived,
               onClose: () => Navigator.of(context).pop(),
             ),
           ),
@@ -58,7 +68,12 @@ class InventoryCategoryActionMenu extends ConsumerWidget {
       onSelected: (value) {
         switch (value) {
           case _CategoryAction.view:
-            openView(context, category, useDialog: useDialog);
+            openView(
+              context,
+              category,
+              useDialog: useDialog,
+              onArchived: onArchived,
+            );
             break;
           case _CategoryAction.archive:
             _archiveCategory(context, ref);

@@ -53,7 +53,11 @@ class _CategoriesManagementPageState
     final items = menuState.allItems;
     final itemCountByCategory = <String, int>{};
     for (final item in items) {
-      itemCountByCategory.update(item.categoryId, (value) => value + 1, ifAbsent: () => 1);
+      itemCountByCategory.update(
+        item.categoryId,
+        (value) => value + 1,
+        ifAbsent: () => 1,
+      );
     }
 
     return Scaffold(
@@ -75,130 +79,187 @@ class _CategoriesManagementPageState
               child: menuState.isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : menuState.error != null
-                      ? Center(
-                          child: Text(
-                            UserErrorMessage.build(
-                              context: 'Failed to load categories',
-                              error: menuState.error,
-                            ),
-                            style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(color: Theme.of(context).hintColor),
-                            textAlign: TextAlign.center,
-                          ),
-                        )
+                  ? Center(
+                      child: Text(
+                        UserErrorMessage.build(
+                          context: 'Failed to load categories',
+                          error: menuState.error,
+                        ),
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Theme.of(context).hintColor,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    )
                   : categories.isEmpty
-                      ? const Center(child: Text('No categories yet'))
-                      : LayoutBuilder(
-                          builder: (context, constraints) {
-                            if (!isWide) {
-                              return ListView.builder(
-                                itemCount: categories.length,
-                                itemBuilder: (context, index) {
-                                  final category = categories[index];
-                                  final count = itemCountByCategory[category.id] ?? 0;
-                                  return CategoryTile(
-                                    category: category,
-                                    itemCount: count,
-                                    onTap: () => _openCategoryPage(context, category),
-                                  );
-                                },
+                  ? const Center(child: Text('No categories yet'))
+                  : LayoutBuilder(
+                      builder: (context, constraints) {
+                        if (!isWide) {
+                          return ListView.builder(
+                            itemCount: categories.length,
+                            itemBuilder: (context, index) {
+                              final category = categories[index];
+                              final count =
+                                  itemCountByCategory[category.id] ?? 0;
+                              return CategoryTile(
+                                category: category,
+                                itemCount: count,
+                                onTap: () =>
+                                    _openCategoryPage(context, category),
                               );
-                            }
+                            },
+                          );
+                        }
 
-                            return SingleChildScrollView(
-                              scrollDirection: Axis.horizontal,
-                              child: ConstrainedBox(
-                                constraints: BoxConstraints(minWidth: constraints.maxWidth),
-                                child: SingleChildScrollView(
+                        return SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                              minWidth: constraints.maxWidth,
+                            ),
+                            child: SingleChildScrollView(
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: AppTableTheme.background,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: AppTableTheme.divider,
+                                  ),
+                                ),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(1),
                                   child: ClipRRect(
-                                    borderRadius: BorderRadiusGeometry.circular(12),
+                                    borderRadius: BorderRadius.circular(11),
                                     child: DataTable(
                                       dataRowMinHeight: 60,
                                       dataRowMaxHeight: 70,
                                       headingRowColor: WidgetStateProperty.all(
                                         AppTableTheme.headerBackground,
                                       ),
-                                      dataRowColor: const WidgetStatePropertyAll(
-                                        AppTableTheme.background,
-                                      ),
+                                      dataRowColor:
+                                          const WidgetStatePropertyAll(
+                                            AppTableTheme.background,
+                                          ),
                                       dividerThickness: 1,
                                       border: const TableBorder(
-                                        top: BorderSide(color: AppTableTheme.divider),
-                                        bottom: BorderSide(color: AppTableTheme.divider),
-                                        left: BorderSide(color: AppTableTheme.divider),
-                                        right: BorderSide(color: AppTableTheme.divider),
-                                        horizontalInside: BorderSide(color: AppTableTheme.divider),
+                                        horizontalInside: BorderSide(
+                                          color: AppTableTheme.divider,
+                                        ),
                                       ),
                                       columns: const [
                                         DataColumn(
-                                          label: Text('No.', style: AppTableTheme.headerText),
+                                          label: Text(
+                                            'No.',
+                                            style: AppTableTheme.headerText,
+                                          ),
                                         ),
                                         DataColumn(
-                                          label: Text('Category name', style: AppTableTheme.headerText),
+                                          label: Text(
+                                            'Category name',
+                                            style: AppTableTheme.headerText,
+                                          ),
                                         ),
                                         DataColumn(
-                                          label: Text('Item count', style: AppTableTheme.headerText),
+                                          label: Text(
+                                            'Item count',
+                                            style: AppTableTheme.headerText,
+                                          ),
                                         ),
                                         DataColumn(
-                                          label: Text('Status', style: AppTableTheme.headerText),
+                                          label: Text(
+                                            'Status',
+                                            style: AppTableTheme.headerText,
+                                          ),
                                         ),
                                         DataColumn(
-                                          label: Text('Action', style: AppTableTheme.headerText),
+                                          label: Text(
+                                            'Action',
+                                            style: AppTableTheme.headerText,
+                                          ),
                                         ),
                                       ],
-                                      rows: List<DataRow>.generate(categories.length, (index) {
-                                        final category = categories[index];
-                                        final isActive = category.isActive;
-                                        final count = itemCountByCategory[category.id] ?? 0;
-                                        return DataRow(
-                                          cells: [
-                                            DataCell(
-                                              Text('${index + 1}', style: AppTableTheme.cellText),
-                                            ),
-                                            DataCell(
-                                              Text(category.name, style: AppTableTheme.cellText),
-                                            ),
-                                            DataCell(
-                                              Text('$count', style: AppTableTheme.cellText),
-                                            ),
-                                            DataCell(
-                                              Container(
-                                                padding: const EdgeInsets.symmetric(
-                                                  horizontal: 12,
-                                                  vertical: 6,
-                                                ),
-                                                decoration: isActive
-                                                    ? AppTableTheme.healthyDecoration
-                                                    : AppTableTheme.dangerDecoration,
-                                                child: Text(
-                                                  isActive ? 'Active' : 'Inactive',
-                                                  style: isActive
-                                                      ? AppTableTheme.healthyText
-                                                      : AppTableTheme.dangerText,
+                                      rows: List<DataRow>.generate(
+                                        categories.length,
+                                        (index) {
+                                          final category = categories[index];
+                                          final isActive = category.isActive;
+                                          final count =
+                                              itemCountByCategory[category
+                                                  .id] ??
+                                              0;
+                                          return DataRow(
+                                            cells: [
+                                              DataCell(
+                                                Text(
+                                                  '${index + 1}',
+                                                  style: AppTableTheme.cellText,
                                                 ),
                                               ),
-                                            ),
-                                            DataCell(
-                                              SizedBox(
-                                                width: 96,
-                                                child: ElevatedButton(
-                                                  style: AppTableTheme.actionButtonStyle,
-                                                  onPressed: () =>
-                                                      _openCategoryDialog(context, category),
-                                                  child: const Text('View'),
+                                              DataCell(
+                                                Text(
+                                                  category.name,
+                                                  style: AppTableTheme.cellText,
                                                 ),
                                               ),
-                                            ),
-                                          ],
-                                        );
-                                      }),
+                                              DataCell(
+                                                Text(
+                                                  '$count',
+                                                  style: AppTableTheme.cellText,
+                                                ),
+                                              ),
+                                              DataCell(
+                                                Container(
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 12,
+                                                        vertical: 6,
+                                                      ),
+                                                  decoration: isActive
+                                                      ? AppTableTheme
+                                                            .healthyDecoration
+                                                      : AppTableTheme
+                                                            .dangerDecoration,
+                                                  child: Text(
+                                                    isActive
+                                                        ? 'Active'
+                                                        : 'Inactive',
+                                                    style: isActive
+                                                        ? AppTableTheme
+                                                              .healthyText
+                                                        : AppTableTheme
+                                                              .dangerText,
+                                                  ),
+                                                ),
+                                              ),
+                                              DataCell(
+                                                SizedBox(
+                                                  width: 96,
+                                                  child: ElevatedButton(
+                                                    style: AppTableTheme
+                                                        .actionButtonStyle,
+                                                    onPressed: () =>
+                                                        _openCategoryDialog(
+                                                          context,
+                                                          category,
+                                                        ),
+                                                    child: const Text('View'),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          );
+                                        },
+                                      ),
                                     ),
                                   ),
                                 ),
                               ),
-                            );
-                          },
-                        ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
             ),
           ],
         ),
@@ -230,11 +291,11 @@ class _CategoriesManagementPageState
     );
   }
 
-  Future<void> _openCategoryPage(BuildContext context, MenuCategory category) async {
-    await context.push(
-      AppRoute.adminMenuEditCategory.path,
-      extra: category,
-    );
+  Future<void> _openCategoryPage(
+    BuildContext context,
+    MenuCategory category,
+  ) async {
+    await context.push(AppRoute.adminMenuEditCategory.path, extra: category);
     if (!mounted) return;
     await ref.read(menuViewModelProvider.notifier).refreshCategories();
   }

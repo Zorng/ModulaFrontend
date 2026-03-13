@@ -38,7 +38,15 @@ class _SpyStockInventoryController extends StockInventoryController {
   StockInventoryState build() => const StockInventoryState();
 
   @override
-  Future<void> loadStockItems({String? branchId, String status = 'all'}) async {
+  Future<void> loadStockItems({String status = 'all'}) async {
+    loadCalled = true;
+  }
+
+  @override
+  Future<void> loadInventoryItems({
+    String? branchId,
+    String status = 'all',
+  }) async {
     loadCalled = true;
   }
 }
@@ -123,7 +131,7 @@ void main() {
   );
 
   test(
-    'StockInventoryController.loadStockItems maps category labels',
+    'StockInventoryController.loadInventoryItems maps category labels',
     () async {
       final stockRepo = _MockStockItemRepository();
       final branchStockRepo = _MockBranchStockRepository();
@@ -184,16 +192,16 @@ void main() {
       final notifier = container.read(
         stockInventoryControllerProvider.notifier,
       );
-      await notifier.loadStockItems(branchId: 'branch-1');
+      await notifier.loadInventoryItems(branchId: 'branch-1');
 
       final state = container.read(stockInventoryControllerProvider);
       expect(state.isLoading, isFalse);
-      expect(state.items.first.categoryId, 'cat-1');
+      expect(state.inventoryItems.first.categoryId, 'cat-1');
     },
   );
 
   test(
-    'StockInventoryController.loadStockItems falls back to master list when branch stock read fails',
+    'StockInventoryController.loadInventoryItems surfaces branch stock failure instead of falling back to catalog items',
     () async {
       final stockRepo = _MockStockItemRepository();
       final branchStockRepo = _MockBranchStockRepository();
@@ -223,21 +231,46 @@ void main() {
           statusCode: 403,
         ),
       );
-      when(
-        () => stockRepo.fetchMasterStockItems(pageSize: any(named: 'pageSize')),
-      ).thenAnswer(
+      final container = createTestContainer(
+        overrides: [
+          stockItemRepositoryProvider.overrideWithValue(stockRepo),
+          branchStockRepositoryProvider.overrideWithValue(branchStockRepo),
+          inventoryJournalRepositoryProvider.overrideWithValue(journalRepo),
+        ],
+      );
+
+      final notifier = container.read(
+        stockInventoryControllerProvider.notifier,
+      );
+      await notifier.loadInventoryItems(branchId: 'branch-1');
+
+      final state = container.read(stockInventoryControllerProvider);
+      expect(state.inventoryItems, isEmpty);
+      expect(state.error, isNotNull);
+      expect(state.errorCode, InventoryErrorCode.branchContextRequired);
+    },
+  );
+
+  test(
+    'StockInventoryController.hasStockItems returns true when any stock item exists',
+    () async {
+      final stockRepo = _MockStockItemRepository();
+      final branchStockRepo = _MockBranchStockRepository();
+      final journalRepo = _MockJournalRepository();
+
+      when(() => stockRepo.fetchMasterStockItems()).thenAnswer(
         (_) async => const [
           StockItem(
-            id: 'item-1',
-            name: 'Whole Milk',
+            id: 'item-archived',
+            name: 'Archived Item',
             categoryId: 'cat-1',
             baseUnit: 'ml',
             pieceSize: 1,
             branchId: '',
             branchName: '',
             onHand: 0,
-            minThreshold: 300,
-            isActive: true,
+            minThreshold: 0,
+            isActive: false,
           ),
         ],
       );
@@ -253,19 +286,16 @@ void main() {
       final notifier = container.read(
         stockInventoryControllerProvider.notifier,
       );
-      await notifier.loadStockItems(branchId: 'branch-1');
 
-      final state = container.read(stockInventoryControllerProvider);
-      expect(state.error, isNull);
-      expect(state.errorCode, isNull);
-      expect(state.items, hasLength(1));
-      expect(state.items.first.id, 'item-1');
-      expect(state.items.first.branchId, 'branch-1');
+      final hasStockItems = await notifier.hasStockItems();
+
+      expect(hasStockItems, isTrue);
+      verify(() => stockRepo.fetchMasterStockItems()).called(1);
     },
   );
 
   test(
-    'StockInventoryController.loadStockItemDetail merges detail with branch fields',
+    'StockInventoryController.loadStockItemDetail updates stock lane while preserving inventory branch fields',
     () async {
       final stockRepo = _MockStockItemRepository();
       final branchStockRepo = _MockBranchStockRepository();
@@ -298,7 +328,21 @@ void main() {
         stockInventoryControllerProvider.notifier,
       );
       notifier.state = const StockInventoryState(
-        items: [
+        stockItems: [
+          StockItem(
+            id: 'item-1',
+            name: 'Iced Coffee',
+            categoryId: 'cat-1',
+            baseUnit: 'ml',
+            pieceSize: 1,
+            branchId: '',
+            branchName: '',
+            onHand: 0,
+            minThreshold: 3,
+            isActive: true,
+          ),
+        ],
+        inventoryItems: [
           StockItem(
             id: 'item-1',
             name: 'Iced Coffee',
@@ -318,12 +362,13 @@ void main() {
       final state = container.read(stockInventoryControllerProvider);
 
       expect(merged.name, 'Iced Coffee Updated');
-      expect(merged.branchId, 'branch-1');
-      expect(merged.branchName, 'Main Branch');
-      expect(merged.onHand, 12);
-      expect(merged.minThreshold, 3);
-      expect(state.items.first.name, 'Iced Coffee Updated');
-      expect(state.items.first.branchId, 'branch-1');
+      expect(merged.branchId, '');
+      expect(merged.imageUrl, isNull);
+      expect(state.stockItems.first.name, 'Iced Coffee Updated');
+      expect(state.stockItems.first.branchId, '');
+      expect(state.inventoryItems.first.name, 'Iced Coffee Updated');
+      expect(state.inventoryItems.first.branchId, 'branch-1');
+      expect(state.inventoryItems.first.onHand, 12);
       expect(state.error, isNull);
       expect(state.errorCode, isNull);
     },
@@ -350,7 +395,33 @@ void main() {
         stockInventoryControllerProvider.notifier,
       );
       notifier.state = const StockInventoryState(
-        items: [
+        stockItems: [
+          StockItem(
+            id: 'item-1',
+            name: 'Iced Coffee',
+            categoryId: 'cat-1',
+            baseUnit: 'ml',
+            pieceSize: 1,
+            branchId: 'branch-1',
+            branchName: 'Main Branch',
+            onHand: 12,
+            minThreshold: 3,
+            isActive: true,
+          ),
+          StockItem(
+            id: 'item-2',
+            name: 'Lemon Tea',
+            categoryId: 'cat-1',
+            baseUnit: 'ml',
+            pieceSize: 1,
+            branchId: 'branch-1',
+            branchName: 'Main Branch',
+            onHand: 7,
+            minThreshold: 2,
+            isActive: true,
+          ),
+        ],
+        inventoryItems: [
           StockItem(
             id: 'item-1',
             name: 'Iced Coffee',
@@ -397,8 +468,10 @@ void main() {
       await notifier.archiveStockItem('item-1');
       final state = container.read(stockInventoryControllerProvider);
 
-      expect(state.items, hasLength(1));
-      expect(state.items.first.id, 'item-2');
+      expect(state.stockItems, hasLength(1));
+      expect(state.stockItems.first.id, 'item-2');
+      expect(state.inventoryItems, hasLength(1));
+      expect(state.inventoryItems.first.id, 'item-2');
       expect(state.batches, hasLength(1));
       expect(state.batches.first.id, 'batch-2');
       expect(state.error, isNull);
@@ -448,7 +521,21 @@ void main() {
         stockInventoryControllerProvider.notifier,
       );
       notifier.state = const StockInventoryState(
-        items: [
+        stockItems: [
+          StockItem(
+            id: 'item-1',
+            name: 'Iced Coffee',
+            categoryId: 'cat-1',
+            baseUnit: 'ml',
+            pieceSize: 1,
+            branchId: 'branch-1',
+            branchName: 'Main Branch',
+            onHand: 12,
+            minThreshold: 3,
+            isActive: true,
+          ),
+        ],
+        inventoryItems: [
           StockItem(
             id: 'item-1',
             name: 'Iced Coffee',
@@ -482,8 +569,12 @@ void main() {
 
       final state = container.read(stockInventoryControllerProvider);
       expect(saved.imageUrl, 'https://cdn.example.com/item-1.jpg');
-      expect(state.items.first.imageUrl, 'https://cdn.example.com/item-1.jpg');
-      expect(state.items.first.name, 'Iced Coffee Updated');
+      expect(
+        state.stockItems.first.imageUrl,
+        'https://cdn.example.com/item-1.jpg',
+      );
+      expect(state.stockItems.first.name, 'Iced Coffee Updated');
+      expect(state.inventoryItems.first.name, 'Iced Coffee Updated');
     },
   );
 
@@ -508,7 +599,21 @@ void main() {
         stockInventoryControllerProvider.notifier,
       );
       notifier.state = const StockInventoryState(
-        items: [
+        stockItems: [
+          StockItem(
+            id: 'item-1',
+            name: 'Iced Coffee',
+            categoryId: 'cat-1',
+            baseUnit: 'ml',
+            pieceSize: 1,
+            branchId: '',
+            branchName: '',
+            onHand: 0,
+            minThreshold: 3,
+            isActive: false,
+          ),
+        ],
+        inventoryItems: [
           StockItem(
             id: 'item-1',
             name: 'Iced Coffee',
@@ -527,7 +632,8 @@ void main() {
       await notifier.restoreStockItem('item-1');
       final state = container.read(stockInventoryControllerProvider);
 
-      expect(state.items.first.isActive, isTrue);
+      expect(state.stockItems.first.isActive, isTrue);
+      expect(state.inventoryItems.first.isActive, isTrue);
       expect(state.error, isNull);
       expect(state.errorCode, isNull);
       verify(() => stockRepo.restoreStockItem('item-1')).called(1);
@@ -543,6 +649,7 @@ void main() {
 
       when(
         () => journalRepo.fetchRestockBatches(
+          branchId: null,
           status: 'active',
           stockItemId: 'item-1',
           limit: 200,
@@ -593,6 +700,7 @@ void main() {
 
       when(
         () => journalRepo.fetchRestockBatches(
+          branchId: null,
           status: 'active',
           stockItemId: 'item-1',
           limit: 1,
@@ -611,6 +719,7 @@ void main() {
       );
       when(
         () => journalRepo.fetchRestockBatches(
+          branchId: null,
           status: 'active',
           stockItemId: 'item-1',
           limit: 1,
@@ -665,6 +774,7 @@ void main() {
       when(
         () => journalRepo.updateRestockBatchMetadata(
           batchId: 'batch-1',
+          branchId: 'branch-1',
           expiryDate: '2026-03-25',
           supplierName: 'Supplier X',
           purchaseCostUsd: 16.25,
@@ -729,7 +839,10 @@ void main() {
       final journalRepo = _MockJournalRepository();
 
       when(
-        () => journalRepo.archiveRestockBatch(batchId: 'batch-1'),
+        () => journalRepo.archiveRestockBatch(
+          batchId: 'batch-1',
+          branchId: 'branch-1',
+        ),
       ).thenAnswer((_) async {});
 
       final container = createTestContainer(
@@ -771,7 +884,10 @@ void main() {
       expect(state.error, isNull);
       expect(state.errorCode, isNull);
       verify(
-        () => journalRepo.archiveRestockBatch(batchId: 'batch-1'),
+        () => journalRepo.archiveRestockBatch(
+          batchId: 'batch-1',
+          branchId: 'branch-1',
+        ),
       ).called(1);
     },
   );
@@ -835,7 +951,22 @@ void main() {
         stockInventoryControllerProvider.notifier,
       );
       notifier.state = const StockInventoryState(
-        items: [
+        stockItems: [
+          StockItem(
+            id: 'item-1',
+            name: 'Whole Milk',
+            categoryId: 'cat-1',
+            baseUnit: 'ml',
+            pieceSize: 1,
+            branchId: '',
+            branchName: '',
+            onHand: 0,
+            minThreshold: 300,
+            isActive: true,
+          ),
+        ],
+        selectedInventoryBranchId: 'branch-1',
+        inventoryItems: [
           StockItem(
             id: 'item-1',
             name: 'Whole Milk',
@@ -892,6 +1023,7 @@ void main() {
 
       when(
         () => journalRepo.applyAdjustment(
+          branchId: 'branch-1',
           stockItemId: 'item-1',
           style: 'DELTA',
           deltaInBaseUnit: -1,
@@ -913,7 +1045,8 @@ void main() {
         stockInventoryControllerProvider.notifier,
       );
       notifier.state = const StockInventoryState(
-        items: [
+        selectedInventoryBranchId: 'branch-1',
+        inventoryItems: [
           StockItem(
             id: 'item-1',
             name: 'Iced Coffee',
@@ -936,6 +1069,29 @@ void main() {
           ),
         ],
       );
+      when(
+        () => branchStockRepo.fetchStockItems(
+          branchId: 'branch-1',
+          status: 'all',
+        ),
+      ).thenAnswer(
+        (_) async => const [
+          StockItem(
+            id: 'item-1',
+            name: 'Iced Coffee',
+            baseUnit: 'ml',
+            pieceSize: 1,
+            branchId: 'branch-1',
+            branchName: 'Main Branch',
+            onHand: 1,
+            minThreshold: 1,
+            isActive: true,
+          ),
+        ],
+      );
+      when(
+        () => branchStockRepo.fetchOnHand(branchId: 'branch-1', status: 'all'),
+      ).thenAnswer((_) async => const []);
 
       await notifier.applyInventoryAdjustment(
         stockItemId: 'item-1',
@@ -946,10 +1102,11 @@ void main() {
       );
 
       final state = container.read(stockInventoryControllerProvider);
-      expect(state.items.first.onHand, 1);
+      expect(state.inventoryItems.first.onHand, 1);
       expect(state.batches.first.onHand, 1);
       verify(
         () => journalRepo.applyAdjustment(
+          branchId: 'branch-1',
           stockItemId: 'item-1',
           style: 'DELTA',
           deltaInBaseUnit: -1,
@@ -970,6 +1127,7 @@ void main() {
 
       when(
         () => journalRepo.applyAdjustment(
+          branchId: 'branch-1',
           stockItemId: 'item-1',
           style: 'SET_TO_COUNT',
           deltaInBaseUnit: null,
@@ -991,7 +1149,8 @@ void main() {
         stockInventoryControllerProvider.notifier,
       );
       notifier.state = const StockInventoryState(
-        items: [
+        selectedInventoryBranchId: 'branch-1',
+        inventoryItems: [
           StockItem(
             id: 'item-1',
             name: 'Iced Coffee',
@@ -1014,6 +1173,29 @@ void main() {
           ),
         ],
       );
+      when(
+        () => branchStockRepo.fetchStockItems(
+          branchId: 'branch-1',
+          status: 'all',
+        ),
+      ).thenAnswer(
+        (_) async => const [
+          StockItem(
+            id: 'item-1',
+            name: 'Iced Coffee',
+            baseUnit: 'ml',
+            pieceSize: 1,
+            branchId: 'branch-1',
+            branchName: 'Main Branch',
+            onHand: 7,
+            minThreshold: 1,
+            isActive: true,
+          ),
+        ],
+      );
+      when(
+        () => branchStockRepo.fetchOnHand(branchId: 'branch-1', status: 'all'),
+      ).thenAnswer((_) async => const []);
 
       await notifier.applyInventoryAdjustment(
         stockItemId: 'item-1',
@@ -1024,10 +1206,11 @@ void main() {
       );
 
       final state = container.read(stockInventoryControllerProvider);
-      expect(state.items.first.onHand, 7);
+      expect(state.inventoryItems.first.onHand, 7);
       expect(state.batches.first.onHand, 7);
       verify(
         () => journalRepo.applyAdjustment(
+          branchId: 'branch-1',
           stockItemId: 'item-1',
           style: 'SET_TO_COUNT',
           deltaInBaseUnit: null,
@@ -1058,7 +1241,7 @@ void main() {
         stockInventoryControllerProvider.notifier,
       );
       notifier.state = const StockInventoryState(
-        items: [
+        inventoryItems: [
           StockItem(
             id: 'item-1',
             name: 'Iced Coffee',
@@ -1109,6 +1292,8 @@ void main() {
 
     when(
       () => journalRepo.fetch(
+        branchId: null,
+        tenantWide: true,
         stockItemId: any(named: 'stockItemId'),
         reason: null,
         limit: any(named: 'limit'),
@@ -1179,6 +1364,8 @@ void main() {
 
       when(
         () => journalRepo.fetch(
+          branchId: null,
+          tenantWide: true,
           stockItemId: any(named: 'stockItemId'),
           reason: null,
           limit: any(named: 'limit'),
@@ -1221,6 +1408,8 @@ void main() {
 
     when(
       () => journalRepo.fetch(
+        branchId: null,
+        tenantWide: true,
         stockItemId: any(named: 'stockItemId'),
         reason: null,
         limit: 1,
@@ -1245,6 +1434,8 @@ void main() {
     );
     when(
       () => journalRepo.fetch(
+        branchId: null,
+        tenantWide: true,
         stockItemId: any(named: 'stockItemId'),
         reason: null,
         limit: 1,

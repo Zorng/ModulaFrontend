@@ -15,6 +15,8 @@ class AppSearchAddBar extends StatelessWidget {
     this.searchHint,
     this.onSearchChanged,
     this.searchController,
+    this.middleChild,
+    this.middleMaxWidth = 220,
     this.onAddPressed,
     this.addButtonLabel = 'Add new',
     this.addButtonMaxWidth = 150,
@@ -23,6 +25,8 @@ class AppSearchAddBar extends StatelessWidget {
   final String? searchHint;
   final ValueChanged<String>? onSearchChanged;
   final TextEditingController? searchController;
+  final Widget? middleChild;
+  final double middleMaxWidth;
   final VoidCallback? onAddPressed;
   final String addButtonLabel;
   final double addButtonMaxWidth;
@@ -43,6 +47,13 @@ class AppSearchAddBar extends StatelessWidget {
                 controller: searchController,
               ),
             ),
+            if (middleChild != null) ...[
+              SizedBox(width: isTight ? 8 : 12),
+              ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: middleMaxWidth),
+                child: middleChild!,
+              ),
+            ],
             SizedBox(width: isTight ? 8 : 12),
             ConstrainedBox(
               constraints: BoxConstraints(maxWidth: addButtonMaxWidth),

@@ -263,11 +263,13 @@ class InventoryApi {
   }
 
   Future<List<BranchStockItemDto>> fetchBranchStockItems({
+    required String branchId,
     bool includeArchivedItems = true,
   }) async {
     final response = await _dio.get<Map<String, dynamic>>(
       '$_prefix/stock/branch',
       queryParameters: <String, dynamic>{
+        'branchId': branchId,
         'includeArchivedItems': includeArchivedItems,
       },
     );
@@ -285,34 +287,19 @@ class InventoryApi {
     required String branchId,
     required int minThreshold,
   }) async {
-    final payload = <String, dynamic>{
-      'stockItemId': stockItemId,
-      'branchId': branchId,
-      'minThreshold': minThreshold,
-    };
-    try {
-      await _dio.post<Map<String, dynamic>>(
-        '$_prefix/branch/stock-items',
-        data: payload,
-        options: _writeOptions(
-          actionKey: 'inventory.branchStock.assign',
-          payload: payload,
-        ),
-      );
-    } on DioError catch (error) {
-      throw ApiClientException.fromDio(
-        error,
-        fallbackMessage: 'Failed to assign stock item to branch.',
-      );
-    }
+    throw UnsupportedError(
+      'Branch assignment is not supported by the current inventory contract.',
+    );
   }
 
   Future<List<OnHandRecordDto>> fetchOnHand({
+    required String branchId,
     bool includeArchivedItems = true,
   }) async {
     final response = await _dio.get<Map<String, dynamic>>(
       '$_prefix/stock/branch',
       queryParameters: <String, dynamic>{
+        'branchId': branchId,
         'includeArchivedItems': includeArchivedItems,
       },
     );
@@ -342,12 +329,14 @@ class InventoryApi {
   }
 
   Future<List<RestockBatchDto>> fetchRestockBatches({
+    String? branchId,
     String status = 'all',
     String? stockItemId,
     int? limit,
     int? offset,
   }) async {
     final query = <String, dynamic>{
+      if (branchId != null && branchId.isNotEmpty) 'branchId': branchId,
       'status': _normalizeInventoryListStatus(status),
       if (stockItemId != null && stockItemId.isNotEmpty)
         'stockItemId': stockItemId,
@@ -366,6 +355,7 @@ class InventoryApi {
   }
 
   Future<InventoryJournalEntryDto?> createRestockBatch({
+    required String branchId,
     required String stockItemId,
     required int quantityInBaseUnit,
     String? receivedAt,
@@ -376,6 +366,7 @@ class InventoryApi {
   }) async {
     try {
       final payload = <String, dynamic>{
+        'branchId': branchId,
         'stockItemId': stockItemId,
         'quantityInBaseUnit': quantityInBaseUnit,
         if (receivedAt != null && receivedAt.isNotEmpty)
@@ -416,6 +407,7 @@ class InventoryApi {
 
   Future<RestockBatchDto> updateRestockBatchMetadata({
     required String batchId,
+    required String branchId,
     String? expiryDate,
     String? supplierName,
     num? purchaseCostUsd,
@@ -423,6 +415,7 @@ class InventoryApi {
   }) async {
     try {
       final payload = <String, dynamic>{
+        'branchId': branchId,
         if (expiryDate != null && expiryDate.isNotEmpty)
           'expiryDate': expiryDate,
         if (supplierName != null && supplierName.isNotEmpty)
@@ -451,13 +444,17 @@ class InventoryApi {
     }
   }
 
-  Future<void> archiveRestockBatch({required String batchId}) async {
+  Future<void> archiveRestockBatch({
+    required String batchId,
+    required String branchId,
+  }) async {
     try {
       await _dio.post<void>(
         '$_prefix/restock-batches/$batchId/archive',
+        queryParameters: <String, dynamic>{'branchId': branchId},
         options: _writeOptions(
           actionKey: 'inventory.restockBatches.archive',
-          payload: {'batchId': batchId},
+          payload: {'batchId': batchId, 'branchId': branchId},
         ),
       );
     } on DioError catch (error) {
@@ -469,6 +466,7 @@ class InventoryApi {
   }
 
   Future<int?> applyAdjustment({
+    required String branchId,
     required String stockItemId,
     required String style,
     int? deltaInBaseUnit,
@@ -479,6 +477,7 @@ class InventoryApi {
     try {
       final normalizedStyle = style.trim().toUpperCase();
       final payload = <String, dynamic>{
+        'branchId': branchId,
         'stockItemId': stockItemId,
         'style': normalizedStyle == 'SET_TO_COUNT' ? 'SET_TO_COUNT' : 'DELTA',
         'reasonCode': reasonCode.trim().toUpperCase(),
@@ -520,29 +519,9 @@ class InventoryApi {
     String? note,
     String? occurredAt,
   }) async {
-    // branchId comes from working-context token; never send overrides in payload.
-    final payload = <String, dynamic>{
-      'stockItemId': stockItemId,
-      'qty': qty,
-      if (note != null && note.isNotEmpty) 'note': note,
-      if (occurredAt != null && occurredAt.isNotEmpty) 'occurredAt': occurredAt,
-    };
-    try {
-      final response = await _dio.post<Map<String, dynamic>>(
-        '$_prefix/journal/receive',
-        data: payload,
-        options: _writeOptions(
-          actionKey: 'inventory.journal.receive',
-          payload: payload,
-        ),
-      );
-      return _maybeJournalEntry(response.data);
-    } on DioError catch (error) {
-      throw ApiClientException.fromDio(
-        error,
-        fallbackMessage: 'Failed to receive stock.',
-      );
-    }
+    throw UnsupportedError(
+      'Use createRestockBatch for restocking under the current inventory contract.',
+    );
   }
 
   Future<InventoryJournalEntryDto?> wasteStock({
@@ -552,29 +531,9 @@ class InventoryApi {
     required String note,
     String? occurredAt,
   }) async {
-    // branchId comes from working-context token; never send overrides in payload.
-    final payload = <String, dynamic>{
-      'stockItemId': stockItemId,
-      'qty': qty,
-      'note': note,
-      if (occurredAt != null && occurredAt.isNotEmpty) 'occurredAt': occurredAt,
-    };
-    try {
-      final response = await _dio.post<Map<String, dynamic>>(
-        '$_prefix/journal/waste',
-        data: payload,
-        options: _writeOptions(
-          actionKey: 'inventory.journal.waste',
-          payload: payload,
-        ),
-      );
-      return _maybeJournalEntry(response.data);
-    } on DioError catch (error) {
-      throw ApiClientException.fromDio(
-        error,
-        fallbackMessage: 'Failed to waste stock.',
-      );
-    }
+    throw UnsupportedError(
+      'Use applyAdjustment for inventory deductions under the current inventory contract.',
+    );
   }
 
   Future<InventoryJournalEntryDto?> correctStock({
@@ -584,38 +543,20 @@ class InventoryApi {
     required String note,
     String? occurredAt,
   }) async {
-    // branchId comes from working-context token; never send overrides in payload.
-    final payload = <String, dynamic>{
-      'stockItemId': stockItemId,
-      'delta': delta,
-      'note': note,
-      if (occurredAt != null && occurredAt.isNotEmpty) 'occurredAt': occurredAt,
-    };
-    try {
-      final response = await _dio.post<Map<String, dynamic>>(
-        '$_prefix/journal/correct',
-        data: payload,
-        options: _writeOptions(
-          actionKey: 'inventory.journal.correct',
-          payload: payload,
-        ),
-      );
-      return _maybeJournalEntry(response.data);
-    } on DioError catch (error) {
-      throw ApiClientException.fromDio(
-        error,
-        fallbackMessage: 'Failed to correct stock.',
-      );
-    }
+    throw UnsupportedError(
+      'Use applyAdjustment for inventory corrections under the current inventory contract.',
+    );
   }
 
   Future<List<InventoryJournalEntryDto>> fetchJournal({
+    required String branchId,
     String? stockItemId,
     String? reasonCode,
     int limit = 50,
     int offset = 0,
   }) async {
     final query = <String, dynamic>{
+      'branchId': branchId,
       if (stockItemId != null && stockItemId.isNotEmpty)
         'stockItemId': stockItemId,
       if ((reasonCode ?? '').trim().isNotEmpty)
@@ -630,6 +571,33 @@ class InventoryApi {
     final list = InventoryApiEnvelope.unwrapDataList(
       response.data,
       fallbackMessage: 'Failed to fetch inventory journal.',
+    );
+    return list.map(InventoryJournalEntryDto.fromJson).toList(growable: false);
+  }
+
+  Future<List<InventoryJournalEntryDto>> fetchTenantJournal({
+    String? branchId,
+    String? stockItemId,
+    String? reasonCode,
+    int limit = 50,
+    int offset = 0,
+  }) async {
+    final query = <String, dynamic>{
+      if (branchId != null && branchId.isNotEmpty) 'branchId': branchId,
+      if (stockItemId != null && stockItemId.isNotEmpty)
+        'stockItemId': stockItemId,
+      if ((reasonCode ?? '').trim().isNotEmpty)
+        'reasonCode': _normalizeInventoryJournalReasonCode(reasonCode!),
+      'limit': limit <= 0 ? 50 : limit,
+      'offset': offset < 0 ? 0 : offset,
+    };
+    final response = await _dio.get<Map<String, dynamic>>(
+      '$_prefix/journal/all',
+      queryParameters: query,
+    );
+    final list = InventoryApiEnvelope.unwrapDataList(
+      response.data,
+      fallbackMessage: 'Failed to fetch tenant inventory journal.',
     );
     return list.map(InventoryJournalEntryDto.fromJson).toList(growable: false);
   }
@@ -742,12 +710,6 @@ Options _writeOptions({
       intentId: (intentId ?? '').trim().isEmpty ? null : intentId?.trim(),
     ),
   );
-}
-
-InventoryJournalEntryDto? _maybeJournalEntry(Map<String, dynamic>? payload) {
-  final json = InventoryApiEnvelope.unwrapDataMap(payload);
-  if (json.isEmpty) return null;
-  return InventoryJournalEntryDto.fromJson(json);
 }
 
 Future<String> _uploadInventoryImage({

@@ -55,9 +55,8 @@ class RemoteStockItemRepository extends StockItemRepository {
     final body = {
       'name': item.name,
       'baseUnit': item.baseUnit,
-      if (item.categoryId != null && item.categoryId!.isNotEmpty)
-        'categoryId': item.categoryId,
-      if (item.minThreshold > 0) 'lowStockThreshold': item.minThreshold,
+      'categoryId': item.categoryId,
+      'lowStockThreshold': item.minThreshold,
     };
     final dto = await _api.createStockItem(
       body,
