@@ -531,6 +531,7 @@ class SaleKhqrPaymentRequestDto {
     this.amount,
     this.currency,
     this.toAccountId,
+    this.receiverName,
     this.expiresAt,
   });
 
@@ -541,6 +542,7 @@ class SaleKhqrPaymentRequestDto {
   final double? amount;
   final String? currency;
   final String? toAccountId;
+  final String? receiverName;
   final DateTime? expiresAt;
 
   factory SaleKhqrPaymentRequestDto.fromJson(Map<String, dynamic> json) {
@@ -552,6 +554,7 @@ class SaleKhqrPaymentRequestDto {
       amount: _readNullableDouble(json['amount']),
       currency: _readNullableString(json['currency']),
       toAccountId: _readNullableString(json['toAccountId']),
+      receiverName: _readNullableString(json['receiverName']),
       expiresAt: _readNullableDateTime(json['expiresAt']),
     );
   }

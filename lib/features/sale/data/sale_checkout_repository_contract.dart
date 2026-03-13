@@ -430,6 +430,7 @@ class SaleKhqrAttemptDto {
     this.payloadType,
     this.deepLinkUrl,
     this.toAccountId,
+    this.receiverName,
     this.reasonCode,
     this.reasonMessage,
   });
@@ -445,6 +446,7 @@ class SaleKhqrAttemptDto {
   final String? payloadType;
   final String? deepLinkUrl;
   final String? toAccountId;
+  final String? receiverName;
   final String? reasonCode;
   final String? reasonMessage;
 }

@@ -1,4 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:modular_pos/features/branchV2/domain/models/branch_models.dart';
+import 'package:modular_pos/features/branchV2/ui/viewmodels/branch_controller.dart';
+import 'package:modular_pos/features/branchV2/ui/viewmodels/branch_state.dart';
+import 'package:modular_pos/features/cash_session/ui/viewmodels/cash_session_viewmodel.dart';
+import 'package:modular_pos/features/cash_session/ui/viewmodels/current_session_summary_provider.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
 import 'package:modular_pos/features/policy/domain/models/policy.dart';
 import 'package:modular_pos/features/policy/ui/viewmodels/policy_viewmodel.dart';
@@ -26,6 +31,25 @@ class _StaticPolicyNotifier extends PolicyNotifier {
   }
 }
 
+class _SpyCashSessionViewModel extends CashSessionViewModel {
+  @override
+  CashSessionState build() {
+    return const CashSessionState(currentUserAccountId: 'user-1');
+  }
+
+  @override
+  Future<void> load() async {}
+}
+
+class _FixedBranchController extends BranchController {
+  _FixedBranchController(this._branchState);
+
+  final BranchState _branchState;
+
+  @override
+  BranchState build() => _branchState;
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -41,6 +65,8 @@ void main() {
       overrides: [
         policyNotifierProvider.overrideWith(_StaticPolicyNotifier.new),
         saleRepositoryProvider.overrideWithValue(repo),
+        cashSessionViewModelProvider.overrideWith(_SpyCashSessionViewModel.new),
+        currentSessionSummaryProvider.overrideWith((ref) async => null),
         saleAccessGateProvider.overrideWithValue(
           const SaleAccessGate(
             branchId: 'branch-1',
@@ -75,6 +101,13 @@ void main() {
 
     await notifier.addSelection(selection);
     await notifier.setPaymentMethod('qr');
+    final readyState = container.read(saleCartProvider);
+    expect(readyState.khqrStatus, SaleKhqrUiStates.readyToGenerate);
+    expect(readyState.khqrMd5, isNull);
+    expect(readyState.khqrQrPayload, isNull);
+
+    await notifier.generateKhqrAttempt();
+
     final afterGenerate = container.read(saleCartProvider);
     expect(afterGenerate.saleId, isNotEmpty);
     expect(afterGenerate.khqrStatus, SaleKhqrUiStates.waitingForPayment);
@@ -155,6 +188,10 @@ void main() {
 
     await notifier.addSelection(selection);
     await notifier.setPaymentMethod('qr');
+    final readyState = container.read(saleCartProvider);
+    expect(readyState.khqrStatus, SaleKhqrUiStates.readyToGenerate);
+
+    await notifier.generateKhqrAttempt();
     final waitingState = container.read(saleCartProvider);
     expect(waitingState.khqrStatus, SaleKhqrUiStates.waitingForPayment);
     expect(waitingState.lines, hasLength(1));
@@ -163,11 +200,15 @@ void main() {
 
     await notifier.updateQuantity(0, 2);
     final afterChange = container.read(saleCartProvider);
-    expect(afterChange.khqrStatus, SaleKhqrUiStates.waitingForPayment);
-    expect(afterChange.khqrAttemptId, isNot(initialAttemptId));
-    expect(afterChange.khqrMd5, isNot(initialMd5));
-    expect(afterChange.khqrPayloadType, 'EMV_KHQR_STRING');
-    expect(afterChange.khqrToAccountId, 'mock-bakong-account');
+    expect(afterChange.khqrStatus, SaleKhqrUiStates.superseded);
+    expect(afterChange.khqrAttemptId, isNull);
+    expect(afterChange.khqrMd5, isNull);
+    expect(afterChange.khqrQrPayload, isNull);
+    expect(afterChange.khqrPayloadType, isNull);
+    expect(afterChange.khqrToAccountId, isNull);
+    expect(afterChange.khqrErrorMessage, 'Cart changed. Generate a new KHQR code.');
+    expect(initialAttemptId, isNotNull);
+    expect(initialMd5, isNotNull);
   });
 
   test(
@@ -214,6 +255,10 @@ void main() {
 
       await notifier.addSelection(selection);
       await notifier.setPaymentMethod('qr');
+      final readyState = container.read(saleCartProvider);
+      expect(readyState.khqrStatus, SaleKhqrUiStates.readyToGenerate);
+
+      await notifier.generateKhqrAttempt();
 
       final waitingState = container.read(saleCartProvider);
       expect(waitingState.khqrStatus, SaleKhqrUiStates.waitingForPayment);
@@ -236,13 +281,33 @@ void main() {
     final repo = MockSaleRepository();
     repo.configureContext(
       activeBranchId: 'branch-1',
-      khqrReceiverConfigured: false,
+      khqrReceiverConfigured: true,
     );
 
     final container = createTestContainer(
       overrides: [
         policyNotifierProvider.overrideWith(_StaticPolicyNotifier.new),
         saleRepositoryProvider.overrideWithValue(repo),
+        branchControllerProvider.overrideWith(
+          () => _FixedBranchController(
+            const BranchState(
+              branches: [
+                BranchListItem(
+                  branchId: 'branch-1',
+                  tenantId: 'tenant-1',
+                  branchName: 'Branch A',
+                  status: 'ACTIVE',
+                ),
+              ],
+              currentBranchProfile: BranchListItem(
+                branchId: 'branch-1',
+                tenantId: 'tenant-1',
+                branchName: 'Branch A',
+                status: 'ACTIVE',
+              ),
+            ),
+          ),
+        ),
         saleAccessGateProvider.overrideWithValue(
           const SaleAccessGate(
             branchId: 'branch-1',
@@ -277,6 +342,13 @@ void main() {
 
     await notifier.addSelection(selection);
     await notifier.setPaymentMethod('qr');
+    final readyState = container.read(saleCartProvider);
+    expect(readyState.khqrStatus, SaleKhqrUiStates.readyToGenerate);
+
+    await expectLater(
+      notifier.generateKhqrAttempt(),
+      throwsA(isA<SaleCheckoutRepositoryException>()),
+    );
 
     final failedState = container.read(saleCartProvider);
     expect(

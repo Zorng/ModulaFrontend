@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:modular_pos/core/formatters/khr_currency_formatter.dart';
 import 'package:modular_pos/core/input_formatters/khr_text_input_formatter.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
+import 'package:modular_pos/features/sale/data/sale_checkout_repository_contract.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_state.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_khqr_states.dart';
 import 'package:modular_pos/core/input_formatters/decimal_text_input_formatter.dart';
@@ -30,7 +31,8 @@ class SaleCartContent extends StatelessWidget {
     required this.readOnly,
     required this.onAmountsChanged,
     required this.khqrStatus,
-    required this.onOpenKhqrPopup,
+    required this.khqrErrorCode,
+    required this.khqrReceiverConfigured,
   });
 
   final List<CartLine> items;
@@ -52,7 +54,64 @@ class SaleCartContent extends StatelessWidget {
   final bool readOnly;
   final VoidCallback onAmountsChanged;
   final String khqrStatus;
-  final VoidCallback? onOpenKhqrPopup;
+  final String? khqrErrorCode;
+  final bool? khqrReceiverConfigured;
+
+  _KhqrCalloutContent _khqrCalloutContent() {
+    final normalizedStatus = SaleKhqrUiStates.normalize(khqrStatus);
+    final normalizedError = SaleCheckoutReasonCodes.normalize(khqrErrorCode);
+    final receiverMissing =
+        khqrReceiverConfigured == false ||
+        normalizedError ==
+            SaleCheckoutReasonCodes.khqrBranchReceiverNotConfigured;
+    final khqrConfirmed = normalizedStatus == SaleKhqrUiStates.paidConfirmed;
+
+    if (receiverMissing) {
+      return const _KhqrCalloutContent(
+        title: 'KHQR unavailable for this branch.',
+        description:
+            'Ask an admin or manager to configure the Bakong receiver before generating KHQR.',
+        highlightAsError: true,
+      );
+    }
+
+    if (khqrConfirmed) {
+      return const _KhqrCalloutContent(
+        title: 'KHQR payment confirmed.',
+        description: 'Complete the payment from the KHQR popup.',
+      );
+    }
+
+    return switch (normalizedStatus) {
+      SaleKhqrUiStates.waitingForPayment => const _KhqrCalloutContent(
+        title: 'KHQR is ready for customer payment.',
+        description:
+            'Open the popup to show the QR and keep checking payment status.',
+      ),
+      SaleKhqrUiStates.pendingConfirmation => const _KhqrCalloutContent(
+        title: 'KHQR payment is awaiting confirmation.',
+        description:
+            'Open the popup to check the latest payment status before finalizing.',
+      ),
+      SaleKhqrUiStates.superseded => const _KhqrCalloutContent(
+        title: 'Cart changed. Generate a new KHQR.',
+        description:
+            'The previous KHQR no longer matches this cart. Generate a fresh KHQR to continue.',
+      ),
+      SaleKhqrUiStates.cancelled => const _KhqrCalloutContent(
+        title: 'Previous KHQR was cancelled.',
+        description: 'Generate a new KHQR when the customer is ready again.',
+      ),
+      SaleKhqrUiStates.expired => const _KhqrCalloutContent(
+        title: 'Previous KHQR expired.',
+        description: 'Generate a new KHQR to continue the payment.',
+      ),
+      _ => const _KhqrCalloutContent(
+        title: 'Generate KHQR when the customer is ready.',
+        description: 'Generate KHQR to create the payment QR and show it.',
+      ),
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -91,9 +150,8 @@ class SaleCartContent extends StatelessWidget {
         !readOnly && (!khrHasInput || (bothFilled && tender == 'usd'));
     final khrEnabled =
         !readOnly && (!usdHasInput || (bothFilled && tender == 'khr'));
-    final khqrConfirmed =
-        SaleKhqrUiStates.normalize(khqrStatus) ==
-        SaleKhqrUiStates.paidConfirmed;
+    final khqrCallout = _khqrCalloutContent();
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -309,30 +367,19 @@ class SaleCartContent extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'KHQR will be generated and shown in a popup.',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+                  khqrCallout.title,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: khqrCallout.highlightAsError
+                        ? Theme.of(context).colorScheme.error
+                        : null,
+                  ),
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'Use the popup to scan, check status, cancel, or regenerate the payment QR.',
+                  khqrCallout.description,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.tonal(
-                    onPressed: readOnly || khqrConfirmed
-                        ? null
-                        : onOpenKhqrPopup,
-                    child: Text(
-                      khqrConfirmed
-                          ? 'KHQR Payment Confirmed'
-                          : 'Open KHQR Popup',
-                    ),
                   ),
                 ),
               ],
@@ -343,6 +390,18 @@ class SaleCartContent extends StatelessWidget {
       ],
     );
   }
+}
+
+class _KhqrCalloutContent {
+  const _KhqrCalloutContent({
+    required this.title,
+    required this.description,
+    this.highlightAsError = false,
+  });
+
+  final String title;
+  final String description;
+  final bool highlightAsError;
 }
 
 class _PaymentTab extends StatelessWidget {

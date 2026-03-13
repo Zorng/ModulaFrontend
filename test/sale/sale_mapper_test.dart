@@ -63,6 +63,7 @@ void main() {
           'amount': 18.45,
           'currency': 'KHR',
           'toAccountId': 'bakong-001',
+          'receiverName': 'Modula Cafe',
           'expiresAt': '2026-03-07T10:03:00.000Z',
         },
         'preview': {
@@ -82,6 +83,7 @@ void main() {
     expect(attempt.payloadType, 'RAW');
     expect(attempt.deepLinkUrl, 'khqr://launch');
     expect(attempt.toAccountId, 'bakong-001');
+    expect(attempt.receiverName, 'Modula Cafe');
     expect(attempt.expiresAt, DateTime.parse('2026-03-07T10:03:00.000Z'));
     expect(attempt.reasonCode, SaleCheckoutReasonCodes.khqrNotConfirmed);
   });

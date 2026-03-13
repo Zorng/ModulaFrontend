@@ -10,6 +10,8 @@ import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
 import 'package:modular_pos/features/auth/domain/models/auth_session.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
+import 'package:modular_pos/features/branchV2/domain/models/branch_models.dart';
+import 'package:modular_pos/features/branchV2/ui/viewmodels/branch_controller.dart';
 import 'package:modular_pos/features/cash_session/ui/viewmodels/cash_session_viewmodel.dart';
 import 'package:modular_pos/features/cash_session/ui/viewmodels/current_session_summary_provider.dart';
 import 'package:modular_pos/features/cash_session/ui/viewmodels/x_report_viewmodel.dart';
@@ -30,6 +32,40 @@ import 'package:shared_preferences/shared_preferences.dart';
 final saleCartProvider = NotifierProvider<SaleCartNotifier, SaleCartState>(
   SaleCartNotifier.new,
 );
+
+BranchListItem? _resolveActiveBranchKhqrProfile(Ref ref) {
+  final activeBranchId =
+      (ref.watch(activeBranchContextIdProvider) ??
+              ref.watch(saleAccessGateProvider.select((gate) => gate.branchId)) ??
+              '')
+          .trim();
+  if (activeBranchId.isEmpty) return null;
+
+  final branchState = ref.watch(branchControllerProvider);
+  final currentBranchProfile = branchState.currentBranchProfile;
+  if (currentBranchProfile != null &&
+      currentBranchProfile.branchId.trim() == activeBranchId) {
+    return currentBranchProfile;
+  }
+
+  for (final branch in branchState.branches) {
+    if (branch.branchId.trim() == activeBranchId) {
+      return branch;
+    }
+  }
+
+  return null;
+}
+
+final saleKhqrActiveBranchProfileProvider = Provider<BranchListItem?>(
+  (ref) => _resolveActiveBranchKhqrProfile(ref),
+);
+
+final saleKhqrReceiverConfiguredProvider = Provider<bool?>((ref) {
+  final branchProfile = ref.watch(saleKhqrActiveBranchProfileProvider);
+  if (branchProfile == null) return null;
+  return (branchProfile.khqrReceiverAccountId ?? '').trim().isNotEmpty;
+});
 
 class SaleCheckoutResult {
   const SaleCheckoutResult({
@@ -215,6 +251,7 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
       khqrPayloadType: null,
       khqrDeepLinkUrl: null,
       khqrToAccountId: null,
+      khqrReceiverName: null,
       khqrAmount: null,
       khqrCurrency: null,
       khqrExpiresAt: null,
@@ -234,6 +271,7 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
       khqrPayloadType: null,
       khqrDeepLinkUrl: null,
       khqrToAccountId: null,
+      khqrReceiverName: null,
       khqrAmount: null,
       khqrCurrency: null,
       khqrExpiresAt: null,
@@ -263,24 +301,23 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
     );
   }
 
-  bool _shouldAutoGenerateKhqr(SaleCartState source) {
-    if (source.lines.isEmpty) return false;
-    if (source.paymentMethod.toLowerCase() != 'qr') return false;
-    if (source.isKhqrLoading) return false;
-    final normalizedStatus = SaleKhqrUiStates.normalize(source.khqrStatus);
-    return normalizedStatus == SaleKhqrUiStates.readyToGenerate ||
-        normalizedStatus == SaleKhqrUiStates.superseded ||
-        (source.khqrMd5 == null || source.khqrMd5!.trim().isEmpty);
+  BranchListItem? _activeBranchKhqrProfile() {
+    return ref.read(saleKhqrActiveBranchProfileProvider);
   }
 
-  Future<void> _maybeAutoGenerateKhqr({SaleCartState? snapshot}) async {
-    final currentState = snapshot ?? state;
-    if (!_shouldAutoGenerateKhqr(currentState)) return;
-    try {
-      await generateKhqrAttempt();
-    } catch (error, stackTrace) {
-      _logIgnoredError('_maybeAutoGenerateKhqr', error, stackTrace);
-    }
+  SaleCheckoutRepositoryException? _khqrReceiverPreconditionError() {
+    final activeBranchProfile = _activeBranchKhqrProfile();
+    if (activeBranchProfile == null) return null;
+
+    final receiverAccountId = (activeBranchProfile.khqrReceiverAccountId ?? '')
+        .trim();
+    if (receiverAccountId.isNotEmpty) return null;
+
+    return const SaleCheckoutRepositoryException(
+      reasonCode: SaleCheckoutReasonCodes.khqrBranchReceiverNotConfigured,
+      message:
+          'Configure a Bakong receiver account for this branch before generating KHQR.',
+    );
   }
 
   SaleCartState _applyKhqrStatusResult(
@@ -292,6 +329,7 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
     String? payloadType,
     String? deepLinkUrl,
     String? toAccountId,
+    String? receiverName,
     double? amount,
     String? currency,
     DateTime? expiresAt,
@@ -317,6 +355,7 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
           khqrPayloadType: payloadType ?? source.khqrPayloadType,
           khqrDeepLinkUrl: deepLinkUrl ?? source.khqrDeepLinkUrl,
           khqrToAccountId: toAccountId ?? source.khqrToAccountId,
+          khqrReceiverName: receiverName ?? source.khqrReceiverName,
           khqrAmount: amount ?? source.khqrAmount,
           khqrCurrency: currency ?? source.khqrCurrency,
           khqrExpiresAt: expiresAt ?? source.khqrExpiresAt,
@@ -335,6 +374,7 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
           khqrPayloadType: payloadType ?? source.khqrPayloadType,
           khqrDeepLinkUrl: deepLinkUrl ?? source.khqrDeepLinkUrl,
           khqrToAccountId: toAccountId ?? source.khqrToAccountId,
+          khqrReceiverName: receiverName ?? source.khqrReceiverName,
           khqrAmount: amount ?? source.khqrAmount,
           khqrCurrency: currency ?? source.khqrCurrency,
           khqrExpiresAt: expiresAt ?? source.khqrExpiresAt,
@@ -354,6 +394,7 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
           khqrPayloadType: null,
           khqrDeepLinkUrl: null,
           khqrToAccountId: null,
+          khqrReceiverName: null,
           khqrAmount: null,
           khqrCurrency: null,
           khqrExpiresAt: null,
@@ -372,6 +413,7 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
           khqrPayloadType: null,
           khqrDeepLinkUrl: null,
           khqrToAccountId: null,
+          khqrReceiverName: null,
           khqrAmount: null,
           khqrCurrency: null,
           khqrExpiresAt: expiresAt ?? source.khqrExpiresAt,
@@ -426,7 +468,6 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
         );
         state = newState;
         await _persistCart(newState);
-        await _maybeAutoGenerateKhqr(snapshot: newState);
         return;
       }
     }
@@ -446,7 +487,6 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
     );
     state = newState;
     await _persistCart(newState);
-    await _maybeAutoGenerateKhqr(snapshot: newState);
   }
 
   Future<void> setTenderCurrency(String currency) async {
@@ -460,7 +500,6 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
     }
     state = newState;
     await _persistCart(newState);
-    await _maybeAutoGenerateKhqr(snapshot: newState);
   }
 
   Future<void> setPaymentMethod(String method) async {
@@ -479,7 +518,6 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
     }
     state = newState;
     await _persistCart(newState);
-    await _maybeAutoGenerateKhqr(snapshot: newState);
   }
 
   void setLines(List<CartLine> lines) {
@@ -488,7 +526,6 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
     );
     state = newState;
     _persistCart(newState);
-    unawaited(_maybeAutoGenerateKhqr(snapshot: newState));
   }
 
   Future<void> setSaleType(String saleType) async {
@@ -499,7 +536,6 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
       );
       state = newState;
       await _persistCart(newState);
-      await _maybeAutoGenerateKhqr(snapshot: newState);
       return;
     }
 
@@ -527,7 +563,6 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
     );
     state = newState;
     await _persistCart(newState);
-    await _maybeAutoGenerateKhqr(snapshot: newState);
   }
 
   void setCashReceived({double? usd, double? khr}) {
@@ -551,7 +586,6 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
       );
       state = newState;
       await _persistCart(newState);
-      await _maybeAutoGenerateKhqr(snapshot: newState);
       await _removeRemote(target);
       return;
     }
@@ -561,7 +595,6 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
     );
     state = newState;
     await _persistCart(newState);
-    await _maybeAutoGenerateKhqr(snapshot: newState);
     await _updateRemoteQuantity(target, quantity);
   }
 
@@ -673,6 +706,19 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
       throw Exception('KHQR can only be generated for QR payment method.');
     }
 
+    final receiverPreconditionError = _khqrReceiverPreconditionError();
+    if (receiverPreconditionError != null) {
+      final errorState = currentState.copyWith(
+        khqrStatus: SaleKhqrUiStates.readyToGenerate,
+        isKhqrLoading: false,
+        khqrErrorMessage: receiverPreconditionError.message,
+        khqrErrorCode: receiverPreconditionError.reasonCode,
+      );
+      state = errorState;
+      await _persistCart(errorState);
+      throw receiverPreconditionError;
+    }
+
     final commandLines = _buildCommandLines(currentState.lines);
 
     final loadingState = currentState.copyWith(
@@ -704,6 +750,7 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
         payloadType: attempt.payloadType,
         deepLinkUrl: attempt.deepLinkUrl,
         toAccountId: attempt.toAccountId,
+        receiverName: attempt.receiverName,
         amount: attempt.amount,
         currency: attempt.currency,
         expiresAt: attempt.expiresAt,

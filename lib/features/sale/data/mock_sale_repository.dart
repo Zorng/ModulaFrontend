@@ -494,6 +494,7 @@ class MockSaleRepository implements SaleCheckoutRepository {
           payloadType: 'EMV_KHQR_STRING',
           deepLinkUrl: null,
           toAccountId: 'mock-bakong-account',
+          receiverName: 'Mock KHQR Receiver',
           reasonCode: attempt.reasonCode,
           reasonMessage: attempt.reasonMessage,
         );
