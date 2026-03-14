@@ -27,11 +27,11 @@ class InventoryJournalController extends Notifier<InventoryJournalState> {
     String? branchId,
     String? stockItemId,
     InventoryJournalReason? reason,
-    int limit = 50,
+    int limit = 10,
     int offset = 0,
     bool append = false,
   }) async {
-    final safeLimit = limit <= 0 ? 50 : limit;
+    final safeLimit = limit <= 0 ? 10 : limit;
     final safeOffset = offset < 0 ? 0 : offset;
     final normalizedBranchId =
         (branchId != null && branchId.isNotEmpty && branchId != 'all')

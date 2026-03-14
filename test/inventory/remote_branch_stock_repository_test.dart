@@ -148,15 +148,81 @@ void main() {
     },
   );
 
+  test(
+    'fetchStockItems prefers branch assignment imageUrl when master stock item imageUrl is stale',
+    () async {
+      final api = _MockInventoryApi();
+      final repository = RemoteBranchStockRepository(api);
+
+      when(
+        () => api.fetchStockItems(
+          status: 'all',
+          search: any(named: 'search'),
+          categoryId: any(named: 'categoryId'),
+          limit: 200,
+          offset: 0,
+        ),
+      ).thenAnswer(
+        (_) async => const [
+          StockItemDto(
+            id: 'item-1',
+            tenantId: 'tenant-1',
+            categoryId: 'cat-1',
+            name: 'Whole Milk',
+            baseUnit: 'ml',
+            imageUrl: 'https://cdn.example.com/stale.jpg',
+            lowStockThreshold: 300,
+            status: InventoryStatus.active,
+            createdAt: '2026-03-03T00:00:00.000Z',
+            updatedAt: '2026-03-03T00:00:00.000Z',
+          ),
+        ],
+      );
+      when(
+        () => api.fetchBranchStockItems(
+          branchId: 'branch-1',
+          includeArchivedItems: true,
+        ),
+      ).thenAnswer(
+        (_) async => const [
+          BranchStockItemDto(
+            stockItemId: 'item-1',
+            stockItemName: 'Whole Milk',
+            baseUnit: 'ml',
+            branchId: 'branch-1',
+            onHand: 1200,
+            minThreshold: 300,
+            isLowStock: false,
+            updatedAt: '2026-03-03T00:00:00.000Z',
+            stockItem: StockItemDto(
+              id: 'item-1',
+              tenantId: 'tenant-1',
+              categoryId: 'cat-1',
+              name: 'Whole Milk',
+              baseUnit: 'ml',
+              imageUrl: 'https://cdn.example.com/fresh.jpg',
+              lowStockThreshold: 300,
+              status: InventoryStatus.active,
+              createdAt: '2026-03-03T00:00:00.000Z',
+              updatedAt: '2026-03-03T00:00:00.000Z',
+            ),
+          ),
+        ],
+      );
+
+      final rows = await repository.fetchStockItems(branchId: 'branch-1');
+
+      expect(rows, hasLength(1));
+      expect(rows.first.imageUrl, 'https://cdn.example.com/fresh.jpg');
+    },
+  );
+
   test('fetchOnHand filters records by branchId when provided', () async {
     final api = _MockInventoryApi();
     final repository = RemoteBranchStockRepository(api);
 
     when(
-      () => api.fetchOnHand(
-        branchId: 'branch-1',
-        includeArchivedItems: true,
-      ),
+      () => api.fetchOnHand(branchId: 'branch-1', includeArchivedItems: true),
     ).thenAnswer(
       (_) async => const [
         OnHandRecordDto(

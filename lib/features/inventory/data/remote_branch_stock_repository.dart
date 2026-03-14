@@ -152,13 +152,18 @@ StockItem _toStockItemFromBranchAssignment({
   final resolvedBranchId = assignment.branchId.isNotEmpty
       ? assignment.branchId
       : (branchIdHint ?? '');
-  return _toStockItem(
+  final mapped = _toStockItem(
     dto: base,
     branchId: resolvedBranchId,
     branchName: '',
     onHand: assignment.onHand ?? 0,
     minThreshold: assignment.minThreshold ?? 0,
   );
+  final assignmentImageUrl = _normalizeImageUrl(assignment.stockItem.imageUrl);
+  if (assignmentImageUrl == null || assignmentImageUrl == mapped.imageUrl) {
+    return mapped;
+  }
+  return mapped.copyWith(imageUrl: assignmentImageUrl);
 }
 
 StockItem _toStockItemFromAggregate({
@@ -208,4 +213,10 @@ StockItem _toStockItem({
     isActive: dto.isActive,
     imageUrl: dto.imageUrl,
   );
+}
+
+String? _normalizeImageUrl(String? value) {
+  final trimmed = value?.trim();
+  if (trimmed == null || trimmed.isEmpty) return null;
+  return trimmed;
 }

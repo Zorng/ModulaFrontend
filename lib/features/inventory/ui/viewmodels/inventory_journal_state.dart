@@ -15,7 +15,7 @@ class InventoryJournalState extends Equatable {
     this.selectedBranchId = 'all',
     this.selectedStockItemId = '',
     this.selectedReason,
-    this.limit = 50,
+    this.limit = 10,
     this.offset = 0,
     this.hasMore = true,
     this.error,
