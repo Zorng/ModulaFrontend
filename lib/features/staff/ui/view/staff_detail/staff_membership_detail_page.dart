@@ -24,6 +24,8 @@ class StaffMembershipDetailPage extends ConsumerStatefulWidget {
 
 class _StaffMembershipDetailPageState
     extends ConsumerState<StaffMembershipDetailPage> {
+  static const double _dialogMaxWidth = 600;
+
   bool _isChangingRole = false;
   bool _isRevoking = false;
   bool _isSavingBranches = false;
@@ -188,31 +190,40 @@ class _StaffMembershipDetailPageState
                 const SizedBox(height: 12),
                 StaffDetailSectionCard(
                   title: 'Actions',
-                  child: Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
+                  child: Row(
                     children: [
-                      OutlinedButton(
-                        onPressed: _isChangingRole
-                            ? null
-                            : () => _changeRole(context, data),
-                        child: _isChangingRole
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            : const Text('Change role'),
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: _isChangingRole
+                              ? null
+                              : () => _changeRole(context, data),
+                          child: _isChangingRole
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Text('Change role'),
+                        ),
                       ),
-                      FilledButton.tonal(
-                        onPressed: _isRevoking ? null : () => _revoke(context),
-                        child: _isRevoking
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            : const Text('Revoke membership'),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: FilledButton.tonal(
+                          onPressed: _isRevoking
+                              ? null
+                              : () => _revoke(context),
+                          child: _isRevoking
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Text('Revoke membership'),
+                        ),
                       ),
                     ],
                   ),
@@ -229,49 +240,60 @@ class _StaffMembershipDetailPageState
     BuildContext context,
     StaffMembershipDetailPageData data,
   ) async {
-    var selectedRole = data.detail.roleKey;
+    const roleOptions = {'ADMIN', 'MANAGER', 'CASHIER'};
+    final currentRole = data.detail.roleKey.trim().toUpperCase();
+    var selectedRole = roleOptions.contains(currentRole)
+        ? currentRole
+        : 'CASHIER';
     final result = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
+        constraints: const BoxConstraints(maxWidth: _dialogMaxWidth),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        backgroundColor: Colors.white,
         title: const Text('Change role'),
-        content: StatefulBuilder(
-          builder: (context, setDialogState) => DropdownMenu<String>(
-            initialSelection: selectedRole,
-            width: 260,
-            onSelected: (value) {
-              if (value == null) return;
-              setDialogState(() => selectedRole = value);
-            },
-            dropdownMenuEntries: const [
-              DropdownMenuEntry(value: 'ADMIN', label: 'Admin'),
-              DropdownMenuEntry(value: 'MANAGER', label: 'Manager'),
-              DropdownMenuEntry(value: 'CASHIER', label: 'Cashier'),
-            ],
+        content: _buildDialogContent(
+          child: StatefulBuilder(
+            builder: (context, setDialogState) => LayoutBuilder(
+              builder: (context, constraints) => DropdownMenu<String>(
+                initialSelection: selectedRole,
+                width: constraints.maxWidth,
+                menuStyle: const MenuStyle(
+                  backgroundColor: WidgetStatePropertyAll<Color>(Colors.white),
+                  surfaceTintColor: WidgetStatePropertyAll<Color>(Colors.white),
+                ),
+                onSelected: (value) {
+                  if (value == null) return;
+                  setDialogState(() => selectedRole = value);
+                },
+                dropdownMenuEntries: const [
+                  DropdownMenuEntry(value: 'ADMIN', label: 'Admin'),
+                  DropdownMenuEntry(value: 'MANAGER', label: 'Manager'),
+                  DropdownMenuEntry(value: 'CASHIER', label: 'Cashier'),
+                ],
+              ),
+            ),
           ),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(selectedRole),
-            child: const Text('Save'),
+          _buildDialogActions(
+            context: context,
+            confirmLabel: 'Save',
+            onConfirm: () => Navigator.of(context).pop(selectedRole),
           ),
         ],
       ),
     );
-    if (result == null || result == data.detail.roleKey) return;
+    if (result == null || result == currentRole) return;
 
     setState(() {
       _isChangingRole = true;
       _actionMessage = null;
     });
     try {
-      await ref.read(membershipCommandRepositoryProvider).changeRole(
-        membershipId: widget.membershipId,
-        roleKey: result,
-      );
+      await ref
+          .read(membershipCommandRepositoryProvider)
+          .changeRole(membershipId: widget.membershipId, roleKey: result);
       ref.invalidate(staffMembershipDetailPageProvider(widget.membershipId));
       await ref
           .read(staffMembershipListControllerProvider.notifier)
@@ -299,11 +321,13 @@ class _StaffMembershipDetailPageState
     final result = await showDialog<Set<String>>(
       context: context,
       builder: (context) => AlertDialog(
+        constraints: const BoxConstraints(maxWidth: _dialogMaxWidth),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        backgroundColor: Colors.white,
         title: const Text('Assign branches'),
-        content: StatefulBuilder(
-          builder: (context, setDialogState) => SizedBox(
-            width: 360,
-            child: SingleChildScrollView(
+        content: _buildDialogContent(
+          child: StatefulBuilder(
+            builder: (context, setDialogState) => SingleChildScrollView(
               child: StaffBranchSelectionList(
                 availableBranches: data.availableBranches,
                 selectedBranchIds: selected,
@@ -313,13 +337,10 @@ class _StaffMembershipDetailPageState
           ),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(selected),
-            child: const Text('Save'),
+          _buildDialogActions(
+            context: context,
+            confirmLabel: 'Save',
+            onConfirm: () => Navigator.of(context).pop(selected),
           ),
         ],
       ),
@@ -331,10 +352,12 @@ class _StaffMembershipDetailPageState
       _actionMessage = null;
     });
     try {
-      await ref.read(staffBranchAssignmentRepositoryProvider).assignBranches(
-        membershipId: widget.membershipId,
-        branchIds: result.toList(growable: false),
-      );
+      await ref
+          .read(staffBranchAssignmentRepositoryProvider)
+          .assignBranches(
+            membershipId: widget.membershipId,
+            branchIds: result.toList(growable: false),
+          );
       ref.invalidate(staffMembershipDetailPageProvider(widget.membershipId));
       await ref
           .read(staffMembershipListControllerProvider.notifier)
@@ -358,18 +381,21 @@ class _StaffMembershipDetailPageState
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        constraints: const BoxConstraints(maxWidth: _dialogMaxWidth),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        backgroundColor: Colors.white,
         title: const Text('Revoke membership'),
-        content: const Text(
-          'This removes the team member from the tenant. Continue?',
+        content: _buildDialogContent(
+          child: const Text(
+            'This removes the team member from the tenant. Continue?',
+          ),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Revoke'),
+          _buildDialogActions(
+            context: context,
+            confirmLabel: 'Revoke',
+            onConfirm: () => Navigator.of(context).pop(true),
+            onCancel: () => Navigator.of(context).pop(false),
           ),
         ],
       ),
@@ -401,5 +427,38 @@ class _StaffMembershipDetailPageState
     } finally {
       if (mounted) setState(() => _isRevoking = false);
     }
+  }
+
+  Widget _buildDialogActions({
+    required BuildContext context,
+    required String confirmLabel,
+    required VoidCallback onConfirm,
+    VoidCallback? onCancel,
+  }) {
+    return SizedBox(
+      width: double.maxFinite,
+      child: Row(
+        mainAxisSize: MainAxisSize.max,
+        children: [
+          Expanded(
+            child: FilledButton.tonal(
+              onPressed: onCancel ?? () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: FilledButton(
+              onPressed: onConfirm,
+              child: Text(confirmLabel),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDialogContent({required Widget child}) {
+    return SizedBox(width: double.maxFinite, child: child);
   }
 }

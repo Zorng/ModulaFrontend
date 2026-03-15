@@ -1,16 +1,97 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/core/feedback/user_error_message.dart';
+import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/features/staff/ui/view/staff_attendance_review/widgets/staff_attendance_review_card.dart';
 import 'package:modular_pos/features/staff/ui/viewmodels/staff_attendance_review_controller.dart';
 
 class StaffAttendanceReviewTabPage extends ConsumerWidget {
   const StaffAttendanceReviewTabPage({super.key});
 
+  static const double _rangeModalMaxWidth = 560;
+  static const double _rangeModalMaxHeight = 680;
+  static const double _topControlHeight = 56;
+
+  static const MenuStyle _whiteDropdownMenuStyle = MenuStyle(
+    backgroundColor: WidgetStatePropertyAll<Color>(Colors.white),
+    surfaceTintColor: WidgetStatePropertyAll<Color>(Colors.white),
+  );
+
+  static const InputDecorationTheme _topDropdownDecorationTheme =
+      InputDecorationTheme(
+        hintStyle: TextStyle(fontSize: 14),
+        constraints: BoxConstraints(
+          minHeight: _topControlHeight,
+          maxHeight: _topControlHeight,
+        ),
+        border: OutlineInputBorder(),
+      );
+
+  Future<DateTimeRange?> _showSelectRangeModal(
+    BuildContext context,
+    DateTimeRange initialRange,
+  ) {
+    final theme = Theme.of(context);
+    return showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2024),
+      lastDate: DateTime(2035),
+      initialDateRange: initialRange,
+      helpText: 'Select date range',
+      saveText: 'Apply',
+      cancelText: 'Cancel',
+      fieldStartHintText: 'Start date',
+      fieldEndHintText: 'End date',
+      builder: (context, child) {
+        if (child == null) return const SizedBox.shrink();
+        final pickerTheme = theme.copyWith(
+          dialogTheme: theme.dialogTheme.copyWith(
+            backgroundColor: Colors.white,
+            surfaceTintColor: Colors.white,
+          ),
+          datePickerTheme: theme.datePickerTheme.copyWith(
+            backgroundColor: Colors.white,
+            surfaceTintColor: Colors.white,
+            rangePickerBackgroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+          ),
+        );
+        return Theme(
+          data: pickerTheme,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final isWide = constraints.maxWidth > 640;
+              if (!isWide) return child;
+              return Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    maxWidth: _rangeModalMaxWidth,
+                    maxHeight: _rangeModalMaxHeight,
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    child: child,
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final asyncState = ref.watch(staffAttendanceReviewControllerProvider);
-    final controller = ref.read(staffAttendanceReviewControllerProvider.notifier);
+    final controller = ref.read(
+      staffAttendanceReviewControllerProvider.notifier,
+    );
 
     return Scaffold(
       body: Padding(
@@ -36,17 +117,51 @@ class StaffAttendanceReviewTabPage extends ConsumerWidget {
               ],
             ),
           ),
-          data: (state) => ListView(
-            children: [
-              Wrap(
-                spacing: 12,
-                runSpacing: 12,
+          data: (state) {
+            final topButtonStyle = FilledButton.styleFrom(
+              minimumSize: const Size(0, _topControlHeight),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            );
+            Widget labeledControl({
+              required String title,
+              required Widget child,
+            }) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  SizedBox(
-                    width: 220,
-                    child: DropdownMenu<String?>(
+                  Padding(
+                    padding: const EdgeInsets.only(left: 2, bottom: 4),
+                    child: Text(
+                      title,
+                      style: Theme.of(context).textTheme.labelMedium,
+                    ),
+                  ),
+                  SizedBox(height: _topControlHeight, child: child),
+                ],
+              );
+            }
+
+            return ListView(
+              children: [
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final isSmall = AppBreakpoints.isSmall(
+                      constraints.maxWidth,
+                    );
+                    final menuWidth = isSmall ? constraints.maxWidth : 240.0;
+                    final wideMenuWidth = (constraints.maxWidth - 8) / 2;
+                    final resolvedMenuWidth = isSmall
+                        ? menuWidth
+                        : wideMenuWidth;
+
+                    final branchMenu = DropdownMenu<String?>(
+                      width: resolvedMenuWidth,
                       initialSelection: state.selectedBranchId,
-                      label: const Text('Branch'),
+                      hintText: 'Select branch',
+                      inputDecorationTheme: _topDropdownDecorationTheme,
+                      menuStyle: _whiteDropdownMenuStyle,
                       onSelected: controller.setBranchId,
                       dropdownMenuEntries: [
                         const DropdownMenuEntry<String?>(
@@ -60,13 +175,14 @@ class StaffAttendanceReviewTabPage extends ConsumerWidget {
                           ),
                         ),
                       ],
-                    ),
-                  ),
-                  SizedBox(
-                    width: 220,
-                    child: DropdownMenu<String?>(
+                    );
+
+                    final staffMenu = DropdownMenu<String?>(
+                      width: resolvedMenuWidth,
                       initialSelection: state.selectedAccountId,
-                      label: const Text('Staff'),
+                      hintText: 'Select staff',
+                      inputDecorationTheme: _topDropdownDecorationTheme,
+                      menuStyle: _whiteDropdownMenuStyle,
                       onSelected: controller.setAccountId,
                       dropdownMenuEntries: [
                         const DropdownMenuEntry<String?>(
@@ -80,91 +196,162 @@ class StaffAttendanceReviewTabPage extends ConsumerWidget {
                           ),
                         ),
                       ],
+                    );
+
+                    final branchField = labeledControl(
+                      title: 'Branch',
+                      child: branchMenu,
+                    );
+                    final staffField = labeledControl(
+                      title: 'Staff',
+                      child: staffMenu,
+                    );
+
+                    final dateRangeBtn = FilledButton.tonalIcon(
+                      style: topButtonStyle,
+                      onPressed: () async {
+                        final picked = await _showSelectRangeModal(
+                          context,
+                          state.selectedDateRange,
+                        );
+                        if (picked != null) {
+                          await controller.setDateRange(picked);
+                        }
+                      },
+                      icon: const Icon(Icons.date_range_outlined),
+                      label: const Text('Date range'),
+                    );
+
+                    final refreshBtn = Tooltip(
+                      message: 'Refresh',
+                      child: IconButton.filledTonal(
+                        onPressed: state.isRefreshing
+                            ? null
+                            : controller.refresh,
+                        style: IconButton.styleFrom(
+                          minimumSize: const Size(
+                            _topControlHeight,
+                            _topControlHeight,
+                          ),
+                          maximumSize: const Size(
+                            _topControlHeight,
+                            _topControlHeight,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        icon: state.isRefreshing
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.refresh),
+                      ),
+                    );
+
+                    if (isSmall) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          branchField,
+                          const SizedBox(height: 8),
+                          staffField,
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Expanded(child: dateRangeBtn),
+                              const SizedBox(width: 8),
+                              refreshBtn,
+                            ],
+                          ),
+                        ],
+                      );
+                    }
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(child: branchField),
+                            const SizedBox(width: 8),
+                            Expanded(child: staffField),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(child: dateRangeBtn),
+                            const SizedBox(width: 8),
+                            refreshBtn,
+                          ],
+                        ),
+                      ],
+                    );
+                  },
+                ),
+                const SizedBox(height: 12),
+                if (state.inlineError != null)
+                  Card(
+                    color: Colors.orange.shade50,
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Text(
+                        UserErrorMessage.build(error: state.inlineError),
+                      ),
                     ),
                   ),
-                  FilledButton.tonalIcon(
-                    onPressed: () async {
-                      final picked = await showDateRangePicker(
-                        context: context,
-                        firstDate: DateTime(2024),
-                        lastDate: DateTime(2035),
-                        initialDateRange: state.selectedDateRange,
-                      );
-                      if (picked != null) {
-                        await controller.setDateRange(picked);
-                      }
-                    },
-                    icon: const Icon(Icons.date_range_outlined),
-                    label: const Text('Date range'),
+                if (state.inlineError != null) const SizedBox(height: 12),
+                if (state.records.isEmpty)
+                  const Card(
+                    color: Colors.white,
+                    child: Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Text(
+                        'No attendance records match the selected filters.',
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  )
+                else
+                  Column(
+                    children: [
+                      for (final record in state.records)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: StaffAttendanceReviewCard(record: record),
+                        ),
+                    ],
                   ),
-                  IconButton(
-                    tooltip: 'Refresh',
-                    onPressed: state.isRefreshing ? null : controller.refresh,
-                    icon: state.isRefreshing
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.refresh),
+                if (state.records.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Align(
+                    alignment: Alignment.center,
+                    child: OutlinedButton(
+                      onPressed: state.canLoadMore && !state.isLoadingMore
+                          ? controller.loadMore
+                          : null,
+                      child: state.isLoadingMore
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : Text(
+                              state.canLoadMore
+                                  ? 'Load more'
+                                  : 'All records loaded',
+                            ),
+                    ),
                   ),
                 ],
-              ),
-              const SizedBox(height: 12),
-              if (state.inlineError != null)
-                Card(
-                  color: Colors.orange.shade50,
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Text(
-                      UserErrorMessage.build(error: state.inlineError),
-                    ),
-                  ),
-                ),
-              if (state.inlineError != null) const SizedBox(height: 12),
-              if (state.records.isEmpty)
-                const Card(
-                  color: Colors.white,
-                  child: Padding(
-                    padding: EdgeInsets.all(24),
-                    child: Text(
-                      'No attendance records match the selected filters.',
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                )
-              else
-                Column(
-                  children: [
-                    for (final record in state.records)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: StaffAttendanceReviewCard(record: record),
-                      ),
-                  ],
-                ),
-              if (state.records.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                Align(
-                  alignment: Alignment.center,
-                  child: OutlinedButton(
-                    onPressed: state.canLoadMore && !state.isLoadingMore
-                        ? controller.loadMore
-                        : null,
-                    child: state.isLoadingMore
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : Text(
-                            state.canLoadMore ? 'Load more' : 'All records loaded',
-                          ),
-                  ),
-                ),
               ],
-            ],
-          ),
+            );
+          },
         ),
       ),
     );

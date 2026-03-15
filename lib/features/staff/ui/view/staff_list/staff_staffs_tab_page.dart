@@ -13,6 +13,11 @@ import 'package:modular_pos/features/staff/ui/viewmodels/staff_membership_list_c
 class StaffStaffsTabPage extends ConsumerWidget {
   const StaffStaffsTabPage({super.key});
 
+  static const MenuStyle _whiteDropdownMenuStyle = MenuStyle(
+    backgroundColor: WidgetStatePropertyAll<Color>(Colors.white),
+    surfaceTintColor: WidgetStatePropertyAll<Color>(Colors.white),
+  );
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final asyncState = ref.watch(staffMembershipListControllerProvider);
@@ -44,7 +49,9 @@ class StaffStaffsTabPage extends ConsumerWidget {
                 ),
                 const SizedBox(height: 12),
                 if (state.inlineError != null) ...[
-                  _InlineMessageCard(message: UserErrorMessage.build(error: state.inlineError)),
+                  _InlineMessageCard(
+                    message: UserErrorMessage.build(error: state.inlineError),
+                  ),
                   const SizedBox(height: 12),
                 ],
                 Row(
@@ -53,6 +60,7 @@ class StaffStaffsTabPage extends ConsumerWidget {
                       child: DropdownMenu<StaffListStatusFilter>(
                         width: isWide ? 220 : null,
                         initialSelection: state.statusFilter,
+                        menuStyle: _whiteDropdownMenuStyle,
                         label: const Text('Status'),
                         onSelected: (value) {
                           if (value != null) {
@@ -131,7 +139,9 @@ class StaffStaffsTabPage extends ConsumerWidget {
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : Text(
-                              state.canLoadMore ? 'Load more' : 'All staff loaded',
+                              state.canLoadMore
+                                  ? 'Load more'
+                                  : 'All staff loaded',
                             ),
                     ),
                   ),
@@ -144,10 +154,7 @@ class StaffStaffsTabPage extends ConsumerWidget {
     );
   }
 
-  void _openDetail(
-    BuildContext context,
-    StaffMembershipSummary membership,
-  ) {
+  void _openDetail(BuildContext context, StaffMembershipSummary membership) {
     context.pushNamed(
       AppRoute.staffDetail.name,
       pathParameters: {'membershipId': membership.membershipId},

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/core/feedback/user_error_message.dart';
+import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/features/staff/domain/models/staff_shift_models.dart';
 import 'package:modular_pos/features/staff/ui/view/staff_shift/widgets/staff_shift_instance_card.dart';
 import 'package:modular_pos/features/staff/ui/view/staff_shift/widgets/staff_shift_pattern_card.dart';
@@ -9,13 +10,139 @@ import 'package:modular_pos/features/staff/ui/viewmodels/staff_shift_controller.
 class StaffShiftTabPage extends ConsumerWidget {
   const StaffShiftTabPage({super.key});
 
-  static const ButtonStyle _inlineFilledButtonStyle = ButtonStyle(
-    minimumSize: WidgetStatePropertyAll(Size(0, 48)),
+  static const double _dialogMaxWidth = 600;
+  static const double _rangeModalMaxWidth = 560;
+  static const double _rangeModalMaxHeight = 680;
+  static const double _topControlHeight = 56;
+
+  static const MenuStyle _whiteDropdownMenuStyle = MenuStyle(
+    backgroundColor: WidgetStatePropertyAll<Color>(Colors.white),
+    surfaceTintColor: WidgetStatePropertyAll<Color>(Colors.white),
   );
 
-  static const ButtonStyle _inlineOutlinedButtonStyle = ButtonStyle(
-    minimumSize: WidgetStatePropertyAll(Size(0, 48)),
-  );
+  static const InputDecorationTheme _topDropdownDecorationTheme =
+      InputDecorationTheme(
+        hintStyle: TextStyle(fontSize: 14),
+        constraints: BoxConstraints(
+          minHeight: _topControlHeight,
+          maxHeight: _topControlHeight,
+        ),
+        border: OutlineInputBorder(),
+      );
+
+  Future<DateTimeRange?> _showSelectRangeModal(
+    BuildContext context,
+    DateTimeRange initialRange,
+  ) {
+    final theme = Theme.of(context);
+    return showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2024),
+      lastDate: DateTime(2035),
+      initialDateRange: initialRange,
+      helpText: 'Select date range',
+      saveText: 'Apply',
+      cancelText: 'Cancel',
+      fieldStartHintText: 'Start date',
+      fieldEndHintText: 'End date',
+      builder: (context, child) {
+        if (child == null) return const SizedBox.shrink();
+        final pickerTheme = theme.copyWith(
+          dialogTheme: theme.dialogTheme.copyWith(
+            backgroundColor: Colors.white,
+            surfaceTintColor: Colors.white,
+          ),
+          datePickerTheme: theme.datePickerTheme.copyWith(
+            backgroundColor: Colors.white,
+            surfaceTintColor: Colors.white,
+            rangePickerBackgroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+          ),
+        );
+        return Theme(
+          data: pickerTheme,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final isWide = constraints.maxWidth > 640;
+              if (!isWide) return child;
+              return Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    maxWidth: _rangeModalMaxWidth,
+                    maxHeight: _rangeModalMaxHeight,
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    child: child,
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  Future<DateTime?> _showSelectDateModal(
+    BuildContext context, {
+    required DateTime initialDate,
+    required DateTime firstDate,
+    required DateTime lastDate,
+  }) {
+    final theme = Theme.of(context);
+    return showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: firstDate,
+      lastDate: lastDate,
+      builder: (context, child) {
+        if (child == null) return const SizedBox.shrink();
+        final pickerTheme = theme.copyWith(
+          dialogTheme: theme.dialogTheme.copyWith(
+            backgroundColor: Colors.white,
+            surfaceTintColor: Colors.white,
+          ),
+          datePickerTheme: theme.datePickerTheme.copyWith(
+            backgroundColor: Colors.white,
+            surfaceTintColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+          ),
+        );
+        return Theme(
+          data: pickerTheme,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final isWide = constraints.maxWidth > 640;
+              if (!isWide) return child;
+              return Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    maxWidth: _rangeModalMaxWidth,
+                    maxHeight: _rangeModalMaxHeight,
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    child: child,
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -47,21 +174,72 @@ class StaffShiftTabPage extends ConsumerWidget {
             ),
           ),
           data: (state) {
+            final topButtonStyle = FilledButton.styleFrom(
+              minimumSize: const Size(0, _topControlHeight),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            );
+            Widget labeledControl({
+              required String title,
+              required Widget child,
+            }) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(left: 2, bottom: 4),
+                    child: Text(
+                      title,
+                      style: Theme.of(context).textTheme.labelMedium,
+                    ),
+                  ),
+                  SizedBox(height: _topControlHeight, child: child),
+                ],
+              );
+            }
+
             final membershipById = {
               for (final membership in state.memberships)
                 membership.membershipId: membership.displayName,
             };
+            final addPatternButton = FilledButton.tonalIcon(
+              style: topButtonStyle,
+              onPressed: state.selectedBranchId == null || state.isSaving
+                  ? null
+                  : () => _showPatternDialog(context, ref, state),
+              icon: const Icon(Icons.event_repeat_outlined),
+              label: const Text('Add pattern'),
+            );
+            final addShiftButton = FilledButton.tonalIcon(
+              style: topButtonStyle,
+              onPressed: state.selectedBranchId == null || state.isSaving
+                  ? null
+                  : () => _showInstanceDialog(context, ref, state),
+              icon: const Icon(Icons.event_available_outlined),
+              label: const Text('Add shift'),
+            );
             return ListView(
               children: [
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: [
-                    SizedBox(
-                      width: 220,
-                      child: DropdownMenu<String?>(
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isSmall = AppBreakpoints.isSmall(
+                        constraints.maxWidth,
+                      );
+                      final menuWidth = isSmall ? constraints.maxWidth : 240.0;
+                      final wideMenuWidth = (constraints.maxWidth - 8) / 2;
+                      final resolvedMenuWidth = isSmall
+                          ? menuWidth
+                          : wideMenuWidth;
+
+                      final branchMenu = DropdownMenu<String?>(
+                        width: resolvedMenuWidth,
                         initialSelection: state.selectedBranchId,
-                        label: const Text('Branch'),
+                        hintText: 'Select branch',
+                        inputDecorationTheme: _topDropdownDecorationTheme,
+                        menuStyle: _whiteDropdownMenuStyle,
                         onSelected: controller.setBranchId,
                         dropdownMenuEntries: [
                           for (final branch in state.branches)
@@ -70,13 +248,14 @@ class StaffShiftTabPage extends ConsumerWidget {
                               label: branch.branchName,
                             ),
                         ],
-                      ),
-                    ),
-                    SizedBox(
-                      width: 220,
-                      child: DropdownMenu<String?>(
+                      );
+
+                      final staffMenu = DropdownMenu<String?>(
+                        width: resolvedMenuWidth,
                         initialSelection: state.selectedMembershipId,
-                        label: const Text('Staff'),
+                        hintText: 'Select staff',
+                        inputDecorationTheme: _topDropdownDecorationTheme,
+                        menuStyle: _whiteDropdownMenuStyle,
                         onSelected: controller.setMembershipId,
                         dropdownMenuEntries: [
                           const DropdownMenuEntry<String?>(
@@ -90,36 +269,116 @@ class StaffShiftTabPage extends ConsumerWidget {
                             ),
                           ),
                         ],
-                      ),
-                    ),
-                    FilledButton.tonalIcon(
-                      style: _inlineFilledButtonStyle,
-                      onPressed: () async {
-                        final picked = await showDateRangePicker(
-                          context: context,
-                          firstDate: DateTime(2024),
-                          lastDate: DateTime(2035),
-                          initialDateRange: state.dateRange,
+                      );
+
+                      final branchField = labeledControl(
+                        title: 'Branch',
+                        child: branchMenu,
+                      );
+                      final staffField = labeledControl(
+                        title: 'Staff',
+                        child: staffMenu,
+                      );
+
+                      final dateRangeBtn = FilledButton.tonalIcon(
+                        style: topButtonStyle,
+                        onPressed: () async {
+                          final picked = await _showSelectRangeModal(
+                            context,
+                            state.dateRange,
+                          );
+                          if (picked != null) {
+                            await controller.setDateRange(picked);
+                          }
+                        },
+                        icon: const Icon(Icons.date_range_outlined),
+                        label: const Text('Date range'),
+                      );
+
+                      final refreshBtn = Tooltip(
+                        message: 'Refresh',
+                        child: IconButton.filledTonal(
+                          onPressed: state.isRefreshing
+                              ? null
+                              : controller.refresh,
+                          style: IconButton.styleFrom(
+                            minimumSize: const Size(
+                              _topControlHeight,
+                              _topControlHeight,
+                            ),
+                            maximumSize: const Size(
+                              _topControlHeight,
+                              _topControlHeight,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          icon: state.isRefreshing
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.refresh),
+                        ),
+                      );
+
+                      if (isSmall) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            branchField,
+                            const SizedBox(height: 8),
+                            staffField,
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Expanded(child: dateRangeBtn),
+                                const SizedBox(width: 8),
+                                refreshBtn,
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Expanded(child: addPatternButton),
+                                const SizedBox(width: 8),
+                                Expanded(child: addShiftButton),
+                              ],
+                            ),
+                          ],
                         );
-                        if (picked != null) {
-                          await controller.setDateRange(picked);
-                        }
-                      },
-                      icon: const Icon(Icons.date_range_outlined),
-                      label: const Text('Date range'),
-                    ),
-                    IconButton(
-                      tooltip: 'Refresh',
-                      onPressed: state.isRefreshing ? null : controller.refresh,
-                      icon: state.isRefreshing
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.refresh),
-                    ),
-                  ],
+                      }
+
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(child: branchField),
+                              const SizedBox(width: 8),
+                              Expanded(child: staffField),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Expanded(child: dateRangeBtn),
+                              const SizedBox(width: 8),
+                              Expanded(child: addPatternButton),
+                              const SizedBox(width: 8),
+                              Expanded(child: addShiftButton),
+                              const SizedBox(width: 8),
+                              refreshBtn,
+                            ],
+                          ),
+                        ],
+                      );
+                    },
+                  ),
                 ),
                 const SizedBox(height: 12),
                 if (state.inlineError != null)
@@ -133,31 +392,7 @@ class StaffShiftTabPage extends ConsumerWidget {
                     ),
                   ),
                 if (state.inlineError != null) const SizedBox(height: 12),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: [
-                    FilledButton.icon(
-                      style: _inlineFilledButtonStyle,
-                      onPressed:
-                          state.selectedBranchId == null || state.isSaving
-                          ? null
-                          : () => _showPatternDialog(context, ref, state),
-                      icon: const Icon(Icons.event_repeat_outlined),
-                      label: const Text('Add pattern'),
-                    ),
-                    OutlinedButton.icon(
-                      style: _inlineOutlinedButtonStyle,
-                      onPressed:
-                          state.selectedBranchId == null || state.isSaving
-                          ? null
-                          : () => _showInstanceDialog(context, ref, state),
-                      icon: const Icon(Icons.event_available_outlined),
-                      label: const Text('Add shift'),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 4),
                 Text(
                   'Patterns',
                   style: Theme.of(context).textTheme.titleMedium,
@@ -274,137 +509,165 @@ class StaffShiftTabPage extends ConsumerWidget {
     final saved = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        constraints: const BoxConstraints(maxWidth: _dialogMaxWidth),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        backgroundColor: Colors.white,
         title: Text(pattern == null ? 'Add pattern' : 'Edit pattern'),
-        content: StatefulBuilder(
-          builder: (context, setDialogState) => SizedBox(
-            width: 420,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  DropdownMenu<String>(
-                    width: 360,
-                    initialSelection: membershipId,
-                    label: const Text('Staff'),
-                    onSelected: (value) {
-                      if (value == null) return;
-                      setDialogState(() => membershipId = value);
-                    },
-                    dropdownMenuEntries: membershipItems
-                        .map(
-                          (membership) => DropdownMenuEntry<String>(
-                            value: membership.membershipId,
-                            label: membership.displayName,
-                          ),
-                        )
-                        .toList(growable: false),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: startController,
-                    decoration: const InputDecoration(
-                      labelText: 'Start time (HH:mm)',
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: endController,
-                    decoration: const InputDecoration(
-                      labelText: 'End time (HH:mm)',
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: List.generate(7, (index) {
-                      final labels = [
-                        'Sun',
-                        'Mon',
-                        'Tue',
-                        'Wed',
-                        'Thu',
-                        'Fri',
-                        'Sat',
-                      ];
-                      final selected = selectedDays.contains(index);
-                      return FilterChip(
-                        label: Text(labels[index]),
-                        selected: selected,
-                        onSelected: (value) {
-                          setDialogState(() {
-                            if (value) {
-                              selectedDays.add(index);
-                            } else {
-                              selectedDays.remove(index);
-                            }
-                          });
-                        },
-                      );
-                    }),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
+        content: _buildDialogContent(
+          child: StatefulBuilder(
+            builder: (context, setDialogState) => LayoutBuilder(
+              builder: (context, constraints) {
+                final fieldWidth = constraints.maxWidth;
+                return SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () async {
-                            final picked = await showDatePicker(
-                              context: context,
-                              initialDate: effectiveFrom ?? DateTime.now(),
-                              firstDate: DateTime(2024),
-                              lastDate: DateTime(2035),
-                            );
-                            if (picked != null) {
-                              setDialogState(() => effectiveFrom = picked);
-                            }
+                      SizedBox(
+                        width: fieldWidth,
+                        child: DropdownMenu<String>(
+                          width: fieldWidth,
+                          initialSelection: membershipId,
+                          menuStyle: _whiteDropdownMenuStyle,
+                          label: const Text('Staff'),
+                          onSelected: (value) {
+                            if (value == null) return;
+                            setDialogState(() => membershipId = value);
                           },
-                          child: Text(
-                            'From: ${effectiveFrom == null ? '-' : effectiveFrom!.toIso8601String().split('T').first}',
+                          dropdownMenuEntries: membershipItems
+                              .map(
+                                (membership) => DropdownMenuEntry<String>(
+                                  value: membership.membershipId,
+                                  label: membership.displayName,
+                                ),
+                              )
+                              .toList(growable: false),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: fieldWidth,
+                        child: TextField(
+                          controller: startController,
+                          decoration: const InputDecoration(
+                            labelText: 'Start time (HH:mm)',
                           ),
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () async {
-                            final picked = await showDatePicker(
-                              context: context,
-                              initialDate:
-                                  effectiveTo ??
-                                  effectiveFrom ??
-                                  DateTime.now(),
-                              firstDate: DateTime(2024),
-                              lastDate: DateTime(2035),
-                            );
-                            setDialogState(() => effectiveTo = picked);
-                          },
-                          child: Text(
-                            'To: ${effectiveTo == null ? '-' : effectiveTo!.toIso8601String().split('T').first}',
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: fieldWidth,
+                        child: TextField(
+                          controller: endController,
+                          decoration: const InputDecoration(
+                            labelText: 'End time (HH:mm)',
                           ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: fieldWidth,
+                        child: Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: List.generate(7, (index) {
+                            final labels = [
+                              'Sun',
+                              'Mon',
+                              'Tue',
+                              'Wed',
+                              'Thu',
+                              'Fri',
+                              'Sat',
+                            ];
+                            final selected = selectedDays.contains(index);
+                            return FilterChip(
+                              label: Text(labels[index]),
+                              selected: selected,
+                              onSelected: (value) {
+                                setDialogState(() {
+                                  if (value) {
+                                    selectedDays.add(index);
+                                  } else {
+                                    selectedDays.remove(index);
+                                  }
+                                });
+                              },
+                            );
+                          }),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: fieldWidth,
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () async {
+                                  final picked = await _showSelectDateModal(
+                                    context,
+                                    initialDate:
+                                        effectiveFrom ?? DateTime.now(),
+                                    firstDate: DateTime(2024),
+                                    lastDate: DateTime(2035),
+                                  );
+                                  if (picked != null) {
+                                    setDialogState(
+                                      () => effectiveFrom = picked,
+                                    );
+                                  }
+                                },
+                                child: Text(
+                                  'From: ${effectiveFrom == null ? '-' : effectiveFrom!.toIso8601String().split('T').first}',
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () async {
+                                  final picked = await _showSelectDateModal(
+                                    context,
+                                    initialDate:
+                                        effectiveTo ??
+                                        effectiveFrom ??
+                                        DateTime.now(),
+                                    firstDate: DateTime(2024),
+                                    lastDate: DateTime(2035),
+                                  );
+                                  setDialogState(() => effectiveTo = picked);
+                                },
+                                child: Text(
+                                  'To: ${effectiveTo == null ? '-' : effectiveTo!.toIso8601String().split('T').first}',
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: fieldWidth,
+                        child: TextField(
+                          controller: noteController,
+                          decoration: const InputDecoration(labelText: 'Note'),
+                          maxLines: 2,
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: noteController,
-                    decoration: const InputDecoration(labelText: 'Note'),
-                    maxLines: 2,
-                  ),
-                ],
-              ),
+                );
+              },
             ),
           ),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () async {
+          _buildDialogActions(
+            context: context,
+            confirmLabel: 'Save',
+            onCancel: () async => Navigator.of(context).pop(false),
+            onConfirm: () async {
               final controller = ref.read(
                 staffShiftControllerProvider.notifier,
               );
@@ -435,7 +698,6 @@ class StaffShiftTabPage extends ConsumerWidget {
               }
               if (context.mounted) Navigator.of(context).pop(true);
             },
-            child: const Text('Save'),
           ),
         ],
       ),
@@ -458,18 +720,21 @@ class StaffShiftTabPage extends ConsumerWidget {
     await showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
+        constraints: const BoxConstraints(maxWidth: _dialogMaxWidth),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        backgroundColor: Colors.white,
         title: const Text('Deactivate pattern'),
-        content: TextField(
-          controller: reasonController,
-          decoration: const InputDecoration(labelText: 'Reason'),
+        content: _buildDialogContent(
+          child: TextField(
+            controller: reasonController,
+            decoration: const InputDecoration(labelText: 'Reason'),
+          ),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () async {
+          _buildDialogActions(
+            context: context,
+            confirmLabel: 'Deactivate',
+            onConfirm: () async {
               await ref
                   .read(staffShiftControllerProvider.notifier)
                   .deactivatePattern(
@@ -478,7 +743,6 @@ class StaffShiftTabPage extends ConsumerWidget {
                   );
               if (context.mounted) Navigator.of(context).pop();
             },
-            child: const Text('Deactivate'),
           ),
         ],
       ),
@@ -511,81 +775,103 @@ class StaffShiftTabPage extends ConsumerWidget {
     await showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
+        constraints: const BoxConstraints(maxWidth: _dialogMaxWidth),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        backgroundColor: Colors.white,
         title: Text(instance == null ? 'Add shift' : 'Edit shift'),
-        content: StatefulBuilder(
-          builder: (context, setDialogState) => SizedBox(
-            width: 400,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  DropdownMenu<String>(
-                    width: 360,
-                    initialSelection: membershipId,
-                    label: const Text('Staff'),
-                    onSelected: (value) {
-                      if (value == null) return;
-                      setDialogState(() => membershipId = value);
-                    },
-                    dropdownMenuEntries: membershipItems
-                        .map(
-                          (membership) => DropdownMenuEntry<String>(
-                            value: membership.membershipId,
-                            label: membership.displayName,
-                          ),
-                        )
-                        .toList(growable: false),
-                  ),
-                  const SizedBox(height: 12),
-                  ValueListenableBuilder<DateTime>(
-                    valueListenable: date,
-                    builder: (context, selectedDate, _) => OutlinedButton(
-                      onPressed: () async {
-                        final picked = await showDatePicker(
-                          context: context,
-                          initialDate: selectedDate,
-                          firstDate: DateTime(2024),
-                          lastDate: DateTime(2035),
-                        );
-                        if (picked != null) date.value = picked;
-                      },
-                      child: Text(
-                        'Date: ${selectedDate.toIso8601String().split('T').first}',
+        content: _buildDialogContent(
+          child: StatefulBuilder(
+            builder: (context, setDialogState) => LayoutBuilder(
+              builder: (context, constraints) {
+                final fieldWidth = constraints.maxWidth;
+                return SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(
+                        width: fieldWidth,
+                        child: DropdownMenu<String>(
+                          width: fieldWidth,
+                          initialSelection: membershipId,
+                          menuStyle: _whiteDropdownMenuStyle,
+                          label: const Text('Staff'),
+                          onSelected: (value) {
+                            if (value == null) return;
+                            setDialogState(() => membershipId = value);
+                          },
+                          dropdownMenuEntries: membershipItems
+                              .map(
+                                (membership) => DropdownMenuEntry<String>(
+                                  value: membership.membershipId,
+                                  label: membership.displayName,
+                                ),
+                              )
+                              .toList(growable: false),
+                        ),
                       ),
-                    ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: fieldWidth,
+                        child: ValueListenableBuilder<DateTime>(
+                          valueListenable: date,
+                          builder: (context, selectedDate, _) => OutlinedButton(
+                            onPressed: () async {
+                              final picked = await _showSelectDateModal(
+                                context,
+                                initialDate: selectedDate,
+                                firstDate: DateTime(2024),
+                                lastDate: DateTime(2035),
+                              );
+                              if (picked != null) date.value = picked;
+                            },
+                            child: Text(
+                              'Date: ${selectedDate.toIso8601String().split('T').first}',
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: fieldWidth,
+                        child: TextField(
+                          controller: startController,
+                          decoration: const InputDecoration(
+                            labelText: 'Start time (HH:mm)',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: fieldWidth,
+                        child: TextField(
+                          controller: endController,
+                          decoration: const InputDecoration(
+                            labelText: 'End time (HH:mm)',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: fieldWidth,
+                        child: TextField(
+                          controller: noteController,
+                          decoration: const InputDecoration(labelText: 'Note'),
+                          maxLines: 2,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: startController,
-                    decoration: const InputDecoration(
-                      labelText: 'Start time (HH:mm)',
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: endController,
-                    decoration: const InputDecoration(
-                      labelText: 'End time (HH:mm)',
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: noteController,
-                    decoration: const InputDecoration(labelText: 'Note'),
-                    maxLines: 2,
-                  ),
-                ],
-              ),
+                );
+              },
             ),
           ),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () async {
+          _buildDialogActions(
+            context: context,
+            confirmLabel: 'Save',
+            onConfirm: () async {
               final controller = ref.read(
                 staffShiftControllerProvider.notifier,
               );
@@ -613,7 +899,6 @@ class StaffShiftTabPage extends ConsumerWidget {
               }
               if (context.mounted) Navigator.of(context).pop();
             },
-            child: const Text('Save'),
           ),
         ],
       ),
@@ -633,18 +918,21 @@ class StaffShiftTabPage extends ConsumerWidget {
     await showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
+        constraints: const BoxConstraints(maxWidth: _dialogMaxWidth),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        backgroundColor: Colors.white,
         title: const Text('Cancel shift'),
-        content: TextField(
-          controller: reasonController,
-          decoration: const InputDecoration(labelText: 'Reason'),
+        content: _buildDialogContent(
+          child: TextField(
+            controller: reasonController,
+            decoration: const InputDecoration(labelText: 'Reason'),
+          ),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () async {
+          _buildDialogActions(
+            context: context,
+            confirmLabel: 'Save',
+            onConfirm: () async {
               await ref
                   .read(staffShiftControllerProvider.notifier)
                   .cancelInstance(
@@ -653,11 +941,48 @@ class StaffShiftTabPage extends ConsumerWidget {
                   );
               if (context.mounted) Navigator.of(context).pop();
             },
-            child: const Text('Save'),
           ),
         ],
       ),
     );
     reasonController.dispose();
+  }
+
+  Widget _buildDialogActions({
+    required BuildContext context,
+    required String confirmLabel,
+    required Future<void> Function() onConfirm,
+    Future<void> Function()? onCancel,
+  }) {
+    return SizedBox(
+      width: double.maxFinite,
+      child: Row(
+        children: [
+          Expanded(
+            child: FilledButton.tonal(
+              onPressed: () async {
+                if (onCancel != null) {
+                  await onCancel();
+                  return;
+                }
+                Navigator.of(context).pop();
+              },
+              child: const Text('Cancel'),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: FilledButton(
+              onPressed: () async => onConfirm(),
+              child: Text(confirmLabel),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDialogContent({required Widget child}) {
+    return SizedBox(width: double.maxFinite, child: child);
   }
 }
