@@ -180,24 +180,6 @@ class StaffShiftTabPage extends ConsumerWidget {
                 borderRadius: BorderRadius.circular(10),
               ),
             );
-            Widget labeledControl({
-              required String title,
-              required Widget child,
-            }) {
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(left: 2, bottom: 4),
-                    child: Text(
-                      title,
-                      style: Theme.of(context).textTheme.labelMedium,
-                    ),
-                  ),
-                  SizedBox(height: _topControlHeight, child: child),
-                ],
-              );
-            }
 
             final membershipById = {
               for (final membership in state.memberships)
@@ -233,11 +215,12 @@ class StaffShiftTabPage extends ConsumerWidget {
                       final resolvedMenuWidth = isSmall
                           ? menuWidth
                           : wideMenuWidth;
-
                       final branchMenu = DropdownMenu<String?>(
                         width: resolvedMenuWidth,
                         initialSelection: state.selectedBranchId,
-                        hintText: 'Select branch',
+                        label: const Text(
+                          'Branch',
+                        ), // ← moves label inside the box
                         inputDecorationTheme: _topDropdownDecorationTheme,
                         menuStyle: _whiteDropdownMenuStyle,
                         onSelected: controller.setBranchId,
@@ -253,7 +236,9 @@ class StaffShiftTabPage extends ConsumerWidget {
                       final staffMenu = DropdownMenu<String?>(
                         width: resolvedMenuWidth,
                         initialSelection: state.selectedMembershipId,
-                        hintText: 'Select staff',
+                        label: const Text(
+                          'Staff',
+                        ), // ← moves label inside the box
                         inputDecorationTheme: _topDropdownDecorationTheme,
                         menuStyle: _whiteDropdownMenuStyle,
                         onSelected: controller.setMembershipId,
@@ -271,15 +256,8 @@ class StaffShiftTabPage extends ConsumerWidget {
                         ],
                       );
 
-                      final branchField = labeledControl(
-                        title: 'Branch',
-                        child: branchMenu,
-                      );
-                      final staffField = labeledControl(
-                        title: 'Staff',
-                        child: staffMenu,
-                      );
-
+                      final branchField = branchMenu;
+                      final staffField = staffMenu;
                       final dateRangeBtn = FilledButton.tonalIcon(
                         style: topButtonStyle,
                         onPressed: () async {
@@ -330,17 +308,6 @@ class StaffShiftTabPage extends ConsumerWidget {
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            branchField,
-                            const SizedBox(height: 8),
-                            staffField,
-                            const SizedBox(height: 8),
-                            Row(
-                              children: [
-                                Expanded(child: dateRangeBtn),
-                                const SizedBox(width: 8),
-                                refreshBtn,
-                              ],
-                            ),
                             const SizedBox(height: 8),
                             Row(
                               children: [
@@ -349,6 +316,18 @@ class StaffShiftTabPage extends ConsumerWidget {
                                 Expanded(child: addShiftButton),
                               ],
                             ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Expanded(child: dateRangeBtn),
+                                const SizedBox(width: 8),
+                                refreshBtn,
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            branchField,
+                            const SizedBox(height: 10),
+                            staffField,
                           ],
                         );
                       }
@@ -358,14 +337,6 @@ class StaffShiftTabPage extends ConsumerWidget {
                         children: [
                           Row(
                             children: [
-                              Expanded(child: branchField),
-                              const SizedBox(width: 8),
-                              Expanded(child: staffField),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
                               Expanded(child: dateRangeBtn),
                               const SizedBox(width: 8),
                               Expanded(child: addPatternButton),
@@ -373,6 +344,14 @@ class StaffShiftTabPage extends ConsumerWidget {
                               Expanded(child: addShiftButton),
                               const SizedBox(width: 8),
                               refreshBtn,
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              Expanded(child: branchField),
+                              const SizedBox(width: 8),
+                              Expanded(child: staffField),
                             ],
                           ),
                         ],

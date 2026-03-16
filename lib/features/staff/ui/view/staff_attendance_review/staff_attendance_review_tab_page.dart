@@ -124,24 +124,6 @@ class StaffAttendanceReviewTabPage extends ConsumerWidget {
                 borderRadius: BorderRadius.circular(10),
               ),
             );
-            Widget labeledControl({
-              required String title,
-              required Widget child,
-            }) {
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(left: 2, bottom: 4),
-                    child: Text(
-                      title,
-                      style: Theme.of(context).textTheme.labelMedium,
-                    ),
-                  ),
-                  SizedBox(height: _topControlHeight, child: child),
-                ],
-              );
-            }
 
             return ListView(
               children: [
@@ -155,11 +137,10 @@ class StaffAttendanceReviewTabPage extends ConsumerWidget {
                     final resolvedMenuWidth = isSmall
                         ? menuWidth
                         : wideMenuWidth;
-
                     final branchMenu = DropdownMenu<String?>(
                       width: resolvedMenuWidth,
                       initialSelection: state.selectedBranchId,
-                      hintText: 'Select branch',
+                      label: const Text('Branch'),
                       inputDecorationTheme: _topDropdownDecorationTheme,
                       menuStyle: _whiteDropdownMenuStyle,
                       onSelected: controller.setBranchId,
@@ -180,7 +161,7 @@ class StaffAttendanceReviewTabPage extends ConsumerWidget {
                     final staffMenu = DropdownMenu<String?>(
                       width: resolvedMenuWidth,
                       initialSelection: state.selectedAccountId,
-                      hintText: 'Select staff',
+                      label: const Text('Staff'),
                       inputDecorationTheme: _topDropdownDecorationTheme,
                       menuStyle: _whiteDropdownMenuStyle,
                       onSelected: controller.setAccountId,
@@ -198,14 +179,8 @@ class StaffAttendanceReviewTabPage extends ConsumerWidget {
                       ],
                     );
 
-                    final branchField = labeledControl(
-                      title: 'Branch',
-                      child: branchMenu,
-                    );
-                    final staffField = labeledControl(
-                      title: 'Staff',
-                      child: staffMenu,
-                    );
+                    final branchField = branchMenu;
+                    final staffField = staffMenu;
 
                     final dateRangeBtn = FilledButton.tonalIcon(
                       style: topButtonStyle,
@@ -257,10 +232,6 @@ class StaffAttendanceReviewTabPage extends ConsumerWidget {
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          branchField,
-                          const SizedBox(height: 8),
-                          staffField,
-                          const SizedBox(height: 8),
                           Row(
                             children: [
                               Expanded(child: dateRangeBtn),
@@ -268,6 +239,11 @@ class StaffAttendanceReviewTabPage extends ConsumerWidget {
                               refreshBtn,
                             ],
                           ),
+                          const SizedBox(height: 10),
+                          branchField,
+                          const SizedBox(height: 8),
+                          staffField,
+                          const SizedBox(height: 8),
                         ],
                       );
                     }
@@ -275,19 +251,20 @@ class StaffAttendanceReviewTabPage extends ConsumerWidget {
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Row(
-                          children: [
-                            Expanded(child: branchField),
-                            const SizedBox(width: 8),
-                            Expanded(child: staffField),
-                          ],
-                        ),
                         const SizedBox(height: 8),
                         Row(
                           children: [
                             Expanded(child: dateRangeBtn),
                             const SizedBox(width: 8),
                             refreshBtn,
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            Expanded(child: branchField),
+                            const SizedBox(width: 8),
+                            Expanded(child: staffField),
                           ],
                         ),
                       ],
