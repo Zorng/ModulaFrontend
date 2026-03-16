@@ -104,16 +104,23 @@ class RemoteInventoryJournalRepository extends InventoryJournalRepository {
     bool tenantWide = false,
     String? stockItemId,
     InventoryJournalReason? reason,
+    DateTime? date,
+    DateTime? from,
+    DateTime? to,
     int limit = 50,
     int offset = 0,
   }) async {
-    final normalizedBranchId =
-        (branchId ?? '').trim().isEmpty ? null : branchId?.trim();
+    final normalizedBranchId = (branchId ?? '').trim().isEmpty
+        ? null
+        : branchId?.trim();
     final items = tenantWide || normalizedBranchId == null
         ? await _api.fetchTenantJournal(
             branchId: tenantWide ? normalizedBranchId : null,
             stockItemId: stockItemId,
             reasonCode: reason != null ? _reasonToApi(reason) : null,
+            date: date,
+            from: date == null ? from : null,
+            to: date == null ? to : null,
             limit: limit,
             offset: offset,
           )
@@ -121,6 +128,9 @@ class RemoteInventoryJournalRepository extends InventoryJournalRepository {
             branchId: normalizedBranchId,
             stockItemId: stockItemId,
             reasonCode: reason != null ? _reasonToApi(reason) : null,
+            date: date,
+            from: date == null ? from : null,
+            to: date == null ? to : null,
             limit: limit,
             offset: offset,
           );

@@ -401,23 +401,28 @@ class _InventoryStockItemsPageState
                                                 ),
                                               ),
                                               DataCell(
-                                                Row(
-                                                  children: [
-                                                    StockItemImage(
-                                                      imageUrl: item.imageUrl,
-                                                    ),
-                                                    const SizedBox(width: 12),
-                                                    Flexible(
-                                                      child: Text(
-                                                        item.name,
-                                                        style: Theme.of(
-                                                          context,
-                                                        ).textTheme.bodyMedium,
-                                                        overflow: TextOverflow
-                                                            .ellipsis,
+                                                SizedBox(
+                                                  width: 280,
+                                                  child: Row(
+                                                    children: [
+                                                      StockItemImage(
+                                                        imageUrl: item.imageUrl,
                                                       ),
-                                                    ),
-                                                  ],
+                                                      const SizedBox(width: 12),
+                                                      Expanded(
+                                                        child: Text(
+                                                          item.name,
+                                                          style: Theme.of(
+                                                            context,
+                                                          ).textTheme.bodyMedium,
+                                                          maxLines: 1,
+                                                          overflow:
+                                                              TextOverflow
+                                                                  .ellipsis,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
                                                 ),
                                               ),
                                               DataCell(

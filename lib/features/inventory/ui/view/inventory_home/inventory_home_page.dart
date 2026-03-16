@@ -12,6 +12,7 @@ import 'package:modular_pos/features/branchV2/ui/viewmodels/branch_controller.da
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
 import 'package:modular_pos/features/inventory/ui/models/inventory_branch_option.dart';
+import 'package:modular_pos/features/inventory/ui/models/inventory_journal_date_filter.dart';
 import 'package:modular_pos/features/inventory/ui/view/inventory_stock_items/inventory_stock_items_utils.dart';
 import 'package:modular_pos/features/inventory/ui/view/inventory_stock_items/widgets/stock_item_image.dart';
 import 'package:modular_pos/features/inventory/ui/view/stock_adjust_quantity/adjust_stock_quantity_request.dart';
@@ -515,23 +516,28 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
                                                 ),
                                               ),
                                               DataCell(
-                                                Row(
-                                                  children: [
-                                                    StockItemImage(
-                                                      imageUrl: item.imageUrl,
-                                                    ),
-                                                    const SizedBox(width: 12),
-                                                    Flexible(
-                                                      child: Text(
-                                                        item.name,
-                                                        style: Theme.of(
-                                                          context,
-                                                        ).textTheme.bodyMedium,
-                                                        overflow: TextOverflow
-                                                            .ellipsis,
+                                                SizedBox(
+                                                  width: 280,
+                                                  child: Row(
+                                                    children: [
+                                                      StockItemImage(
+                                                        imageUrl: item.imageUrl,
                                                       ),
-                                                    ),
-                                                  ],
+                                                      const SizedBox(width: 12),
+                                                      Expanded(
+                                                        child: Text(
+                                                          item.name,
+                                                          style: Theme.of(
+                                                            context,
+                                                          ).textTheme.bodyMedium,
+                                                          maxLines: 1,
+                                                          overflow:
+                                                              TextOverflow
+                                                                  .ellipsis,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
                                                 ),
                                               ),
                                               DataCell(
@@ -631,7 +637,13 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
         : item.branchId;
     await ref
         .read(inventoryJournalControllerProvider.notifier)
-        .load(branchId: branchId, stockItemId: item.id);
+        .load(
+          branchId: branchId,
+          stockItemId: item.id,
+          dateFilter: const InventoryJournalDateFilter(
+            preset: InventoryJournalDatePreset.today,
+          ),
+        );
     if (!mounted) return;
     await context.push(AppRoute.inventoryJournal.path);
   }

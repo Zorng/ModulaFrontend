@@ -125,15 +125,23 @@ class InventoryApi {
       if (limit != null) 'limit': limit,
       if (offset != null) 'offset': offset,
     };
-    final response = await _dio.get<Map<String, dynamic>>(
-      '$_prefix/items',
-      queryParameters: query,
-    );
-    final list = InventoryApiEnvelope.unwrapDataList(
-      response.data,
-      fallbackMessage: 'Failed to fetch stock items.',
-    );
-    return list.map(StockItemDto.fromJson).toList(growable: false);
+    try {
+      final response = await _getInventoryJson(
+        '$_prefix/items',
+        dio: _dio,
+        queryParameters: query,
+      );
+      final list = InventoryApiEnvelope.unwrapDataList(
+        response.data,
+        fallbackMessage: 'Failed to fetch stock items.',
+      );
+      return list.map(StockItemDto.fromJson).toList(growable: false);
+    } on DioError catch (error) {
+      throw ApiClientException.fromDio(
+        error,
+        fallbackMessage: 'Failed to fetch stock items.',
+      );
+    }
   }
 
   Future<StockItemDto> fetchStockItemById(String stockItemId) async {
@@ -552,6 +560,9 @@ class InventoryApi {
     required String branchId,
     String? stockItemId,
     String? reasonCode,
+    DateTime? date,
+    DateTime? from,
+    DateTime? to,
     int limit = 50,
     int offset = 0,
   }) async {
@@ -561,6 +572,12 @@ class InventoryApi {
         'stockItemId': stockItemId,
       if ((reasonCode ?? '').trim().isNotEmpty)
         'reasonCode': _normalizeInventoryJournalReasonCode(reasonCode!),
+      if (date != null)
+        'date': _formatInventoryJournalQueryDate(date)
+      else ...{
+        if (from != null) 'from': _formatInventoryJournalQueryDate(from),
+        if (to != null) 'to': _formatInventoryJournalQueryDate(to),
+      },
       'limit': limit <= 0 ? 50 : limit,
       'offset': offset < 0 ? 0 : offset,
     };
@@ -579,6 +596,9 @@ class InventoryApi {
     String? branchId,
     String? stockItemId,
     String? reasonCode,
+    DateTime? date,
+    DateTime? from,
+    DateTime? to,
     int limit = 50,
     int offset = 0,
   }) async {
@@ -588,6 +608,12 @@ class InventoryApi {
         'stockItemId': stockItemId,
       if ((reasonCode ?? '').trim().isNotEmpty)
         'reasonCode': _normalizeInventoryJournalReasonCode(reasonCode!),
+      if (date != null)
+        'date': _formatInventoryJournalQueryDate(date)
+      else ...{
+        if (from != null) 'from': _formatInventoryJournalQueryDate(from),
+        if (to != null) 'to': _formatInventoryJournalQueryDate(to),
+      },
       'limit': limit <= 0 ? 50 : limit,
       'offset': offset < 0 ? 0 : offset,
     };
@@ -615,6 +641,13 @@ class InventoryApi {
     );
     return list.map(InventoryJournalEntryDto.fromJson).toList(growable: false);
   }
+}
+
+String _formatInventoryJournalQueryDate(DateTime value) {
+  final date = DateTime(value.year, value.month, value.day);
+  final month = date.month.toString().padLeft(2, '0');
+  final day = date.day.toString().padLeft(2, '0');
+  return '${date.year}-$month-$day';
 }
 
 int? _extractResultingOnHand(Map<String, dynamic> payload) {
@@ -712,6 +745,35 @@ Options _writeOptions({
   );
 }
 
+Future<Response<Map<String, dynamic>>> _getInventoryJson(
+  String path, {
+  required Dio dio,
+  Map<String, dynamic>? queryParameters,
+}) async {
+  try {
+    return await dio.get<Map<String, dynamic>>(
+      path,
+      queryParameters: queryParameters,
+    );
+  } on DioError catch (error) {
+    if (error.response?.statusCode != 304) rethrow;
+
+    return dio.get<Map<String, dynamic>>(
+      path,
+      queryParameters: {
+        ...?queryParameters,
+        '_': DateTime.now().microsecondsSinceEpoch,
+      },
+      options: Options(
+        headers: const {
+          'Cache-Control': 'no-store, no-cache, max-age=0',
+          'Pragma': 'no-cache',
+        },
+      ),
+    );
+  }
+}
+
 Future<String> _uploadInventoryImage({
   required Dio dio,
   String? imagePath,
@@ -779,10 +841,7 @@ Future<MultipartFile?> _buildImagePart({
   return null;
 }
 
-String? _resolveImageSubtype({
-  String? imagePath,
-  List<int>? imageBytes,
-}) {
+String? _resolveImageSubtype({String? imagePath, List<int>? imageBytes}) {
   final bytes = imageBytes ?? const <int>[];
   if (bytes.length >= 3 &&
       bytes[0] == 0xFF &&

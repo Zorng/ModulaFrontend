@@ -91,6 +91,9 @@ class MockInventoryJournalRepository extends InventoryJournalRepository {
     bool tenantWide = false,
     String? stockItemId,
     InventoryJournalReason? reason,
+    DateTime? date,
+    DateTime? from,
+    DateTime? to,
     int limit = 50,
     int offset = 0,
   }) async {
@@ -99,6 +102,9 @@ class MockInventoryJournalRepository extends InventoryJournalRepository {
       tenantWide: tenantWide,
       stockItemId: stockItemId,
       reason: reason,
+      date: date,
+      from: date == null ? from : null,
+      to: date == null ? to : null,
       limit: limit,
       offset: offset,
     );

@@ -7,8 +7,10 @@ import 'package:modular_pos/features/inventory/data/inventory_journal_repository
 import 'package:modular_pos/features/inventory/data/stock_item_repository.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_category.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_journal_entry.dart';
+import 'package:modular_pos/features/inventory/domain/models/on_hand_record.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_batch.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
+import 'package:modular_pos/features/inventory/ui/models/inventory_journal_date_filter.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/category_controller.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/category_state.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/inventory_journal_controller.dart';
@@ -1223,6 +1225,107 @@ void main() {
   );
 
   test(
+    'StockInventoryController.applyInventoryAdjustment validates removal against selected branch on-hand',
+    () async {
+      final stockRepo = _MockStockItemRepository();
+      final branchStockRepo = _MockBranchStockRepository();
+      final journalRepo = _MockJournalRepository();
+
+      when(
+        () => journalRepo.applyAdjustment(
+          branchId: 'branch-1',
+          stockItemId: 'item-1',
+          style: 'DELTA',
+          deltaInBaseUnit: -3,
+          countedOnHandInBaseUnit: null,
+          reasonCode: 'WASTE',
+          note: 'Shrinkage',
+        ),
+      ).thenAnswer((_) async => 2);
+
+      final container = createTestContainer(
+        overrides: [
+          stockItemRepositoryProvider.overrideWithValue(stockRepo),
+          branchStockRepositoryProvider.overrideWithValue(branchStockRepo),
+          inventoryJournalRepositoryProvider.overrideWithValue(journalRepo),
+        ],
+      );
+
+      final notifier = container.read(
+        stockInventoryControllerProvider.notifier,
+      );
+      notifier.state = const StockInventoryState(
+        selectedInventoryBranchId: 'branch-1',
+        stockItems: [
+          StockItem(
+            id: 'item-1',
+            name: 'Iced Coffee',
+            baseUnit: 'ml',
+            pieceSize: 1,
+            branchId: '',
+            branchName: '',
+            onHand: 0,
+            minThreshold: 0,
+            isActive: true,
+          ),
+        ],
+      );
+      when(
+        () => branchStockRepo.fetchOnHand(branchId: 'branch-1', status: 'all'),
+      ).thenAnswer(
+        (_) async => const [
+          OnHandRecord(
+            stockItemId: 'item-1',
+            branchId: 'branch-1',
+            onHand: 5,
+            minThreshold: 1,
+          ),
+        ],
+      );
+      when(
+        () => branchStockRepo.fetchStockItems(
+          branchId: 'branch-1',
+          status: 'all',
+        ),
+      ).thenAnswer(
+        (_) async => const [
+          StockItem(
+            id: 'item-1',
+            name: 'Iced Coffee',
+            baseUnit: 'ml',
+            pieceSize: 1,
+            branchId: 'branch-1',
+            branchName: 'Main Branch',
+            onHand: 2,
+            minThreshold: 1,
+            isActive: true,
+          ),
+        ],
+      );
+
+      await notifier.applyInventoryAdjustment(
+        stockItemId: 'item-1',
+        branchId: 'branch-1',
+        style: 'DELTA',
+        delta: -3,
+        note: 'Shrinkage',
+      );
+
+      verify(
+        () => journalRepo.applyAdjustment(
+          branchId: 'branch-1',
+          stockItemId: 'item-1',
+          style: 'DELTA',
+          deltaInBaseUnit: -3,
+          countedOnHandInBaseUnit: null,
+          reasonCode: 'WASTE',
+          note: 'Shrinkage',
+        ),
+      ).called(1);
+    },
+  );
+
+  test(
     'StockInventoryController.applyInventoryAdjustment throws coded quantity error when negative',
     () async {
       final stockRepo = _MockStockItemRepository();
@@ -1296,6 +1399,9 @@ void main() {
         tenantWide: true,
         stockItemId: any(named: 'stockItemId'),
         reason: null,
+        date: any(named: 'date'),
+        from: any(named: 'from'),
+        to: any(named: 'to'),
         limit: any(named: 'limit'),
         offset: any(named: 'offset'),
       ),
@@ -1353,6 +1459,8 @@ void main() {
     expect(state.isLoading, isFalse);
     expect(state.error, isNull);
     expect(state.errorCode, isNull);
+    expect(state.dateFilter.preset, InventoryJournalDatePreset.today);
+    expect(state.dateFilter.date, isNotNull);
     expect(state.entries.first.itemName, 'Iced Coffee');
   });
 
@@ -1368,6 +1476,9 @@ void main() {
           tenantWide: true,
           stockItemId: any(named: 'stockItemId'),
           reason: null,
+          date: any(named: 'date'),
+          from: any(named: 'from'),
+          to: any(named: 'to'),
           limit: any(named: 'limit'),
           offset: any(named: 'offset'),
         ),
@@ -1402,110 +1513,581 @@ void main() {
     },
   );
 
-  test('InventoryJournalController.loadMore appends paged entries', () async {
-    final journalRepo = _MockInventoryJournalRepository();
-    final stockRepo = _MockStockItemRepository();
+  test(
+    'InventoryJournalController.goToNextPage loads next page entries',
+    () async {
+      final journalRepo = _MockInventoryJournalRepository();
+      final stockRepo = _MockStockItemRepository();
 
-    when(
-      () => journalRepo.fetch(
-        branchId: null,
-        tenantWide: true,
-        stockItemId: any(named: 'stockItemId'),
-        reason: null,
+      when(
+        () => journalRepo.fetch(
+          branchId: null,
+          tenantWide: true,
+          stockItemId: any(named: 'stockItemId'),
+          reason: null,
+          date: any(named: 'date'),
+          from: any(named: 'from'),
+          to: any(named: 'to'),
+          limit: 1,
+          offset: 0,
+        ),
+      ).thenAnswer(
+        (_) async => [
+          InventoryJournalEntry(
+            id: 'entry-1',
+            itemId: 'item-1',
+            itemName: 'Item',
+            branchId: 'branch-1',
+            branchName: 'Main Branch',
+            reason: InventoryJournalReason.restock,
+            delta: 5,
+            note: 'Restock',
+            actor: 'Alex',
+            createdAt: DateTime(2025, 12, 20),
+            occurredAt: DateTime(2025, 12, 20),
+          ),
+        ],
+      );
+      when(
+        () => journalRepo.fetch(
+          branchId: null,
+          tenantWide: true,
+          stockItemId: any(named: 'stockItemId'),
+          reason: null,
+          date: any(named: 'date'),
+          from: any(named: 'from'),
+          to: any(named: 'to'),
+          limit: 1,
+          offset: 1,
+        ),
+      ).thenAnswer(
+        (_) async => [
+          InventoryJournalEntry(
+            id: 'entry-2',
+            itemId: 'item-2',
+            itemName: 'Item',
+            branchId: 'branch-1',
+            branchName: 'Main Branch',
+            reason: InventoryJournalReason.add,
+            delta: 2,
+            note: 'Adjust',
+            actor: 'Alex',
+            createdAt: DateTime(2025, 12, 21),
+            occurredAt: DateTime(2025, 12, 21),
+          ),
+        ],
+      );
+      when(
+        () => stockRepo.fetchMasterStockItems(pageSize: any(named: 'pageSize')),
+      ).thenAnswer(
+        (_) async => const [
+          StockItem(
+            id: 'item-1',
+            name: 'Iced Coffee',
+            baseUnit: 'ml',
+            pieceSize: 1,
+            branchId: '',
+            branchName: '',
+            onHand: 0,
+            minThreshold: 0,
+            isActive: true,
+          ),
+          StockItem(
+            id: 'item-2',
+            name: 'Lemon Tea',
+            baseUnit: 'ml',
+            pieceSize: 1,
+            branchId: '',
+            branchName: '',
+            onHand: 0,
+            minThreshold: 0,
+            isActive: true,
+          ),
+        ],
+      );
+
+      final container = createTestContainer(
+        overrides: [
+          inventoryJournalRepositoryProvider.overrideWithValue(journalRepo),
+          stockItemRepositoryProvider.overrideWithValue(stockRepo),
+          loginControllerProvider.overrideWith(
+            () => FakeLoginController(const LoginState()),
+          ),
+        ],
+      );
+
+      final notifier = container.read(
+        inventoryJournalControllerProvider.notifier,
+      );
+      await notifier.load(limit: 1);
+      await notifier.goToNextPage();
+
+      final state = container.read(inventoryJournalControllerProvider);
+      expect(state.entries, hasLength(1));
+      expect(state.entries.single.id, 'entry-2');
+      expect(state.currentPage, 2);
+      expect(state.pageOffset, 1);
+      expect(state.visibleRangeStart, 2);
+      expect(state.visibleRangeEnd, 2);
+      expect(state.hasPreviousPage, isTrue);
+      expect(state.hasNextPage, isTrue);
+    },
+  );
+
+  test(
+    'InventoryJournalController.loadNextChunk appends next page entries',
+    () async {
+      final journalRepo = _MockInventoryJournalRepository();
+      final stockRepo = _MockStockItemRepository();
+
+      when(
+        () => journalRepo.fetch(
+          branchId: null,
+          tenantWide: true,
+          stockItemId: any(named: 'stockItemId'),
+          reason: null,
+          date: any(named: 'date'),
+          from: any(named: 'from'),
+          to: any(named: 'to'),
+          limit: 1,
+          offset: 0,
+        ),
+      ).thenAnswer(
+        (_) async => [
+          InventoryJournalEntry(
+            id: 'entry-1',
+            itemId: 'item-1',
+            itemName: 'Item',
+            branchId: 'branch-1',
+            branchName: 'Main Branch',
+            reason: InventoryJournalReason.restock,
+            delta: 5,
+            note: 'Restock',
+            actor: 'Alex',
+            createdAt: DateTime(2025, 12, 20),
+            occurredAt: DateTime(2025, 12, 20),
+          ),
+        ],
+      );
+      when(
+        () => journalRepo.fetch(
+          branchId: null,
+          tenantWide: true,
+          stockItemId: any(named: 'stockItemId'),
+          reason: null,
+          date: any(named: 'date'),
+          from: any(named: 'from'),
+          to: any(named: 'to'),
+          limit: 1,
+          offset: 1,
+        ),
+      ).thenAnswer(
+        (_) async => [
+          InventoryJournalEntry(
+            id: 'entry-2',
+            itemId: 'item-2',
+            itemName: 'Item',
+            branchId: 'branch-1',
+            branchName: 'Main Branch',
+            reason: InventoryJournalReason.add,
+            delta: 2,
+            note: 'Adjust',
+            actor: 'Alex',
+            createdAt: DateTime(2025, 12, 21),
+            occurredAt: DateTime(2025, 12, 21),
+          ),
+        ],
+      );
+      when(
+        () => stockRepo.fetchMasterStockItems(pageSize: any(named: 'pageSize')),
+      ).thenAnswer(
+        (_) async => const [
+          StockItem(
+            id: 'item-1',
+            name: 'Iced Coffee',
+            baseUnit: 'ml',
+            pieceSize: 1,
+            branchId: '',
+            branchName: '',
+            onHand: 0,
+            minThreshold: 0,
+            isActive: true,
+          ),
+          StockItem(
+            id: 'item-2',
+            name: 'Lemon Tea',
+            baseUnit: 'ml',
+            pieceSize: 1,
+            branchId: '',
+            branchName: '',
+            onHand: 0,
+            minThreshold: 0,
+            isActive: true,
+          ),
+        ],
+      );
+
+      final container = createTestContainer(
+        overrides: [
+          inventoryJournalRepositoryProvider.overrideWithValue(journalRepo),
+          stockItemRepositoryProvider.overrideWithValue(stockRepo),
+          loginControllerProvider.overrideWith(
+            () => FakeLoginController(const LoginState()),
+          ),
+        ],
+      );
+
+      final notifier = container.read(
+        inventoryJournalControllerProvider.notifier,
+      );
+      await notifier.load(limit: 1, accumulatePages: true);
+      await notifier.loadNextChunk();
+
+      final state = container.read(inventoryJournalControllerProvider);
+      expect(state.entries, hasLength(2));
+      expect(state.entries.first.id, 'entry-2');
+      expect(state.entries.last.id, 'entry-1');
+      expect(state.currentPage, 2);
+      expect(state.pageOffset, 0);
+      expect(state.isAccumulatingPages, isTrue);
+      expect(state.visibleRangeStart, 1);
+      expect(state.visibleRangeEnd, 2);
+      expect(state.hasPreviousPage, isFalse);
+      expect(state.hasNextPage, isTrue);
+    },
+  );
+
+  test(
+    'InventoryJournalController desktop filter changes reset pagination to page 1',
+    () async {
+      final journalRepo = _MockInventoryJournalRepository();
+      final stockRepo = _MockStockItemRepository();
+
+      when(
+        () => journalRepo.fetch(
+          branchId: null,
+          tenantWide: true,
+          stockItemId: null,
+          reason: null,
+          date: any(named: 'date'),
+          from: any(named: 'from'),
+          to: any(named: 'to'),
+          limit: 1,
+          offset: 0,
+        ),
+      ).thenAnswer(
+        (_) async => [
+          InventoryJournalEntry(
+            id: 'entry-1',
+            itemId: 'item-1',
+            itemName: 'Item',
+            branchId: 'branch-1',
+            branchName: 'Main Branch',
+            reason: InventoryJournalReason.restock,
+            delta: 5,
+            note: 'Restock',
+            actor: 'Alex',
+            createdAt: DateTime(2025, 12, 20),
+            occurredAt: DateTime(2025, 12, 20),
+          ),
+        ],
+      );
+      when(
+        () => journalRepo.fetch(
+          branchId: null,
+          tenantWide: true,
+          stockItemId: null,
+          reason: null,
+          date: any(named: 'date'),
+          from: any(named: 'from'),
+          to: any(named: 'to'),
+          limit: 1,
+          offset: 1,
+        ),
+      ).thenAnswer(
+        (_) async => [
+          InventoryJournalEntry(
+            id: 'entry-2',
+            itemId: 'item-2',
+            itemName: 'Item',
+            branchId: 'branch-1',
+            branchName: 'Main Branch',
+            reason: InventoryJournalReason.add,
+            delta: 2,
+            note: 'Adjust',
+            actor: 'Alex',
+            createdAt: DateTime(2025, 12, 21),
+            occurredAt: DateTime(2025, 12, 21),
+          ),
+        ],
+      );
+      when(
+        () => journalRepo.fetch(
+          branchId: null,
+          tenantWide: true,
+          stockItemId: 'item-2',
+          reason: null,
+          date: any(named: 'date'),
+          from: any(named: 'from'),
+          to: any(named: 'to'),
+          limit: 1,
+          offset: 0,
+        ),
+      ).thenAnswer(
+        (_) async => [
+          InventoryJournalEntry(
+            id: 'filtered-entry',
+            itemId: 'item-2',
+            itemName: 'Item',
+            branchId: 'branch-1',
+            branchName: 'Main Branch',
+            reason: InventoryJournalReason.restock,
+            delta: 8,
+            note: 'Filtered',
+            actor: 'Alex',
+            createdAt: DateTime(2025, 12, 22),
+            occurredAt: DateTime(2025, 12, 22),
+          ),
+        ],
+      );
+      when(
+        () => stockRepo.fetchMasterStockItems(pageSize: any(named: 'pageSize')),
+      ).thenAnswer(
+        (_) async => const [
+          StockItem(
+            id: 'item-1',
+            name: 'Iced Coffee',
+            baseUnit: 'ml',
+            pieceSize: 1,
+            branchId: '',
+            branchName: '',
+            onHand: 0,
+            minThreshold: 0,
+            isActive: true,
+          ),
+          StockItem(
+            id: 'item-2',
+            name: 'Lemon Tea',
+            baseUnit: 'ml',
+            pieceSize: 1,
+            branchId: '',
+            branchName: '',
+            onHand: 0,
+            minThreshold: 0,
+            isActive: true,
+          ),
+        ],
+      );
+
+      final container = createTestContainer(
+        overrides: [
+          inventoryJournalRepositoryProvider.overrideWithValue(journalRepo),
+          stockItemRepositoryProvider.overrideWithValue(stockRepo),
+          loginControllerProvider.overrideWith(
+            () => FakeLoginController(const LoginState()),
+          ),
+        ],
+      );
+
+      final notifier = container.read(
+        inventoryJournalControllerProvider.notifier,
+      );
+      await notifier.load(limit: 1);
+      await notifier.goToNextPage();
+      await notifier.load(stockItemId: 'item-2', limit: 1);
+
+      final state = container.read(inventoryJournalControllerProvider);
+      expect(state.entries, hasLength(1));
+      expect(state.entries.single.id, 'filtered-entry');
+      expect(state.currentPage, 1);
+      expect(state.pageOffset, 0);
+      expect(state.selectedStockItemId, 'item-2');
+      expect(state.isAccumulatingPages, isFalse);
+      expect(state.hasPreviousPage, isFalse);
+      expect(state.visibleRangeStart, 1);
+      expect(state.visibleRangeEnd, 1);
+      verify(
+        () => journalRepo.fetch(
+          branchId: null,
+          tenantWide: true,
+          stockItemId: 'item-2',
+          reason: null,
+          date: any(named: 'date'),
+          from: any(named: 'from'),
+          to: any(named: 'to'),
+          limit: 1,
+          offset: 0,
+        ),
+      ).called(1);
+    },
+  );
+
+  test(
+    'InventoryJournalController mobile filter changes reset lazy loading to the first chunk',
+    () async {
+      final journalRepo = _MockInventoryJournalRepository();
+      final stockRepo = _MockStockItemRepository();
+
+      when(
+        () => journalRepo.fetch(
+          branchId: null,
+          tenantWide: true,
+          stockItemId: null,
+          reason: null,
+          date: any(named: 'date'),
+          from: any(named: 'from'),
+          to: any(named: 'to'),
+          limit: 1,
+          offset: 0,
+        ),
+      ).thenAnswer(
+        (_) async => [
+          InventoryJournalEntry(
+            id: 'entry-1',
+            itemId: 'item-1',
+            itemName: 'Item',
+            branchId: 'branch-1',
+            branchName: 'Main Branch',
+            reason: InventoryJournalReason.restock,
+            delta: 5,
+            note: 'Restock',
+            actor: 'Alex',
+            createdAt: DateTime(2025, 12, 20),
+            occurredAt: DateTime(2025, 12, 20),
+          ),
+        ],
+      );
+      when(
+        () => journalRepo.fetch(
+          branchId: null,
+          tenantWide: true,
+          stockItemId: null,
+          reason: null,
+          date: any(named: 'date'),
+          from: any(named: 'from'),
+          to: any(named: 'to'),
+          limit: 1,
+          offset: 1,
+        ),
+      ).thenAnswer(
+        (_) async => [
+          InventoryJournalEntry(
+            id: 'entry-2',
+            itemId: 'item-2',
+            itemName: 'Item',
+            branchId: 'branch-1',
+            branchName: 'Main Branch',
+            reason: InventoryJournalReason.add,
+            delta: 2,
+            note: 'Adjust',
+            actor: 'Alex',
+            createdAt: DateTime(2025, 12, 21),
+            occurredAt: DateTime(2025, 12, 21),
+          ),
+        ],
+      );
+      when(
+        () => journalRepo.fetch(
+          branchId: null,
+          tenantWide: true,
+          stockItemId: 'item-2',
+          reason: null,
+          date: any(named: 'date'),
+          from: any(named: 'from'),
+          to: any(named: 'to'),
+          limit: 1,
+          offset: 0,
+        ),
+      ).thenAnswer(
+        (_) async => [
+          InventoryJournalEntry(
+            id: 'filtered-mobile-entry',
+            itemId: 'item-2',
+            itemName: 'Item',
+            branchId: 'branch-1',
+            branchName: 'Main Branch',
+            reason: InventoryJournalReason.restock,
+            delta: 8,
+            note: 'Filtered',
+            actor: 'Alex',
+            createdAt: DateTime(2025, 12, 22),
+            occurredAt: DateTime(2025, 12, 22),
+          ),
+        ],
+      );
+      when(
+        () => stockRepo.fetchMasterStockItems(pageSize: any(named: 'pageSize')),
+      ).thenAnswer(
+        (_) async => const [
+          StockItem(
+            id: 'item-1',
+            name: 'Iced Coffee',
+            baseUnit: 'ml',
+            pieceSize: 1,
+            branchId: '',
+            branchName: '',
+            onHand: 0,
+            minThreshold: 0,
+            isActive: true,
+          ),
+          StockItem(
+            id: 'item-2',
+            name: 'Lemon Tea',
+            baseUnit: 'ml',
+            pieceSize: 1,
+            branchId: '',
+            branchName: '',
+            onHand: 0,
+            minThreshold: 0,
+            isActive: true,
+          ),
+        ],
+      );
+
+      final container = createTestContainer(
+        overrides: [
+          inventoryJournalRepositoryProvider.overrideWithValue(journalRepo),
+          stockItemRepositoryProvider.overrideWithValue(stockRepo),
+          loginControllerProvider.overrideWith(
+            () => FakeLoginController(const LoginState()),
+          ),
+        ],
+      );
+
+      final notifier = container.read(
+        inventoryJournalControllerProvider.notifier,
+      );
+      await notifier.load(limit: 1, accumulatePages: true);
+      await notifier.loadNextChunk();
+      await notifier.load(
+        stockItemId: 'item-2',
         limit: 1,
-        offset: 0,
-      ),
-    ).thenAnswer(
-      (_) async => [
-        InventoryJournalEntry(
-          id: 'entry-1',
-          itemId: 'item-1',
-          itemName: 'Item',
-          branchId: 'branch-1',
-          branchName: 'Main Branch',
-          reason: InventoryJournalReason.restock,
-          delta: 5,
-          note: 'Restock',
-          actor: 'Alex',
-          createdAt: DateTime(2025, 12, 20),
-          occurredAt: DateTime(2025, 12, 20),
-        ),
-      ],
-    );
-    when(
-      () => journalRepo.fetch(
-        branchId: null,
-        tenantWide: true,
-        stockItemId: any(named: 'stockItemId'),
-        reason: null,
-        limit: 1,
-        offset: 1,
-      ),
-    ).thenAnswer(
-      (_) async => [
-        InventoryJournalEntry(
-          id: 'entry-2',
-          itemId: 'item-2',
-          itemName: 'Item',
-          branchId: 'branch-1',
-          branchName: 'Main Branch',
-          reason: InventoryJournalReason.add,
-          delta: 2,
-          note: 'Adjust',
-          actor: 'Alex',
-          createdAt: DateTime(2025, 12, 21),
-          occurredAt: DateTime(2025, 12, 21),
-        ),
-      ],
-    );
-    when(
-      () => stockRepo.fetchMasterStockItems(pageSize: any(named: 'pageSize')),
-    ).thenAnswer(
-      (_) async => const [
-        StockItem(
-          id: 'item-1',
-          name: 'Iced Coffee',
-          baseUnit: 'ml',
-          pieceSize: 1,
-          branchId: '',
-          branchName: '',
-          onHand: 0,
-          minThreshold: 0,
-          isActive: true,
-        ),
-        StockItem(
-          id: 'item-2',
-          name: 'Lemon Tea',
-          baseUnit: 'ml',
-          pieceSize: 1,
-          branchId: '',
-          branchName: '',
-          onHand: 0,
-          minThreshold: 0,
-          isActive: true,
-        ),
-      ],
-    );
+        accumulatePages: true,
+      );
 
-    final container = createTestContainer(
-      overrides: [
-        inventoryJournalRepositoryProvider.overrideWithValue(journalRepo),
-        stockItemRepositoryProvider.overrideWithValue(stockRepo),
-        loginControllerProvider.overrideWith(
-          () => FakeLoginController(const LoginState()),
+      final state = container.read(inventoryJournalControllerProvider);
+      expect(state.entries, hasLength(1));
+      expect(state.entries.single.id, 'filtered-mobile-entry');
+      expect(state.currentPage, 1);
+      expect(state.pageOffset, 0);
+      expect(state.selectedStockItemId, 'item-2');
+      expect(state.isAccumulatingPages, isTrue);
+      expect(state.hasPreviousPage, isFalse);
+      expect(state.visibleRangeStart, 1);
+      expect(state.visibleRangeEnd, 1);
+      verify(
+        () => journalRepo.fetch(
+          branchId: null,
+          tenantWide: true,
+          stockItemId: 'item-2',
+          reason: null,
+          date: any(named: 'date'),
+          from: any(named: 'from'),
+          to: any(named: 'to'),
+          limit: 1,
+          offset: 0,
         ),
-      ],
-    );
-
-    final notifier = container.read(
-      inventoryJournalControllerProvider.notifier,
-    );
-    await notifier.load(limit: 1);
-    await notifier.loadMore();
-
-    final state = container.read(inventoryJournalControllerProvider);
-    expect(state.entries, hasLength(2));
-    expect(state.offset, 2);
-    expect(state.hasMore, isTrue);
-  });
+      ).called(1);
+    },
+  );
 }

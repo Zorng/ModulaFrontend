@@ -198,6 +198,9 @@ void main() {
           branchId: 'branch-1',
           stockItemId: 'item-1',
           reasonCode: 'SALE_DEDUCTION',
+          date: null,
+          from: null,
+          to: null,
           limit: 100,
           offset: 20,
         ),
@@ -233,6 +236,9 @@ void main() {
           branchId: 'branch-1',
           stockItemId: 'item-1',
           reasonCode: 'SALE_DEDUCTION',
+          date: null,
+          from: null,
+          to: null,
           limit: 100,
           offset: 20,
         ),
@@ -242,6 +248,41 @@ void main() {
       expect(rows.first.delta, -250);
     },
   );
+
+  test('fetch forwards contract date query parameters', () async {
+    final api = _MockInventoryApi();
+    final repository = RemoteInventoryJournalRepository(api);
+    final from = DateTime(2026, 3, 10);
+    final to = DateTime(2026, 3, 13);
+
+    when(
+      () => api.fetchTenantJournal(
+        branchId: null,
+        stockItemId: null,
+        reasonCode: null,
+        date: null,
+        from: from,
+        to: to,
+        limit: 50,
+        offset: 0,
+      ),
+    ).thenAnswer((_) async => const []);
+
+    await repository.fetch(from: from, to: to);
+
+    verify(
+      () => api.fetchTenantJournal(
+        branchId: null,
+        stockItemId: null,
+        reasonCode: null,
+        date: null,
+        from: from,
+        to: to,
+        limit: 50,
+        offset: 0,
+      ),
+    ).called(1);
+  });
 
   test(
     'fetch normalizes domain reason filter values to contract reasonCode enums',
@@ -264,6 +305,9 @@ void main() {
             branchId: any(named: 'branchId'),
             stockItemId: any(named: 'stockItemId'),
             reasonCode: any(named: 'reasonCode'),
+            date: any(named: 'date'),
+            from: any(named: 'from'),
+            to: any(named: 'to'),
             limit: any(named: 'limit'),
             offset: any(named: 'offset'),
           ),
@@ -276,6 +320,9 @@ void main() {
             branchId: null,
             stockItemId: null,
             reasonCode: expectedReasonCode,
+            date: null,
+            from: null,
+            to: null,
             limit: 50,
             offset: 0,
           ),
@@ -293,6 +340,9 @@ void main() {
         branchId: null,
         stockItemId: null,
         reasonCode: null,
+        date: null,
+        from: null,
+        to: null,
         limit: 50,
         offset: 0,
       ),

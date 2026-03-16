@@ -93,6 +93,95 @@ void main() {
   });
 
   test(
+    'fetchStockItems retries uncached when the first response is 304',
+    () async {
+      final dio = _MockDio();
+      var callCount = 0;
+      Map<String, dynamic>? retryQuery;
+      Options? retryOptions;
+      when(
+        () => dio.get<Map<String, dynamic>>(
+          '/v0/inventory/items',
+          queryParameters: any(named: 'queryParameters'),
+          options: any(named: 'options'),
+        ),
+      ).thenAnswer((invocation) async {
+        if (callCount++ == 0) {
+          throw DioError(
+            requestOptions: RequestOptions(path: '/v0/inventory/items'),
+            response: Response<Map<String, dynamic>>(
+              requestOptions: RequestOptions(path: '/v0/inventory/items'),
+              statusCode: 304,
+              data: null,
+            ),
+            type: DioErrorType.badResponse,
+          );
+        }
+        retryQuery =
+            invocation.namedArguments[#queryParameters]
+                as Map<String, dynamic>?;
+        retryOptions = invocation.namedArguments[#options] as Options?;
+        return Response<Map<String, dynamic>>(
+          requestOptions: RequestOptions(path: '/v0/inventory/items'),
+          data: {
+            'success': true,
+            'data': [
+              {
+                'id': 'item-1',
+                'tenantId': 'tenant-1',
+                'categoryId': 'cat-1',
+                'name': 'Whole Milk',
+                'baseUnit': 'ml',
+                'lowStockThreshold': 1000,
+                'status': 'ACTIVE',
+                'createdAt': '2026-02-20T00:00:00.000Z',
+                'updatedAt': '2026-02-21T00:00:00.000Z',
+              },
+            ],
+          },
+        );
+      });
+
+      final api = InventoryApi(dio);
+      final rows = await api.fetchStockItems(
+        status: 'all',
+        limit: 200,
+        offset: 0,
+      );
+
+      verify(
+        () => dio.get<Map<String, dynamic>>(
+          '/v0/inventory/items',
+          queryParameters: {'status': 'all', 'limit': 200, 'offset': 0},
+          options: null,
+        ),
+      ).called(1);
+      expect(
+        retryQuery,
+        allOf(
+          containsPair('status', 'all'),
+          containsPair('limit', 200),
+          containsPair('offset', 0),
+          contains('_'),
+        ),
+      );
+      expect(
+        retryOptions,
+        isA<Options>().having(
+          (o) => o.headers,
+          'headers',
+          allOf(
+            containsPair('Cache-Control', 'no-store, no-cache, max-age=0'),
+            containsPair('Pragma', 'no-cache'),
+          ),
+        ),
+      );
+      expect(rows, hasLength(1));
+      expect(rows.first.id, 'item-1');
+    },
+  );
+
+  test(
     'createStockItem posts contract payload with idempotency metadata',
     () async {
       final dio = _MockDio();

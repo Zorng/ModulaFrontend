@@ -4,6 +4,7 @@ import 'package:modular_pos/features/inventory/data/inventory_journal_repository
 import 'package:modular_pos/features/inventory/data/stock_item_repository.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_journal_entry.dart';
+import 'package:modular_pos/features/inventory/ui/models/inventory_journal_date_filter.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/inventory_error_mapper.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/inventory_journal_state.dart';
 
@@ -27,12 +28,18 @@ class InventoryJournalController extends Notifier<InventoryJournalState> {
     String? branchId,
     String? stockItemId,
     InventoryJournalReason? reason,
+    InventoryJournalDateFilter? dateFilter,
     int limit = 10,
-    int offset = 0,
-    bool append = false,
+    int page = 1,
+    bool pageTransition = false,
+    bool accumulatePages = false,
   }) async {
     final safeLimit = limit <= 0 ? 10 : limit;
-    final safeOffset = offset < 0 ? 0 : offset;
+    final safePage = page <= 0 ? 1 : page;
+    final safeOffset = (safePage - 1) * safeLimit;
+    final resolvedDateFilter = resolveInventoryJournalDateFilter(
+      dateFilter ?? state.dateFilter,
+    );
     final normalizedBranchId =
         (branchId != null && branchId.isNotEmpty && branchId != 'all')
         ? branchId
@@ -40,17 +47,18 @@ class InventoryJournalController extends Notifier<InventoryJournalState> {
     final normalizedStockItemId = stockItemId ?? '';
     try {
       state = state.copyWith(
-        isLoading: !append,
-        isLoadingMore: append,
+        isLoading: !pageTransition,
+        isPageLoading: pageTransition,
         error: null,
         errorCode: null,
-        limit: safeLimit,
+        pageSize: safeLimit,
         scope: normalizedBranchId == null
             ? InventoryJournalScope.tenantWide
             : InventoryJournalScope.branch,
         selectedBranchId: normalizedBranchId ?? 'all',
         selectedStockItemId: normalizedStockItemId,
         selectedReason: reason,
+        dateFilter: resolvedDateFilter,
       );
       final userBranches =
           ref.read(loginControllerProvider).user?.branches ?? const [];
@@ -59,6 +67,9 @@ class InventoryJournalController extends Notifier<InventoryJournalState> {
         tenantWide: normalizedBranchId == null,
         stockItemId: stockItemId,
         reason: reason,
+        date: resolvedDateFilter.date,
+        from: resolvedDateFilter.date == null ? resolvedDateFilter.from : null,
+        to: resolvedDateFilter.date == null ? resolvedDateFilter.to : null,
         limit: safeLimit,
         offset: safeOffset,
       );
@@ -93,17 +104,19 @@ class InventoryJournalController extends Notifier<InventoryJournalState> {
           )
           .toList();
 
-      final nextEntries = append
-          ? _mergeEntries(state.entries, enriched)
+      final nextEntries = accumulatePages && safePage > 1
+          ? [...state.entries, ...enriched]
           : enriched;
       nextEntries.sort((a, b) => b.occurredAt.compareTo(a.occurredAt));
-      final hasMore = fetched.length == safeLimit;
+      final hasNextPage = fetched.length == safeLimit;
       state = state.copyWith(
         isLoading: false,
-        isLoadingMore: false,
+        isPageLoading: false,
+        isAccumulatingPages: accumulatePages,
         entries: nextEntries,
-        offset: safeOffset + fetched.length,
-        hasMore: hasMore,
+        currentPage: safePage,
+        pageOffset: accumulatePages ? 0 : safeOffset,
+        hasNextPage: hasNextPage,
         error: null,
         errorCode: null,
       );
@@ -114,36 +127,88 @@ class InventoryJournalController extends Notifier<InventoryJournalState> {
       );
       state = state.copyWith(
         isLoading: false,
-        isLoadingMore: false,
+        isPageLoading: false,
         error: mapped.message,
         errorCode: mapped.code,
       );
     }
   }
 
-  Future<void> loadMore({
+  Future<void> goToNextPage({
     String? branchId,
     String? stockItemId,
     InventoryJournalReason? reason,
   }) async {
-    if (state.isLoading || state.isLoadingMore) return;
-    if (!state.hasMore) return;
+    if (state.isLoading || state.isPageLoading) return;
+    if (!state.hasNextPage) return;
     final selectedBranchId = branchId ?? state.selectedBranchId;
     final selectedStockItemId = stockItemId ?? state.selectedStockItemId;
     await load(
       branchId: selectedBranchId == 'all' ? null : selectedBranchId,
       stockItemId: selectedStockItemId.isEmpty ? null : selectedStockItemId,
       reason: reason ?? state.selectedReason,
-      limit: state.limit,
-      offset: state.offset,
-      append: true,
+      dateFilter: state.dateFilter,
+      limit: state.pageSize,
+      page: state.currentPage + 1,
+      pageTransition: true,
+      accumulatePages: false,
+    );
+  }
+
+  Future<void> goToPreviousPage({
+    String? branchId,
+    String? stockItemId,
+    InventoryJournalReason? reason,
+  }) async {
+    if (state.isLoading || state.isPageLoading) return;
+    if (!state.hasPreviousPage) return;
+    final selectedBranchId = branchId ?? state.selectedBranchId;
+    final selectedStockItemId = stockItemId ?? state.selectedStockItemId;
+    await load(
+      branchId: selectedBranchId == 'all' ? null : selectedBranchId,
+      stockItemId: selectedStockItemId.isEmpty ? null : selectedStockItemId,
+      reason: reason ?? state.selectedReason,
+      dateFilter: state.dateFilter,
+      limit: state.pageSize,
+      page: state.currentPage - 1,
+      pageTransition: true,
+      accumulatePages: false,
+    );
+  }
+
+  Future<void> loadNextChunk({
+    String? branchId,
+    String? stockItemId,
+    InventoryJournalReason? reason,
+  }) async {
+    if (state.isLoading || state.isPageLoading) return;
+    if (!state.hasNextPage) return;
+    final selectedBranchId = branchId ?? state.selectedBranchId;
+    final selectedStockItemId = stockItemId ?? state.selectedStockItemId;
+    await load(
+      branchId: selectedBranchId == 'all' ? null : selectedBranchId,
+      stockItemId: selectedStockItemId.isEmpty ? null : selectedStockItemId,
+      reason: reason ?? state.selectedReason,
+      dateFilter: state.dateFilter,
+      limit: state.pageSize,
+      page: state.currentPage + 1,
+      pageTransition: true,
+      accumulatePages: true,
     );
   }
 
   void recordEntry(InventoryJournalEntry entry) {
-    final next = [entry, ...state.entries];
+    final next = state.currentPage == 1
+        ? [entry, ...state.entries].take(state.pageSize).toList(growable: false)
+        : [...state.entries];
     next.sort((a, b) => b.occurredAt.compareTo(a.occurredAt));
-    state = state.copyWith(entries: next, error: null, errorCode: null);
+    state = state.copyWith(
+      entries: next,
+      hasNextPage: state.hasNextPage || state.currentPage > 1,
+      isAccumulatingPages: state.isAccumulatingPages,
+      error: null,
+      errorCode: null,
+    );
   }
 
   InventoryJournalEntry _withBranchFallback(
@@ -176,17 +241,5 @@ class InventoryJournalController extends Notifier<InventoryJournalState> {
     if (trimmed.isEmpty) return false;
     if (trimmed.toLowerCase() == 'item') return false;
     return true;
-  }
-
-  List<InventoryJournalEntry> _mergeEntries(
-    List<InventoryJournalEntry> existing,
-    List<InventoryJournalEntry> next,
-  ) {
-    final seen = <String>{for (final entry in existing) entry.id};
-    final merged = <InventoryJournalEntry>[...existing];
-    for (final entry in next) {
-      if (seen.add(entry.id)) merged.add(entry);
-    }
-    return merged;
   }
 }

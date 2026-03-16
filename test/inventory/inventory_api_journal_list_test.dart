@@ -73,7 +73,7 @@ void main() {
     },
   );
 
-  test('fetchJournal normalizes unknown reasonCode to OTHER', () async {
+  test('fetchJournal sends date-range params using contract shape', () async {
     final dio = _MockDio();
     when(
       () => dio.get<Map<String, dynamic>>(
@@ -90,8 +90,40 @@ void main() {
     final api = InventoryApi(dio);
     await api.fetchJournal(
       branchId: 'branch-1',
-      reasonCode: 'invalid-reason',
+      from: DateTime(2026, 3, 10),
+      to: DateTime(2026, 3, 13),
     );
+
+    verify(
+      () => dio.get<Map<String, dynamic>>(
+        '/v0/inventory/journal',
+        queryParameters: {
+          'branchId': 'branch-1',
+          'from': '2026-03-10',
+          'to': '2026-03-13',
+          'limit': 50,
+          'offset': 0,
+        },
+      ),
+    ).called(1);
+  });
+
+  test('fetchJournal normalizes unknown reasonCode to OTHER', () async {
+    final dio = _MockDio();
+    when(
+      () => dio.get<Map<String, dynamic>>(
+        any(),
+        queryParameters: any(named: 'queryParameters'),
+      ),
+    ).thenAnswer(
+      (_) async => Response<Map<String, dynamic>>(
+        requestOptions: RequestOptions(path: '/v0/inventory/journal'),
+        data: {'success': true, 'data': const []},
+      ),
+    );
+
+    final api = InventoryApi(dio);
+    await api.fetchJournal(branchId: 'branch-1', reasonCode: 'invalid-reason');
 
     verify(
       () => dio.get<Map<String, dynamic>>(

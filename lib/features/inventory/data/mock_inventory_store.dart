@@ -32,7 +32,9 @@ class MockInventoryStore {
   List<InventoryCategory> fetchCategories({String status = 'all'}) {
     final normalizedStatus = _normalizeStatus(status);
     return _categories.values
-        .where((category) => _matchesStatus(category.isActive, normalizedStatus))
+        .where(
+          (category) => _matchesStatus(category.isActive, normalizedStatus),
+        )
         .toList(growable: false);
   }
 
@@ -53,7 +55,9 @@ class MockInventoryStore {
       );
     }
     final created = category.copyWith(
-      id: category.id.isNotEmpty ? category.id : _nextId('mock-category', _nextCategoryId++),
+      id: category.id.isNotEmpty
+          ? category.id
+          : _nextId('mock-category', _nextCategoryId++),
       name: normalizedName,
       isActive: category.isActive,
     );
@@ -149,7 +153,9 @@ class MockInventoryStore {
       );
     }
     final categoryId = _sanitizeCategoryId(item.categoryId);
-    final id = item.id.isNotEmpty ? item.id : _nextId('mock-stock-item', _nextStockItemId++);
+    final id = item.id.isNotEmpty
+        ? item.id
+        : _nextId('mock-stock-item', _nextStockItemId++);
     final created = StockItem(
       id: id,
       name: normalizedName,
@@ -161,7 +167,12 @@ class MockInventoryStore {
       onHand: 0,
       minThreshold: item.minThreshold < 0 ? 0 : item.minThreshold,
       isActive: item.isActive,
-      imageUrl: _resolveImageUrl(id: id, current: item.imageUrl, imagePath: imagePath, imageBytes: imageBytes),
+      imageUrl: _resolveImageUrl(
+        id: id,
+        current: item.imageUrl,
+        imagePath: imagePath,
+        imageBytes: imageBytes,
+      ),
     );
     _items[id] = created;
     return created;
@@ -252,9 +263,7 @@ class MockInventoryStore {
       return _positions.values
           .where((position) => position.branchId == targetBranch)
           .map((position) => _toInventoryItem(position, targetBranch))
-          .where(
-            (item) => _matchesStatus(item.isActive, normalizedStatus),
-          )
+          .where((item) => _matchesStatus(item.isActive, normalizedStatus))
           .toList(growable: false);
     }
 
@@ -441,6 +450,9 @@ class MockInventoryStore {
     bool tenantWide = false,
     String? stockItemId,
     InventoryJournalReason? reason,
+    DateTime? date,
+    DateTime? from,
+    DateTime? to,
     int limit = 50,
     int offset = 0,
   }) {
@@ -448,19 +460,43 @@ class MockInventoryStore {
     if (normalizedBranch != null) {
       _ensureValidBranch(normalizedBranch);
     }
-    final filtered = _journal.where((entry) {
-      if (normalizedBranch != null && entry.branchId != normalizedBranch) {
-        return false;
-      }
-      if (stockItemId != null && stockItemId.isNotEmpty && entry.itemId != stockItemId) {
-        return false;
-      }
-      if (reason != null && entry.reason != reason) {
-        return false;
-      }
-      return true;
-    }).toList(growable: false)
-      ..sort((left, right) => right.occurredAt.compareTo(left.occurredAt));
+    final filtered =
+        _journal
+            .where((entry) {
+              final occurredDate = DateTime(
+                entry.occurredAt.year,
+                entry.occurredAt.month,
+                entry.occurredAt.day,
+              );
+              if (normalizedBranch != null &&
+                  entry.branchId != normalizedBranch) {
+                return false;
+              }
+              if (stockItemId != null &&
+                  stockItemId.isNotEmpty &&
+                  entry.itemId != stockItemId) {
+                return false;
+              }
+              if (reason != null && entry.reason != reason) {
+                return false;
+              }
+              if (date != null) {
+                final targetDate = DateTime(date.year, date.month, date.day);
+                if (occurredDate != targetDate) return false;
+              } else {
+                if (from != null) {
+                  final startDate = DateTime(from.year, from.month, from.day);
+                  if (occurredDate.isBefore(startDate)) return false;
+                }
+                if (to != null) {
+                  final endDate = DateTime(to.year, to.month, to.day);
+                  if (occurredDate.isAfter(endDate)) return false;
+                }
+              }
+              return true;
+            })
+            .toList(growable: false)
+          ..sort((left, right) => right.occurredAt.compareTo(left.occurredAt));
 
     return _page(filtered, limit: limit, offset: offset);
   }
@@ -503,24 +539,32 @@ class MockInventoryStore {
       _ensureValidBranch(normalizedBranch);
     }
     final normalizedStatus = _normalizeStatus(status);
-    final filtered = _batches.values.where((batch) {
-      if (normalizedBranch != null && batch.branchId != normalizedBranch) {
-        return false;
-      }
-      if (stockItemId != null && stockItemId.isNotEmpty && batch.stockItemId != stockItemId) {
-        return false;
-      }
-      if (normalizedStatus == 'active' && batch.isArchived) return false;
-      if (normalizedStatus == 'archived' && !batch.isArchived) return false;
-      return true;
-    }).toList(growable: false)
-      ..sort((left, right) => right.receivedDate.compareTo(left.receivedDate));
+    final filtered =
+        _batches.values
+            .where((batch) {
+              if (normalizedBranch != null &&
+                  batch.branchId != normalizedBranch) {
+                return false;
+              }
+              if (stockItemId != null &&
+                  stockItemId.isNotEmpty &&
+                  batch.stockItemId != stockItemId) {
+                return false;
+              }
+              if (normalizedStatus == 'active' && batch.isArchived) {
+                return false;
+              }
+              if (normalizedStatus == 'archived' && !batch.isArchived) {
+                return false;
+              }
+              return true;
+            })
+            .toList(growable: false)
+          ..sort(
+            (left, right) => right.receivedDate.compareTo(left.receivedDate),
+          );
 
-    final paged = _page(
-      filtered,
-      limit: limit ?? 50,
-      offset: offset ?? 0,
-    );
+    final paged = _page(filtered, limit: limit ?? 50, offset: offset ?? 0);
     return paged.map((batch) => batch.toDomain()).toList(growable: false);
   }
 
@@ -549,8 +593,12 @@ class MockInventoryStore {
       );
     }
     final updated = current.copyWith(
-      expiryDate: expiryDate == null ? current.expiryDate : _normalizeOptionalDate(expiryDate),
-      supplierName: supplierName == null ? current.supplierName : _normalizeOptionalText(supplierName),
+      expiryDate: expiryDate == null
+          ? current.expiryDate
+          : _normalizeOptionalDate(expiryDate),
+      supplierName: supplierName == null
+          ? current.supplierName
+          : _normalizeOptionalText(supplierName),
       purchaseCostUsd: purchaseCostUsd ?? current.purchaseCostUsd,
       note: note == null ? current.note : _normalizeOptionalText(note),
     );
@@ -765,7 +813,8 @@ class MockInventoryStore {
   void _ensureValidBranch(String branchId) {
     if (!_branchNames.containsKey(branchId)) {
       throw const ApiClientException(
-        message: 'Selected branch no longer exists. Refresh branches and try again.',
+        message:
+            'Selected branch no longer exists. Refresh branches and try again.',
         code: 'BRANCH_NOT_FOUND',
         statusCode: 404,
       );
@@ -849,7 +898,8 @@ class MockInventoryStore {
   bool _hasStockItemNameConflict(String name, {String? excludeId}) {
     final normalized = name.trim().toLowerCase();
     return _items.values.any(
-      (item) => item.id != excludeId && item.name.trim().toLowerCase() == normalized,
+      (item) =>
+          item.id != excludeId && item.name.trim().toLowerCase() == normalized,
     );
   }
 
@@ -919,11 +969,7 @@ class MockInventoryStore {
     return current ?? '';
   }
 
-  List<T> _page<T>(
-    List<T> items, {
-    required int limit,
-    required int offset,
-  }) {
+  List<T> _page<T>(List<T> items, {required int limit, required int offset}) {
     final safeLimit = limit <= 0 ? 50 : limit;
     final safeOffset = offset < 0 ? 0 : offset;
     if (safeOffset >= items.length) return <T>[];

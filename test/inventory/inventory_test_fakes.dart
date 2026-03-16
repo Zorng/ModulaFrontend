@@ -3,6 +3,9 @@ import 'package:modular_pos/features/auth/domain/models/auth_session.dart';
 import 'package:modular_pos/features/auth/domain/models/tenant_membership.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
+import 'package:modular_pos/features/branchV2/domain/models/branch_models.dart';
+import 'package:modular_pos/features/branchV2/ui/viewmodels/branch_controller.dart';
+import 'package:modular_pos/features/branchV2/ui/viewmodels/branch_state.dart';
 import 'package:modular_pos/features/inventory/data/branch_stock_repository.dart';
 import 'package:modular_pos/features/inventory/data/stock_item_repository.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_category.dart';
@@ -10,6 +13,7 @@ import 'package:modular_pos/features/inventory/domain/models/inventory_journal_e
 import 'package:modular_pos/features/inventory/domain/models/on_hand_record.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_batch.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
+import 'package:modular_pos/features/inventory/ui/models/inventory_journal_date_filter.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/category_controller.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/category_state.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/inventory_journal_controller.dart';
@@ -118,6 +122,21 @@ class FakeLoginController extends LoginController {
 
   @override
   LoginState build() => _state;
+}
+
+class FakeBranchController extends BranchController {
+  FakeBranchController(this._state);
+
+  final BranchState _state;
+
+  @override
+  BranchState build() => _state;
+
+  @override
+  Future<void> loadInitial() async {}
+
+  @override
+  Future<void> refreshBranches() async {}
 }
 
 class FakeCategoryController extends CategoryController {
@@ -231,9 +250,11 @@ class FakeInventoryJournalController extends InventoryJournalController {
     String? branchId,
     String? stockItemId,
     InventoryJournalReason? reason,
-    int limit = 50,
-    int offset = 0,
-    bool append = false,
+    InventoryJournalDateFilter? dateFilter,
+    int limit = 10,
+    int page = 1,
+    bool pageTransition = false,
+    bool accumulatePages = false,
   }) async {}
 }
 
@@ -339,6 +360,7 @@ class FakeBranchStockRepository extends BranchStockRepository {
 
 List<Override> inventoryOverrides({
   LoginState? loginState,
+  BranchState? branchState,
   CategoryState? categoryState,
   StockInventoryState? stockInventoryState,
   List<InventoryJournalEntry>? journalEntries,
@@ -349,6 +371,21 @@ List<Override> inventoryOverrides({
   return [
     loginControllerProvider.overrideWith(
       () => FakeLoginController(loginState ?? LoginState(session: testSession)),
+    ),
+    branchControllerProvider.overrideWith(
+      () => FakeBranchController(
+        branchState ??
+            const BranchState(
+              branches: <BranchListItem>[
+                BranchListItem(
+                  branchId: 'branch-1',
+                  tenantId: 'tenant-1',
+                  branchName: 'Main Branch',
+                  status: 'ACTIVE',
+                ),
+              ],
+            ),
+      ),
     ),
     categoryControllerProvider.overrideWith(
       () => FakeCategoryController(

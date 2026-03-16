@@ -64,7 +64,7 @@ class InventoryItemCard extends StatelessWidget {
                     children: [
                       Text(
                         item.name,
-                        style: Theme.of(context).textTheme.titleMedium,
+                        style: Theme.of(context).textTheme.titleSmall,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -93,7 +93,7 @@ class InventoryItemCard extends StatelessWidget {
                     ...onHandLines.map(
                       (line) => Text(
                         line,
-                        style: Theme.of(context).textTheme.titleMedium
+                        style: Theme.of(context).textTheme.titleSmall
                             ?.copyWith(
                               color: item.isLowStock ? colorScheme.error : null,
                               fontWeight: FontWeight.w600,

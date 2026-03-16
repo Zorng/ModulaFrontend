@@ -538,6 +538,10 @@ class StockInventoryController extends Notifier<StockInventoryState> {
         item: item,
         batch: batch,
       );
+      final currentOnHand = await _currentOnHandForAdjustment(
+        item: item,
+        branchId: resolvedBranchId,
+      );
       final resolvedDelta = normalizedStyle == 'DELTA' ? delta : null;
       final resolvedCount = normalizedStyle == 'SET_TO_COUNT'
           ? countedOnHandInBaseUnit
@@ -560,7 +564,7 @@ class StockInventoryController extends Notifier<StockInventoryState> {
       }
       final expectedOnHand = normalizedStyle == 'SET_TO_COUNT'
           ? resolvedCount!
-          : item.onHand + resolvedDelta!;
+          : currentOnHand + resolvedDelta!;
       if (expectedOnHand < 0) {
         throw const ApiClientException(
           message: 'Adjustment exceeds available quantity.',
@@ -825,6 +829,32 @@ class StockInventoryController extends Notifier<StockInventoryState> {
     final trimmed = branchId.trim();
     if (trimmed.isEmpty || trimmed == 'all') return null;
     return trimmed;
+  }
+
+  Future<int> _currentOnHandForAdjustment({
+    required StockItem item,
+    required String branchId,
+  }) async {
+    for (final inventoryItem in state.inventoryItems) {
+      if (inventoryItem.id == item.id && inventoryItem.branchId == branchId) {
+        return inventoryItem.onHand;
+      }
+    }
+
+    final records = await _branchStockRepository.fetchOnHand(
+      branchId: branchId,
+      status: 'all',
+    );
+    for (final record in records) {
+      if (record.stockItemId == item.id) {
+        return record.onHand ?? 0;
+      }
+    }
+
+    if (item.branchId == branchId) {
+      return item.onHand;
+    }
+    return 0;
   }
 
   StockItem _findItemOrThrow(String id) {
