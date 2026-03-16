@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:modular_pos/core/widgets/display/staff_shift_info_chip.dart';
 import 'package:modular_pos/features/staff/domain/models/staff_membership_models.dart';
-import 'package:modular_pos/features/staff/ui/components/staff_role_chip.dart';
 import 'package:modular_pos/features/staff/ui/components/staff_status_chip.dart';
 import 'package:modular_pos/features/staff/ui/components/staff_ui_formatters.dart';
 
@@ -18,9 +18,21 @@ class StaffMembershipListCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final initials = membership.displayName
+        .trim()
+        .split(' ')
+        .take(2)
+        .map((w) => w.isNotEmpty ? w[0].toUpperCase() : '')
+        .join();
+
     return Card(
       color: Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: Colors.grey.shade200),
+      ),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: onTap,
@@ -29,78 +41,117 @@ class StaffMembershipListCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // ── Header ────────────────────────────────────────────
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primaryContainer,
+                      shape: BoxShape.circle,
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      initials,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                        color: theme.colorScheme.onPrimaryContainer,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           membership.displayName,
-                          style: Theme.of(context).textTheme.titleMedium,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 2),
                         Text(
-                          membership.phone,
-                          style: Theme.of(context).textTheme.bodySmall,
+                          formatBranchAssignmentSummary(
+                            // <-- branch moved here
+                            membership.branchIds,
+                            branchNameById,
+                          ),
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: Colors.grey.shade600,
+                          ),
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  StaffStatusChip.membership(status: membership.membershipStatus),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  StaffRoleChip(roleKey: membership.roleKey),
-                  _InfoPill(
-                    label: formatBranchAssignmentSummary(
-                      membership.branchIds,
-                      branchNameById,
-                    ),
+                  const SizedBox(width: 8),
+                  StaffStatusChip.membership(
+                    status: membership.membershipStatus,
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
+
+              const SizedBox(height: 14),
+              Divider(height: 1, color: Colors.grey.shade100),
+              const SizedBox(height: 14),
+
+              // ── Info chips ────────────────────────────────────────
               Row(
                 children: [
+                  InfoChip(
+                    icon: Icons.person_outline,
+                    label: 'Role',
+                    value: membership.roleKey,
+                  ),
+                  const SizedBox(width: 8),
+                  InfoChip(
+                    icon: Icons.phone_outlined, // <-- phone moved here
+                    label: 'Phone',
+                    value: membership.phone,
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 14),
+              Divider(height: 1, color: Colors.grey.shade100),
+              const SizedBox(height: 10),
+
+              // ── Footer ────────────────────────────────────────────
+              Row(
+                children: [
+                  Icon(
+                    Icons.access_time_outlined,
+                    size: 13,
+                    color: Colors.grey.shade400,
+                  ),
+                  const SizedBox(width: 6),
                   Text(
                     '${membership.primaryLifecycleLabel}: ${formatStaffDateTime(membership.primaryLifecycleTimestamp)}',
-                    style: Theme.of(context).textTheme.bodySmall,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: Colors.black,
+                    ),
                   ),
                   const Spacer(),
-                  TextButton(onPressed: onTap, child: const Text('View')),
+                  FilledButton(
+                    onPressed: onTap,
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size(0, 42),
+                      backgroundColor: Colors.grey.shade900,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: const Text('View'),
+                  ),
                 ],
               ),
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _InfoPill extends StatelessWidget {
-  const _InfoPill({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.labelMedium,
       ),
     );
   }

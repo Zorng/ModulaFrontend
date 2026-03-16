@@ -73,10 +73,11 @@ class StaffAttendanceReviewState {
   }
 }
 
-final staffAttendanceReviewControllerProvider = AsyncNotifierProvider<
-  StaffAttendanceReviewController,
-  StaffAttendanceReviewState
->(StaffAttendanceReviewController.new);
+final staffAttendanceReviewControllerProvider =
+    AsyncNotifierProvider<
+      StaffAttendanceReviewController,
+      StaffAttendanceReviewState
+    >(StaffAttendanceReviewController.new);
 
 class StaffAttendanceReviewController
     extends AsyncNotifier<StaffAttendanceReviewState> {
@@ -136,6 +137,19 @@ class StaffAttendanceReviewController
     );
   }
 
+  Future<void> clearFilters() async {
+    final current = _currentState;
+    if (current == null) return;
+    if (current.selectedBranchId == null && current.selectedAccountId == null) {
+      return;
+    }
+    await _reload(
+      selectedBranchId: null,
+      selectedAccountId: null,
+      dateRange: current.selectedDateRange,
+    );
+  }
+
   Future<void> refresh() async {
     final current = _currentState;
     if (current == null) {
@@ -143,7 +157,9 @@ class StaffAttendanceReviewController
       state = await AsyncValue.guard(build);
       return;
     }
-    state = AsyncData(current.copyWith(isRefreshing: true, clearInlineError: true));
+    state = AsyncData(
+      current.copyWith(isRefreshing: true, clearInlineError: true),
+    );
     try {
       final next = await _load(
         selectedBranchId: current.selectedBranchId,
@@ -213,7 +229,9 @@ class StaffAttendanceReviewController
       );
       return;
     }
-    state = AsyncData(current.copyWith(isRefreshing: true, clearInlineError: true));
+    state = AsyncData(
+      current.copyWith(isRefreshing: true, clearInlineError: true),
+    );
     try {
       final next = await _load(
         selectedBranchId: selectedBranchId,

@@ -4,11 +4,21 @@ import 'package:modular_pos/core/feedback/user_error_message.dart';
 import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/features/staff/domain/models/staff_shift_models.dart';
 import 'package:modular_pos/features/staff/ui/view/staff_shift/widgets/staff_shift_instance_card.dart';
+import 'package:modular_pos/features/staff/ui/view/staff_shift/widgets/staff_shift_instance_data_table.dart';
 import 'package:modular_pos/features/staff/ui/view/staff_shift/widgets/staff_shift_pattern_card.dart';
+import 'package:modular_pos/features/staff/ui/view/staff_shift/widgets/staff_shift_pattern_data_table.dart';
 import 'package:modular_pos/features/staff/ui/viewmodels/staff_shift_controller.dart';
 
-class StaffShiftTabPage extends ConsumerWidget {
+class StaffShiftTabPage extends ConsumerStatefulWidget {
   const StaffShiftTabPage({super.key});
+
+  @override
+  ConsumerState<StaffShiftTabPage> createState() => _StaffShiftTabPageState();
+}
+
+class _StaffShiftTabPageState extends ConsumerState<StaffShiftTabPage>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabController;
 
   static const double _dialogMaxWidth = 600;
   static const double _rangeModalMaxWidth = 560;
@@ -29,6 +39,21 @@ class StaffShiftTabPage extends ConsumerWidget {
         ),
         border: OutlineInputBorder(),
       );
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  bool get _isPatternsTab => _tabController.index == 0;
 
   Future<DateTimeRange?> _showSelectRangeModal(
     BuildContext context,
@@ -145,7 +170,7 @@ class StaffShiftTabPage extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final asyncState = ref.watch(staffShiftControllerProvider);
     final controller = ref.read(staffShiftControllerProvider.notifier);
 
@@ -185,6 +210,7 @@ class StaffShiftTabPage extends ConsumerWidget {
               for (final membership in state.memberships)
                 membership.membershipId: membership.displayName,
             };
+
             final addPatternButton = FilledButton.tonalIcon(
               style: topButtonStyle,
               onPressed: state.selectedBranchId == null || state.isSaving
@@ -201,166 +227,172 @@ class StaffShiftTabPage extends ConsumerWidget {
               icon: const Icon(Icons.event_available_outlined),
               label: const Text('Add shift'),
             );
-            return ListView(
+
+            final activeAddButton = _isPatternsTab
+                ? addPatternButton
+                : addShiftButton;
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      final isSmall = AppBreakpoints.isSmall(
-                        constraints.maxWidth,
-                      );
-                      final menuWidth = isSmall ? constraints.maxWidth : 240.0;
-                      final wideMenuWidth = (constraints.maxWidth - 8) / 2;
-                      final resolvedMenuWidth = isSmall
-                          ? menuWidth
-                          : wideMenuWidth;
-                      final branchMenu = DropdownMenu<String?>(
-                        width: resolvedMenuWidth,
-                        initialSelection: state.selectedBranchId,
-                        label: const Text(
-                          'Branch',
-                        ), // ← moves label inside the box
-                        inputDecorationTheme: _topDropdownDecorationTheme,
-                        menuStyle: _whiteDropdownMenuStyle,
-                        onSelected: controller.setBranchId,
-                        dropdownMenuEntries: [
-                          for (final branch in state.branches)
-                            DropdownMenuEntry<String?>(
-                              value: branch.branchId,
-                              label: branch.branchName,
-                            ),
-                        ],
-                      );
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final menuWidth =
+                        (constraints.maxWidth - 16 - _topControlHeight) / 2;
 
-                      final staffMenu = DropdownMenu<String?>(
-                        width: resolvedMenuWidth,
-                        initialSelection: state.selectedMembershipId,
-                        label: const Text(
-                          'Staff',
-                        ), // ← moves label inside the box
-                        inputDecorationTheme: _topDropdownDecorationTheme,
-                        menuStyle: _whiteDropdownMenuStyle,
-                        onSelected: controller.setMembershipId,
-                        dropdownMenuEntries: [
-                          const DropdownMenuEntry<String?>(
-                            value: null,
-                            label: 'All staff',
-                          ),
-                          ...state.memberships.map(
-                            (membership) => DropdownMenuEntry<String?>(
-                              value: membership.membershipId,
-                              label: membership.displayName,
+                    final branchMenu = DropdownMenu<String?>(
+                      width: menuWidth,
+                      requestFocusOnTap: false,
+                      initialSelection: state.selectedBranchId,
+                      label: const Text('Branch'),
+                      inputDecorationTheme: _topDropdownDecorationTheme,
+                      menuStyle: _whiteDropdownMenuStyle,
+                      textStyle: const TextStyle(
+                        fontSize: 14,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      onSelected: controller.setBranchId,
+                      dropdownMenuEntries: [
+                        for (final branch in state.branches)
+                          DropdownMenuEntry<String?>(
+                            value: branch.branchId,
+                            label: branch.branchName,
+                            labelWidget: Text(
+                              branch.branchName,
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
                             ),
                           ),
-                        ],
-                      );
+                      ],
+                    );
 
-                      final branchField = branchMenu;
-                      final staffField = staffMenu;
-                      final dateRangeBtn = FilledButton.tonalIcon(
-                        style: topButtonStyle,
-                        onPressed: () async {
-                          final picked = await _showSelectRangeModal(
-                            context,
-                            state.dateRange,
-                          );
-                          if (picked != null) {
-                            await controller.setDateRange(picked);
-                          }
-                        },
-                        icon: const Icon(Icons.date_range_outlined),
-                        label: const Text('Date range'),
-                      );
-
-                      final refreshBtn = Tooltip(
-                        message: 'Refresh',
-                        child: IconButton.filledTonal(
-                          onPressed: state.isRefreshing
-                              ? null
-                              : controller.refresh,
-                          style: IconButton.styleFrom(
-                            minimumSize: const Size(
-                              _topControlHeight,
-                              _topControlHeight,
-                            ),
-                            maximumSize: const Size(
-                              _topControlHeight,
-                              _topControlHeight,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
-                          icon: state.isRefreshing
-                              ? const SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : const Icon(Icons.refresh),
+                    final staffMenu = DropdownMenu<String?>(
+                      width: menuWidth,
+                      requestFocusOnTap: false,
+                      initialSelection: state.selectedMembershipId,
+                      label: const Text('Staff'),
+                      inputDecorationTheme: _topDropdownDecorationTheme,
+                      menuStyle: _whiteDropdownMenuStyle,
+                      textStyle: const TextStyle(
+                        fontSize: 14,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      onSelected: controller.setMembershipId,
+                      dropdownMenuEntries: [
+                        const DropdownMenuEntry<String?>(
+                          value: null,
+                          label: 'All staff',
                         ),
-                      );
+                        ...state.memberships.map(
+                          (membership) => DropdownMenuEntry<String?>(
+                            value: membership.membershipId,
+                            label: membership.displayName,
+                          ),
+                        ),
+                      ],
+                    );
 
-                      if (isSmall) {
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            const SizedBox(height: 8),
-                            Row(
-                              children: [
-                                Expanded(child: addPatternButton),
-                                const SizedBox(width: 8),
-                                Expanded(child: addShiftButton),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            Row(
-                              children: [
-                                Expanded(child: dateRangeBtn),
-                                const SizedBox(width: 8),
-                                refreshBtn,
-                              ],
-                            ),
-                            const SizedBox(height: 10),
-                            branchField,
-                            const SizedBox(height: 10),
-                            staffField,
-                          ],
+                    final dateRangeBtn = FilledButton.tonalIcon(
+                      style: topButtonStyle,
+                      onPressed: () async {
+                        final picked = await _showSelectRangeModal(
+                          context,
+                          state.dateRange,
                         );
-                      }
+                        if (picked != null) {
+                          await controller.setDateRange(picked);
+                        }
+                      },
+                      icon: const Icon(Icons.date_range_outlined),
+                      label: const Text('Date range'),
+                    );
 
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(child: dateRangeBtn),
-                              const SizedBox(width: 8),
-                              Expanded(child: addPatternButton),
-                              const SizedBox(width: 8),
-                              Expanded(child: addShiftButton),
-                              const SizedBox(width: 8),
-                              refreshBtn,
-                            ],
+                    final refreshBtn = Tooltip(
+                      message: 'Refresh',
+                      child: IconButton.filledTonal(
+                        onPressed: state.isRefreshing
+                            ? null
+                            : controller.refresh,
+                        style: IconButton.styleFrom(
+                          minimumSize: const Size(
+                            _topControlHeight,
+                            _topControlHeight,
                           ),
-                          const SizedBox(height: 10),
-                          Row(
-                            children: [
-                              Expanded(child: branchField),
-                              const SizedBox(width: 8),
-                              Expanded(child: staffField),
-                            ],
+                          maximumSize: const Size(
+                            _topControlHeight,
+                            _topControlHeight,
                           ),
-                        ],
-                      );
-                    },
-                  ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        icon: state.isRefreshing
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.refresh),
+                      ),
+                    );
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(child: dateRangeBtn),
+                            const SizedBox(width: 8),
+                            Expanded(child: activeAddButton),
+                            const SizedBox(width: 8),
+                            refreshBtn,
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            branchMenu,
+                            const SizedBox(width: 8),
+                            staffMenu,
+                            const SizedBox(width: 8),
+                            IconButton(
+                              tooltip: 'Clear filters',
+                              onPressed: state.selectedMembershipId != null
+                                  ? controller.clearFilters
+                                  : null,
+                              style: IconButton.styleFrom(
+                                minimumSize: const Size(
+                                  _topControlHeight,
+                                  _topControlHeight,
+                                ),
+                                maximumSize: const Size(
+                                  _topControlHeight,
+                                  _topControlHeight,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                              icon: const Icon(Icons.filter_alt_off_outlined),
+                            ),
+                          ],
+                        ),
+                      ],
+                    );
+                  },
                 ),
-                const SizedBox(height: 12),
-                if (state.inlineError != null)
+                const SizedBox(height: 8),
+                TabBar(
+                  controller: _tabController,
+                  tabs: const [
+                    Tab(text: 'Patterns'),
+                    Tab(text: 'Instances'),
+                  ],
+                ),
+                if (state.inlineError != null) ...[
+                  const SizedBox(height: 8),
                   Card(
                     color: Colors.orange.shade50,
                     child: Padding(
@@ -370,91 +402,151 @@ class StaffShiftTabPage extends ConsumerWidget {
                       ),
                     ),
                   ),
-                if (state.inlineError != null) const SizedBox(height: 12),
-                const SizedBox(height: 4),
-                Text(
-                  'Patterns',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: 12),
-                if (state.schedule.patterns.isEmpty)
-                  const Card(
-                    color: Colors.white,
-                    child: Padding(
-                      padding: EdgeInsets.all(16),
-                      child: Text(
-                        'No shift patterns for the selected filters.',
-                      ),
-                    ),
-                  )
-                else
-                  Column(
+                ],
+                Expanded(
+                  child: TabBarView(
+                    controller: _tabController,
                     children: [
-                      for (final pattern in state.schedule.patterns)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: StaffShiftPatternCard(
-                            pattern: pattern,
-                            membershipLabel:
-                                membershipById[pattern.membershipId] ??
-                                pattern.membershipId,
-                            onEdit: () => _showPatternDialog(
-                              context,
-                              ref,
-                              state,
-                              pattern: pattern,
-                            ),
-                            onDeactivate: () => _showDeactivatePatternDialog(
-                              context,
-                              ref,
-                              pattern: pattern,
-                            ),
-                          ),
-                        ),
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          final isWide = AppBreakpoints.isLarge(
+                            MediaQuery.of(context).size.width,
+                          );
+                          if (state.schedule.patterns.isEmpty) {
+                            return const Padding(
+                              padding: EdgeInsets.only(top: 12),
+                              child: Card(
+                                color: Colors.white,
+                                child: Padding(
+                                  padding: EdgeInsets.all(16),
+                                  child: Text(
+                                    'No shift patterns for the selected filters.',
+                                  ),
+                                ),
+                              ),
+                            );
+                          }
+                          if (isWide) {
+                            return Padding(
+                              padding: const EdgeInsets.only(top: 12),
+                              child: StaffShiftPatternDataTable(
+                                patterns: state.schedule.patterns,
+                                membershipById: membershipById,
+                                onEdit: (pattern) => _showPatternDialog(
+                                  context,
+                                  ref,
+                                  state,
+                                  pattern: pattern,
+                                ),
+                                onDeactivate: (pattern) =>
+                                    _showDeactivatePatternDialog(
+                                      context,
+                                      ref,
+                                      pattern: pattern,
+                                    ),
+                              ),
+                            );
+                          }
+                          return ListView(
+                            padding: const EdgeInsets.only(top: 12),
+                            children: [
+                              for (final pattern in state.schedule.patterns)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 12),
+                                  child: StaffShiftPatternCard(
+                                    pattern: pattern,
+                                    membershipLabel:
+                                        membershipById[pattern.membershipId] ??
+                                        pattern.membershipId,
+                                    onEdit: () => _showPatternDialog(
+                                      context,
+                                      ref,
+                                      state,
+                                      pattern: pattern,
+                                    ),
+                                    onDeactivate: () =>
+                                        _showDeactivatePatternDialog(
+                                          context,
+                                          ref,
+                                          pattern: pattern,
+                                        ),
+                                  ),
+                                ),
+                            ],
+                          );
+                        },
+                      ),
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          final isWide = AppBreakpoints.isLarge(
+                            MediaQuery.of(context).size.width,
+                          );
+                          if (state.schedule.instances.isEmpty) {
+                            return const Padding(
+                              padding: EdgeInsets.only(top: 12),
+                              child: Card(
+                                color: Colors.white,
+                                child: Padding(
+                                  padding: EdgeInsets.all(16),
+                                  child: Text(
+                                    'No shift instances for the selected filters.',
+                                  ),
+                                ),
+                              ),
+                            );
+                          }
+                          if (isWide) {
+                            return Padding(
+                              padding: const EdgeInsets.only(top: 12),
+                              child: StaffShiftInstanceDataTable(
+                                instances: state.schedule.instances,
+                                membershipById: membershipById,
+                                onEdit: (instance) => _showInstanceDialog(
+                                  context,
+                                  ref,
+                                  state,
+                                  instance: instance,
+                                ),
+                                onCancel: (instance) =>
+                                    _showCancelInstanceDialog(
+                                      context,
+                                      ref,
+                                      instance: instance,
+                                    ),
+                              ),
+                            );
+                          }
+                          return ListView(
+                            padding: const EdgeInsets.only(top: 12),
+                            children: [
+                              for (final instance in state.schedule.instances)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 12),
+                                  child: StaffShiftInstanceCard(
+                                    instance: instance,
+                                    membershipLabel:
+                                        membershipById[instance.membershipId] ??
+                                        instance.membershipId,
+                                    onEdit: () => _showInstanceDialog(
+                                      context,
+                                      ref,
+                                      state,
+                                      instance: instance,
+                                    ),
+                                    onCancel: () => _showCancelInstanceDialog(
+                                      context,
+                                      ref,
+                                      instance: instance,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          );
+                        },
+                      ),
                     ],
                   ),
-                const SizedBox(height: 16),
-                Text(
-                  'Instances',
-                  style: Theme.of(context).textTheme.titleMedium,
                 ),
-                const SizedBox(height: 12),
-                if (state.schedule.instances.isEmpty)
-                  const Card(
-                    color: Colors.white,
-                    child: Padding(
-                      padding: EdgeInsets.all(16),
-                      child: Text(
-                        'No shift instances for the selected filters.',
-                      ),
-                    ),
-                  )
-                else
-                  Column(
-                    children: [
-                      for (final instance in state.schedule.instances)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: StaffShiftInstanceCard(
-                            instance: instance,
-                            membershipLabel:
-                                membershipById[instance.membershipId] ??
-                                instance.membershipId,
-                            onEdit: () => _showInstanceDialog(
-                              context,
-                              ref,
-                              state,
-                              instance: instance,
-                            ),
-                            onCancel: () => _showCancelInstanceDialog(
-                              context,
-                              ref,
-                              instance: instance,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
               ],
             );
           },
@@ -506,6 +598,7 @@ class StaffShiftTabPage extends ConsumerWidget {
                         width: fieldWidth,
                         child: DropdownMenu<String>(
                           width: fieldWidth,
+                          requestFocusOnTap: false,
                           initialSelection: membershipId,
                           menuStyle: _whiteDropdownMenuStyle,
                           label: const Text('Staff'),
@@ -772,6 +865,7 @@ class StaffShiftTabPage extends ConsumerWidget {
                         width: fieldWidth,
                         child: DropdownMenu<String>(
                           width: fieldWidth,
+                          requestFocusOnTap: false,
                           initialSelection: membershipId,
                           menuStyle: _whiteDropdownMenuStyle,
                           label: const Text('Staff'),

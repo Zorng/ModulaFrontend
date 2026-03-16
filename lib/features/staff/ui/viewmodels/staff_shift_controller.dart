@@ -133,6 +133,16 @@ class StaffShiftController extends AsyncNotifier<StaffShiftState> {
     );
   }
 
+  Future<void> clearFilters() async {
+    final current = _currentState;
+    if (current == null || current.selectedMembershipId == null) return;
+    await _reload(
+      selectedBranchId: current.selectedBranchId,
+      selectedMembershipId: null,
+      dateRange: current.dateRange,
+    );
+  }
+
   Future<void> refresh() async {
     final current = _currentState;
     if (current == null) {

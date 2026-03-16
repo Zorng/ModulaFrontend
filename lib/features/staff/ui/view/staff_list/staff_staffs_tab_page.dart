@@ -17,11 +17,12 @@ class StaffStaffsTabPage extends ConsumerWidget {
     backgroundColor: WidgetStatePropertyAll<Color>(Colors.white),
     surfaceTintColor: WidgetStatePropertyAll<Color>(Colors.white),
   );
-
+  static const double _topControlHeight = 56;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final asyncState = ref.watch(staffMembershipListControllerProvider);
     final controller = ref.read(staffMembershipListControllerProvider.notifier);
+
 
     return Scaffold(
       body: Padding(
@@ -60,6 +61,7 @@ class StaffStaffsTabPage extends ConsumerWidget {
                       child: DropdownMenu<StaffListStatusFilter>(
                         width: isWide ? 220 : null,
                         initialSelection: state.statusFilter,
+                        requestFocusOnTap: false,
                         menuStyle: _whiteDropdownMenuStyle,
                         label: const Text('Status'),
                         onSelected: (value) {
@@ -88,16 +90,35 @@ class StaffStaffsTabPage extends ConsumerWidget {
                       ),
                     ),
                     const SizedBox(width: 12),
-                    IconButton(
-                      tooltip: 'Refresh',
-                      onPressed: state.isRefreshing ? null : controller.refresh,
-                      icon: state.isRefreshing
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.refresh),
+                    Tooltip(
+                      message: 'Refresh',
+                      child: IconButton.filledTonal(
+                        onPressed: state.isRefreshing
+                            ? null
+                            : controller.refresh,
+                        style: IconButton.styleFrom(
+                          minimumSize: const Size(
+                            _topControlHeight,
+                            _topControlHeight,
+                          ),
+                          maximumSize: const Size(
+                            _topControlHeight,
+                            _topControlHeight,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        icon: state.isRefreshing
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.refresh),
+                      ),
                     ),
                   ],
                 ),

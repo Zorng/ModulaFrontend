@@ -102,6 +102,7 @@ class _StaffInvitePageState extends ConsumerState<StaffInvitePage> {
                             child: DropdownMenu<String>(
                               initialSelection: _selectedRole,
                               width: fieldWidth,
+                              requestFocusOnTap: false,
                               menuStyle: _whiteDropdownMenuStyle,
                               label: const Text('Role'),
                               onSelected: (value) {

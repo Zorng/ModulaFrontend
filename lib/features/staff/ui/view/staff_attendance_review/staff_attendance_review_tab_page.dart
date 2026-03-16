@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/core/feedback/user_error_message.dart';
 import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/features/staff/ui/view/staff_attendance_review/widgets/staff_attendance_review_card.dart';
+import 'package:modular_pos/features/staff/ui/view/staff_attendance_review/widgets/staff_attendance_review_data_table.dart';
 import 'package:modular_pos/features/staff/ui/viewmodels/staff_attendance_review_controller.dart';
 
 class StaffAttendanceReviewTabPage extends ConsumerWidget {
@@ -129,20 +130,20 @@ class StaffAttendanceReviewTabPage extends ConsumerWidget {
               children: [
                 LayoutBuilder(
                   builder: (context, constraints) {
-                    final isSmall = AppBreakpoints.isSmall(
-                      constraints.maxWidth,
-                    );
-                    final menuWidth = isSmall ? constraints.maxWidth : 240.0;
-                    final wideMenuWidth = (constraints.maxWidth - 8) / 2;
-                    final resolvedMenuWidth = isSmall
-                        ? menuWidth
-                        : wideMenuWidth;
+                    final menuWidth =
+                        (constraints.maxWidth - 16 - _topControlHeight) / 2;
+
                     final branchMenu = DropdownMenu<String?>(
-                      width: resolvedMenuWidth,
+                      width: menuWidth,
+                      requestFocusOnTap: false,
                       initialSelection: state.selectedBranchId,
                       label: const Text('Branch'),
                       inputDecorationTheme: _topDropdownDecorationTheme,
                       menuStyle: _whiteDropdownMenuStyle,
+                      textStyle: const TextStyle(
+                        fontSize: 14,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                       onSelected: controller.setBranchId,
                       dropdownMenuEntries: [
                         const DropdownMenuEntry<String?>(
@@ -159,11 +160,16 @@ class StaffAttendanceReviewTabPage extends ConsumerWidget {
                     );
 
                     final staffMenu = DropdownMenu<String?>(
-                      width: resolvedMenuWidth,
+                      width: menuWidth,
+                      requestFocusOnTap: false,
                       initialSelection: state.selectedAccountId,
                       label: const Text('Staff'),
                       inputDecorationTheme: _topDropdownDecorationTheme,
                       menuStyle: _whiteDropdownMenuStyle,
+                      textStyle: const TextStyle(
+                        fontSize: 14,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                       onSelected: controller.setAccountId,
                       dropdownMenuEntries: [
                         const DropdownMenuEntry<String?>(
@@ -178,9 +184,6 @@ class StaffAttendanceReviewTabPage extends ConsumerWidget {
                         ),
                       ],
                     );
-
-                    final branchField = branchMenu;
-                    final staffField = staffMenu;
 
                     final dateRangeBtn = FilledButton.tonalIcon(
                       style: topButtonStyle,
@@ -228,30 +231,9 @@ class StaffAttendanceReviewTabPage extends ConsumerWidget {
                       ),
                     );
 
-                    if (isSmall) {
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(child: dateRangeBtn),
-                              const SizedBox(width: 8),
-                              refreshBtn,
-                            ],
-                          ),
-                          const SizedBox(height: 10),
-                          branchField,
-                          const SizedBox(height: 8),
-                          staffField,
-                          const SizedBox(height: 8),
-                        ],
-                      );
-                    }
-
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const SizedBox(height: 8),
                         Row(
                           children: [
                             Expanded(child: dateRangeBtn),
@@ -262,9 +244,31 @@ class StaffAttendanceReviewTabPage extends ConsumerWidget {
                         const SizedBox(height: 10),
                         Row(
                           children: [
-                            Expanded(child: branchField),
+                            branchMenu,
                             const SizedBox(width: 8),
-                            Expanded(child: staffField),
+                            staffMenu,
+                            const SizedBox(width: 8),
+                            IconButton(
+                              tooltip: 'Clear filters',
+                              onPressed: state.selectedBranchId != null ||
+                                      state.selectedAccountId != null
+                                  ? controller.clearFilters
+                                  : null,
+                              style: IconButton.styleFrom(
+                                minimumSize: const Size(
+                                  _topControlHeight,
+                                  _topControlHeight,
+                                ),
+                                maximumSize: const Size(
+                                  _topControlHeight,
+                                  _topControlHeight,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                              icon: const Icon(Icons.filter_alt_off_outlined),
+                            ),
                           ],
                         ),
                       ],
@@ -295,14 +299,26 @@ class StaffAttendanceReviewTabPage extends ConsumerWidget {
                     ),
                   )
                 else
-                  Column(
-                    children: [
-                      for (final record in state.records)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: StaffAttendanceReviewCard(record: record),
-                        ),
-                    ],
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isWide = AppBreakpoints.isLarge(
+                        MediaQuery.of(context).size.width,
+                      );
+                      if (isWide) {
+                        return StaffAttendanceReviewDataTable(
+                          records: state.records,
+                        );
+                      }
+                      return Column(
+                        children: [
+                          for (final record in state.records)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: StaffAttendanceReviewCard(record: record),
+                            ),
+                        ],
+                      );
+                    },
                   ),
                 if (state.records.isNotEmpty) ...[
                   const SizedBox(height: 12),
