@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:modular_pos/core/feedback/user_error_message.dart';
 import 'package:modular_pos/core/network/api_contract.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
@@ -8,6 +9,8 @@ import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/branchV2/data/branch_repository.dart';
 import 'package:modular_pos/features/branchV2/domain/models/branch_models.dart';
+import 'package:modular_pos/features/branchV2/ui/view/branch_selection/widgets/google_maps.dart';
+import 'package:modular_pos/features/branchV2/ui/viewmodels/branch_controller.dart';
 
 class BranchManagementPage extends ConsumerStatefulWidget {
   const BranchManagementPage({super.key, required this.branchId});
@@ -168,14 +171,14 @@ class _BranchManagementPageState extends ConsumerState<BranchManagementPage> {
           ? 'disabled'
           : branch.attendanceLocationVerificationMode,
     );
-    final latitudeController = TextEditingController(
-      text: branch.workplaceLocation?.latitude.toString() ?? '',
-    );
-    final longitudeController = TextEditingController(
-      text: branch.workplaceLocation?.longitude.toString() ?? '',
-    );
     final radiusController = TextEditingController(
-      text: branch.workplaceLocation?.radiusMeters.toString() ?? '',
+      text: existingLocation?.radiusMeters.toString() ?? '',
+    );
+    // Holds the lat/lng picked from the map; null means "clear location".
+    final pickedLocation = ValueNotifier<LatLng?>(
+      existingLocation == null
+          ? null
+          : LatLng(existingLocation.latitude, existingLocation.longitude),
     );
 
     final confirmed = await showDialog<bool>(
@@ -210,28 +213,54 @@ class _BranchManagementPageState extends ConsumerState<BranchManagementPage> {
                     ],
                   ),
                 ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: latitudeController,
-                  decoration: const InputDecoration(labelText: 'Latitude'),
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                    signed: true,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: longitudeController,
-                  decoration: const InputDecoration(labelText: 'Longitude'),
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                    signed: true,
+                const SizedBox(height: 16),
+                // Map location picker row
+                ValueListenableBuilder<LatLng?>(
+                  valueListenable: pickedLocation,
+                  builder: (context, picked, _) => Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Workplace location',
+                        style: Theme.of(context).textTheme.labelMedium,
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              picked == null
+                                  ? 'Not set'
+                                  : 'Lat ${picked.latitude.toStringAsFixed(6)},  '
+                                        'Lng ${picked.longitude.toStringAsFixed(6)}',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          OutlinedButton.icon(
+                            icon: const Icon(Icons.map_outlined, size: 18),
+                            label: Text(
+                              picked == null ? 'Pick on map' : 'Change',
+                            ),
+                            onPressed: () async {
+                              final result = await showLocationPickerDialog(
+                                context: dialogContext,
+                                initialLocation: picked,
+                              );
+                              if (result != null) {
+                                pickedLocation.value = result;
+                              }
+                            },
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: radiusController,
-                  decoration: const InputDecoration(labelText: 'Radius meters'),
+                  decoration: const InputDecoration(labelText: 'Radius (meters)'),
                   keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
                   ),
@@ -241,8 +270,7 @@ class _BranchManagementPageState extends ConsumerState<BranchManagementPage> {
                   alignment: Alignment.centerLeft,
                   child: TextButton(
                     onPressed: () {
-                      latitudeController.clear();
-                      longitudeController.clear();
+                      pickedLocation.value = null;
                       radiusController.clear();
                     },
                     child: const Text('Clear workplace location'),
@@ -267,16 +295,15 @@ class _BranchManagementPageState extends ConsumerState<BranchManagementPage> {
 
     if (confirmed != true) {
       mode.dispose();
-      latitudeController.dispose();
-      longitudeController.dispose();
       radiusController.dispose();
+      pickedLocation.dispose();
       return;
     }
 
     await _runSave(() async {
-      final workplaceLocation = _parseWorkplaceLocation(
-        latitudeController.text,
-        longitudeController.text,
+      final picked = pickedLocation.value;
+      final workplaceLocation = _buildWorkplaceLocation(
+        picked,
         radiusController.text,
       );
       final accessToken =
@@ -294,32 +321,30 @@ class _BranchManagementPageState extends ConsumerState<BranchManagementPage> {
     });
 
     mode.dispose();
-    latitudeController.dispose();
-    longitudeController.dispose();
     radiusController.dispose();
+    pickedLocation.dispose();
   }
 
-  BranchWorkplaceLocation? _parseWorkplaceLocation(
-    String latitudeText,
-    String longitudeText,
+  BranchWorkplaceLocation? _buildWorkplaceLocation(
+    LatLng? picked,
     String radiusText,
   ) {
-    final lat = latitudeText.trim();
-    final lng = longitudeText.trim();
+    if (picked == null) return null;
     final radius = radiusText.trim();
-    if (lat.isEmpty || lng.isEmpty || radius.isEmpty) return null;
-
-    final latitude = double.tryParse(lat);
-    final longitude = double.tryParse(lng);
-    final radiusMeters = double.tryParse(radius);
-    if (latitude == null || longitude == null || radiusMeters == null) {
+    if (radius.isEmpty) {
       throw const ApiClientException(
-        message: 'Latitude, longitude, and radius must be valid numbers.',
+        message: 'Radius is required when a location is set.',
+      );
+    }
+    final radiusMeters = double.tryParse(radius);
+    if (radiusMeters == null) {
+      throw const ApiClientException(
+        message: 'Radius must be a valid number.',
       );
     }
     return BranchWorkplaceLocation(
-      latitude: latitude,
-      longitude: longitude,
+      latitude: picked.latitude,
+      longitude: picked.longitude,
       radiusMeters: radiusMeters,
     );
   }
