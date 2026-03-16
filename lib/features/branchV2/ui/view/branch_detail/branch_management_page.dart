@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:modular_pos/core/feedback/user_error_message.dart';
 import 'package:modular_pos/core/network/api_contract.dart';
-import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/branchV2/data/branch_repository.dart';
@@ -81,6 +80,9 @@ class _BranchManagementPageState extends ConsumerState<BranchManagementPage> {
         _branch = branch;
         _loading = false;
       });
+      // Refresh the branch list in the background so BranchSelectionPage has
+      // up-to-date data when the user navigates back.
+      ref.read(branchControllerProvider.notifier).loadInitial();
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -166,6 +168,7 @@ class _BranchManagementPageState extends ConsumerState<BranchManagementPage> {
     final branch = _branch;
     if (branch == null) return;
 
+    final existingLocation = branch.workplaceLocation;
     final mode = ValueNotifier<String>(
       branch.attendanceLocationVerificationMode.isEmpty
           ? 'disabled'
@@ -389,7 +392,7 @@ class _BranchManagementPageState extends ConsumerState<BranchManagementPage> {
       appBar: AppBar(
         leading: IconButton(
           tooltip: 'Back',
-          onPressed: () => context.go(AppRoute.branch.path),
+          onPressed: () => context.pop(),
           icon: const Icon(Icons.arrow_back),
         ),
         title: const Text('Branch Management'),
