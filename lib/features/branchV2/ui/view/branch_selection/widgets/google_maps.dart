@@ -2,21 +2,56 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
-/// Opens a full-screen-ish dialog where the user taps the map to pin a location.
-/// Returns the confirmed [LatLng], or `null` if the user cancelled.
-Future<LatLng?> showLocationPickerDialog({
+/// The result returned by [showLocationPickerDialog].
+/// Both [latLng] and [radiusMeters] are ready to be persisted to the database.
+class LocationPickerResult {
+  const LocationPickerResult({required this.latLng, required this.radiusMeters});
+
+  final LatLng latLng;
+
+  /// Geofence / service-area radius in metres.
+  final double radiusMeters;
+}
+
+/// Opens a full-screen-ish dialog where the user taps the map to pin a
+/// location and optionally adjusts a radius circle.
+/// Returns a [LocationPickerResult] with the confirmed [LatLng] and radius,
+/// or `null` if the user cancelled.
+///
+/// Pass either [initialLocation] or raw [latitude] + [longitude] doubles
+/// (e.g. values loaded from the database) to pre-populate the map with a
+/// saved location. If both are provided, [initialLocation] takes precedence.
+///
+/// Pass [initialRadius] (or raw [radiusMeters]) to restore a previously saved
+/// radius. Defaults to 200 m when no value is supplied.
+Future<LocationPickerResult?> showLocationPickerDialog({
   required BuildContext context,
   LatLng? initialLocation,
+  double? latitude,
+  double? longitude,
+  double? initialRadius,
+  double? radiusMeters,
 }) {
-  return showDialog<LatLng>(
+  final resolvedLocation =
+      initialLocation ??
+      (latitude != null && longitude != null
+          ? LatLng(latitude, longitude)
+          : null);
+  final resolvedRadius = initialRadius ?? radiusMeters ?? 200.0;
+
+  return showDialog<LocationPickerResult>(
     context: context,
-    builder: (_) => _LocationPickerDialog(initialLocation: initialLocation),
+    builder: (_) => _LocationPickerDialog(
+      initialLocation: resolvedLocation,
+      initialRadius: resolvedRadius,
+    ),
   );
 }
 
 class _LocationPickerDialog extends StatefulWidget {
-  const _LocationPickerDialog({this.initialLocation});
+  const _LocationPickerDialog({this.initialLocation, required this.initialRadius});
   final LatLng? initialLocation;
+  final double initialRadius;
 
   @override
   State<_LocationPickerDialog> createState() => _LocationPickerDialogState();
@@ -25,18 +60,37 @@ class _LocationPickerDialog extends StatefulWidget {
 class _LocationPickerDialogState extends State<_LocationPickerDialog> {
   // Default to Phnom Penh when no initial location is given.
   static const _defaultTarget = LatLng(11.5564, 104.9282);
+  static const _minRadius = 10.0;
+  static const _maxRadius = 500.0;
 
   GoogleMapController? _mapController;
   LatLng? _picked;
+  double _radius = 200;
   bool _locating = false;
 
   @override
   void initState() {
     super.initState();
     _picked = widget.initialLocation;
+    _radius = widget.initialRadius.clamp(_minRadius, _maxRadius);
   }
 
   LatLng get _cameraTarget => widget.initialLocation ?? _defaultTarget;
+
+  Set<Circle> get _circles {
+    final picked = _picked;
+    if (picked == null) return {};
+    return {
+      Circle(
+        circleId: const CircleId('radius'),
+        center: picked,
+        radius: _radius,
+        fillColor: Colors.blue.withValues(alpha: 0.15),
+        strokeColor: Colors.blue,
+        strokeWidth: 2,
+      ),
+    };
+  }
 
   Future<void> _goToMyLocation() async {
     setState(() => _locating = true);
@@ -79,11 +133,12 @@ class _LocationPickerDialogState extends State<_LocationPickerDialog> {
   Widget build(BuildContext context) {
     final picked = _picked;
     return Dialog(
+      backgroundColor: Colors.white,
       insetPadding: const EdgeInsets.all(24),
       clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 620, maxHeight: 580),
+        constraints: const BoxConstraints(maxWidth: 620, maxHeight: 640),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -137,6 +192,7 @@ class _LocationPickerDialogState extends State<_LocationPickerDialog> {
                                   setState(() => _picked = latLng),
                             ),
                           },
+                    circles: _circles,
                     myLocationButtonEnabled: false,
                     zoomControlsEnabled: true,
                   ),
@@ -178,9 +234,43 @@ class _LocationPickerDialogState extends State<_LocationPickerDialog> {
               ),
             ),
 
+            // ── Radius slider ─────────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+              child: Row(
+                children: [
+                  const Icon(Icons.radar, size: 18, color: Colors.black54),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Radius',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Colors.black54,
+                    ),
+                  ),
+                  Expanded(
+                    child: Slider(
+                      value: _radius,
+                      min: _minRadius,
+                      max: _maxRadius,
+                      divisions: 99,
+                      onChanged: (v) => setState(() => _radius = v),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 64,
+                    child: Text(
+                      '${_radius.round()} m',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                      textAlign: TextAlign.end,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
             // ── Actions ───────────────────────────────────────────────────
-            // Align breaks the tight-infinite-width chain from Column(stretch),
-            // giving Row(min) loose constraints so buttons can size themselves.
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 14),
               child: Align(
@@ -202,7 +292,12 @@ class _LocationPickerDialogState extends State<_LocationPickerDialog> {
                       ),
                       onPressed: picked == null
                           ? null
-                          : () => Navigator.of(context).pop(picked),
+                          : () => Navigator.of(context).pop(
+                                LocationPickerResult(
+                                  latLng: picked,
+                                  radiusMeters: _radius,
+                                ),
+                              ),
                       child: const Text('Confirm'),
                     ),
                   ],

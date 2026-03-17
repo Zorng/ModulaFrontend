@@ -122,6 +122,11 @@ class _CreateTenantDialogBodyState
                 },
                 decoration: InputDecoration(
                   hintText: 'Enter tenant name',
+                  hintStyle: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface.withValues(
+                      alpha: 0.4,
+                    ),
+                  ),
                   errorText: _tenantNameError,
                 ),
               ),

@@ -9,6 +9,7 @@ Future<void> showCreateBranchDialog(BuildContext context) {
     context: context,
     builder: (_) {
       return Dialog(
+        backgroundColor: Colors.white,
         insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
         child: Container(
           width: double.infinity,
@@ -84,9 +85,14 @@ class _CreateBranchDialogBodyState extends ConsumerState<CreateBranchDialogBody>
                 enabled: !isSubmitting,
                 textInputAction: TextInputAction.done,
                 onSubmitted: (_) => _onCreate(controller),
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Branch name',
                   hintText: 'Enter branch name',
+                  hintStyle: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface.withValues(
+                      alpha: 0.4,
+                    ),
+                  ),
                 ),
               ),
             ] else if (canConfirmPayment) ...[

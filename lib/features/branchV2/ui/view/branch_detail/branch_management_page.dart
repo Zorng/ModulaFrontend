@@ -187,24 +187,58 @@ class _BranchManagementPageState extends ConsumerState<BranchManagementPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Update Attendance Location'),
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        titlePadding: const EdgeInsets.fromLTRB(20, 16, 8, 0),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Attendance Location',
+                style: Theme.of(dialogContext).textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.bold),
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.close),
+              tooltip: 'Cancel',
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+            ),
+          ],
+        ),
+        contentPadding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
         content: SizedBox(
           width: 420,
           child: SingleChildScrollView(
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
+                // Verification mode
+                Text(
+                  'Verification mode',
+                  style: Theme.of(
+                    dialogContext,
+                  ).textTheme.labelMedium?.copyWith(
+                    color: Theme.of(
+                      dialogContext,
+                    ).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 6),
                 ValueListenableBuilder<String>(
                   valueListenable: mode,
                   builder: (context, value, _) => DropdownMenu<String>(
-                    width: 360,
+                    expandedInsets: EdgeInsets.zero,
                     initialSelection: value,
-                    label: const Text('Verification mode'),
                     onSelected: (selected) {
                       if (selected != null) mode.value = selected;
                     },
                     dropdownMenuEntries: const [
-                      DropdownMenuEntry(value: 'disabled', label: 'Disabled'),
+                      DropdownMenuEntry(
+                        value: 'disabled',
+                        label: 'Disabled',
+                      ),
                       DropdownMenuEntry(
                         value: 'checkin_only',
                         label: 'Check-in only',
@@ -216,32 +250,45 @@ class _BranchManagementPageState extends ConsumerState<BranchManagementPage> {
                     ],
                   ),
                 ),
-                const SizedBox(height: 16),
-                // Map location picker row
+                const SizedBox(height: 20),
+                // Workplace location
                 ValueListenableBuilder<LatLng?>(
                   valueListenable: pickedLocation,
                   builder: (context, picked, _) => Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Workplace location',
-                        style: Theme.of(context).textTheme.labelMedium,
-                      ),
-                      const SizedBox(height: 6),
                       Row(
                         children: [
                           Expanded(
-                            child: Text(
-                              picked == null
-                                  ? 'Not set'
-                                  : 'Lat ${picked.latitude.toStringAsFixed(6)},  '
-                                        'Lng ${picked.longitude.toStringAsFixed(6)}',
-                              style: Theme.of(context).textTheme.bodySmall,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Workplace location',
+                                  style: Theme.of(
+                                    dialogContext,
+                                  ).textTheme.labelMedium?.copyWith(
+                                    color: Theme.of(
+                                      dialogContext,
+                                    ).colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  picked == null
+                                      ? 'Not set'
+                                      : 'Lat ${picked.latitude.toStringAsFixed(5)}'
+                                            ',  Lng ${picked.longitude.toStringAsFixed(5)}',
+                                  style: Theme.of(
+                                    dialogContext,
+                                  ).textTheme.bodySmall,
+                                ),
+                              ],
                             ),
                           ),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: 12),
                           OutlinedButton.icon(
-                            icon: const Icon(Icons.map_outlined, size: 18),
+                            icon: const Icon(Icons.map_outlined, size: 16),
                             label: Text(
                               picked == null ? 'Pick on map' : 'Change',
                             ),
@@ -249,34 +296,119 @@ class _BranchManagementPageState extends ConsumerState<BranchManagementPage> {
                               final result = await showLocationPickerDialog(
                                 context: dialogContext,
                                 initialLocation: picked,
+                                initialRadius: double.tryParse(
+                                  radiusController.text.trim(),
+                                ),
                               );
                               if (result != null) {
-                                pickedLocation.value = result;
+                                pickedLocation.value = result.latLng;
+                                radiusController.text =
+                                    result.radiusMeters.round().toString();
                               }
                             },
                           ),
                         ],
                       ),
+                      if (picked != null) ...[
+                        const SizedBox(height: 10),
+                        ListenableBuilder(
+                          listenable: radiusController,
+                          builder: (context, _) {
+                            final radius =
+                                double.tryParse(
+                                  radiusController.text.trim(),
+                                ) ??
+                                200;
+                            return ClipRRect(
+                              borderRadius: BorderRadius.circular(10),
+                              child: SizedBox(
+                                height: 160,
+                                child: GoogleMap(
+                                  initialCameraPosition: CameraPosition(
+                                    target: picked,
+                                    zoom: 15,
+                                  ),
+                                  markers: {
+                                    Marker(
+                                      markerId: const MarkerId('preview'),
+                                      position: picked,
+                                    ),
+                                  },
+                                  circles: {
+                                    Circle(
+                                      circleId: const CircleId(
+                                        'preview_radius',
+                                      ),
+                                      center: picked,
+                                      radius: radius,
+                                      fillColor: Colors.blue.withValues(
+                                        alpha: 0.15,
+                                      ),
+                                      strokeColor: Colors.blue,
+                                      strokeWidth: 2,
+                                    ),
+                                  },
+                                  zoomControlsEnabled: false,
+                                  scrollGesturesEnabled: false,
+                                  zoomGesturesEnabled: false,
+                                  rotateGesturesEnabled: false,
+                                  tiltGesturesEnabled: false,
+                                  myLocationButtonEnabled: false,
+                                  liteModeEnabled: true,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ],
                     ],
                   ),
                 ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: radiusController,
-                  decoration: const InputDecoration(labelText: 'Radius (meters)'),
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
+                const SizedBox(height: 16),
+                // Radius
+                ValueListenableBuilder(
+                  valueListenable: radiusController,
+                  builder: (context, _, __) {
+                    final parsed = double.tryParse(
+                      radiusController.text.trim(),
+                    );
+                    final errorText = radiusController.text.trim().isEmpty
+                        ? null
+                        : parsed == null
+                        ? 'Enter a valid number'
+                        : (parsed < 10 || parsed > 500)
+                        ? 'Must be between 10 and 500 m'
+                        : null;
+                    return TextField(
+                      controller: radiusController,
+                      decoration: InputDecoration(
+                        labelText: 'Radius (meters)',
+                        helperText: 'Range: 10 – 500 m',
+                        prefixIcon: const Icon(Icons.radar, size: 18),
+                        errorText: errorText,
+                      ),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                    );
+                  },
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 4),
+                // Clear
                 Align(
                   alignment: Alignment.centerLeft,
-                  child: TextButton(
+                  child: TextButton.icon(
+                    style: TextButton.styleFrom(
+                      foregroundColor:
+                          Theme.of(dialogContext).colorScheme.error,
+                      padding: EdgeInsets.zero,
+                    ),
+                    icon: const Icon(Icons.clear, size: 16),
+                    label: const Text('Clear location'),
                     onPressed: () {
                       pickedLocation.value = null;
                       radiusController.clear();
                     },
-                    child: const Text('Clear workplace location'),
                   ),
                 ),
               ],
@@ -288,9 +420,27 @@ class _BranchManagementPageState extends ConsumerState<BranchManagementPage> {
             onPressed: () => Navigator.of(dialogContext).pop(false),
             child: const Text('Cancel'),
           ),
-          FilledButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Save'),
+          ValueListenableBuilder<LatLng?>(
+            valueListenable: pickedLocation,
+            builder: (context, picked, _) => ListenableBuilder(
+              listenable: radiusController,
+              builder: (context, _) {
+                final hasLocation = picked != null;
+                final text = radiusController.text.trim();
+                final parsed = double.tryParse(text);
+                final radiusValid = !hasLocation ||
+                    (text.isNotEmpty &&
+                        parsed != null &&
+                        parsed >= 10 &&
+                        parsed <= 500);
+                return FilledButton(
+                  onPressed: radiusValid
+                      ? () => Navigator.of(dialogContext).pop(true)
+                      : null,
+                  child: const Text('Save'),
+                );
+              },
+            ),
           ),
         ],
       ),
