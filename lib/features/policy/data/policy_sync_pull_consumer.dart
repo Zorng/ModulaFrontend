@@ -78,6 +78,7 @@ class PolicySyncPullConsumer implements SyncPullConsumer {
         value.containsKey('saleVatRatePercent') ||
         value.containsKey('saleFxRateKhrPerUsd') ||
         value.containsKey('saleKhrRoundingEnabled') ||
-        value.containsKey('saleAllowPayLater');
+        value.containsKey('saleAllowPayLater') ||
+        value.containsKey('saleAllowManualExternalPaymentClaim');
   }
 }

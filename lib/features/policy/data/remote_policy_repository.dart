@@ -23,6 +23,7 @@ class RemotePolicyRepository implements PolicyRepository {
     String? saleKhrRoundingMode,
     String? saleKhrRoundingGranularity,
     bool? saleAllowPayLater,
+    bool? saleAllowManualExternalPaymentClaim,
   }) async {
     final dto = await _api.updateCurrentBranchPolicy(
       saleVatEnabled: saleVatEnabled,
@@ -32,6 +33,7 @@ class RemotePolicyRepository implements PolicyRepository {
       saleKhrRoundingMode: saleKhrRoundingMode,
       saleKhrRoundingGranularity: saleKhrRoundingGranularity,
       saleAllowPayLater: saleAllowPayLater,
+      saleAllowManualExternalPaymentClaim: saleAllowManualExternalPaymentClaim,
     );
     return mapBranchPolicyDto(dto);
   }

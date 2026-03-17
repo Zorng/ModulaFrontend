@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:modular_pos/core/network/app_connectivity.dart';
+import 'package:modular_pos/core/network/app_connectivity_contract.dart';
 import 'package:modular_pos/features/auth/data/auth_repository.dart';
 import 'package:modular_pos/features/auth/data/auth_session_store.dart';
 import 'package:modular_pos/features/menu/data/menu_repository.dart';
@@ -31,6 +33,7 @@ class _StaticPolicyNotifier extends PolicyNotifier {
       branchPolicy: BranchPolicy(
         saleFxRateKhrPerUsd: 4000,
         saleAllowPayLater: true,
+        saleAllowManualExternalPaymentClaim: true,
       ),
     );
   }
@@ -91,6 +94,11 @@ class _TestSaleAccessGateNotifier extends Notifier<SaleAccessGate> {
   }
 
   void setGate(SaleAccessGate value) => state = value;
+}
+
+class _OfflineConnectivityNotifier extends AppConnectivityStatusController {
+  @override
+  AppConnectivityStatus build() => AppConnectivityStatus.offline;
 }
 
 void main() {
@@ -234,6 +242,144 @@ void main() {
     expect(find.text('Change (៛)'), findsOneWidget);
     expect(find.text('KHR 14,000'), findsOneWidget);
   });
+
+  testWidgets(
+    'offline cash flow uses Capture Order primary action without requiring tendered cash',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final store = AuthSessionStore(prefs);
+
+      const item = MenuItem(
+        id: 'menu-1',
+        name: 'Latte',
+        categoryId: 'cat-1',
+        price: 1.5,
+      );
+
+      final container = createTestContainer(
+        overrides: [
+          authSessionStoreProvider.overrideWithValue(store),
+          authRepositoryProvider.overrideWithValue(FakeAuthRepository()),
+          saleRepositoryProvider.overrideWithValue(_MockSaleRepository()),
+          appConnectivityStatusProvider.overrideWith(
+            _OfflineConnectivityNotifier.new,
+          ),
+          policyNotifierProvider.overrideWith(_StaticPolicyNotifier.new),
+          menuViewModelProvider.overrideWith(
+            () => _StaticMenuViewModel(const MenuState(isLoading: false)),
+          ),
+          saleCartProvider.overrideWith(
+            () => _PrefilledCartNotifier(
+              const SaleCartState(
+                saleId: 'sale-1',
+                lines: [
+                  CartLine(item: item, quantity: 1, selectedOptionIds: {}),
+                ],
+              ),
+            ),
+          ),
+          saleAccessGateProvider.overrideWithValue(
+            const SaleAccessGate(
+              branchId: 'branch-1',
+              contextLoading: false,
+              branchActive: true,
+              branchFrozen: false,
+              cashSessionOpen: true,
+              canMutateCart: true,
+              canCheckout: true,
+              canPlacePayLater: true,
+            ),
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(home: SaleCartPage()),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      final captureButton = find.widgetWithText(FilledButton, 'Capture Order');
+      expect(captureButton, findsOneWidget);
+      expect(tester.widget<FilledButton>(captureButton).onPressed, isNotNull);
+      expect(find.widgetWithText(FilledButton, 'Checkout'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'offline QR flow uses Capture Claim Order when manual-claim fallback is enabled',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final store = AuthSessionStore(prefs);
+
+      const item = MenuItem(
+        id: 'menu-1',
+        name: 'Latte',
+        categoryId: 'cat-1',
+        price: 1.5,
+      );
+
+      final container = createTestContainer(
+        overrides: [
+          authSessionStoreProvider.overrideWithValue(store),
+          authRepositoryProvider.overrideWithValue(FakeAuthRepository()),
+          saleRepositoryProvider.overrideWithValue(_MockSaleRepository()),
+          appConnectivityStatusProvider.overrideWith(
+            _OfflineConnectivityNotifier.new,
+          ),
+          policyNotifierProvider.overrideWith(_StaticPolicyNotifier.new),
+          menuViewModelProvider.overrideWith(
+            () => _StaticMenuViewModel(const MenuState(isLoading: false)),
+          ),
+          saleCartProvider.overrideWith(
+            () => _PrefilledCartNotifier(
+              const SaleCartState(
+                saleId: 'sale-1',
+                paymentMethod: 'qr',
+                lines: [
+                  CartLine(item: item, quantity: 1, selectedOptionIds: {}),
+                ],
+              ),
+            ),
+          ),
+          saleAccessGateProvider.overrideWithValue(
+            const SaleAccessGate(
+              branchId: 'branch-1',
+              contextLoading: false,
+              branchActive: true,
+              branchFrozen: false,
+              cashSessionOpen: true,
+              canMutateCart: true,
+              canCheckout: true,
+              canPlacePayLater: true,
+            ),
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(home: SaleCartPage()),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      final captureButton = find.widgetWithText(
+        FilledButton,
+        'Capture Claim Order',
+      );
+      expect(captureButton, findsOneWidget);
+      expect(tester.widget<FilledButton>(captureButton).onPressed, isNotNull);
+      expect(find.widgetWithText(FilledButton, 'Generate Code'), findsNothing);
+    },
+  );
 
   testWidgets(
     'Cart shows tax row and tax-inclusive change when VAT is enabled',

@@ -3,6 +3,8 @@ import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/core/network/api_contract.dart';
+import 'package:modular_pos/core/network/app_connectivity.dart';
+import 'package:modular_pos/core/network/app_connectivity_contract.dart';
 import 'package:modular_pos/features/auth/domain/active_branch_context_provider.dart';
 import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
 import 'package:modular_pos/features/auth/domain/auth_role.dart';
@@ -11,6 +13,7 @@ import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/cash_session/data/cash_session_cache_store.dart';
 import 'package:modular_pos/features/cash_session/data/cash_session_error_codes.dart';
 import 'package:modular_pos/features/cash_session/data/cash_session_movement_repository.dart';
+import 'package:modular_pos/features/cash_session/data/cash_session_offline_queue.dart';
 import 'package:modular_pos/features/cash_session/data/cash_session_repository.dart';
 import 'package:modular_pos/features/cash_session/data/cash_session_sales_repository.dart';
 import 'package:modular_pos/features/cash_session/domain/models/cash_movement.dart';
@@ -18,6 +21,24 @@ import 'package:modular_pos/features/cash_session/domain/models/cash_session.dar
 import 'package:modular_pos/features/cash_session/domain/models/cash_session_sale.dart';
 
 enum SessionStatus { notStarted, open, closed, forceClosed }
+
+enum CashSessionActionOutcome { applied, queued, failed }
+
+class CashSessionActionResult {
+  const CashSessionActionResult._({required this.outcome, this.message});
+
+  const CashSessionActionResult.applied()
+    : this._(outcome: CashSessionActionOutcome.applied);
+
+  const CashSessionActionResult.queued(String message)
+    : this._(outcome: CashSessionActionOutcome.queued, message: message);
+
+  const CashSessionActionResult.failed([String? message])
+    : this._(outcome: CashSessionActionOutcome.failed, message: message);
+
+  final CashSessionActionOutcome outcome;
+  final String? message;
+}
 
 final cashSessionRequestTimeoutProvider = Provider<Duration>(
   (ref) => const Duration(seconds: 12),
@@ -199,11 +220,15 @@ class CashSessionState {
 class CashSessionViewModel extends Notifier<CashSessionState> {
   CashSessionRepository get _repo => ref.read(cashSessionRepositoryProvider);
   CashSessionCacheStore get _cache => ref.read(cashSessionCacheStoreProvider);
+  CashSessionOfflineQueue get _offlineQueue =>
+      ref.read(cashSessionOfflineQueueProvider);
   CashSessionMovementRepository get _movementRepo =>
       ref.read(cashSessionMovementRepositoryProvider);
   CashSessionSalesRepository get _salesRepo =>
       ref.read(cashSessionSalesRepositoryProvider);
   Duration get _requestTimeout => ref.read(cashSessionRequestTimeoutProvider);
+  AppConnectivityStatus get _connectivityStatus =>
+      ref.read(appConnectivityStatusProvider);
 
   @override
   CashSessionState build() {
@@ -263,11 +288,33 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
     );
   }
 
-  Future<void> startSession({
+  Future<CashSessionActionResult> startSession({
     required double usdAmount,
     required double khrAmount,
     String? note,
   }) async {
+    final branchContext = _resolveQueueContext(session: null);
+    if (_connectivityStatus == AppConnectivityStatus.offline &&
+        branchContext != null) {
+      try {
+        state = state.copyWith(isLoading: false, error: null, errorCode: null);
+        await _offlineQueue.enqueueOpenSession(
+          tenantId: branchContext.tenantId,
+          branchId: branchContext.branchId,
+          accountId: state.currentUserAccountId,
+          openingFloatUsd: usdAmount,
+          openingFloatKhr: khrAmount,
+          note: note,
+        );
+        return const CashSessionActionResult.queued(
+          'Session opening saved offline. It will sync when you reconnect.',
+        );
+      } catch (error) {
+        _setError(error);
+        return CashSessionActionResult.failed(_errorMessage(error));
+      }
+    }
+
     state = state.copyWith(isLoading: true, error: null, errorCode: null);
     try {
       final session = await _withTimeout(
@@ -283,12 +330,14 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
         loadMovements: true,
         loadSales: true,
       );
+      return const CashSessionActionResult.applied();
     } catch (error) {
       _setError(error);
+      return CashSessionActionResult.failed(_errorMessage(error));
     }
   }
 
-  Future<void> addCashMovement(
+  Future<CashSessionActionResult> addCashMovement(
     String type,
     double usdAmount,
     double khrAmount, {
@@ -296,42 +345,68 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
   }) async {
     final normalizedType = type.toUpperCase().replaceAll(' ', '_');
     if (normalizedType == 'PAID_IN') {
-      await recordPaidIn(
+      return recordPaidIn(
         amountUsd: usdAmount,
         amountKhr: khrAmount,
         reason: reason,
       );
-      return;
     }
     if (normalizedType == 'PAID_OUT') {
-      await recordPaidOut(
+      return recordPaidOut(
         amountUsd: usdAmount,
         amountKhr: khrAmount,
         reason: reason,
       );
-      return;
     }
-    await recordAdjustment(
+    return recordAdjustment(
       amountUsdDelta: usdAmount,
       amountKhrDelta: khrAmount,
       reason: reason,
     );
   }
 
-  Future<void> recordPaidIn({
+  Future<CashSessionActionResult> recordPaidIn({
     required double amountUsd,
     required double amountKhr,
     String? reason,
   }) async {
     final sessionId = state.sessionId;
-    if (sessionId == null || sessionId.isEmpty) return;
+    if (sessionId == null || sessionId.isEmpty) {
+      return const CashSessionActionResult.failed();
+    }
+
+    final branchContext = _resolveQueueContext(session: state.session);
+    if (_connectivityStatus == AppConnectivityStatus.offline &&
+        branchContext != null) {
+      try {
+        state = state.copyWith(isLoading: false, error: null, errorCode: null);
+        await _offlineQueue.enqueueMovement(
+          tenantId: branchContext.tenantId,
+          branchId: branchContext.branchId,
+          accountId: state.currentUserAccountId,
+          sessionId: sessionId,
+          movementType: 'PAID_IN',
+          reason: _normalizeMovementReason(reason, fallback: 'Manual movement'),
+          amountUsd: amountUsd,
+          amountKhr: amountKhr,
+          amountUsdDelta: 0,
+          amountKhrDelta: 0,
+        );
+        return const CashSessionActionResult.queued(
+          'Cash movement saved offline. It will sync when you reconnect.',
+        );
+      } catch (error) {
+        _setError(error);
+        return CashSessionActionResult.failed(_errorMessage(error));
+      }
+    }
 
     state = state.copyWith(isLoading: true, error: null, errorCode: null);
     try {
-      final trimmedReason = (reason ?? '').trim();
-      final safeReason = trimmedReason.length >= 3
-          ? trimmedReason
-          : 'Manual movement';
+      final safeReason = _normalizeMovementReason(
+        reason,
+        fallback: 'Manual movement',
+      );
       await _withTimeout(
         _movementRepo.recordPaidIn(
           sessionId: sessionId,
@@ -341,8 +416,10 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
         ),
       );
       await _fetchActiveSession(loadMovements: true, loadSales: true);
+      return const CashSessionActionResult.applied();
     } catch (error) {
       _setError(error);
+      return CashSessionActionResult.failed(_errorMessage(error));
     }
   }
 
@@ -382,20 +459,48 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
     }
   }
 
-  Future<void> recordPaidOut({
+  Future<CashSessionActionResult> recordPaidOut({
     required double amountUsd,
     required double amountKhr,
     String? reason,
   }) async {
     final sessionId = state.sessionId;
-    if (sessionId == null || sessionId.isEmpty) return;
+    if (sessionId == null || sessionId.isEmpty) {
+      return const CashSessionActionResult.failed();
+    }
+
+    final branchContext = _resolveQueueContext(session: state.session);
+    if (_connectivityStatus == AppConnectivityStatus.offline &&
+        branchContext != null) {
+      try {
+        state = state.copyWith(isLoading: false, error: null, errorCode: null);
+        await _offlineQueue.enqueueMovement(
+          tenantId: branchContext.tenantId,
+          branchId: branchContext.branchId,
+          accountId: state.currentUserAccountId,
+          sessionId: sessionId,
+          movementType: 'PAID_OUT',
+          reason: _normalizeMovementReason(reason, fallback: 'Manual movement'),
+          amountUsd: amountUsd,
+          amountKhr: amountKhr,
+          amountUsdDelta: 0,
+          amountKhrDelta: 0,
+        );
+        return const CashSessionActionResult.queued(
+          'Cash movement saved offline. It will sync when you reconnect.',
+        );
+      } catch (error) {
+        _setError(error);
+        return CashSessionActionResult.failed(_errorMessage(error));
+      }
+    }
 
     state = state.copyWith(isLoading: true, error: null, errorCode: null);
     try {
-      final trimmedReason = (reason ?? '').trim();
-      final safeReason = trimmedReason.length >= 3
-          ? trimmedReason
-          : 'Manual movement';
+      final safeReason = _normalizeMovementReason(
+        reason,
+        fallback: 'Manual movement',
+      );
       await _withTimeout(
         _movementRepo.recordPaidOut(
           sessionId: sessionId,
@@ -405,25 +510,58 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
         ),
       );
       await _fetchActiveSession(loadMovements: true, loadSales: true);
+      return const CashSessionActionResult.applied();
     } catch (error) {
       _setError(error);
+      return CashSessionActionResult.failed(_errorMessage(error));
     }
   }
 
-  Future<void> recordAdjustment({
+  Future<CashSessionActionResult> recordAdjustment({
     required double amountUsdDelta,
     required double amountKhrDelta,
     String? reason,
   }) async {
     final sessionId = state.sessionId;
-    if (sessionId == null || sessionId.isEmpty) return;
+    if (sessionId == null || sessionId.isEmpty) {
+      return const CashSessionActionResult.failed();
+    }
+
+    final branchContext = _resolveQueueContext(session: state.session);
+    if (_connectivityStatus == AppConnectivityStatus.offline &&
+        branchContext != null) {
+      try {
+        state = state.copyWith(isLoading: false, error: null, errorCode: null);
+        await _offlineQueue.enqueueMovement(
+          tenantId: branchContext.tenantId,
+          branchId: branchContext.branchId,
+          accountId: state.currentUserAccountId,
+          sessionId: sessionId,
+          movementType: 'ADJUSTMENT',
+          reason: _normalizeMovementReason(
+            reason,
+            fallback: 'Manual adjustment',
+          ),
+          amountUsd: 0,
+          amountKhr: 0,
+          amountUsdDelta: amountUsdDelta,
+          amountKhrDelta: amountKhrDelta,
+        );
+        return const CashSessionActionResult.queued(
+          'Cash movement saved offline. It will sync when you reconnect.',
+        );
+      } catch (error) {
+        _setError(error);
+        return CashSessionActionResult.failed(_errorMessage(error));
+      }
+    }
 
     state = state.copyWith(isLoading: true, error: null, errorCode: null);
     try {
-      final trimmedReason = (reason ?? '').trim();
-      final safeReason = trimmedReason.length >= 3
-          ? trimmedReason
-          : 'Manual adjustment';
+      final safeReason = _normalizeMovementReason(
+        reason,
+        fallback: 'Manual adjustment',
+      );
       await _withTimeout(
         _movementRepo.recordAdjustment(
           sessionId: sessionId,
@@ -433,18 +571,45 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
         ),
       );
       await _fetchActiveSession(loadMovements: true, loadSales: true);
+      return const CashSessionActionResult.applied();
     } catch (error) {
       _setError(error);
+      return CashSessionActionResult.failed(_errorMessage(error));
     }
   }
 
-  Future<void> closeSession({
+  Future<CashSessionActionResult> closeSession({
     required double countedUsd,
     required double countedKhr,
     String? note,
   }) async {
     final sessionId = state.sessionId;
-    if (sessionId == null || sessionId.isEmpty) return;
+    if (sessionId == null || sessionId.isEmpty) {
+      return const CashSessionActionResult.failed();
+    }
+
+    final branchContext = _resolveQueueContext(session: state.session);
+    if (_connectivityStatus == AppConnectivityStatus.offline &&
+        branchContext != null) {
+      try {
+        state = state.copyWith(isLoading: false, error: null, errorCode: null);
+        await _offlineQueue.enqueueCloseSession(
+          tenantId: branchContext.tenantId,
+          branchId: branchContext.branchId,
+          accountId: state.currentUserAccountId,
+          sessionId: sessionId,
+          countedCashUsd: countedUsd,
+          countedCashKhr: countedKhr,
+          note: note,
+        );
+        return const CashSessionActionResult.queued(
+          'Session closure saved offline. It will sync when you reconnect.',
+        );
+      } catch (error) {
+        _setError(error);
+        return CashSessionActionResult.failed(_errorMessage(error));
+      }
+    }
 
     state = state.copyWith(isLoading: true, error: null, errorCode: null);
     try {
@@ -457,8 +622,10 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
         ),
       );
       await _fetchActiveSession(loadMovements: true, loadSales: true);
+      return const CashSessionActionResult.applied();
     } catch (error) {
       _setError(error);
+      return CashSessionActionResult.failed(_errorMessage(error));
     }
   }
 
@@ -470,6 +637,14 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
   }) async {
     final sessionId = state.sessionId;
     if (sessionId == null || sessionId.isEmpty) return;
+    if (_connectivityStatus == AppConnectivityStatus.offline) {
+      state = state.copyWith(
+        isLoading: false,
+        error: 'Force-closing a cash session requires connectivity.',
+        errorCode: CashSessionErrorCodes.onlineOnlyAction,
+      );
+      return;
+    }
 
     state = state.copyWith(isLoading: true, error: null, errorCode: null);
     try {
@@ -662,6 +837,22 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
 
   Future<T> _withTimeout<T>(Future<T> future) {
     return future.timeout(_requestTimeout);
+  }
+
+  String _normalizeMovementReason(String? reason, {required String fallback}) {
+    final trimmedReason = (reason ?? '').trim();
+    return trimmedReason.length >= 3 ? trimmedReason : fallback;
+  }
+
+  CashSessionBranchContext? _resolveQueueContext({CashSession? session}) {
+    final providerContext = ref.read(cashSessionBranchContextProvider);
+    if (providerContext != null) return providerContext;
+    final currentSession = session;
+    if (currentSession == null) return null;
+    final tenantId = currentSession.tenantId.trim();
+    final branchId = currentSession.branchId.trim();
+    if (tenantId.isEmpty || branchId.isEmpty) return null;
+    return CashSessionBranchContext(tenantId: tenantId, branchId: branchId);
   }
 
   String _resolveCurrentAccountId(session) {

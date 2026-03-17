@@ -45,6 +45,8 @@ class DriftPolicyCacheStore implements PolicyCacheStore {
       saleKhrRoundingMode: row.saleKhrRoundingMode,
       saleKhrRoundingGranularity: row.saleKhrRoundingGranularity,
       saleAllowPayLater: row.saleAllowPayLater,
+      saleAllowManualExternalPaymentClaim:
+          row.saleAllowManualExternalPaymentClaim,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     );
@@ -69,6 +71,9 @@ class DriftPolicyCacheStore implements PolicyCacheStore {
             saleKhrRoundingMode: policy.saleKhrRoundingMode,
             saleKhrRoundingGranularity: policy.saleKhrRoundingGranularity,
             saleAllowPayLater: policy.saleAllowPayLater,
+            saleAllowManualExternalPaymentClaim: Value(
+              policy.saleAllowManualExternalPaymentClaim,
+            ),
             createdAt: policy.createdAt,
             updatedAt: policy.updatedAt,
             cachedAt: DateTime.now(),

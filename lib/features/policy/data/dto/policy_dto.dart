@@ -11,6 +11,7 @@ class BranchPolicyDto {
     required this.saleKhrRoundingMode,
     required this.saleKhrRoundingGranularity,
     required this.saleAllowPayLater,
+    required this.saleAllowManualExternalPaymentClaim,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -24,6 +25,7 @@ class BranchPolicyDto {
   final String saleKhrRoundingMode;
   final String saleKhrRoundingGranularity;
   final bool saleAllowPayLater;
+  final bool saleAllowManualExternalPaymentClaim;
   final String createdAt;
   final String updatedAt;
 
@@ -33,8 +35,7 @@ class BranchPolicyDto {
       tenantId: root['tenantId']?.toString() ?? '',
       branchId: root['branchId']?.toString() ?? '',
       saleVatEnabled: (root['saleVatEnabled'] as bool?) ?? false,
-      saleVatRatePercent:
-          (root['saleVatRatePercent'] as num?)?.toDouble() ?? 0,
+      saleVatRatePercent: (root['saleVatRatePercent'] as num?)?.toDouble() ?? 0,
       saleFxRateKhrPerUsd:
           (root['saleFxRateKhrPerUsd'] as num?)?.toDouble() ?? 4100,
       saleKhrRoundingEnabled:
@@ -46,6 +47,8 @@ class BranchPolicyDto {
         root['saleKhrRoundingGranularity']?.toString(),
       ),
       saleAllowPayLater: (root['saleAllowPayLater'] as bool?) ?? false,
+      saleAllowManualExternalPaymentClaim:
+          (root['saleAllowManualExternalPaymentClaim'] as bool?) ?? false,
       createdAt: root['createdAt']?.toString() ?? '',
       updatedAt: root['updatedAt']?.toString() ?? '',
     );
@@ -67,6 +70,7 @@ class UpdateBranchPolicyInputDto {
     this.saleKhrRoundingMode,
     this.saleKhrRoundingGranularity,
     this.saleAllowPayLater,
+    this.saleAllowManualExternalPaymentClaim,
   });
 
   final bool? saleVatEnabled;
@@ -76,12 +80,12 @@ class UpdateBranchPolicyInputDto {
   final String? saleKhrRoundingMode;
   final String? saleKhrRoundingGranularity;
   final bool? saleAllowPayLater;
+  final bool? saleAllowManualExternalPaymentClaim;
 
   Map<String, dynamic> toJson() {
     return <String, dynamic>{
       if (saleVatEnabled != null) 'saleVatEnabled': saleVatEnabled,
-      if (saleVatRatePercent != null)
-        'saleVatRatePercent': saleVatRatePercent,
+      if (saleVatRatePercent != null) 'saleVatRatePercent': saleVatRatePercent,
       if (saleFxRateKhrPerUsd != null)
         'saleFxRateKhrPerUsd': saleFxRateKhrPerUsd,
       if (saleKhrRoundingEnabled != null)
@@ -96,6 +100,9 @@ class UpdateBranchPolicyInputDto {
               saleKhrRoundingGranularity,
             ),
       if (saleAllowPayLater != null) 'saleAllowPayLater': saleAllowPayLater,
+      if (saleAllowManualExternalPaymentClaim != null)
+        'saleAllowManualExternalPaymentClaim':
+            saleAllowManualExternalPaymentClaim,
     };
   }
 }

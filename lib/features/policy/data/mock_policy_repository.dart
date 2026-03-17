@@ -13,6 +13,7 @@ class MockPolicyRepository implements PolicyRepository {
         saleKhrRoundingMode: BranchPolicyRoundingModes.nearest,
         saleKhrRoundingGranularity: BranchPolicyRoundingGranularities.hundred,
         saleAllowPayLater: true,
+        saleAllowManualExternalPaymentClaim: true,
         createdAt: '2026-02-17T10:00:00.000Z',
         updatedAt: '2026-02-17T10:00:00.000Z',
       );
@@ -33,6 +34,7 @@ class MockPolicyRepository implements PolicyRepository {
     String? saleKhrRoundingMode,
     String? saleKhrRoundingGranularity,
     bool? saleAllowPayLater,
+    bool? saleAllowManualExternalPaymentClaim,
   }) async {
     _policy = _policy.copyWith(
       saleVatEnabled: saleVatEnabled,
@@ -42,6 +44,7 @@ class MockPolicyRepository implements PolicyRepository {
       saleKhrRoundingMode: saleKhrRoundingMode,
       saleKhrRoundingGranularity: saleKhrRoundingGranularity,
       saleAllowPayLater: saleAllowPayLater,
+      saleAllowManualExternalPaymentClaim: saleAllowManualExternalPaymentClaim,
       updatedAt: DateTime.now().toUtc().toIso8601String(),
     );
     return _policy;

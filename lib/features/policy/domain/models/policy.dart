@@ -44,6 +44,7 @@ class BranchPolicy {
     this.saleKhrRoundingMode = BranchPolicyRoundingModes.nearest,
     this.saleKhrRoundingGranularity = BranchPolicyRoundingGranularities.hundred,
     this.saleAllowPayLater = false,
+    this.saleAllowManualExternalPaymentClaim = false,
     this.createdAt = '',
     this.updatedAt = '',
   });
@@ -57,6 +58,7 @@ class BranchPolicy {
   final String saleKhrRoundingMode; // NEAREST | UP | DOWN
   final String saleKhrRoundingGranularity; // "100" | "1000"
   final bool saleAllowPayLater;
+  final bool saleAllowManualExternalPaymentClaim;
   final String createdAt;
   final String updatedAt;
 
@@ -70,6 +72,7 @@ class BranchPolicy {
     String? saleKhrRoundingMode,
     String? saleKhrRoundingGranularity,
     bool? saleAllowPayLater,
+    bool? saleAllowManualExternalPaymentClaim,
     String? createdAt,
     String? updatedAt,
   }) {
@@ -90,6 +93,9 @@ class BranchPolicy {
               saleKhrRoundingGranularity,
             ),
       saleAllowPayLater: saleAllowPayLater ?? this.saleAllowPayLater,
+      saleAllowManualExternalPaymentClaim:
+          saleAllowManualExternalPaymentClaim ??
+          this.saleAllowManualExternalPaymentClaim,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );

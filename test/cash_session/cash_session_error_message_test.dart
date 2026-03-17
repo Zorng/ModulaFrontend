@@ -27,6 +27,18 @@ void main() {
     );
   });
 
+  test('maps online-only actions to deterministic message', () {
+    final message = mapCashSessionErrorMessage(
+      errorCode: CashSessionErrorCodes.onlineOnlyAction,
+      error: 'raw backend error',
+    );
+
+    expect(
+      message,
+      'This cash-session action requires connectivity and cannot be queued offline.',
+    );
+  });
+
   test('falls back to generic user message for unknown codes', () {
     final message = mapCashSessionErrorMessage(
       context: 'Failed to load cash session',

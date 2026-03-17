@@ -25,6 +25,19 @@ String buildModuleScopeSetKey(Iterable<SyncModuleScope> scopes) {
   return values.join('|');
 }
 
+String buildSyncPullRunKey({
+  required SyncPullContext context,
+  required String scopeSetKey,
+}) {
+  return [
+    context.deviceId.trim(),
+    context.tenantId.trim(),
+    context.branchId.trim(),
+    context.accountId.trim(),
+    scopeSetKey.trim(),
+  ].join('|');
+}
+
 class SyncPullContext {
   const SyncPullContext({
     required this.deviceId,
@@ -59,24 +72,28 @@ class SyncPullRunState {
   const SyncPullRunState({
     this.status = SyncPullRunStatus.idle,
     this.moduleScopeSetKey,
+    this.runKey,
     this.lastRunAt,
     this.lastErrorCode,
   });
 
   final SyncPullRunStatus status;
   final String? moduleScopeSetKey;
+  final String? runKey;
   final DateTime? lastRunAt;
   final String? lastErrorCode;
 
   SyncPullRunState copyWith({
     SyncPullRunStatus? status,
     String? moduleScopeSetKey,
+    String? runKey,
     Object? lastRunAt = _unset,
     Object? lastErrorCode = _unset,
   }) {
     return SyncPullRunState(
       status: status ?? this.status,
       moduleScopeSetKey: moduleScopeSetKey ?? this.moduleScopeSetKey,
+      runKey: runKey ?? this.runKey,
       lastRunAt: identical(lastRunAt, _unset)
           ? this.lastRunAt
           : lastRunAt as DateTime?,

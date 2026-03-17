@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:modular_pos/core/sync/sync_freshness.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
 import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
 import 'package:modular_pos/features/cash_session/domain/models/cash_session.dart';
@@ -22,6 +23,69 @@ class _StaticCashSessionViewModel extends CashSessionViewModel {
 }
 
 void main() {
+  testWidgets(
+    'shows passive workspace freshness banner for cached offline state',
+    (tester) async {
+      final state = CashSessionState(
+        isLoading: false,
+        error: 'This cash-session action is unavailable while offline.',
+        errorCode: 'OFFLINE_UNREACHABLE',
+        currentUserAccountId: 'user-a',
+        session: CashSession(
+          id: 'session-1',
+          tenantId: 'tenant-1',
+          branchId: 'branch-1',
+          openedByAccountId: 'user-a',
+          openedByName: 'John Smith',
+          openedAt: DateTime.utc(2026, 3, 8, 9),
+          status: CashSessionStatuses.open,
+          openingFloatUsd: 25,
+          openingFloatKhr: 100000,
+          closedAt: null,
+          closedByAccountId: null,
+          closedByName: null,
+          closeNote: null,
+          totalPaidInUsd: 0,
+          totalPaidOutUsd: 0,
+        ),
+      );
+
+      await pumpApp(
+        tester,
+        const CashSessionScreen(showAppBar: false),
+        overrides: [
+          authActiveBranchProvider.overrideWithValue(
+            const UserBranch(
+              id: 'assign-1',
+              branchId: 'branch-1',
+              name: 'Branch A',
+              role: 'cashier',
+              active: true,
+            ),
+          ),
+          cashSessionViewModelProvider.overrideWith(
+            () => _StaticCashSessionViewModel(state),
+          ),
+          branchWorkspaceSyncFreshnessProvider.overrideWith(
+            (ref) async => const SyncWorkspaceFreshness(
+              kind: SyncWorkspaceFreshnessKind.staleUsable,
+              message: 'Offline: showing last synced workspace data.',
+            ),
+          ),
+          currentSessionSummaryProvider.overrideWith((ref) async => null),
+        ],
+      );
+
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Offline: showing last synced workspace data.'),
+        findsOneWidget,
+      );
+      expect(find.text('Failed to load cash session'), findsNothing);
+    },
+  );
+
   testWidgets(
     'shows occupied state and hides normal close action when another account owns the open session',
     (tester) async {

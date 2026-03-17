@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:modular_pos/core/network/app_connectivity.dart';
+import 'package:modular_pos/core/network/app_connectivity_contract.dart';
 import 'package:modular_pos/core/printing/thermal_printer_controller.dart';
 import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/core/formatters/khr_currency_formatter.dart';
@@ -536,6 +538,7 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
     final menuState = ref.watch(menuViewModelProvider);
     final cartNotifier = ref.read(saleCartProvider.notifier);
     final gate = ref.watch(saleAccessGateProvider);
+    final connectivityStatus = ref.watch(appConnectivityStatusProvider);
     final readOnly = !gate.canAddToCart || cartState.isFinalizing;
     final policyState = ref.watch(policyNotifierProvider);
     final branchPolicy = policyState.branchPolicy;
@@ -575,7 +578,10 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
     );
     final orderType = cartState.saleType;
     final isPayLaterMode = orderType == 'dine_in';
+    final isOffline = connectivityStatus == AppConnectivityStatus.offline;
     final payLaterEnabled = branchPolicy.saleAllowPayLater;
+    final manualClaimEnabled =
+        branchPolicy.saleAllowManualExternalPaymentClaim;
     final canCheckout =
         gate.canCheckout &&
         !cartState.isFinalizing &&
@@ -592,7 +598,19 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
         gate.canCheckout &&
         !cartState.isFinalizing &&
         items.isNotEmpty &&
-        khqrReceiverConfigured != false;
+        khqrReceiverConfigured != false &&
+        !isOffline;
+    final canOfflineCashCapture =
+        gate.canCheckout &&
+        !cartState.isFinalizing &&
+        items.isNotEmpty &&
+        paymentMethod == 'cash';
+    final canOfflineManualClaimCapture =
+        gate.canCheckout &&
+        manualClaimEnabled &&
+        !cartState.isFinalizing &&
+        items.isNotEmpty &&
+        paymentMethod == 'qr';
     final qrPrimaryActionLabel = switch (khqrStatus) {
       SaleKhqrUiStates.superseded ||
       SaleKhqrUiStates.expired => 'Generate New Code',
@@ -600,18 +618,30 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
       SaleKhqrUiStates.readyToGenerate => 'Generate Code',
       _ => 'View Code',
     };
-    final canPrimaryAction = isPayLaterMode
+    final canPrimaryAction = isOffline && paymentMethod == 'cash'
+        ? canOfflineCashCapture
+        : isOffline && paymentMethod == 'qr'
+        ? canOfflineManualClaimCapture
+        : isPayLaterMode
         ? canPlaceOrder
         : paymentMethod == 'qr'
         ? canKhqrAction
         : canCheckout;
-    final primaryActionLabel = isPayLaterMode
+    final primaryActionLabel = isOffline && paymentMethod == 'cash'
+        ? 'Capture Order'
+        : isOffline && paymentMethod == 'qr'
+        ? 'Capture Claim Order'
+        : isPayLaterMode
         ? 'Place Order'
         : paymentMethod == 'qr'
         ? qrPrimaryActionLabel
         : 'Checkout';
     final payLaterDisabledMessage = !payLaterEnabled && isPayLaterMode
         ? 'Pay-later is disabled by branch policy. Switch order type to continue.'
+        : null;
+    final manualClaimDisabledMessage =
+        isOffline && paymentMethod == 'qr' && !manualClaimEnabled
+        ? 'Manual external-payment claim fallback is disabled by branch policy.'
         : null;
     final checkoutBannerMessage = SaleCheckoutErrorMessage.build(
       reasonCode: cartState.checkoutErrorCode,
@@ -841,6 +871,15 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
                     ),
                   ),
                 ],
+                if (manualClaimDisabledMessage != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    manualClaimDisabledMessage,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 20),
                 // Summary Section
                 Text(
@@ -899,6 +938,67 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
             showClearCart: !readOnly,
             onClearCart: () => _showClearCartConfirmation(cartNotifier),
             onCheckout: () async {
+              if (isOffline && paymentMethod == 'cash') {
+                try {
+                  final result = await cartNotifier.captureOfflineCashOrder();
+                  await ref
+                      .read(ordersProvider.notifier)
+                      .load(date: DateTime.now());
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Order ${result.orderNumber} captured offline. Settle it when back online.',
+                      ),
+                    ),
+                  );
+                } catch (e) {
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        _actionErrorMessage(
+                          context: 'Offline capture failed',
+                          error: e,
+                        ),
+                      ),
+                    ),
+                  );
+                }
+                return;
+              }
+
+              if (isOffline && paymentMethod == 'qr') {
+                try {
+                  final result =
+                      await cartNotifier.captureOfflineManualClaimOrder();
+                  await ref
+                      .read(ordersProvider.notifier)
+                      .load(date: DateTime.now());
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Order ${result.orderNumber} captured offline for manual KHQR claim. Add proof on the order detail when back online.',
+                      ),
+                    ),
+                  );
+                } catch (e) {
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        _actionErrorMessage(
+                          context: 'Manual claim capture failed',
+                          error: e,
+                        ),
+                      ),
+                    ),
+                  );
+                }
+                return;
+              }
+
               if (paymentMethod == 'qr') {
                 await _handleKhqrPrimaryAction(
                   cartNotifier: cartNotifier,

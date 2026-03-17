@@ -25,6 +25,7 @@ void main() {
       expect(dto.saleVatRatePercent, 0);
       expect(dto.saleFxRateKhrPerUsd, 4000);
       expect(dto.saleAllowPayLater, isTrue);
+      expect(dto.saleAllowManualExternalPaymentClaim, isTrue);
       expect(dto.createdAt, '2026-02-17T10:00:00.000Z');
       expect(dto.updatedAt, '2026-02-17T10:05:00.000Z');
     },
@@ -45,6 +46,7 @@ void main() {
     expect(dto.saleKhrRoundingMode, 'UP');
     expect(dto.saleKhrRoundingGranularity, '100');
     expect(dto.saleAllowPayLater, isTrue);
+    expect(dto.saleAllowManualExternalPaymentClaim, isTrue);
     expect(dto.createdAt, '2026-02-17T10:00:00.000Z');
     expect(dto.updatedAt, '2026-02-17T10:05:00.000Z');
 
@@ -57,6 +59,7 @@ void main() {
     expect(defaults.saleKhrRoundingMode, 'NEAREST');
     expect(defaults.saleKhrRoundingGranularity, '100');
     expect(defaults.saleAllowPayLater, isFalse);
+    expect(defaults.saleAllowManualExternalPaymentClaim, isFalse);
   });
 
   test('PolicyRepository.fetchPolicy builds a BranchPolicy', () async {
@@ -77,6 +80,7 @@ void main() {
     expect(branchPolicy.saleFxRateKhrPerUsd, 4000);
     expect(branchPolicy.saleKhrRoundingEnabled, isTrue);
     expect(branchPolicy.saleAllowPayLater, isTrue);
+    expect(branchPolicy.saleAllowManualExternalPaymentClaim, isTrue);
   });
 
   test(
@@ -99,6 +103,7 @@ void main() {
 
       expect(branchPolicy.saleFxRateKhrPerUsd, 4000);
       expect(branchPolicy.saleAllowPayLater, isTrue);
+      expect(branchPolicy.saleAllowManualExternalPaymentClaim, isTrue);
       verify(
         () => api.updateCurrentBranchPolicy(saleFxRateKhrPerUsd: 4050),
       ).called(1);

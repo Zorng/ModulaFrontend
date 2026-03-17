@@ -67,6 +67,18 @@ class OrderCard extends StatelessWidget {
                   'Unpaid open ticket. Settlement remains available even when new pay-later orders are disabled.',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
+              ] else if (order.isLocalOutageOrder) ...[
+                const SizedBox(height: 6),
+                Text(
+                  order.hasManualExternalPaymentClaimRecorded
+                      ? 'Manual KHQR payment claimed. Awaiting manager review.'
+                      : order.isManualClaimOutageOrder
+                      ? 'Offline-captured order awaiting manual KHQR proof.'
+                      : order.isAwaitingOutageSettlement
+                      ? 'Offline-captured order awaiting online settlement.'
+                      : 'Offline outage order in recovery.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
               ],
               const SizedBox(height: 6),
               Row(

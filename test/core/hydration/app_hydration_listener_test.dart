@@ -1,8 +1,20 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:modular_pos/core/network/app_connectivity.dart';
+import 'package:modular_pos/core/network/app_connectivity_contract.dart';
 import 'package:modular_pos/core/hydration/app_hydration_listener.dart';
 import 'package:modular_pos/core/hydration/context_scoped_runtime_resource.dart';
+import 'package:modular_pos/core/sync/offline_command_queue_store.dart';
+import 'package:modular_pos/core/sync/sync_checkpoint_store.dart';
+import 'package:modular_pos/core/sync/sync_models.dart';
+import 'package:modular_pos/core/sync/sync_pull_api.dart';
+import 'package:modular_pos/core/sync/sync_pull_orchestrator.dart';
+import 'package:modular_pos/core/sync/sync_pull_trigger_controller.dart';
+import 'package:modular_pos/core/sync/sync_push_api.dart';
+import 'package:modular_pos/core/sync/sync_push_coordinator.dart';
+import 'package:modular_pos/core/sync/sync_push_trigger_controller.dart';
 import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
 import 'package:modular_pos/features/auth/domain/auth_tenant_provider.dart';
 import 'package:modular_pos/features/auth/domain/auth_token_provider.dart';
@@ -104,6 +116,196 @@ class _TestContextScopedResource implements ContextScopedRuntimeResource {
   }
 }
 
+class _TestSyncPullTriggerController extends SyncPullTriggerController {
+  _TestSyncPullTriggerController()
+    : super(
+        orchestrator: SyncPullOrchestrator(
+          api: _NoopSyncPullApi(),
+          checkpointStore: _NoopSyncCheckpointStore(),
+          consumers: const <SyncPullConsumer>[],
+          status: _NoopSyncPullRunStateController(),
+        ),
+        readContext: () => null,
+        readBranchWorkspaceScopes: () => const <SyncModuleScope>{},
+        now: DateTime.now,
+        cooldown: Duration.zero,
+      );
+
+  final calls = <(SyncPullTrigger trigger, SyncPullContext? context)>[];
+
+  @override
+  Future<SyncPullTriggerResult> triggerBranchWorkspace({
+    required SyncPullTrigger trigger,
+    SyncPullContext? contextOverride,
+    bool forceBootstrap = false,
+  }) async {
+    calls.add((trigger, contextOverride));
+    return SyncPullTriggerResult(
+      trigger: trigger,
+      outcome: SyncPullTriggerOutcome.success,
+      context: contextOverride,
+    );
+  }
+}
+
+class _TestSyncPushTriggerController extends SyncPushTriggerController {
+  _TestSyncPushTriggerController()
+    : super(
+        coordinator: _NoopSyncPushCoordinator(),
+        readContext: () => null,
+        now: DateTime.now,
+        cooldown: Duration.zero,
+      );
+
+  final calls = <(SyncPushTrigger trigger, SyncPullContext? context)>[];
+  SyncPushTriggerResult nextResult = const SyncPushTriggerResult(
+    trigger: SyncPushTrigger.reconnect,
+    outcome: SyncPushTriggerOutcome.noPending,
+  );
+
+  @override
+  Future<SyncPushTriggerResult> triggerBranchWorkspace({
+    required SyncPushTrigger trigger,
+    SyncPullContext? contextOverride,
+    bool bypassCooldown = false,
+    int limit = 50,
+  }) async {
+    calls.add((trigger, contextOverride));
+    return SyncPushTriggerResult(
+      trigger: trigger,
+      outcome: nextResult.outcome,
+      context: contextOverride,
+      replayResult: nextResult.replayResult,
+      errorCode: nextResult.errorCode,
+    );
+  }
+}
+
+class _NoopSyncPullApi extends SyncPullApi {
+  _NoopSyncPullApi() : super(Dio());
+
+  @override
+  Future<SyncPullEnvelope> pull({
+    required SyncPullContext context,
+    required Set<SyncModuleScope> moduleScopes,
+    String? cursor,
+  }) {
+    throw UnimplementedError();
+  }
+}
+
+class _NoopSyncCheckpointStore implements SyncCheckpointStore {
+  @override
+  Future<void> clear({
+    required String deviceId,
+    required String tenantId,
+    String? branchId,
+    String? accountId,
+    required String moduleScopeSetKey,
+  }) async {}
+
+  @override
+  Future<SyncCheckpointRecord?> read({
+    required String deviceId,
+    required String tenantId,
+    String? branchId,
+    String? accountId,
+    required String moduleScopeSetKey,
+  }) async {
+    return null;
+  }
+
+  @override
+  Future<void> write(SyncCheckpointRecord record) async {}
+}
+
+class _NoopSyncPullRunStateController extends SyncPullRunStateController {
+  @override
+  SyncPullRunState build() => const SyncPullRunState();
+}
+
+class _NoopSyncPushCoordinator extends SyncPushCoordinator {
+  _NoopSyncPushCoordinator()
+    : super(
+        queueStore: _NoopOfflineCommandQueueStore(),
+        api: _NoopSyncPushApi(),
+        pullOrchestrator: _NoopSyncPullOrchestrator(),
+        readBranchWorkspaceScopes: () => const <SyncModuleScope>{},
+      );
+}
+
+class _NoopOfflineCommandQueueStore implements OfflineCommandQueueStore {
+  @override
+  Future<int> countForContext({
+    required String tenantId,
+    String? branchId,
+    String? accountId,
+    Set<OfflineCommandQueueStatus>? statuses,
+  }) async {
+    return 0;
+  }
+
+  @override
+  Future<List<OfflineCommandRecord>> listForContext({
+    required String tenantId,
+    String? branchId,
+    String? accountId,
+    Set<OfflineCommandQueueStatus>? statuses,
+    int limit = 100,
+  }) async {
+    return const <OfflineCommandRecord>[];
+  }
+
+  @override
+  Future<List<OfflineCommandRecord>> listReplayReadyForContext({
+    required String tenantId,
+    String? branchId,
+    String? accountId,
+    int limit = 100,
+  }) async {
+    return const <OfflineCommandRecord>[];
+  }
+
+  @override
+  Future<OfflineCommandRecord?> read(String clientOpId) async {
+    return null;
+  }
+
+  @override
+  Future<void> write(OfflineCommandRecord record) async {}
+}
+
+class _NoopSyncPushApi extends SyncPushApi {
+  _NoopSyncPushApi() : super(Dio());
+
+  @override
+  Future<SyncPushEnvelope> push({
+    required SyncPullContext context,
+    required List<OfflineCommandRecord> operations,
+  }) {
+    throw UnimplementedError();
+  }
+}
+
+class _NoopSyncPullOrchestrator extends SyncPullOrchestrator {
+  _NoopSyncPullOrchestrator()
+    : super(
+        api: _NoopSyncPullApi(),
+        checkpointStore: _NoopSyncCheckpointStore(),
+        consumers: const <SyncPullConsumer>[],
+        status: _NoopSyncPullRunStateController(),
+      );
+}
+
+class _TestConnectivityStatusNotifier extends AppConnectivityStatusController {
+  @override
+  AppConnectivityStatus build() => AppConnectivityStatus.online;
+
+  void setStatus(AppConnectivityStatus status) {
+    state = status;
+  }
+}
+
 AuthSession _buildSession({
   required String tenantId,
   required String accessToken,
@@ -141,6 +343,7 @@ void main() {
     'hydrates token/tenant and refreshes policy/cash session per branch',
     (tester) async {
       final runtimeResource = _TestContextScopedResource();
+      final triggerController = _TestSyncPullTriggerController();
       final container = createTestContainer(
         overrides: [
           loginControllerProvider.overrideWith(_TestLoginController.new),
@@ -151,6 +354,10 @@ void main() {
           contextScopedRuntimeResourcesProvider.overrideWithValue([
             runtimeResource,
           ]),
+          syncResolvedDeviceIdProvider.overrideWith((ref) async => 'device-1'),
+          syncPullTriggerControllerProvider.overrideWithValue(
+            triggerController,
+          ),
         ],
       );
 
@@ -160,6 +367,7 @@ void main() {
           child: const AppHydrationListener(child: SizedBox.shrink()),
         ),
       );
+      await tester.pump();
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 1));
 
@@ -212,6 +420,11 @@ void main() {
       expect(cash.loadedBranchIds, ['branch-a']);
       expect(runtimeResource.reboundCount, 1);
       expect(runtimeResource.rebinds, [('token-1', 'tenant-1', 'branch-a')]);
+      expect(triggerController.calls, hasLength(1));
+      expect(triggerController.calls.first.$2?.deviceId, 'device-1');
+      expect(triggerController.calls.first.$2?.tenantId, 'tenant-1');
+      expect(triggerController.calls.first.$2?.branchId, 'branch-a');
+      expect(triggerController.calls.first.$2?.accountId, 'user-1');
 
       container
           .read(authActiveBranchOverrideProvider.notifier)
@@ -219,6 +432,7 @@ void main() {
       container
           .read(authActiveBranchNameOverrideProvider.notifier)
           .setName('Branch B');
+      await tester.pump();
       await tester.pump();
 
       expect(policy.loadCount, 2);
@@ -230,6 +444,12 @@ void main() {
         ('token-1', 'tenant-1', 'branch-a'),
         ('token-1', 'tenant-1', 'branch-b'),
       ]);
+      expect(triggerController.calls, hasLength(2));
+      expect(triggerController.calls.last.$1, SyncPullTrigger.branchSwitch);
+      expect(triggerController.calls.last.$2?.deviceId, 'device-1');
+      expect(triggerController.calls.last.$2?.tenantId, 'tenant-1');
+      expect(triggerController.calls.last.$2?.branchId, 'branch-b');
+      expect(triggerController.calls.last.$2?.accountId, 'user-1');
 
       login.setSession(null);
       await tester.pump();
@@ -263,6 +483,8 @@ void main() {
       ),
     );
     await tester.pump();
+    await tester.pump();
+    await tester.pump();
     await tester.pump(const Duration(milliseconds: 1));
 
     final policy =
@@ -291,6 +513,7 @@ void main() {
       ),
     );
     await tester.pump();
+    await tester.pump();
 
     expect(policy.loadCount, 1);
     expect(cash.loadCount, 1);
@@ -305,8 +528,237 @@ void main() {
       ),
     );
     await tester.pump();
+    await tester.pump();
 
     expect(policy.resetCount, greaterThanOrEqualTo(2));
     expect(cash.resetCount, greaterThanOrEqualTo(2));
   });
+
+  testWidgets('treats tenant change as tenantSwitch trigger', (tester) async {
+    final triggerController = _TestSyncPullTriggerController();
+    final container = createTestContainer(
+      overrides: [
+        loginControllerProvider.overrideWith(_TestLoginController.new),
+        policyNotifierProvider.overrideWith(_TestPolicyNotifier.new),
+        cashSessionViewModelProvider.overrideWith(
+          _TestCashSessionViewModel.new,
+        ),
+        syncResolvedDeviceIdProvider.overrideWith((ref) async => 'device-1'),
+        syncPullTriggerControllerProvider.overrideWithValue(triggerController),
+      ],
+    );
+
+    await tester.pumpWidget(
+      _TestHarness(
+        container: container,
+        child: const AppHydrationListener(child: SizedBox.shrink()),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 1));
+
+    final login =
+        container.read(loginControllerProvider.notifier)
+            as _TestLoginController;
+
+    login.setSession(
+      _buildSession(
+        tenantId: 'tenant-1',
+        accessToken: 'token-1',
+        branches: const [
+          UserBranch(
+            id: 'assign-a',
+            name: 'Branch A',
+            role: 'admin',
+            active: true,
+            branchId: 'branch-a',
+          ),
+        ],
+      ),
+    );
+    await tester.pump();
+
+    login.setSession(
+      _buildSession(
+        tenantId: 'tenant-2',
+        accessToken: 'token-1',
+        branches: const [
+          UserBranch(
+            id: 'assign-c',
+            name: 'Branch C',
+            role: 'admin',
+            active: true,
+            branchId: 'branch-c',
+          ),
+        ],
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(triggerController.calls, hasLength(2));
+    expect(triggerController.calls.first.$2?.tenantId, 'tenant-1');
+    expect(triggerController.calls.first.$2?.branchId, 'branch-a');
+    expect(triggerController.calls.last.$2?.tenantId, 'tenant-2');
+    expect(triggerController.calls.last.$2?.branchId, 'branch-c');
+    expect(triggerController.calls.last.$2?.accountId, 'user-1');
+  });
+
+  testWidgets('triggers reconnect sync when connectivity returns online', (
+    tester,
+  ) async {
+    final triggerController = _TestSyncPullTriggerController();
+    final pushTriggerController = _TestSyncPushTriggerController();
+    final container = createTestContainer(
+      overrides: [
+        loginControllerProvider.overrideWith(_TestLoginController.new),
+        policyNotifierProvider.overrideWith(_TestPolicyNotifier.new),
+        cashSessionViewModelProvider.overrideWith(
+          _TestCashSessionViewModel.new,
+        ),
+        syncResolvedDeviceIdProvider.overrideWith((ref) async => 'device-1'),
+        syncPullTriggerControllerProvider.overrideWithValue(triggerController),
+        syncPushTriggerControllerProvider.overrideWithValue(
+          pushTriggerController,
+        ),
+        appConnectivityStatusProvider.overrideWith(
+          _TestConnectivityStatusNotifier.new,
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      _TestHarness(
+        container: container,
+        child: const AppHydrationListener(child: SizedBox.shrink()),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 1));
+
+    final login =
+        container.read(loginControllerProvider.notifier)
+            as _TestLoginController;
+    login.setSession(
+      _buildSession(
+        tenantId: 'tenant-1',
+        accessToken: 'token-1',
+        branches: const [
+          UserBranch(
+            id: 'assign-a',
+            name: 'Branch A',
+            role: 'admin',
+            active: true,
+            branchId: 'branch-a',
+          ),
+        ],
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    final connectivity =
+        container.read(appConnectivityStatusProvider.notifier)
+            as _TestConnectivityStatusNotifier;
+    connectivity.setStatus(AppConnectivityStatus.offline);
+    await tester.pump();
+    connectivity.setStatus(AppConnectivityStatus.online);
+    await tester.pump();
+    await tester.pump();
+
+    expect(pushTriggerController.calls, hasLength(1));
+    expect(pushTriggerController.calls.last.$1, SyncPushTrigger.reconnect);
+    expect(pushTriggerController.calls.last.$2?.tenantId, 'tenant-1');
+    expect(pushTriggerController.calls.last.$2?.branchId, 'branch-a');
+    expect(pushTriggerController.calls.last.$2?.accountId, 'user-1');
+    expect(triggerController.calls, hasLength(2));
+    expect(triggerController.calls.last.$1, SyncPullTrigger.reconnect);
+    expect(triggerController.calls.last.$2?.tenantId, 'tenant-1');
+    expect(triggerController.calls.last.$2?.branchId, 'branch-a');
+    expect(triggerController.calls.last.$2?.accountId, 'user-1');
+  });
+
+  testWidgets(
+    'does not trigger reconnect pull when replay already handled reconnect work',
+    (tester) async {
+      final pullTriggerController = _TestSyncPullTriggerController();
+      final pushTriggerController = _TestSyncPushTriggerController()
+        ..nextResult = const SyncPushTriggerResult(
+          trigger: SyncPushTrigger.reconnect,
+          outcome: SyncPushTriggerOutcome.success,
+          replayResult: SyncPushReplayResult(
+            outcome: SyncPushReplayOutcome.success,
+            totalCount: 1,
+            appliedCount: 1,
+          ),
+        );
+      final container = createTestContainer(
+        overrides: [
+          loginControllerProvider.overrideWith(_TestLoginController.new),
+          policyNotifierProvider.overrideWith(_TestPolicyNotifier.new),
+          cashSessionViewModelProvider.overrideWith(
+            _TestCashSessionViewModel.new,
+          ),
+          syncResolvedDeviceIdProvider.overrideWith((ref) async => 'device-1'),
+          syncPullTriggerControllerProvider.overrideWithValue(
+            pullTriggerController,
+          ),
+          syncPushTriggerControllerProvider.overrideWithValue(
+            pushTriggerController,
+          ),
+          appConnectivityStatusProvider.overrideWith(
+            _TestConnectivityStatusNotifier.new,
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        _TestHarness(
+          container: container,
+          child: const AppHydrationListener(child: SizedBox.shrink()),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 1));
+
+      final login =
+          container.read(loginControllerProvider.notifier)
+              as _TestLoginController;
+      login.setSession(
+        _buildSession(
+          tenantId: 'tenant-1',
+          accessToken: 'token-1',
+          branches: const [
+            UserBranch(
+              id: 'assign-a',
+              name: 'Branch A',
+              role: 'admin',
+              active: true,
+              branchId: 'branch-a',
+            ),
+          ],
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      final connectivity =
+          container.read(appConnectivityStatusProvider.notifier)
+              as _TestConnectivityStatusNotifier;
+      connectivity.setStatus(AppConnectivityStatus.offline);
+      await tester.pump();
+      connectivity.setStatus(AppConnectivityStatus.online);
+      await tester.pump();
+      await tester.pump();
+
+      expect(pushTriggerController.calls, hasLength(1));
+      expect(pullTriggerController.calls, hasLength(1));
+      expect(
+        pullTriggerController.calls.any(
+          (call) => call.$1 == SyncPullTrigger.reconnect,
+        ),
+        isFalse,
+      );
+    },
+  );
 }

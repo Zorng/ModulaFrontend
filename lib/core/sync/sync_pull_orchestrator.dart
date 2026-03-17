@@ -23,23 +23,36 @@ class SyncPullRunStateController extends Notifier<SyncPullRunState> {
   @override
   SyncPullRunState build() => const SyncPullRunState();
 
-  void markRunning(String moduleScopeSetKey) {
+  void markRunning(SyncPullContext context, String moduleScopeSetKey) {
     state = SyncPullRunState(
       status: SyncPullRunStatus.running,
       moduleScopeSetKey: moduleScopeSetKey,
+      runKey: buildSyncPullRunKey(
+        context: context,
+        scopeSetKey: moduleScopeSetKey,
+      ),
       lastRunAt: DateTime.now(),
     );
   }
 
-  void markSuccess(String moduleScopeSetKey, DateTime pulledAt) {
+  void markSuccess(
+    SyncPullContext context,
+    String moduleScopeSetKey,
+    DateTime pulledAt,
+  ) {
     state = SyncPullRunState(
       status: SyncPullRunStatus.success,
       moduleScopeSetKey: moduleScopeSetKey,
+      runKey: buildSyncPullRunKey(
+        context: context,
+        scopeSetKey: moduleScopeSetKey,
+      ),
       lastRunAt: pulledAt,
     );
   }
 
   void markFailure(
+    SyncPullContext context,
     String moduleScopeSetKey,
     DateTime failedAt, {
     String? errorCode,
@@ -47,6 +60,10 @@ class SyncPullRunStateController extends Notifier<SyncPullRunState> {
     state = SyncPullRunState(
       status: SyncPullRunStatus.failure,
       moduleScopeSetKey: moduleScopeSetKey,
+      runKey: buildSyncPullRunKey(
+        context: context,
+        scopeSetKey: moduleScopeSetKey,
+      ),
       lastRunAt: failedAt,
       lastErrorCode: errorCode,
     );
@@ -114,7 +131,7 @@ class SyncPullOrchestrator {
     }
 
     final scopeSetKey = buildModuleScopeSetKey(normalizedScopes);
-    _status.markRunning(scopeSetKey);
+    _status.markRunning(context, scopeSetKey);
 
     final previousCheckpoint = await _checkpointStore.read(
       deviceId: context.deviceId,
@@ -154,7 +171,7 @@ class SyncPullOrchestrator {
           lastErrorCode: null,
         ),
       );
-      _status.markSuccess(scopeSetKey, envelope.pulledAt);
+      _status.markSuccess(context, scopeSetKey, envelope.pulledAt);
       return envelope;
     } catch (error) {
       final failedAt = DateTime.now();
@@ -173,7 +190,7 @@ class SyncPullOrchestrator {
           lastErrorCode: errorCode,
         ),
       );
-      _status.markFailure(scopeSetKey, failedAt, errorCode: errorCode);
+      _status.markFailure(context, scopeSetKey, failedAt, errorCode: errorCode);
       rethrow;
     }
   }

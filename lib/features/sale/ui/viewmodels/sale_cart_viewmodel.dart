@@ -3,6 +3,8 @@ import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/core/logging/app_log.dart';
+import 'package:modular_pos/core/network/app_connectivity.dart';
+import 'package:modular_pos/core/network/app_connectivity_contract.dart';
 import 'package:modular_pos/core/printing/esc_pos_receipt_formatter.dart';
 import 'package:modular_pos/core/printing/thermal_printer_controller.dart';
 import 'package:modular_pos/features/auth/domain/active_branch_context_provider.dart';
@@ -20,14 +22,17 @@ import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
 import 'package:modular_pos/features/policy/domain/models/policy.dart';
 import 'package:modular_pos/features/policy/ui/viewmodels/policy_viewmodel.dart';
 import 'package:modular_pos/features/sale/data/sale_checkout_repository_contract.dart';
+import 'package:modular_pos/features/sale/data/sale_outage_store.dart';
 import 'package:modular_pos/features/sale/data/sale_repository.dart';
 import 'package:modular_pos/features/sale/domain/models/sale.dart';
+import 'package:modular_pos/features/sale/domain/models/sale_outage_order.dart';
 import 'package:modular_pos/features/sale/ui/view/sale_item_detail/sale_item_detail_page.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_access_gate.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_payload_builder.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_state.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_khqr_states.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:uuid/uuid.dart';
 
 final saleCartProvider = NotifierProvider<SaleCartNotifier, SaleCartState>(
   SaleCartNotifier.new,
@@ -36,7 +41,9 @@ final saleCartProvider = NotifierProvider<SaleCartNotifier, SaleCartState>(
 BranchListItem? _resolveActiveBranchKhqrProfile(Ref ref) {
   final activeBranchId =
       (ref.watch(activeBranchContextIdProvider) ??
-              ref.watch(saleAccessGateProvider.select((gate) => gate.branchId)) ??
+              ref.watch(
+                saleAccessGateProvider.select((gate) => gate.branchId),
+              ) ??
               '')
           .trim();
   if (activeBranchId.isEmpty) return null;
@@ -93,10 +100,21 @@ class SalePlaceOrderResult {
   final bool idempotentReplay;
 }
 
+class SaleOfflineCaptureResult {
+  const SaleOfflineCaptureResult({
+    required this.localIntentId,
+    required this.orderNumber,
+  });
+
+  final String localIntentId;
+  final String orderNumber;
+}
+
 class SaleCartNotifier extends Notifier<SaleCartState> {
   SaleCartNotifier();
 
   late final SaleCartRepository _repo = ref.read(saleCartRepositoryProvider);
+  final Uuid _uuid = const Uuid();
   static const String _cartStorageKey = 'sale_cart_state';
 
   void _logIgnoredError(String context, Object error, StackTrace stackTrace) {
@@ -158,6 +176,68 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
   double _fxRate() {
     final policies = ref.read(policyNotifierProvider);
     return policies.branchPolicy.saleFxRateKhrPerUsd;
+  }
+
+  Map<String, ModifierGroup> _groupLookup() {
+    final menuState = ref.read(menuViewModelProvider);
+    return {
+      for (final group in menuState.modifierGroups) group.id: group,
+      for (final entry in menuState.hydratedModifierGroups.entries)
+        entry.key: entry.value,
+    };
+  }
+
+  List<String> _modifierLabels(
+    CartLine line,
+    Map<String, ModifierGroup> groupLookup,
+  ) {
+    final labels = <String>[];
+    for (final entry in line.selectedOptionIds.entries) {
+      final group = groupLookup[entry.key];
+      if (group == null) continue;
+      for (final optionId in entry.value) {
+        final option = group.options.where(
+          (candidate) => candidate.id == optionId,
+        );
+        if (option.isNotEmpty) {
+          labels.add(option.first.name);
+        }
+      }
+    }
+    return labels;
+  }
+
+  double _lineTotalUsd(CartLine line, Map<String, ModifierGroup> groupLookup) {
+    var addonTotal = 0.0;
+    for (final entry in line.selectedOptionIds.entries) {
+      final group = groupLookup[entry.key];
+      if (group == null) continue;
+      for (final optionId in entry.value) {
+        final option = group.options.where(
+          (candidate) => candidate.id == optionId,
+        );
+        if (option.isNotEmpty) {
+          addonTotal += option.first.price;
+        }
+      }
+    }
+    return (line.item.price + addonTotal) * line.quantity;
+  }
+
+  double _subtotalUsd(
+    List<CartLine> lines,
+    Map<String, ModifierGroup> groupLookup,
+  ) {
+    return lines.fold<double>(
+      0,
+      (sum, line) => sum + _lineTotalUsd(line, groupLookup),
+    );
+  }
+
+  double _taxUsd(double subtotal, BranchPolicy branchPolicy) {
+    if (!branchPolicy.saleVatEnabled) return 0;
+    if (branchPolicy.saleVatRatePercent <= 0) return 0;
+    return subtotal * (branchPolicy.saleVatRatePercent / 100);
   }
 
   void _assertCanCreateDraftSale() {
@@ -905,6 +985,180 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
       await _persistCart(errorState);
       rethrow;
     }
+  }
+
+  String _buildLocalOutageOrderNumber(DateTime timestamp) {
+    final compact = timestamp
+        .toUtc()
+        .millisecondsSinceEpoch
+        .toRadixString(36)
+        .toUpperCase();
+    return 'LOCAL-$compact';
+  }
+
+  List<SaleOutageLineSnapshot> _buildOutageLineSnapshots(
+    List<CartLine> lines,
+    Map<String, ModifierGroup> groupLookup,
+  ) {
+    return lines
+        .map(
+          (line) => SaleOutageLineSnapshot(
+            menuItemId: line.item.id,
+            name: line.item.name,
+            quantity: line.quantity,
+            selectedOptionIds: {
+              for (final entry in line.selectedOptionIds.entries)
+                entry.key: List<String>.from(entry.value),
+            },
+            modifierLabels: _modifierLabels(line, groupLookup),
+            unitPriceUsd: line.item.price,
+            lineTotalUsdExact: _lineTotalUsd(line, groupLookup),
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  Future<SaleOfflineCaptureResult> _captureOfflineOutageOrder({
+    required String requiredPaymentMethod,
+    required String sourceMode,
+    required String offlineOnlyMessage,
+    required String invalidMethodMessage,
+  }) async {
+    if (state.isFinalizing) {
+      throw Exception('Offline order capture already in progress.');
+    }
+
+    final connectivityStatus = ref.read(appConnectivityStatusProvider);
+    if (connectivityStatus != AppConnectivityStatus.offline) {
+      throw SaleCheckoutRepositoryException(
+        reasonCode: SaleCheckoutReasonCodes.invalidRequest,
+        message: offlineOnlyMessage,
+      );
+    }
+
+    _assertCanCreateDraftSale();
+    final currentState = state;
+    if (currentState.lines.isEmpty) {
+      throw Exception('Cannot capture an empty cart.');
+    }
+    if (currentState.paymentMethod.toLowerCase() != requiredPaymentMethod) {
+      throw SaleCheckoutRepositoryException(
+        reasonCode: SaleCheckoutReasonCodes.invalidRequest,
+        message: invalidMethodMessage,
+      );
+    }
+
+    final gate = ref.read(saleAccessGateProvider);
+    if (!gate.canCheckout) {
+      final error = _saleAccessException(
+        gate,
+        fallbackCode: SaleCheckoutReasonCodes.unknownError,
+        fallbackMessage: 'Offline order capture is currently unavailable.',
+      );
+      state = _applyCheckoutFailure(
+        currentState,
+        reasonCode: error.reasonCode,
+        message: error.message,
+      );
+      throw error;
+    }
+
+    final scope = ref.read(saleOutageScopeProvider);
+    if (scope == null) {
+      const error = SaleCheckoutRepositoryException(
+        reasonCode: SaleCheckoutReasonCodes.branchRequired,
+        message: 'Tenant, branch, or account context is missing.',
+      );
+      state = _applyCheckoutFailure(
+        currentState,
+        reasonCode: error.reasonCode,
+        message: error.message,
+      );
+      throw error;
+    }
+
+    final groupLookup = _groupLookup();
+    final branchPolicy = ref.read(policyNotifierProvider).branchPolicy;
+    final subtotalUsd = _subtotalUsd(currentState.lines, groupLookup);
+    final taxUsd = _taxUsd(subtotalUsd, branchPolicy);
+    final totalUsd = subtotalUsd + taxUsd;
+    final totalKhr = _roundKhr(
+      totalUsd * _fxRate(),
+      enabled: branchPolicy.saleKhrRoundingEnabled,
+      mode: BranchPolicyRoundingModes.normalize(
+        branchPolicy.saleKhrRoundingMode,
+      ),
+      granularity: BranchPolicyRoundingGranularities.asAmount(
+        branchPolicy.saleKhrRoundingGranularity,
+      ),
+    );
+    final timestamp = DateTime.now().toUtc();
+    final localIntentId = 'sale-outage-${_uuid.v4()}';
+    final orderNumber = _buildLocalOutageOrderNumber(timestamp);
+
+    final record = SaleOutageOrderRecord(
+      localIntentId: localIntentId,
+      orderNumber: orderNumber,
+      tenantId: scope.tenantId,
+      branchId: scope.branchId,
+      accountId: scope.accountId,
+      saleType: currentState.saleType,
+      paymentMethodRequested: currentState.paymentMethod.toLowerCase(),
+      tenderCurrency: currentState.tenderCurrency.toUpperCase(),
+      cashReceivedUsd: currentState.cashUsd,
+      cashReceivedKhr: currentState.cashKhr,
+      totalUsd: totalUsd,
+      totalKhr: totalKhr,
+      lines: _buildOutageLineSnapshots(currentState.lines, groupLookup),
+      state: SaleOutageOrderStates.localOpenOrderCaptured,
+      sourceMode: sourceMode,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    );
+
+    await ref.read(saleOutageStoreProvider).write(record);
+    await _clearPersistedCart();
+    state = const SaleCartState();
+    return SaleOfflineCaptureResult(
+      localIntentId: localIntentId,
+      orderNumber: orderNumber,
+    );
+  }
+
+  Future<SaleOfflineCaptureResult> captureOfflineCashOrder() {
+    return _captureOfflineOutageOrder(
+      requiredPaymentMethod: 'cash',
+      sourceMode: SaleOutageSourceModes.standardOpenOrder,
+      offlineOnlyMessage:
+          'Offline cash capture is only available while offline.',
+      invalidMethodMessage:
+          'Only cash orders can be captured offline in this slice.',
+    );
+  }
+
+  Future<SaleOfflineCaptureResult> captureOfflineManualClaimOrder() async {
+    final branchPolicy = ref.read(policyNotifierProvider).branchPolicy;
+    if (!branchPolicy.saleAllowManualExternalPaymentClaim) {
+      final error = const SaleCheckoutRepositoryException(
+        reasonCode: SaleCheckoutReasonCodes.invalidRequest,
+        message:
+            'Manual external-payment claim fallback is disabled for this branch.',
+      );
+      state = _applyCheckoutFailure(
+        state,
+        reasonCode: error.reasonCode,
+        message: error.message,
+      );
+      throw error;
+    }
+    return _captureOfflineOutageOrder(
+      requiredPaymentMethod: 'qr',
+      sourceMode: SaleOutageSourceModes.manualExternalPaymentClaim,
+      offlineOnlyMessage:
+          'Manual claim capture is only available while offline.',
+      invalidMethodMessage:
+          'Manual external-payment claim capture requires QR payment selection.',
+    );
   }
 
   Future<SaleCheckoutResult> checkout() async {

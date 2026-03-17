@@ -37,6 +37,7 @@ void main() {
         'saleKhrRoundingMode': 'UP',
         'saleKhrRoundingGranularity': '1000',
         'saleAllowPayLater': true,
+        'saleAllowManualExternalPaymentClaim': true,
         'createdAt': '2026-03-17T10:00:00Z',
         'updatedAt': '2026-03-17T10:00:00Z',
       },
@@ -56,6 +57,7 @@ void main() {
 
     expect(cached, isNotNull);
     expect(cached!.saleAllowPayLater, isTrue);
+    expect(cached.saleAllowManualExternalPaymentClaim, isTrue);
     expect(cached.saleKhrRoundingMode, 'UP');
     expect(row, isNotNull);
     expect(row!.syncCursorApplied, 'cursor-1');
@@ -80,6 +82,7 @@ void main() {
             'saleKhrRoundingMode': 'NEAREST',
             'saleKhrRoundingGranularity': '100',
             'saleAllowPayLater': false,
+            'saleAllowManualExternalPaymentClaim': false,
             'createdAt': '2026-03-17T00:00:00Z',
             'updatedAt': '2026-03-17T00:00:00Z',
           },

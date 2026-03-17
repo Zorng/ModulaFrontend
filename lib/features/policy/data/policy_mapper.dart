@@ -24,6 +24,8 @@ BranchPolicy mapBranchPolicyDto(
       dto.saleKhrRoundingGranularity,
     ),
     saleAllowPayLater: dto.saleAllowPayLater,
+    saleAllowManualExternalPaymentClaim:
+        dto.saleAllowManualExternalPaymentClaim,
     createdAt: dto.createdAt,
     updatedAt: dto.updatedAt,
   );

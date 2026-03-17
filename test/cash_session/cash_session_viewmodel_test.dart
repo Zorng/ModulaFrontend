@@ -5,7 +5,10 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:modular_pos/core/network/api_contract.dart';
+import 'package:modular_pos/core/network/app_connectivity.dart';
+import 'package:modular_pos/core/network/app_connectivity_contract.dart';
 import 'package:modular_pos/core/storage/app_database.dart';
+import 'package:modular_pos/core/sync/offline_command_queue_store.dart';
 import 'package:modular_pos/features/auth/domain/models/auth_session.dart';
 import 'package:modular_pos/features/auth/domain/models/tenant_membership.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
@@ -38,6 +41,16 @@ class _TestLoginController extends LoginController {
   void setSession(AuthSession? session) {
     state = LoginState(session: session);
   }
+}
+
+class _StaticConnectivityStatusController
+    extends AppConnectivityStatusController {
+  _StaticConnectivityStatusController(this._status);
+
+  final AppConnectivityStatus _status;
+
+  @override
+  AppConnectivityStatus build() => _status;
 }
 
 AuthSession _buildSession({required String userId, required String role}) {
@@ -659,6 +672,74 @@ void main() {
     expect(state.error, isNull);
   });
 
+  test(
+    'startSession queues offline-safe open without calling backend',
+    () async {
+      final repo = _MockCashSessionRepository();
+      final movementRepo = _MockCashSessionMovementRepository();
+      final salesRepo = _MockCashSessionSalesRepository();
+      final database = AppDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
+      _stubEmptySales(salesRepo);
+
+      final container = createTestContainer(
+        overrides: [
+          appDatabaseProvider.overrideWithValue(database),
+          appConnectivityStatusProvider.overrideWith(
+            () => _StaticConnectivityStatusController(
+              AppConnectivityStatus.offline,
+            ),
+          ),
+          cashSessionRepositoryProvider.overrideWithValue(repo),
+          cashSessionMovementRepositoryProvider.overrideWithValue(movementRepo),
+          cashSessionSalesRepositoryProvider.overrideWithValue(salesRepo),
+          cashSessionBranchContextProvider.overrideWithValue(
+            const CashSessionBranchContext(
+              tenantId: 'tenant-1',
+              branchId: 'branch-1',
+            ),
+          ),
+          loginControllerProvider.overrideWith(_TestLoginController.new),
+        ],
+      );
+
+      final login =
+          container.read(loginControllerProvider.notifier)
+              as _TestLoginController;
+      login.setSession(_buildSession(userId: 'cashier-1', role: 'cashier'));
+
+      final notifier = container.read(cashSessionViewModelProvider.notifier);
+      final result = await notifier.startSession(
+        usdAmount: 25,
+        khrAmount: 100000,
+        note: 'Shift start',
+      );
+
+      final queue = await container
+          .read(offlineCommandQueueStoreProvider)
+          .listReplayReadyForContext(
+            tenantId: 'tenant-1',
+            branchId: 'branch-1',
+            accountId: 'cashier-1',
+          );
+
+      expect(result.outcome, CashSessionActionOutcome.queued);
+      expect(queue, hasLength(1));
+      expect(queue.single.operationType, OfflineOperationType.cashSessionOpen);
+      expect(
+        queue.single.decodePayload(),
+        containsPair('openingFloatUsd', 25.0),
+      );
+      verifyNever(
+        () => repo.openSession(
+          openingFloatUsd: any(named: 'openingFloatUsd'),
+          openingFloatKhr: any(named: 'openingFloatKhr'),
+          note: any(named: 'note'),
+        ),
+      );
+    },
+  );
+
   test('startSession stores already-open conflict reason code', () async {
     final repo = _MockCashSessionRepository();
     final movementRepo = _MockCashSessionMovementRepository();
@@ -752,6 +833,74 @@ void main() {
     expect(state.session, isNull);
     expect(state.error, isNull);
   });
+
+  test(
+    'closeSession queues offline-safe close and keeps active session visible',
+    () async {
+      final repo = _MockCashSessionRepository();
+      final movementRepo = _MockCashSessionMovementRepository();
+      final salesRepo = _MockCashSessionSalesRepository();
+      final database = AppDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
+      when(
+        () => repo.getActiveSession(),
+      ).thenAnswer((_) async => _buildCashSession());
+      when(
+        () => movementRepo.listMovements(sessionId: any(named: 'sessionId')),
+      ).thenAnswer((_) async => const []);
+      _stubEmptySales(salesRepo);
+
+      final container = createTestContainer(
+        overrides: [
+          appDatabaseProvider.overrideWithValue(database),
+          appConnectivityStatusProvider.overrideWith(
+            () => _StaticConnectivityStatusController(
+              AppConnectivityStatus.offline,
+            ),
+          ),
+          cashSessionRepositoryProvider.overrideWithValue(repo),
+          cashSessionMovementRepositoryProvider.overrideWithValue(movementRepo),
+          cashSessionSalesRepositoryProvider.overrideWithValue(salesRepo),
+          loginControllerProvider.overrideWith(_TestLoginController.new),
+        ],
+      );
+
+      final login =
+          container.read(loginControllerProvider.notifier)
+              as _TestLoginController;
+      login.setSession(_buildSession(userId: 'manager-1', role: 'manager'));
+
+      final notifier = container.read(cashSessionViewModelProvider.notifier);
+      await notifier.load();
+      final result = await notifier.closeSession(
+        countedUsd: 25,
+        countedKhr: 100000,
+        note: 'End shift',
+      );
+
+      final state = container.read(cashSessionViewModelProvider);
+      final queue = await container
+          .read(offlineCommandQueueStoreProvider)
+          .listReplayReadyForContext(
+            tenantId: 'tenant-1',
+            branchId: 'branch-1',
+            accountId: 'manager-1',
+          );
+
+      expect(result.outcome, CashSessionActionOutcome.queued);
+      expect(state.sessionId, 'session-1');
+      expect(queue, hasLength(1));
+      expect(queue.single.operationType, OfflineOperationType.cashSessionClose);
+      verifyNever(
+        () => repo.closeSession(
+          sessionId: any(named: 'sessionId'),
+          countedCashUsd: any(named: 'countedCashUsd'),
+          countedCashKhr: any(named: 'countedCashKhr'),
+          note: any(named: 'note'),
+        ),
+      );
+    },
+  );
 
   test('forceCloseSession clears active session after force close', () async {
     final repo = _MockCashSessionRepository();
@@ -871,4 +1020,130 @@ void main() {
       ).called(1);
     },
   );
+
+  test(
+    'recordPaidIn queues offline-safe movement without calling backend',
+    () async {
+      final repo = _MockCashSessionRepository();
+      final movementRepo = _MockCashSessionMovementRepository();
+      final salesRepo = _MockCashSessionSalesRepository();
+      final database = AppDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
+      when(
+        () => repo.getActiveSession(),
+      ).thenAnswer((_) async => _buildCashSession());
+      when(
+        () => movementRepo.listMovements(sessionId: any(named: 'sessionId')),
+      ).thenAnswer((_) async => const []);
+      _stubEmptySales(salesRepo);
+
+      final container = createTestContainer(
+        overrides: [
+          appDatabaseProvider.overrideWithValue(database),
+          appConnectivityStatusProvider.overrideWith(
+            () => _StaticConnectivityStatusController(
+              AppConnectivityStatus.offline,
+            ),
+          ),
+          cashSessionRepositoryProvider.overrideWithValue(repo),
+          cashSessionMovementRepositoryProvider.overrideWithValue(movementRepo),
+          cashSessionSalesRepositoryProvider.overrideWithValue(salesRepo),
+          loginControllerProvider.overrideWith(_TestLoginController.new),
+        ],
+      );
+
+      final login =
+          container.read(loginControllerProvider.notifier)
+              as _TestLoginController;
+      login.setSession(_buildSession(userId: 'cashier-1', role: 'cashier'));
+
+      final notifier = container.read(cashSessionViewModelProvider.notifier);
+      await notifier.load();
+      final result = await notifier.recordPaidIn(
+        amountUsd: 8,
+        amountKhr: 0,
+        reason: 'Top-up',
+      );
+
+      final queue = await container
+          .read(offlineCommandQueueStoreProvider)
+          .listReplayReadyForContext(
+            tenantId: 'tenant-1',
+            branchId: 'branch-1',
+            accountId: 'cashier-1',
+          );
+
+      expect(result.outcome, CashSessionActionOutcome.queued);
+      expect(queue, hasLength(1));
+      expect(
+        queue.single.operationType,
+        OfflineOperationType.cashSessionMovement,
+      );
+      expect(
+        queue.single.decodePayload(),
+        containsPair('movementType', 'PAID_IN'),
+      );
+      verifyNever(
+        () => movementRepo.recordPaidIn(
+          sessionId: any(named: 'sessionId'),
+          amountUsd: any(named: 'amountUsd'),
+          amountKhr: any(named: 'amountKhr'),
+          reason: any(named: 'reason'),
+        ),
+      );
+    },
+  );
+
+  test('forceCloseSession stays online-only while offline', () async {
+    final repo = _MockCashSessionRepository();
+    final movementRepo = _MockCashSessionMovementRepository();
+    final salesRepo = _MockCashSessionSalesRepository();
+    when(
+      () => repo.getActiveSession(),
+    ).thenAnswer((_) async => _buildCashSession());
+    when(
+      () => movementRepo.listMovements(sessionId: any(named: 'sessionId')),
+    ).thenAnswer((_) async => const []);
+    _stubEmptySales(salesRepo);
+
+    final container = createTestContainer(
+      overrides: [
+        appConnectivityStatusProvider.overrideWith(
+          () => _StaticConnectivityStatusController(
+            AppConnectivityStatus.offline,
+          ),
+        ),
+        cashSessionRepositoryProvider.overrideWithValue(repo),
+        cashSessionMovementRepositoryProvider.overrideWithValue(movementRepo),
+        cashSessionSalesRepositoryProvider.overrideWithValue(salesRepo),
+        loginControllerProvider.overrideWith(_TestLoginController.new),
+      ],
+    );
+
+    final login =
+        container.read(loginControllerProvider.notifier)
+            as _TestLoginController;
+    login.setSession(_buildSession(userId: 'manager-1', role: 'manager'));
+
+    final notifier = container.read(cashSessionViewModelProvider.notifier);
+    await notifier.load();
+    await notifier.forceCloseSession(
+      countedUsd: 25,
+      countedKhr: 100000,
+      reason: 'Supervisor override',
+    );
+
+    final state = container.read(cashSessionViewModelProvider);
+    expect(state.sessionId, 'session-1');
+    expect(state.error, 'Force-closing a cash session requires connectivity.');
+    verifyNever(
+      () => repo.forceCloseSession(
+        sessionId: any(named: 'sessionId'),
+        countedCashUsd: any(named: 'countedCashUsd'),
+        countedCashKhr: any(named: 'countedCashKhr'),
+        reason: any(named: 'reason'),
+        note: any(named: 'note'),
+      ),
+    );
+  });
 }

@@ -19,6 +19,9 @@ class PolicyCacheEntries extends Table {
 
   BoolColumn get saleAllowPayLater => boolean()();
 
+  BoolColumn get saleAllowManualExternalPaymentClaim =>
+      boolean().withDefault(const Constant(false))();
+
   TextColumn get createdAt => text()();
 
   TextColumn get updatedAt => text()();

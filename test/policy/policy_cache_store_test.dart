@@ -28,6 +28,7 @@ void main() {
       saleKhrRoundingMode: BranchPolicyRoundingModes.up,
       saleKhrRoundingGranularity: BranchPolicyRoundingGranularities.thousand,
       saleAllowPayLater: true,
+      saleAllowManualExternalPaymentClaim: true,
       createdAt: '2026-03-16T00:00:00Z',
       updatedAt: '2026-03-16T00:00:00Z',
     );
@@ -39,6 +40,7 @@ void main() {
     expect(loaded, isNotNull);
     expect(loaded!.saleFxRateKhrPerUsd, 4050);
     expect(loaded.saleAllowPayLater, isTrue);
+    expect(loaded.saleAllowManualExternalPaymentClaim, isTrue);
     expect(loaded.saleKhrRoundingMode, BranchPolicyRoundingModes.up);
   });
 

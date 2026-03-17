@@ -1,9 +1,11 @@
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:modular_pos/core/sync/offline_command_queue_tables.dart';
 import 'package:modular_pos/core/storage/database_connection.dart';
 import 'package:modular_pos/features/cash_session/data/cash_session_cache_tables.dart';
 import 'package:modular_pos/features/menu/data/menu_cache_tables.dart';
 import 'package:modular_pos/features/policy/data/policy_cache_tables.dart';
+import 'package:modular_pos/features/sale/data/sale_outage_cache_tables.dart';
 import 'package:modular_pos/features/staff/data/staff_shift_cache_tables.dart';
 import 'package:modular_pos/features/staff_attendance/data/attendance_cache_tables.dart';
 
@@ -43,6 +45,8 @@ class SyncCheckpointEntries extends Table {
 @DriftDatabase(
   tables: [
     SyncCheckpointEntries,
+    OfflineCommandQueueEntries,
+    SaleOutageOrderEntries,
     PolicyCacheEntries,
     CashSessionSnapshotEntries,
     CashSessionMovementCacheEntries,
@@ -67,7 +71,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.defaults() : super(openAppDatabaseConnection());
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 8;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -97,6 +101,18 @@ class AppDatabase extends _$AppDatabase {
         await m.createTable(staffShiftMembershipCacheEntries);
         await m.createTable(staffShiftPatternCacheEntries);
         await m.createTable(staffShiftInstanceCacheEntries);
+      }
+      if (from < 6) {
+        await m.createTable(offlineCommandQueueEntries);
+      }
+      if (from < 7) {
+        await m.createTable(saleOutageOrderEntries);
+      }
+      if (from < 8) {
+        await m.addColumn(
+          policyCacheEntries,
+          policyCacheEntries.saleAllowManualExternalPaymentClaim,
+        );
       }
     },
   );

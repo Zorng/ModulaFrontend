@@ -551,6 +551,2178 @@ class SyncCheckpointEntriesCompanion
   }
 }
 
+class $OfflineCommandQueueEntriesTable extends OfflineCommandQueueEntries
+    with TableInfo<$OfflineCommandQueueEntriesTable, OfflineCommandQueueEntry> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $OfflineCommandQueueEntriesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _clientOpIdMeta =
+      const VerificationMeta('clientOpId');
+  @override
+  late final GeneratedColumn<String> clientOpId = GeneratedColumn<String>(
+      'client_op_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _operationTypeMeta =
+      const VerificationMeta('operationType');
+  @override
+  late final GeneratedColumn<String> operationType = GeneratedColumn<String>(
+      'operation_type', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _tenantIdMeta =
+      const VerificationMeta('tenantId');
+  @override
+  late final GeneratedColumn<String> tenantId = GeneratedColumn<String>(
+      'tenant_id', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(''));
+  static const VerificationMeta _branchIdMeta =
+      const VerificationMeta('branchId');
+  @override
+  late final GeneratedColumn<String> branchId = GeneratedColumn<String>(
+      'branch_id', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(''));
+  static const VerificationMeta _accountIdMeta =
+      const VerificationMeta('accountId');
+  @override
+  late final GeneratedColumn<String> accountId = GeneratedColumn<String>(
+      'account_id', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(''));
+  static const VerificationMeta _occurredAtMeta =
+      const VerificationMeta('occurredAt');
+  @override
+  late final GeneratedColumn<DateTime> occurredAt = GeneratedColumn<DateTime>(
+      'occurred_at', aliasedName, false,
+      type: DriftSqlType.dateTime, requiredDuringInsert: true);
+  static const VerificationMeta _payloadJsonMeta =
+      const VerificationMeta('payloadJson');
+  @override
+  late final GeneratedColumn<String> payloadJson = GeneratedColumn<String>(
+      'payload_json', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _dependsOnClientOpIdMeta =
+      const VerificationMeta('dependsOnClientOpId');
+  @override
+  late final GeneratedColumn<String> dependsOnClientOpId =
+      GeneratedColumn<String>('depends_on_client_op_id', aliasedName, true,
+          type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+      'status', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _retryCountMeta =
+      const VerificationMeta('retryCount');
+  @override
+  late final GeneratedColumn<int> retryCount = GeneratedColumn<int>(
+      'retry_count', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.dateTime, requiredDuringInsert: true);
+  static const VerificationMeta _updatedAtMeta =
+      const VerificationMeta('updatedAt');
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+      'updated_at', aliasedName, false,
+      type: DriftSqlType.dateTime, requiredDuringInsert: true);
+  static const VerificationMeta _lastAttemptAtMeta =
+      const VerificationMeta('lastAttemptAt');
+  @override
+  late final GeneratedColumn<DateTime> lastAttemptAt =
+      GeneratedColumn<DateTime>('last_attempt_at', aliasedName, true,
+          type: DriftSqlType.dateTime, requiredDuringInsert: false);
+  static const VerificationMeta _lastSyncedAtMeta =
+      const VerificationMeta('lastSyncedAt');
+  @override
+  late final GeneratedColumn<DateTime> lastSyncedAt = GeneratedColumn<DateTime>(
+      'last_synced_at', aliasedName, true,
+      type: DriftSqlType.dateTime, requiredDuringInsert: false);
+  static const VerificationMeta _lastErrorCodeMeta =
+      const VerificationMeta('lastErrorCode');
+  @override
+  late final GeneratedColumn<String> lastErrorCode = GeneratedColumn<String>(
+      'last_error_code', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _lastErrorMessageMeta =
+      const VerificationMeta('lastErrorMessage');
+  @override
+  late final GeneratedColumn<String> lastErrorMessage = GeneratedColumn<String>(
+      'last_error_message', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  @override
+  List<GeneratedColumn> get $columns => [
+        clientOpId,
+        operationType,
+        tenantId,
+        branchId,
+        accountId,
+        occurredAt,
+        payloadJson,
+        dependsOnClientOpId,
+        status,
+        retryCount,
+        createdAt,
+        updatedAt,
+        lastAttemptAt,
+        lastSyncedAt,
+        lastErrorCode,
+        lastErrorMessage
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'offline_command_queue_entries';
+  @override
+  VerificationContext validateIntegrity(
+      Insertable<OfflineCommandQueueEntry> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('client_op_id')) {
+      context.handle(
+          _clientOpIdMeta,
+          clientOpId.isAcceptableOrUnknown(
+              data['client_op_id']!, _clientOpIdMeta));
+    } else if (isInserting) {
+      context.missing(_clientOpIdMeta);
+    }
+    if (data.containsKey('operation_type')) {
+      context.handle(
+          _operationTypeMeta,
+          operationType.isAcceptableOrUnknown(
+              data['operation_type']!, _operationTypeMeta));
+    } else if (isInserting) {
+      context.missing(_operationTypeMeta);
+    }
+    if (data.containsKey('tenant_id')) {
+      context.handle(_tenantIdMeta,
+          tenantId.isAcceptableOrUnknown(data['tenant_id']!, _tenantIdMeta));
+    }
+    if (data.containsKey('branch_id')) {
+      context.handle(_branchIdMeta,
+          branchId.isAcceptableOrUnknown(data['branch_id']!, _branchIdMeta));
+    }
+    if (data.containsKey('account_id')) {
+      context.handle(_accountIdMeta,
+          accountId.isAcceptableOrUnknown(data['account_id']!, _accountIdMeta));
+    }
+    if (data.containsKey('occurred_at')) {
+      context.handle(
+          _occurredAtMeta,
+          occurredAt.isAcceptableOrUnknown(
+              data['occurred_at']!, _occurredAtMeta));
+    } else if (isInserting) {
+      context.missing(_occurredAtMeta);
+    }
+    if (data.containsKey('payload_json')) {
+      context.handle(
+          _payloadJsonMeta,
+          payloadJson.isAcceptableOrUnknown(
+              data['payload_json']!, _payloadJsonMeta));
+    } else if (isInserting) {
+      context.missing(_payloadJsonMeta);
+    }
+    if (data.containsKey('depends_on_client_op_id')) {
+      context.handle(
+          _dependsOnClientOpIdMeta,
+          dependsOnClientOpId.isAcceptableOrUnknown(
+              data['depends_on_client_op_id']!, _dependsOnClientOpIdMeta));
+    }
+    if (data.containsKey('status')) {
+      context.handle(_statusMeta,
+          status.isAcceptableOrUnknown(data['status']!, _statusMeta));
+    } else if (isInserting) {
+      context.missing(_statusMeta);
+    }
+    if (data.containsKey('retry_count')) {
+      context.handle(
+          _retryCountMeta,
+          retryCount.isAcceptableOrUnknown(
+              data['retry_count']!, _retryCountMeta));
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(_updatedAtMeta,
+          updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta));
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    if (data.containsKey('last_attempt_at')) {
+      context.handle(
+          _lastAttemptAtMeta,
+          lastAttemptAt.isAcceptableOrUnknown(
+              data['last_attempt_at']!, _lastAttemptAtMeta));
+    }
+    if (data.containsKey('last_synced_at')) {
+      context.handle(
+          _lastSyncedAtMeta,
+          lastSyncedAt.isAcceptableOrUnknown(
+              data['last_synced_at']!, _lastSyncedAtMeta));
+    }
+    if (data.containsKey('last_error_code')) {
+      context.handle(
+          _lastErrorCodeMeta,
+          lastErrorCode.isAcceptableOrUnknown(
+              data['last_error_code']!, _lastErrorCodeMeta));
+    }
+    if (data.containsKey('last_error_message')) {
+      context.handle(
+          _lastErrorMessageMeta,
+          lastErrorMessage.isAcceptableOrUnknown(
+              data['last_error_message']!, _lastErrorMessageMeta));
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {clientOpId};
+  @override
+  OfflineCommandQueueEntry map(Map<String, dynamic> data,
+      {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return OfflineCommandQueueEntry(
+      clientOpId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}client_op_id'])!,
+      operationType: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}operation_type'])!,
+      tenantId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}tenant_id'])!,
+      branchId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}branch_id'])!,
+      accountId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}account_id'])!,
+      occurredAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}occurred_at'])!,
+      payloadJson: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}payload_json'])!,
+      dependsOnClientOpId: attachedDatabase.typeMapping.read(
+          DriftSqlType.string,
+          data['${effectivePrefix}depends_on_client_op_id']),
+      status: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}status'])!,
+      retryCount: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}retry_count'])!,
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}created_at'])!,
+      updatedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}updated_at'])!,
+      lastAttemptAt: attachedDatabase.typeMapping.read(
+          DriftSqlType.dateTime, data['${effectivePrefix}last_attempt_at']),
+      lastSyncedAt: attachedDatabase.typeMapping.read(
+          DriftSqlType.dateTime, data['${effectivePrefix}last_synced_at']),
+      lastErrorCode: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}last_error_code']),
+      lastErrorMessage: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}last_error_message']),
+    );
+  }
+
+  @override
+  $OfflineCommandQueueEntriesTable createAlias(String alias) {
+    return $OfflineCommandQueueEntriesTable(attachedDatabase, alias);
+  }
+}
+
+class OfflineCommandQueueEntry extends DataClass
+    implements Insertable<OfflineCommandQueueEntry> {
+  final String clientOpId;
+  final String operationType;
+  final String tenantId;
+  final String branchId;
+  final String accountId;
+  final DateTime occurredAt;
+  final String payloadJson;
+  final String? dependsOnClientOpId;
+  final String status;
+  final int retryCount;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final DateTime? lastAttemptAt;
+  final DateTime? lastSyncedAt;
+  final String? lastErrorCode;
+  final String? lastErrorMessage;
+  const OfflineCommandQueueEntry(
+      {required this.clientOpId,
+      required this.operationType,
+      required this.tenantId,
+      required this.branchId,
+      required this.accountId,
+      required this.occurredAt,
+      required this.payloadJson,
+      this.dependsOnClientOpId,
+      required this.status,
+      required this.retryCount,
+      required this.createdAt,
+      required this.updatedAt,
+      this.lastAttemptAt,
+      this.lastSyncedAt,
+      this.lastErrorCode,
+      this.lastErrorMessage});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['client_op_id'] = Variable<String>(clientOpId);
+    map['operation_type'] = Variable<String>(operationType);
+    map['tenant_id'] = Variable<String>(tenantId);
+    map['branch_id'] = Variable<String>(branchId);
+    map['account_id'] = Variable<String>(accountId);
+    map['occurred_at'] = Variable<DateTime>(occurredAt);
+    map['payload_json'] = Variable<String>(payloadJson);
+    if (!nullToAbsent || dependsOnClientOpId != null) {
+      map['depends_on_client_op_id'] = Variable<String>(dependsOnClientOpId);
+    }
+    map['status'] = Variable<String>(status);
+    map['retry_count'] = Variable<int>(retryCount);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    if (!nullToAbsent || lastAttemptAt != null) {
+      map['last_attempt_at'] = Variable<DateTime>(lastAttemptAt);
+    }
+    if (!nullToAbsent || lastSyncedAt != null) {
+      map['last_synced_at'] = Variable<DateTime>(lastSyncedAt);
+    }
+    if (!nullToAbsent || lastErrorCode != null) {
+      map['last_error_code'] = Variable<String>(lastErrorCode);
+    }
+    if (!nullToAbsent || lastErrorMessage != null) {
+      map['last_error_message'] = Variable<String>(lastErrorMessage);
+    }
+    return map;
+  }
+
+  OfflineCommandQueueEntriesCompanion toCompanion(bool nullToAbsent) {
+    return OfflineCommandQueueEntriesCompanion(
+      clientOpId: Value(clientOpId),
+      operationType: Value(operationType),
+      tenantId: Value(tenantId),
+      branchId: Value(branchId),
+      accountId: Value(accountId),
+      occurredAt: Value(occurredAt),
+      payloadJson: Value(payloadJson),
+      dependsOnClientOpId: dependsOnClientOpId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(dependsOnClientOpId),
+      status: Value(status),
+      retryCount: Value(retryCount),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      lastAttemptAt: lastAttemptAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastAttemptAt),
+      lastSyncedAt: lastSyncedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastSyncedAt),
+      lastErrorCode: lastErrorCode == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastErrorCode),
+      lastErrorMessage: lastErrorMessage == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastErrorMessage),
+    );
+  }
+
+  factory OfflineCommandQueueEntry.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return OfflineCommandQueueEntry(
+      clientOpId: serializer.fromJson<String>(json['clientOpId']),
+      operationType: serializer.fromJson<String>(json['operationType']),
+      tenantId: serializer.fromJson<String>(json['tenantId']),
+      branchId: serializer.fromJson<String>(json['branchId']),
+      accountId: serializer.fromJson<String>(json['accountId']),
+      occurredAt: serializer.fromJson<DateTime>(json['occurredAt']),
+      payloadJson: serializer.fromJson<String>(json['payloadJson']),
+      dependsOnClientOpId:
+          serializer.fromJson<String?>(json['dependsOnClientOpId']),
+      status: serializer.fromJson<String>(json['status']),
+      retryCount: serializer.fromJson<int>(json['retryCount']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      lastAttemptAt: serializer.fromJson<DateTime?>(json['lastAttemptAt']),
+      lastSyncedAt: serializer.fromJson<DateTime?>(json['lastSyncedAt']),
+      lastErrorCode: serializer.fromJson<String?>(json['lastErrorCode']),
+      lastErrorMessage: serializer.fromJson<String?>(json['lastErrorMessage']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'clientOpId': serializer.toJson<String>(clientOpId),
+      'operationType': serializer.toJson<String>(operationType),
+      'tenantId': serializer.toJson<String>(tenantId),
+      'branchId': serializer.toJson<String>(branchId),
+      'accountId': serializer.toJson<String>(accountId),
+      'occurredAt': serializer.toJson<DateTime>(occurredAt),
+      'payloadJson': serializer.toJson<String>(payloadJson),
+      'dependsOnClientOpId': serializer.toJson<String?>(dependsOnClientOpId),
+      'status': serializer.toJson<String>(status),
+      'retryCount': serializer.toJson<int>(retryCount),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'lastAttemptAt': serializer.toJson<DateTime?>(lastAttemptAt),
+      'lastSyncedAt': serializer.toJson<DateTime?>(lastSyncedAt),
+      'lastErrorCode': serializer.toJson<String?>(lastErrorCode),
+      'lastErrorMessage': serializer.toJson<String?>(lastErrorMessage),
+    };
+  }
+
+  OfflineCommandQueueEntry copyWith(
+          {String? clientOpId,
+          String? operationType,
+          String? tenantId,
+          String? branchId,
+          String? accountId,
+          DateTime? occurredAt,
+          String? payloadJson,
+          Value<String?> dependsOnClientOpId = const Value.absent(),
+          String? status,
+          int? retryCount,
+          DateTime? createdAt,
+          DateTime? updatedAt,
+          Value<DateTime?> lastAttemptAt = const Value.absent(),
+          Value<DateTime?> lastSyncedAt = const Value.absent(),
+          Value<String?> lastErrorCode = const Value.absent(),
+          Value<String?> lastErrorMessage = const Value.absent()}) =>
+      OfflineCommandQueueEntry(
+        clientOpId: clientOpId ?? this.clientOpId,
+        operationType: operationType ?? this.operationType,
+        tenantId: tenantId ?? this.tenantId,
+        branchId: branchId ?? this.branchId,
+        accountId: accountId ?? this.accountId,
+        occurredAt: occurredAt ?? this.occurredAt,
+        payloadJson: payloadJson ?? this.payloadJson,
+        dependsOnClientOpId: dependsOnClientOpId.present
+            ? dependsOnClientOpId.value
+            : this.dependsOnClientOpId,
+        status: status ?? this.status,
+        retryCount: retryCount ?? this.retryCount,
+        createdAt: createdAt ?? this.createdAt,
+        updatedAt: updatedAt ?? this.updatedAt,
+        lastAttemptAt:
+            lastAttemptAt.present ? lastAttemptAt.value : this.lastAttemptAt,
+        lastSyncedAt:
+            lastSyncedAt.present ? lastSyncedAt.value : this.lastSyncedAt,
+        lastErrorCode:
+            lastErrorCode.present ? lastErrorCode.value : this.lastErrorCode,
+        lastErrorMessage: lastErrorMessage.present
+            ? lastErrorMessage.value
+            : this.lastErrorMessage,
+      );
+  OfflineCommandQueueEntry copyWithCompanion(
+      OfflineCommandQueueEntriesCompanion data) {
+    return OfflineCommandQueueEntry(
+      clientOpId:
+          data.clientOpId.present ? data.clientOpId.value : this.clientOpId,
+      operationType: data.operationType.present
+          ? data.operationType.value
+          : this.operationType,
+      tenantId: data.tenantId.present ? data.tenantId.value : this.tenantId,
+      branchId: data.branchId.present ? data.branchId.value : this.branchId,
+      accountId: data.accountId.present ? data.accountId.value : this.accountId,
+      occurredAt:
+          data.occurredAt.present ? data.occurredAt.value : this.occurredAt,
+      payloadJson:
+          data.payloadJson.present ? data.payloadJson.value : this.payloadJson,
+      dependsOnClientOpId: data.dependsOnClientOpId.present
+          ? data.dependsOnClientOpId.value
+          : this.dependsOnClientOpId,
+      status: data.status.present ? data.status.value : this.status,
+      retryCount:
+          data.retryCount.present ? data.retryCount.value : this.retryCount,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      lastAttemptAt: data.lastAttemptAt.present
+          ? data.lastAttemptAt.value
+          : this.lastAttemptAt,
+      lastSyncedAt: data.lastSyncedAt.present
+          ? data.lastSyncedAt.value
+          : this.lastSyncedAt,
+      lastErrorCode: data.lastErrorCode.present
+          ? data.lastErrorCode.value
+          : this.lastErrorCode,
+      lastErrorMessage: data.lastErrorMessage.present
+          ? data.lastErrorMessage.value
+          : this.lastErrorMessage,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('OfflineCommandQueueEntry(')
+          ..write('clientOpId: $clientOpId, ')
+          ..write('operationType: $operationType, ')
+          ..write('tenantId: $tenantId, ')
+          ..write('branchId: $branchId, ')
+          ..write('accountId: $accountId, ')
+          ..write('occurredAt: $occurredAt, ')
+          ..write('payloadJson: $payloadJson, ')
+          ..write('dependsOnClientOpId: $dependsOnClientOpId, ')
+          ..write('status: $status, ')
+          ..write('retryCount: $retryCount, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('lastAttemptAt: $lastAttemptAt, ')
+          ..write('lastSyncedAt: $lastSyncedAt, ')
+          ..write('lastErrorCode: $lastErrorCode, ')
+          ..write('lastErrorMessage: $lastErrorMessage')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+      clientOpId,
+      operationType,
+      tenantId,
+      branchId,
+      accountId,
+      occurredAt,
+      payloadJson,
+      dependsOnClientOpId,
+      status,
+      retryCount,
+      createdAt,
+      updatedAt,
+      lastAttemptAt,
+      lastSyncedAt,
+      lastErrorCode,
+      lastErrorMessage);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is OfflineCommandQueueEntry &&
+          other.clientOpId == this.clientOpId &&
+          other.operationType == this.operationType &&
+          other.tenantId == this.tenantId &&
+          other.branchId == this.branchId &&
+          other.accountId == this.accountId &&
+          other.occurredAt == this.occurredAt &&
+          other.payloadJson == this.payloadJson &&
+          other.dependsOnClientOpId == this.dependsOnClientOpId &&
+          other.status == this.status &&
+          other.retryCount == this.retryCount &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.lastAttemptAt == this.lastAttemptAt &&
+          other.lastSyncedAt == this.lastSyncedAt &&
+          other.lastErrorCode == this.lastErrorCode &&
+          other.lastErrorMessage == this.lastErrorMessage);
+}
+
+class OfflineCommandQueueEntriesCompanion
+    extends UpdateCompanion<OfflineCommandQueueEntry> {
+  final Value<String> clientOpId;
+  final Value<String> operationType;
+  final Value<String> tenantId;
+  final Value<String> branchId;
+  final Value<String> accountId;
+  final Value<DateTime> occurredAt;
+  final Value<String> payloadJson;
+  final Value<String?> dependsOnClientOpId;
+  final Value<String> status;
+  final Value<int> retryCount;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<DateTime?> lastAttemptAt;
+  final Value<DateTime?> lastSyncedAt;
+  final Value<String?> lastErrorCode;
+  final Value<String?> lastErrorMessage;
+  final Value<int> rowid;
+  const OfflineCommandQueueEntriesCompanion({
+    this.clientOpId = const Value.absent(),
+    this.operationType = const Value.absent(),
+    this.tenantId = const Value.absent(),
+    this.branchId = const Value.absent(),
+    this.accountId = const Value.absent(),
+    this.occurredAt = const Value.absent(),
+    this.payloadJson = const Value.absent(),
+    this.dependsOnClientOpId = const Value.absent(),
+    this.status = const Value.absent(),
+    this.retryCount = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.lastAttemptAt = const Value.absent(),
+    this.lastSyncedAt = const Value.absent(),
+    this.lastErrorCode = const Value.absent(),
+    this.lastErrorMessage = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  OfflineCommandQueueEntriesCompanion.insert({
+    required String clientOpId,
+    required String operationType,
+    this.tenantId = const Value.absent(),
+    this.branchId = const Value.absent(),
+    this.accountId = const Value.absent(),
+    required DateTime occurredAt,
+    required String payloadJson,
+    this.dependsOnClientOpId = const Value.absent(),
+    required String status,
+    this.retryCount = const Value.absent(),
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    this.lastAttemptAt = const Value.absent(),
+    this.lastSyncedAt = const Value.absent(),
+    this.lastErrorCode = const Value.absent(),
+    this.lastErrorMessage = const Value.absent(),
+    this.rowid = const Value.absent(),
+  })  : clientOpId = Value(clientOpId),
+        operationType = Value(operationType),
+        occurredAt = Value(occurredAt),
+        payloadJson = Value(payloadJson),
+        status = Value(status),
+        createdAt = Value(createdAt),
+        updatedAt = Value(updatedAt);
+  static Insertable<OfflineCommandQueueEntry> custom({
+    Expression<String>? clientOpId,
+    Expression<String>? operationType,
+    Expression<String>? tenantId,
+    Expression<String>? branchId,
+    Expression<String>? accountId,
+    Expression<DateTime>? occurredAt,
+    Expression<String>? payloadJson,
+    Expression<String>? dependsOnClientOpId,
+    Expression<String>? status,
+    Expression<int>? retryCount,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<DateTime>? lastAttemptAt,
+    Expression<DateTime>? lastSyncedAt,
+    Expression<String>? lastErrorCode,
+    Expression<String>? lastErrorMessage,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (clientOpId != null) 'client_op_id': clientOpId,
+      if (operationType != null) 'operation_type': operationType,
+      if (tenantId != null) 'tenant_id': tenantId,
+      if (branchId != null) 'branch_id': branchId,
+      if (accountId != null) 'account_id': accountId,
+      if (occurredAt != null) 'occurred_at': occurredAt,
+      if (payloadJson != null) 'payload_json': payloadJson,
+      if (dependsOnClientOpId != null)
+        'depends_on_client_op_id': dependsOnClientOpId,
+      if (status != null) 'status': status,
+      if (retryCount != null) 'retry_count': retryCount,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (lastAttemptAt != null) 'last_attempt_at': lastAttemptAt,
+      if (lastSyncedAt != null) 'last_synced_at': lastSyncedAt,
+      if (lastErrorCode != null) 'last_error_code': lastErrorCode,
+      if (lastErrorMessage != null) 'last_error_message': lastErrorMessage,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  OfflineCommandQueueEntriesCompanion copyWith(
+      {Value<String>? clientOpId,
+      Value<String>? operationType,
+      Value<String>? tenantId,
+      Value<String>? branchId,
+      Value<String>? accountId,
+      Value<DateTime>? occurredAt,
+      Value<String>? payloadJson,
+      Value<String?>? dependsOnClientOpId,
+      Value<String>? status,
+      Value<int>? retryCount,
+      Value<DateTime>? createdAt,
+      Value<DateTime>? updatedAt,
+      Value<DateTime?>? lastAttemptAt,
+      Value<DateTime?>? lastSyncedAt,
+      Value<String?>? lastErrorCode,
+      Value<String?>? lastErrorMessage,
+      Value<int>? rowid}) {
+    return OfflineCommandQueueEntriesCompanion(
+      clientOpId: clientOpId ?? this.clientOpId,
+      operationType: operationType ?? this.operationType,
+      tenantId: tenantId ?? this.tenantId,
+      branchId: branchId ?? this.branchId,
+      accountId: accountId ?? this.accountId,
+      occurredAt: occurredAt ?? this.occurredAt,
+      payloadJson: payloadJson ?? this.payloadJson,
+      dependsOnClientOpId: dependsOnClientOpId ?? this.dependsOnClientOpId,
+      status: status ?? this.status,
+      retryCount: retryCount ?? this.retryCount,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      lastAttemptAt: lastAttemptAt ?? this.lastAttemptAt,
+      lastSyncedAt: lastSyncedAt ?? this.lastSyncedAt,
+      lastErrorCode: lastErrorCode ?? this.lastErrorCode,
+      lastErrorMessage: lastErrorMessage ?? this.lastErrorMessage,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (clientOpId.present) {
+      map['client_op_id'] = Variable<String>(clientOpId.value);
+    }
+    if (operationType.present) {
+      map['operation_type'] = Variable<String>(operationType.value);
+    }
+    if (tenantId.present) {
+      map['tenant_id'] = Variable<String>(tenantId.value);
+    }
+    if (branchId.present) {
+      map['branch_id'] = Variable<String>(branchId.value);
+    }
+    if (accountId.present) {
+      map['account_id'] = Variable<String>(accountId.value);
+    }
+    if (occurredAt.present) {
+      map['occurred_at'] = Variable<DateTime>(occurredAt.value);
+    }
+    if (payloadJson.present) {
+      map['payload_json'] = Variable<String>(payloadJson.value);
+    }
+    if (dependsOnClientOpId.present) {
+      map['depends_on_client_op_id'] =
+          Variable<String>(dependsOnClientOpId.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (retryCount.present) {
+      map['retry_count'] = Variable<int>(retryCount.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (lastAttemptAt.present) {
+      map['last_attempt_at'] = Variable<DateTime>(lastAttemptAt.value);
+    }
+    if (lastSyncedAt.present) {
+      map['last_synced_at'] = Variable<DateTime>(lastSyncedAt.value);
+    }
+    if (lastErrorCode.present) {
+      map['last_error_code'] = Variable<String>(lastErrorCode.value);
+    }
+    if (lastErrorMessage.present) {
+      map['last_error_message'] = Variable<String>(lastErrorMessage.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('OfflineCommandQueueEntriesCompanion(')
+          ..write('clientOpId: $clientOpId, ')
+          ..write('operationType: $operationType, ')
+          ..write('tenantId: $tenantId, ')
+          ..write('branchId: $branchId, ')
+          ..write('accountId: $accountId, ')
+          ..write('occurredAt: $occurredAt, ')
+          ..write('payloadJson: $payloadJson, ')
+          ..write('dependsOnClientOpId: $dependsOnClientOpId, ')
+          ..write('status: $status, ')
+          ..write('retryCount: $retryCount, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('lastAttemptAt: $lastAttemptAt, ')
+          ..write('lastSyncedAt: $lastSyncedAt, ')
+          ..write('lastErrorCode: $lastErrorCode, ')
+          ..write('lastErrorMessage: $lastErrorMessage, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $SaleOutageOrderEntriesTable extends SaleOutageOrderEntries
+    with TableInfo<$SaleOutageOrderEntriesTable, SaleOutageOrderEntry> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SaleOutageOrderEntriesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _localIntentIdMeta =
+      const VerificationMeta('localIntentId');
+  @override
+  late final GeneratedColumn<String> localIntentId = GeneratedColumn<String>(
+      'local_intent_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _orderNumberMeta =
+      const VerificationMeta('orderNumber');
+  @override
+  late final GeneratedColumn<String> orderNumber = GeneratedColumn<String>(
+      'order_number', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _tenantIdMeta =
+      const VerificationMeta('tenantId');
+  @override
+  late final GeneratedColumn<String> tenantId = GeneratedColumn<String>(
+      'tenant_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _branchIdMeta =
+      const VerificationMeta('branchId');
+  @override
+  late final GeneratedColumn<String> branchId = GeneratedColumn<String>(
+      'branch_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _accountIdMeta =
+      const VerificationMeta('accountId');
+  @override
+  late final GeneratedColumn<String> accountId = GeneratedColumn<String>(
+      'account_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _saleTypeMeta =
+      const VerificationMeta('saleType');
+  @override
+  late final GeneratedColumn<String> saleType = GeneratedColumn<String>(
+      'sale_type', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _paymentMethodRequestedMeta =
+      const VerificationMeta('paymentMethodRequested');
+  @override
+  late final GeneratedColumn<String> paymentMethodRequested =
+      GeneratedColumn<String>('payment_method_requested', aliasedName, false,
+          type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _tenderCurrencyMeta =
+      const VerificationMeta('tenderCurrency');
+  @override
+  late final GeneratedColumn<String> tenderCurrency = GeneratedColumn<String>(
+      'tender_currency', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _cashReceivedUsdMeta =
+      const VerificationMeta('cashReceivedUsd');
+  @override
+  late final GeneratedColumn<double> cashReceivedUsd = GeneratedColumn<double>(
+      'cash_received_usd', aliasedName, false,
+      type: DriftSqlType.double,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
+  static const VerificationMeta _cashReceivedKhrMeta =
+      const VerificationMeta('cashReceivedKhr');
+  @override
+  late final GeneratedColumn<double> cashReceivedKhr = GeneratedColumn<double>(
+      'cash_received_khr', aliasedName, false,
+      type: DriftSqlType.double,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
+  static const VerificationMeta _totalUsdMeta =
+      const VerificationMeta('totalUsd');
+  @override
+  late final GeneratedColumn<double> totalUsd = GeneratedColumn<double>(
+      'total_usd', aliasedName, false,
+      type: DriftSqlType.double, requiredDuringInsert: true);
+  static const VerificationMeta _totalKhrMeta =
+      const VerificationMeta('totalKhr');
+  @override
+  late final GeneratedColumn<double> totalKhr = GeneratedColumn<double>(
+      'total_khr', aliasedName, false,
+      type: DriftSqlType.double, requiredDuringInsert: true);
+  static const VerificationMeta _linesJsonMeta =
+      const VerificationMeta('linesJson');
+  @override
+  late final GeneratedColumn<String> linesJson = GeneratedColumn<String>(
+      'lines_json', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _stateMeta = const VerificationMeta('state');
+  @override
+  late final GeneratedColumn<String> state = GeneratedColumn<String>(
+      'state', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _sourceModeMeta =
+      const VerificationMeta('sourceMode');
+  @override
+  late final GeneratedColumn<String> sourceMode = GeneratedColumn<String>(
+      'source_mode', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _backendOrderIdMeta =
+      const VerificationMeta('backendOrderId');
+  @override
+  late final GeneratedColumn<String> backendOrderId = GeneratedColumn<String>(
+      'backend_order_id', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _materializedAtMeta =
+      const VerificationMeta('materializedAt');
+  @override
+  late final GeneratedColumn<DateTime> materializedAt =
+      GeneratedColumn<DateTime>('materialized_at', aliasedName, true,
+          type: DriftSqlType.dateTime, requiredDuringInsert: false);
+  static const VerificationMeta _claimedPaymentMethodMeta =
+      const VerificationMeta('claimedPaymentMethod');
+  @override
+  late final GeneratedColumn<String> claimedPaymentMethod =
+      GeneratedColumn<String>('claimed_payment_method', aliasedName, true,
+          type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _claimedTenderAmountMeta =
+      const VerificationMeta('claimedTenderAmount');
+  @override
+  late final GeneratedColumn<double> claimedTenderAmount =
+      GeneratedColumn<double>('claimed_tender_amount', aliasedName, true,
+          type: DriftSqlType.double, requiredDuringInsert: false);
+  static const VerificationMeta _proofImageUrlMeta =
+      const VerificationMeta('proofImageUrl');
+  @override
+  late final GeneratedColumn<String> proofImageUrl = GeneratedColumn<String>(
+      'proof_image_url', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _customerReferenceMeta =
+      const VerificationMeta('customerReference');
+  @override
+  late final GeneratedColumn<String> customerReference =
+      GeneratedColumn<String>('customer_reference', aliasedName, true,
+          type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _noteMeta = const VerificationMeta('note');
+  @override
+  late final GeneratedColumn<String> note = GeneratedColumn<String>(
+      'note', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _claimRecordedAtMeta =
+      const VerificationMeta('claimRecordedAt');
+  @override
+  late final GeneratedColumn<DateTime> claimRecordedAt =
+      GeneratedColumn<DateTime>('claim_recorded_at', aliasedName, true,
+          type: DriftSqlType.dateTime, requiredDuringInsert: false);
+  static const VerificationMeta _backendClaimIdMeta =
+      const VerificationMeta('backendClaimId');
+  @override
+  late final GeneratedColumn<String> backendClaimId = GeneratedColumn<String>(
+      'backend_claim_id', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _claimSubmittedAtMeta =
+      const VerificationMeta('claimSubmittedAt');
+  @override
+  late final GeneratedColumn<DateTime> claimSubmittedAt =
+      GeneratedColumn<DateTime>('claim_submitted_at', aliasedName, true,
+          type: DriftSqlType.dateTime, requiredDuringInsert: false);
+  static const VerificationMeta _lastErrorCodeMeta =
+      const VerificationMeta('lastErrorCode');
+  @override
+  late final GeneratedColumn<String> lastErrorCode = GeneratedColumn<String>(
+      'last_error_code', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _lastErrorMessageMeta =
+      const VerificationMeta('lastErrorMessage');
+  @override
+  late final GeneratedColumn<String> lastErrorMessage = GeneratedColumn<String>(
+      'last_error_message', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.dateTime, requiredDuringInsert: true);
+  static const VerificationMeta _updatedAtMeta =
+      const VerificationMeta('updatedAt');
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+      'updated_at', aliasedName, false,
+      type: DriftSqlType.dateTime, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns => [
+        localIntentId,
+        orderNumber,
+        tenantId,
+        branchId,
+        accountId,
+        saleType,
+        paymentMethodRequested,
+        tenderCurrency,
+        cashReceivedUsd,
+        cashReceivedKhr,
+        totalUsd,
+        totalKhr,
+        linesJson,
+        state,
+        sourceMode,
+        backendOrderId,
+        materializedAt,
+        claimedPaymentMethod,
+        claimedTenderAmount,
+        proofImageUrl,
+        customerReference,
+        note,
+        claimRecordedAt,
+        backendClaimId,
+        claimSubmittedAt,
+        lastErrorCode,
+        lastErrorMessage,
+        createdAt,
+        updatedAt
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'sale_outage_order_entries';
+  @override
+  VerificationContext validateIntegrity(
+      Insertable<SaleOutageOrderEntry> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('local_intent_id')) {
+      context.handle(
+          _localIntentIdMeta,
+          localIntentId.isAcceptableOrUnknown(
+              data['local_intent_id']!, _localIntentIdMeta));
+    } else if (isInserting) {
+      context.missing(_localIntentIdMeta);
+    }
+    if (data.containsKey('order_number')) {
+      context.handle(
+          _orderNumberMeta,
+          orderNumber.isAcceptableOrUnknown(
+              data['order_number']!, _orderNumberMeta));
+    } else if (isInserting) {
+      context.missing(_orderNumberMeta);
+    }
+    if (data.containsKey('tenant_id')) {
+      context.handle(_tenantIdMeta,
+          tenantId.isAcceptableOrUnknown(data['tenant_id']!, _tenantIdMeta));
+    } else if (isInserting) {
+      context.missing(_tenantIdMeta);
+    }
+    if (data.containsKey('branch_id')) {
+      context.handle(_branchIdMeta,
+          branchId.isAcceptableOrUnknown(data['branch_id']!, _branchIdMeta));
+    } else if (isInserting) {
+      context.missing(_branchIdMeta);
+    }
+    if (data.containsKey('account_id')) {
+      context.handle(_accountIdMeta,
+          accountId.isAcceptableOrUnknown(data['account_id']!, _accountIdMeta));
+    } else if (isInserting) {
+      context.missing(_accountIdMeta);
+    }
+    if (data.containsKey('sale_type')) {
+      context.handle(_saleTypeMeta,
+          saleType.isAcceptableOrUnknown(data['sale_type']!, _saleTypeMeta));
+    } else if (isInserting) {
+      context.missing(_saleTypeMeta);
+    }
+    if (data.containsKey('payment_method_requested')) {
+      context.handle(
+          _paymentMethodRequestedMeta,
+          paymentMethodRequested.isAcceptableOrUnknown(
+              data['payment_method_requested']!, _paymentMethodRequestedMeta));
+    } else if (isInserting) {
+      context.missing(_paymentMethodRequestedMeta);
+    }
+    if (data.containsKey('tender_currency')) {
+      context.handle(
+          _tenderCurrencyMeta,
+          tenderCurrency.isAcceptableOrUnknown(
+              data['tender_currency']!, _tenderCurrencyMeta));
+    } else if (isInserting) {
+      context.missing(_tenderCurrencyMeta);
+    }
+    if (data.containsKey('cash_received_usd')) {
+      context.handle(
+          _cashReceivedUsdMeta,
+          cashReceivedUsd.isAcceptableOrUnknown(
+              data['cash_received_usd']!, _cashReceivedUsdMeta));
+    }
+    if (data.containsKey('cash_received_khr')) {
+      context.handle(
+          _cashReceivedKhrMeta,
+          cashReceivedKhr.isAcceptableOrUnknown(
+              data['cash_received_khr']!, _cashReceivedKhrMeta));
+    }
+    if (data.containsKey('total_usd')) {
+      context.handle(_totalUsdMeta,
+          totalUsd.isAcceptableOrUnknown(data['total_usd']!, _totalUsdMeta));
+    } else if (isInserting) {
+      context.missing(_totalUsdMeta);
+    }
+    if (data.containsKey('total_khr')) {
+      context.handle(_totalKhrMeta,
+          totalKhr.isAcceptableOrUnknown(data['total_khr']!, _totalKhrMeta));
+    } else if (isInserting) {
+      context.missing(_totalKhrMeta);
+    }
+    if (data.containsKey('lines_json')) {
+      context.handle(_linesJsonMeta,
+          linesJson.isAcceptableOrUnknown(data['lines_json']!, _linesJsonMeta));
+    } else if (isInserting) {
+      context.missing(_linesJsonMeta);
+    }
+    if (data.containsKey('state')) {
+      context.handle(
+          _stateMeta, state.isAcceptableOrUnknown(data['state']!, _stateMeta));
+    } else if (isInserting) {
+      context.missing(_stateMeta);
+    }
+    if (data.containsKey('source_mode')) {
+      context.handle(
+          _sourceModeMeta,
+          sourceMode.isAcceptableOrUnknown(
+              data['source_mode']!, _sourceModeMeta));
+    } else if (isInserting) {
+      context.missing(_sourceModeMeta);
+    }
+    if (data.containsKey('backend_order_id')) {
+      context.handle(
+          _backendOrderIdMeta,
+          backendOrderId.isAcceptableOrUnknown(
+              data['backend_order_id']!, _backendOrderIdMeta));
+    }
+    if (data.containsKey('materialized_at')) {
+      context.handle(
+          _materializedAtMeta,
+          materializedAt.isAcceptableOrUnknown(
+              data['materialized_at']!, _materializedAtMeta));
+    }
+    if (data.containsKey('claimed_payment_method')) {
+      context.handle(
+          _claimedPaymentMethodMeta,
+          claimedPaymentMethod.isAcceptableOrUnknown(
+              data['claimed_payment_method']!, _claimedPaymentMethodMeta));
+    }
+    if (data.containsKey('claimed_tender_amount')) {
+      context.handle(
+          _claimedTenderAmountMeta,
+          claimedTenderAmount.isAcceptableOrUnknown(
+              data['claimed_tender_amount']!, _claimedTenderAmountMeta));
+    }
+    if (data.containsKey('proof_image_url')) {
+      context.handle(
+          _proofImageUrlMeta,
+          proofImageUrl.isAcceptableOrUnknown(
+              data['proof_image_url']!, _proofImageUrlMeta));
+    }
+    if (data.containsKey('customer_reference')) {
+      context.handle(
+          _customerReferenceMeta,
+          customerReference.isAcceptableOrUnknown(
+              data['customer_reference']!, _customerReferenceMeta));
+    }
+    if (data.containsKey('note')) {
+      context.handle(
+          _noteMeta, note.isAcceptableOrUnknown(data['note']!, _noteMeta));
+    }
+    if (data.containsKey('claim_recorded_at')) {
+      context.handle(
+          _claimRecordedAtMeta,
+          claimRecordedAt.isAcceptableOrUnknown(
+              data['claim_recorded_at']!, _claimRecordedAtMeta));
+    }
+    if (data.containsKey('backend_claim_id')) {
+      context.handle(
+          _backendClaimIdMeta,
+          backendClaimId.isAcceptableOrUnknown(
+              data['backend_claim_id']!, _backendClaimIdMeta));
+    }
+    if (data.containsKey('claim_submitted_at')) {
+      context.handle(
+          _claimSubmittedAtMeta,
+          claimSubmittedAt.isAcceptableOrUnknown(
+              data['claim_submitted_at']!, _claimSubmittedAtMeta));
+    }
+    if (data.containsKey('last_error_code')) {
+      context.handle(
+          _lastErrorCodeMeta,
+          lastErrorCode.isAcceptableOrUnknown(
+              data['last_error_code']!, _lastErrorCodeMeta));
+    }
+    if (data.containsKey('last_error_message')) {
+      context.handle(
+          _lastErrorMessageMeta,
+          lastErrorMessage.isAcceptableOrUnknown(
+              data['last_error_message']!, _lastErrorMessageMeta));
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(_updatedAtMeta,
+          updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta));
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {localIntentId};
+  @override
+  SaleOutageOrderEntry map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SaleOutageOrderEntry(
+      localIntentId: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}local_intent_id'])!,
+      orderNumber: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}order_number'])!,
+      tenantId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}tenant_id'])!,
+      branchId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}branch_id'])!,
+      accountId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}account_id'])!,
+      saleType: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}sale_type'])!,
+      paymentMethodRequested: attachedDatabase.typeMapping.read(
+          DriftSqlType.string,
+          data['${effectivePrefix}payment_method_requested'])!,
+      tenderCurrency: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}tender_currency'])!,
+      cashReceivedUsd: attachedDatabase.typeMapping.read(
+          DriftSqlType.double, data['${effectivePrefix}cash_received_usd'])!,
+      cashReceivedKhr: attachedDatabase.typeMapping.read(
+          DriftSqlType.double, data['${effectivePrefix}cash_received_khr'])!,
+      totalUsd: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}total_usd'])!,
+      totalKhr: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}total_khr'])!,
+      linesJson: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}lines_json'])!,
+      state: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}state'])!,
+      sourceMode: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}source_mode'])!,
+      backendOrderId: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}backend_order_id']),
+      materializedAt: attachedDatabase.typeMapping.read(
+          DriftSqlType.dateTime, data['${effectivePrefix}materialized_at']),
+      claimedPaymentMethod: attachedDatabase.typeMapping.read(
+          DriftSqlType.string,
+          data['${effectivePrefix}claimed_payment_method']),
+      claimedTenderAmount: attachedDatabase.typeMapping.read(
+          DriftSqlType.double, data['${effectivePrefix}claimed_tender_amount']),
+      proofImageUrl: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}proof_image_url']),
+      customerReference: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}customer_reference']),
+      note: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}note']),
+      claimRecordedAt: attachedDatabase.typeMapping.read(
+          DriftSqlType.dateTime, data['${effectivePrefix}claim_recorded_at']),
+      backendClaimId: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}backend_claim_id']),
+      claimSubmittedAt: attachedDatabase.typeMapping.read(
+          DriftSqlType.dateTime, data['${effectivePrefix}claim_submitted_at']),
+      lastErrorCode: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}last_error_code']),
+      lastErrorMessage: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}last_error_message']),
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}created_at'])!,
+      updatedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}updated_at'])!,
+    );
+  }
+
+  @override
+  $SaleOutageOrderEntriesTable createAlias(String alias) {
+    return $SaleOutageOrderEntriesTable(attachedDatabase, alias);
+  }
+}
+
+class SaleOutageOrderEntry extends DataClass
+    implements Insertable<SaleOutageOrderEntry> {
+  final String localIntentId;
+  final String orderNumber;
+  final String tenantId;
+  final String branchId;
+  final String accountId;
+  final String saleType;
+  final String paymentMethodRequested;
+  final String tenderCurrency;
+  final double cashReceivedUsd;
+  final double cashReceivedKhr;
+  final double totalUsd;
+  final double totalKhr;
+  final String linesJson;
+  final String state;
+  final String sourceMode;
+  final String? backendOrderId;
+  final DateTime? materializedAt;
+  final String? claimedPaymentMethod;
+  final double? claimedTenderAmount;
+  final String? proofImageUrl;
+  final String? customerReference;
+  final String? note;
+  final DateTime? claimRecordedAt;
+  final String? backendClaimId;
+  final DateTime? claimSubmittedAt;
+  final String? lastErrorCode;
+  final String? lastErrorMessage;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  const SaleOutageOrderEntry(
+      {required this.localIntentId,
+      required this.orderNumber,
+      required this.tenantId,
+      required this.branchId,
+      required this.accountId,
+      required this.saleType,
+      required this.paymentMethodRequested,
+      required this.tenderCurrency,
+      required this.cashReceivedUsd,
+      required this.cashReceivedKhr,
+      required this.totalUsd,
+      required this.totalKhr,
+      required this.linesJson,
+      required this.state,
+      required this.sourceMode,
+      this.backendOrderId,
+      this.materializedAt,
+      this.claimedPaymentMethod,
+      this.claimedTenderAmount,
+      this.proofImageUrl,
+      this.customerReference,
+      this.note,
+      this.claimRecordedAt,
+      this.backendClaimId,
+      this.claimSubmittedAt,
+      this.lastErrorCode,
+      this.lastErrorMessage,
+      required this.createdAt,
+      required this.updatedAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['local_intent_id'] = Variable<String>(localIntentId);
+    map['order_number'] = Variable<String>(orderNumber);
+    map['tenant_id'] = Variable<String>(tenantId);
+    map['branch_id'] = Variable<String>(branchId);
+    map['account_id'] = Variable<String>(accountId);
+    map['sale_type'] = Variable<String>(saleType);
+    map['payment_method_requested'] = Variable<String>(paymentMethodRequested);
+    map['tender_currency'] = Variable<String>(tenderCurrency);
+    map['cash_received_usd'] = Variable<double>(cashReceivedUsd);
+    map['cash_received_khr'] = Variable<double>(cashReceivedKhr);
+    map['total_usd'] = Variable<double>(totalUsd);
+    map['total_khr'] = Variable<double>(totalKhr);
+    map['lines_json'] = Variable<String>(linesJson);
+    map['state'] = Variable<String>(state);
+    map['source_mode'] = Variable<String>(sourceMode);
+    if (!nullToAbsent || backendOrderId != null) {
+      map['backend_order_id'] = Variable<String>(backendOrderId);
+    }
+    if (!nullToAbsent || materializedAt != null) {
+      map['materialized_at'] = Variable<DateTime>(materializedAt);
+    }
+    if (!nullToAbsent || claimedPaymentMethod != null) {
+      map['claimed_payment_method'] = Variable<String>(claimedPaymentMethod);
+    }
+    if (!nullToAbsent || claimedTenderAmount != null) {
+      map['claimed_tender_amount'] = Variable<double>(claimedTenderAmount);
+    }
+    if (!nullToAbsent || proofImageUrl != null) {
+      map['proof_image_url'] = Variable<String>(proofImageUrl);
+    }
+    if (!nullToAbsent || customerReference != null) {
+      map['customer_reference'] = Variable<String>(customerReference);
+    }
+    if (!nullToAbsent || note != null) {
+      map['note'] = Variable<String>(note);
+    }
+    if (!nullToAbsent || claimRecordedAt != null) {
+      map['claim_recorded_at'] = Variable<DateTime>(claimRecordedAt);
+    }
+    if (!nullToAbsent || backendClaimId != null) {
+      map['backend_claim_id'] = Variable<String>(backendClaimId);
+    }
+    if (!nullToAbsent || claimSubmittedAt != null) {
+      map['claim_submitted_at'] = Variable<DateTime>(claimSubmittedAt);
+    }
+    if (!nullToAbsent || lastErrorCode != null) {
+      map['last_error_code'] = Variable<String>(lastErrorCode);
+    }
+    if (!nullToAbsent || lastErrorMessage != null) {
+      map['last_error_message'] = Variable<String>(lastErrorMessage);
+    }
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  SaleOutageOrderEntriesCompanion toCompanion(bool nullToAbsent) {
+    return SaleOutageOrderEntriesCompanion(
+      localIntentId: Value(localIntentId),
+      orderNumber: Value(orderNumber),
+      tenantId: Value(tenantId),
+      branchId: Value(branchId),
+      accountId: Value(accountId),
+      saleType: Value(saleType),
+      paymentMethodRequested: Value(paymentMethodRequested),
+      tenderCurrency: Value(tenderCurrency),
+      cashReceivedUsd: Value(cashReceivedUsd),
+      cashReceivedKhr: Value(cashReceivedKhr),
+      totalUsd: Value(totalUsd),
+      totalKhr: Value(totalKhr),
+      linesJson: Value(linesJson),
+      state: Value(state),
+      sourceMode: Value(sourceMode),
+      backendOrderId: backendOrderId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(backendOrderId),
+      materializedAt: materializedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(materializedAt),
+      claimedPaymentMethod: claimedPaymentMethod == null && nullToAbsent
+          ? const Value.absent()
+          : Value(claimedPaymentMethod),
+      claimedTenderAmount: claimedTenderAmount == null && nullToAbsent
+          ? const Value.absent()
+          : Value(claimedTenderAmount),
+      proofImageUrl: proofImageUrl == null && nullToAbsent
+          ? const Value.absent()
+          : Value(proofImageUrl),
+      customerReference: customerReference == null && nullToAbsent
+          ? const Value.absent()
+          : Value(customerReference),
+      note: note == null && nullToAbsent ? const Value.absent() : Value(note),
+      claimRecordedAt: claimRecordedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(claimRecordedAt),
+      backendClaimId: backendClaimId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(backendClaimId),
+      claimSubmittedAt: claimSubmittedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(claimSubmittedAt),
+      lastErrorCode: lastErrorCode == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastErrorCode),
+      lastErrorMessage: lastErrorMessage == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastErrorMessage),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory SaleOutageOrderEntry.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SaleOutageOrderEntry(
+      localIntentId: serializer.fromJson<String>(json['localIntentId']),
+      orderNumber: serializer.fromJson<String>(json['orderNumber']),
+      tenantId: serializer.fromJson<String>(json['tenantId']),
+      branchId: serializer.fromJson<String>(json['branchId']),
+      accountId: serializer.fromJson<String>(json['accountId']),
+      saleType: serializer.fromJson<String>(json['saleType']),
+      paymentMethodRequested:
+          serializer.fromJson<String>(json['paymentMethodRequested']),
+      tenderCurrency: serializer.fromJson<String>(json['tenderCurrency']),
+      cashReceivedUsd: serializer.fromJson<double>(json['cashReceivedUsd']),
+      cashReceivedKhr: serializer.fromJson<double>(json['cashReceivedKhr']),
+      totalUsd: serializer.fromJson<double>(json['totalUsd']),
+      totalKhr: serializer.fromJson<double>(json['totalKhr']),
+      linesJson: serializer.fromJson<String>(json['linesJson']),
+      state: serializer.fromJson<String>(json['state']),
+      sourceMode: serializer.fromJson<String>(json['sourceMode']),
+      backendOrderId: serializer.fromJson<String?>(json['backendOrderId']),
+      materializedAt: serializer.fromJson<DateTime?>(json['materializedAt']),
+      claimedPaymentMethod:
+          serializer.fromJson<String?>(json['claimedPaymentMethod']),
+      claimedTenderAmount:
+          serializer.fromJson<double?>(json['claimedTenderAmount']),
+      proofImageUrl: serializer.fromJson<String?>(json['proofImageUrl']),
+      customerReference:
+          serializer.fromJson<String?>(json['customerReference']),
+      note: serializer.fromJson<String?>(json['note']),
+      claimRecordedAt: serializer.fromJson<DateTime?>(json['claimRecordedAt']),
+      backendClaimId: serializer.fromJson<String?>(json['backendClaimId']),
+      claimSubmittedAt:
+          serializer.fromJson<DateTime?>(json['claimSubmittedAt']),
+      lastErrorCode: serializer.fromJson<String?>(json['lastErrorCode']),
+      lastErrorMessage: serializer.fromJson<String?>(json['lastErrorMessage']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'localIntentId': serializer.toJson<String>(localIntentId),
+      'orderNumber': serializer.toJson<String>(orderNumber),
+      'tenantId': serializer.toJson<String>(tenantId),
+      'branchId': serializer.toJson<String>(branchId),
+      'accountId': serializer.toJson<String>(accountId),
+      'saleType': serializer.toJson<String>(saleType),
+      'paymentMethodRequested':
+          serializer.toJson<String>(paymentMethodRequested),
+      'tenderCurrency': serializer.toJson<String>(tenderCurrency),
+      'cashReceivedUsd': serializer.toJson<double>(cashReceivedUsd),
+      'cashReceivedKhr': serializer.toJson<double>(cashReceivedKhr),
+      'totalUsd': serializer.toJson<double>(totalUsd),
+      'totalKhr': serializer.toJson<double>(totalKhr),
+      'linesJson': serializer.toJson<String>(linesJson),
+      'state': serializer.toJson<String>(state),
+      'sourceMode': serializer.toJson<String>(sourceMode),
+      'backendOrderId': serializer.toJson<String?>(backendOrderId),
+      'materializedAt': serializer.toJson<DateTime?>(materializedAt),
+      'claimedPaymentMethod': serializer.toJson<String?>(claimedPaymentMethod),
+      'claimedTenderAmount': serializer.toJson<double?>(claimedTenderAmount),
+      'proofImageUrl': serializer.toJson<String?>(proofImageUrl),
+      'customerReference': serializer.toJson<String?>(customerReference),
+      'note': serializer.toJson<String?>(note),
+      'claimRecordedAt': serializer.toJson<DateTime?>(claimRecordedAt),
+      'backendClaimId': serializer.toJson<String?>(backendClaimId),
+      'claimSubmittedAt': serializer.toJson<DateTime?>(claimSubmittedAt),
+      'lastErrorCode': serializer.toJson<String?>(lastErrorCode),
+      'lastErrorMessage': serializer.toJson<String?>(lastErrorMessage),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  SaleOutageOrderEntry copyWith(
+          {String? localIntentId,
+          String? orderNumber,
+          String? tenantId,
+          String? branchId,
+          String? accountId,
+          String? saleType,
+          String? paymentMethodRequested,
+          String? tenderCurrency,
+          double? cashReceivedUsd,
+          double? cashReceivedKhr,
+          double? totalUsd,
+          double? totalKhr,
+          String? linesJson,
+          String? state,
+          String? sourceMode,
+          Value<String?> backendOrderId = const Value.absent(),
+          Value<DateTime?> materializedAt = const Value.absent(),
+          Value<String?> claimedPaymentMethod = const Value.absent(),
+          Value<double?> claimedTenderAmount = const Value.absent(),
+          Value<String?> proofImageUrl = const Value.absent(),
+          Value<String?> customerReference = const Value.absent(),
+          Value<String?> note = const Value.absent(),
+          Value<DateTime?> claimRecordedAt = const Value.absent(),
+          Value<String?> backendClaimId = const Value.absent(),
+          Value<DateTime?> claimSubmittedAt = const Value.absent(),
+          Value<String?> lastErrorCode = const Value.absent(),
+          Value<String?> lastErrorMessage = const Value.absent(),
+          DateTime? createdAt,
+          DateTime? updatedAt}) =>
+      SaleOutageOrderEntry(
+        localIntentId: localIntentId ?? this.localIntentId,
+        orderNumber: orderNumber ?? this.orderNumber,
+        tenantId: tenantId ?? this.tenantId,
+        branchId: branchId ?? this.branchId,
+        accountId: accountId ?? this.accountId,
+        saleType: saleType ?? this.saleType,
+        paymentMethodRequested:
+            paymentMethodRequested ?? this.paymentMethodRequested,
+        tenderCurrency: tenderCurrency ?? this.tenderCurrency,
+        cashReceivedUsd: cashReceivedUsd ?? this.cashReceivedUsd,
+        cashReceivedKhr: cashReceivedKhr ?? this.cashReceivedKhr,
+        totalUsd: totalUsd ?? this.totalUsd,
+        totalKhr: totalKhr ?? this.totalKhr,
+        linesJson: linesJson ?? this.linesJson,
+        state: state ?? this.state,
+        sourceMode: sourceMode ?? this.sourceMode,
+        backendOrderId:
+            backendOrderId.present ? backendOrderId.value : this.backendOrderId,
+        materializedAt:
+            materializedAt.present ? materializedAt.value : this.materializedAt,
+        claimedPaymentMethod: claimedPaymentMethod.present
+            ? claimedPaymentMethod.value
+            : this.claimedPaymentMethod,
+        claimedTenderAmount: claimedTenderAmount.present
+            ? claimedTenderAmount.value
+            : this.claimedTenderAmount,
+        proofImageUrl:
+            proofImageUrl.present ? proofImageUrl.value : this.proofImageUrl,
+        customerReference: customerReference.present
+            ? customerReference.value
+            : this.customerReference,
+        note: note.present ? note.value : this.note,
+        claimRecordedAt: claimRecordedAt.present
+            ? claimRecordedAt.value
+            : this.claimRecordedAt,
+        backendClaimId:
+            backendClaimId.present ? backendClaimId.value : this.backendClaimId,
+        claimSubmittedAt: claimSubmittedAt.present
+            ? claimSubmittedAt.value
+            : this.claimSubmittedAt,
+        lastErrorCode:
+            lastErrorCode.present ? lastErrorCode.value : this.lastErrorCode,
+        lastErrorMessage: lastErrorMessage.present
+            ? lastErrorMessage.value
+            : this.lastErrorMessage,
+        createdAt: createdAt ?? this.createdAt,
+        updatedAt: updatedAt ?? this.updatedAt,
+      );
+  SaleOutageOrderEntry copyWithCompanion(SaleOutageOrderEntriesCompanion data) {
+    return SaleOutageOrderEntry(
+      localIntentId: data.localIntentId.present
+          ? data.localIntentId.value
+          : this.localIntentId,
+      orderNumber:
+          data.orderNumber.present ? data.orderNumber.value : this.orderNumber,
+      tenantId: data.tenantId.present ? data.tenantId.value : this.tenantId,
+      branchId: data.branchId.present ? data.branchId.value : this.branchId,
+      accountId: data.accountId.present ? data.accountId.value : this.accountId,
+      saleType: data.saleType.present ? data.saleType.value : this.saleType,
+      paymentMethodRequested: data.paymentMethodRequested.present
+          ? data.paymentMethodRequested.value
+          : this.paymentMethodRequested,
+      tenderCurrency: data.tenderCurrency.present
+          ? data.tenderCurrency.value
+          : this.tenderCurrency,
+      cashReceivedUsd: data.cashReceivedUsd.present
+          ? data.cashReceivedUsd.value
+          : this.cashReceivedUsd,
+      cashReceivedKhr: data.cashReceivedKhr.present
+          ? data.cashReceivedKhr.value
+          : this.cashReceivedKhr,
+      totalUsd: data.totalUsd.present ? data.totalUsd.value : this.totalUsd,
+      totalKhr: data.totalKhr.present ? data.totalKhr.value : this.totalKhr,
+      linesJson: data.linesJson.present ? data.linesJson.value : this.linesJson,
+      state: data.state.present ? data.state.value : this.state,
+      sourceMode:
+          data.sourceMode.present ? data.sourceMode.value : this.sourceMode,
+      backendOrderId: data.backendOrderId.present
+          ? data.backendOrderId.value
+          : this.backendOrderId,
+      materializedAt: data.materializedAt.present
+          ? data.materializedAt.value
+          : this.materializedAt,
+      claimedPaymentMethod: data.claimedPaymentMethod.present
+          ? data.claimedPaymentMethod.value
+          : this.claimedPaymentMethod,
+      claimedTenderAmount: data.claimedTenderAmount.present
+          ? data.claimedTenderAmount.value
+          : this.claimedTenderAmount,
+      proofImageUrl: data.proofImageUrl.present
+          ? data.proofImageUrl.value
+          : this.proofImageUrl,
+      customerReference: data.customerReference.present
+          ? data.customerReference.value
+          : this.customerReference,
+      note: data.note.present ? data.note.value : this.note,
+      claimRecordedAt: data.claimRecordedAt.present
+          ? data.claimRecordedAt.value
+          : this.claimRecordedAt,
+      backendClaimId: data.backendClaimId.present
+          ? data.backendClaimId.value
+          : this.backendClaimId,
+      claimSubmittedAt: data.claimSubmittedAt.present
+          ? data.claimSubmittedAt.value
+          : this.claimSubmittedAt,
+      lastErrorCode: data.lastErrorCode.present
+          ? data.lastErrorCode.value
+          : this.lastErrorCode,
+      lastErrorMessage: data.lastErrorMessage.present
+          ? data.lastErrorMessage.value
+          : this.lastErrorMessage,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SaleOutageOrderEntry(')
+          ..write('localIntentId: $localIntentId, ')
+          ..write('orderNumber: $orderNumber, ')
+          ..write('tenantId: $tenantId, ')
+          ..write('branchId: $branchId, ')
+          ..write('accountId: $accountId, ')
+          ..write('saleType: $saleType, ')
+          ..write('paymentMethodRequested: $paymentMethodRequested, ')
+          ..write('tenderCurrency: $tenderCurrency, ')
+          ..write('cashReceivedUsd: $cashReceivedUsd, ')
+          ..write('cashReceivedKhr: $cashReceivedKhr, ')
+          ..write('totalUsd: $totalUsd, ')
+          ..write('totalKhr: $totalKhr, ')
+          ..write('linesJson: $linesJson, ')
+          ..write('state: $state, ')
+          ..write('sourceMode: $sourceMode, ')
+          ..write('backendOrderId: $backendOrderId, ')
+          ..write('materializedAt: $materializedAt, ')
+          ..write('claimedPaymentMethod: $claimedPaymentMethod, ')
+          ..write('claimedTenderAmount: $claimedTenderAmount, ')
+          ..write('proofImageUrl: $proofImageUrl, ')
+          ..write('customerReference: $customerReference, ')
+          ..write('note: $note, ')
+          ..write('claimRecordedAt: $claimRecordedAt, ')
+          ..write('backendClaimId: $backendClaimId, ')
+          ..write('claimSubmittedAt: $claimSubmittedAt, ')
+          ..write('lastErrorCode: $lastErrorCode, ')
+          ..write('lastErrorMessage: $lastErrorMessage, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hashAll([
+        localIntentId,
+        orderNumber,
+        tenantId,
+        branchId,
+        accountId,
+        saleType,
+        paymentMethodRequested,
+        tenderCurrency,
+        cashReceivedUsd,
+        cashReceivedKhr,
+        totalUsd,
+        totalKhr,
+        linesJson,
+        state,
+        sourceMode,
+        backendOrderId,
+        materializedAt,
+        claimedPaymentMethod,
+        claimedTenderAmount,
+        proofImageUrl,
+        customerReference,
+        note,
+        claimRecordedAt,
+        backendClaimId,
+        claimSubmittedAt,
+        lastErrorCode,
+        lastErrorMessage,
+        createdAt,
+        updatedAt
+      ]);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SaleOutageOrderEntry &&
+          other.localIntentId == this.localIntentId &&
+          other.orderNumber == this.orderNumber &&
+          other.tenantId == this.tenantId &&
+          other.branchId == this.branchId &&
+          other.accountId == this.accountId &&
+          other.saleType == this.saleType &&
+          other.paymentMethodRequested == this.paymentMethodRequested &&
+          other.tenderCurrency == this.tenderCurrency &&
+          other.cashReceivedUsd == this.cashReceivedUsd &&
+          other.cashReceivedKhr == this.cashReceivedKhr &&
+          other.totalUsd == this.totalUsd &&
+          other.totalKhr == this.totalKhr &&
+          other.linesJson == this.linesJson &&
+          other.state == this.state &&
+          other.sourceMode == this.sourceMode &&
+          other.backendOrderId == this.backendOrderId &&
+          other.materializedAt == this.materializedAt &&
+          other.claimedPaymentMethod == this.claimedPaymentMethod &&
+          other.claimedTenderAmount == this.claimedTenderAmount &&
+          other.proofImageUrl == this.proofImageUrl &&
+          other.customerReference == this.customerReference &&
+          other.note == this.note &&
+          other.claimRecordedAt == this.claimRecordedAt &&
+          other.backendClaimId == this.backendClaimId &&
+          other.claimSubmittedAt == this.claimSubmittedAt &&
+          other.lastErrorCode == this.lastErrorCode &&
+          other.lastErrorMessage == this.lastErrorMessage &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class SaleOutageOrderEntriesCompanion
+    extends UpdateCompanion<SaleOutageOrderEntry> {
+  final Value<String> localIntentId;
+  final Value<String> orderNumber;
+  final Value<String> tenantId;
+  final Value<String> branchId;
+  final Value<String> accountId;
+  final Value<String> saleType;
+  final Value<String> paymentMethodRequested;
+  final Value<String> tenderCurrency;
+  final Value<double> cashReceivedUsd;
+  final Value<double> cashReceivedKhr;
+  final Value<double> totalUsd;
+  final Value<double> totalKhr;
+  final Value<String> linesJson;
+  final Value<String> state;
+  final Value<String> sourceMode;
+  final Value<String?> backendOrderId;
+  final Value<DateTime?> materializedAt;
+  final Value<String?> claimedPaymentMethod;
+  final Value<double?> claimedTenderAmount;
+  final Value<String?> proofImageUrl;
+  final Value<String?> customerReference;
+  final Value<String?> note;
+  final Value<DateTime?> claimRecordedAt;
+  final Value<String?> backendClaimId;
+  final Value<DateTime?> claimSubmittedAt;
+  final Value<String?> lastErrorCode;
+  final Value<String?> lastErrorMessage;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<int> rowid;
+  const SaleOutageOrderEntriesCompanion({
+    this.localIntentId = const Value.absent(),
+    this.orderNumber = const Value.absent(),
+    this.tenantId = const Value.absent(),
+    this.branchId = const Value.absent(),
+    this.accountId = const Value.absent(),
+    this.saleType = const Value.absent(),
+    this.paymentMethodRequested = const Value.absent(),
+    this.tenderCurrency = const Value.absent(),
+    this.cashReceivedUsd = const Value.absent(),
+    this.cashReceivedKhr = const Value.absent(),
+    this.totalUsd = const Value.absent(),
+    this.totalKhr = const Value.absent(),
+    this.linesJson = const Value.absent(),
+    this.state = const Value.absent(),
+    this.sourceMode = const Value.absent(),
+    this.backendOrderId = const Value.absent(),
+    this.materializedAt = const Value.absent(),
+    this.claimedPaymentMethod = const Value.absent(),
+    this.claimedTenderAmount = const Value.absent(),
+    this.proofImageUrl = const Value.absent(),
+    this.customerReference = const Value.absent(),
+    this.note = const Value.absent(),
+    this.claimRecordedAt = const Value.absent(),
+    this.backendClaimId = const Value.absent(),
+    this.claimSubmittedAt = const Value.absent(),
+    this.lastErrorCode = const Value.absent(),
+    this.lastErrorMessage = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  SaleOutageOrderEntriesCompanion.insert({
+    required String localIntentId,
+    required String orderNumber,
+    required String tenantId,
+    required String branchId,
+    required String accountId,
+    required String saleType,
+    required String paymentMethodRequested,
+    required String tenderCurrency,
+    this.cashReceivedUsd = const Value.absent(),
+    this.cashReceivedKhr = const Value.absent(),
+    required double totalUsd,
+    required double totalKhr,
+    required String linesJson,
+    required String state,
+    required String sourceMode,
+    this.backendOrderId = const Value.absent(),
+    this.materializedAt = const Value.absent(),
+    this.claimedPaymentMethod = const Value.absent(),
+    this.claimedTenderAmount = const Value.absent(),
+    this.proofImageUrl = const Value.absent(),
+    this.customerReference = const Value.absent(),
+    this.note = const Value.absent(),
+    this.claimRecordedAt = const Value.absent(),
+    this.backendClaimId = const Value.absent(),
+    this.claimSubmittedAt = const Value.absent(),
+    this.lastErrorCode = const Value.absent(),
+    this.lastErrorMessage = const Value.absent(),
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    this.rowid = const Value.absent(),
+  })  : localIntentId = Value(localIntentId),
+        orderNumber = Value(orderNumber),
+        tenantId = Value(tenantId),
+        branchId = Value(branchId),
+        accountId = Value(accountId),
+        saleType = Value(saleType),
+        paymentMethodRequested = Value(paymentMethodRequested),
+        tenderCurrency = Value(tenderCurrency),
+        totalUsd = Value(totalUsd),
+        totalKhr = Value(totalKhr),
+        linesJson = Value(linesJson),
+        state = Value(state),
+        sourceMode = Value(sourceMode),
+        createdAt = Value(createdAt),
+        updatedAt = Value(updatedAt);
+  static Insertable<SaleOutageOrderEntry> custom({
+    Expression<String>? localIntentId,
+    Expression<String>? orderNumber,
+    Expression<String>? tenantId,
+    Expression<String>? branchId,
+    Expression<String>? accountId,
+    Expression<String>? saleType,
+    Expression<String>? paymentMethodRequested,
+    Expression<String>? tenderCurrency,
+    Expression<double>? cashReceivedUsd,
+    Expression<double>? cashReceivedKhr,
+    Expression<double>? totalUsd,
+    Expression<double>? totalKhr,
+    Expression<String>? linesJson,
+    Expression<String>? state,
+    Expression<String>? sourceMode,
+    Expression<String>? backendOrderId,
+    Expression<DateTime>? materializedAt,
+    Expression<String>? claimedPaymentMethod,
+    Expression<double>? claimedTenderAmount,
+    Expression<String>? proofImageUrl,
+    Expression<String>? customerReference,
+    Expression<String>? note,
+    Expression<DateTime>? claimRecordedAt,
+    Expression<String>? backendClaimId,
+    Expression<DateTime>? claimSubmittedAt,
+    Expression<String>? lastErrorCode,
+    Expression<String>? lastErrorMessage,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (localIntentId != null) 'local_intent_id': localIntentId,
+      if (orderNumber != null) 'order_number': orderNumber,
+      if (tenantId != null) 'tenant_id': tenantId,
+      if (branchId != null) 'branch_id': branchId,
+      if (accountId != null) 'account_id': accountId,
+      if (saleType != null) 'sale_type': saleType,
+      if (paymentMethodRequested != null)
+        'payment_method_requested': paymentMethodRequested,
+      if (tenderCurrency != null) 'tender_currency': tenderCurrency,
+      if (cashReceivedUsd != null) 'cash_received_usd': cashReceivedUsd,
+      if (cashReceivedKhr != null) 'cash_received_khr': cashReceivedKhr,
+      if (totalUsd != null) 'total_usd': totalUsd,
+      if (totalKhr != null) 'total_khr': totalKhr,
+      if (linesJson != null) 'lines_json': linesJson,
+      if (state != null) 'state': state,
+      if (sourceMode != null) 'source_mode': sourceMode,
+      if (backendOrderId != null) 'backend_order_id': backendOrderId,
+      if (materializedAt != null) 'materialized_at': materializedAt,
+      if (claimedPaymentMethod != null)
+        'claimed_payment_method': claimedPaymentMethod,
+      if (claimedTenderAmount != null)
+        'claimed_tender_amount': claimedTenderAmount,
+      if (proofImageUrl != null) 'proof_image_url': proofImageUrl,
+      if (customerReference != null) 'customer_reference': customerReference,
+      if (note != null) 'note': note,
+      if (claimRecordedAt != null) 'claim_recorded_at': claimRecordedAt,
+      if (backendClaimId != null) 'backend_claim_id': backendClaimId,
+      if (claimSubmittedAt != null) 'claim_submitted_at': claimSubmittedAt,
+      if (lastErrorCode != null) 'last_error_code': lastErrorCode,
+      if (lastErrorMessage != null) 'last_error_message': lastErrorMessage,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  SaleOutageOrderEntriesCompanion copyWith(
+      {Value<String>? localIntentId,
+      Value<String>? orderNumber,
+      Value<String>? tenantId,
+      Value<String>? branchId,
+      Value<String>? accountId,
+      Value<String>? saleType,
+      Value<String>? paymentMethodRequested,
+      Value<String>? tenderCurrency,
+      Value<double>? cashReceivedUsd,
+      Value<double>? cashReceivedKhr,
+      Value<double>? totalUsd,
+      Value<double>? totalKhr,
+      Value<String>? linesJson,
+      Value<String>? state,
+      Value<String>? sourceMode,
+      Value<String?>? backendOrderId,
+      Value<DateTime?>? materializedAt,
+      Value<String?>? claimedPaymentMethod,
+      Value<double?>? claimedTenderAmount,
+      Value<String?>? proofImageUrl,
+      Value<String?>? customerReference,
+      Value<String?>? note,
+      Value<DateTime?>? claimRecordedAt,
+      Value<String?>? backendClaimId,
+      Value<DateTime?>? claimSubmittedAt,
+      Value<String?>? lastErrorCode,
+      Value<String?>? lastErrorMessage,
+      Value<DateTime>? createdAt,
+      Value<DateTime>? updatedAt,
+      Value<int>? rowid}) {
+    return SaleOutageOrderEntriesCompanion(
+      localIntentId: localIntentId ?? this.localIntentId,
+      orderNumber: orderNumber ?? this.orderNumber,
+      tenantId: tenantId ?? this.tenantId,
+      branchId: branchId ?? this.branchId,
+      accountId: accountId ?? this.accountId,
+      saleType: saleType ?? this.saleType,
+      paymentMethodRequested:
+          paymentMethodRequested ?? this.paymentMethodRequested,
+      tenderCurrency: tenderCurrency ?? this.tenderCurrency,
+      cashReceivedUsd: cashReceivedUsd ?? this.cashReceivedUsd,
+      cashReceivedKhr: cashReceivedKhr ?? this.cashReceivedKhr,
+      totalUsd: totalUsd ?? this.totalUsd,
+      totalKhr: totalKhr ?? this.totalKhr,
+      linesJson: linesJson ?? this.linesJson,
+      state: state ?? this.state,
+      sourceMode: sourceMode ?? this.sourceMode,
+      backendOrderId: backendOrderId ?? this.backendOrderId,
+      materializedAt: materializedAt ?? this.materializedAt,
+      claimedPaymentMethod: claimedPaymentMethod ?? this.claimedPaymentMethod,
+      claimedTenderAmount: claimedTenderAmount ?? this.claimedTenderAmount,
+      proofImageUrl: proofImageUrl ?? this.proofImageUrl,
+      customerReference: customerReference ?? this.customerReference,
+      note: note ?? this.note,
+      claimRecordedAt: claimRecordedAt ?? this.claimRecordedAt,
+      backendClaimId: backendClaimId ?? this.backendClaimId,
+      claimSubmittedAt: claimSubmittedAt ?? this.claimSubmittedAt,
+      lastErrorCode: lastErrorCode ?? this.lastErrorCode,
+      lastErrorMessage: lastErrorMessage ?? this.lastErrorMessage,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (localIntentId.present) {
+      map['local_intent_id'] = Variable<String>(localIntentId.value);
+    }
+    if (orderNumber.present) {
+      map['order_number'] = Variable<String>(orderNumber.value);
+    }
+    if (tenantId.present) {
+      map['tenant_id'] = Variable<String>(tenantId.value);
+    }
+    if (branchId.present) {
+      map['branch_id'] = Variable<String>(branchId.value);
+    }
+    if (accountId.present) {
+      map['account_id'] = Variable<String>(accountId.value);
+    }
+    if (saleType.present) {
+      map['sale_type'] = Variable<String>(saleType.value);
+    }
+    if (paymentMethodRequested.present) {
+      map['payment_method_requested'] =
+          Variable<String>(paymentMethodRequested.value);
+    }
+    if (tenderCurrency.present) {
+      map['tender_currency'] = Variable<String>(tenderCurrency.value);
+    }
+    if (cashReceivedUsd.present) {
+      map['cash_received_usd'] = Variable<double>(cashReceivedUsd.value);
+    }
+    if (cashReceivedKhr.present) {
+      map['cash_received_khr'] = Variable<double>(cashReceivedKhr.value);
+    }
+    if (totalUsd.present) {
+      map['total_usd'] = Variable<double>(totalUsd.value);
+    }
+    if (totalKhr.present) {
+      map['total_khr'] = Variable<double>(totalKhr.value);
+    }
+    if (linesJson.present) {
+      map['lines_json'] = Variable<String>(linesJson.value);
+    }
+    if (state.present) {
+      map['state'] = Variable<String>(state.value);
+    }
+    if (sourceMode.present) {
+      map['source_mode'] = Variable<String>(sourceMode.value);
+    }
+    if (backendOrderId.present) {
+      map['backend_order_id'] = Variable<String>(backendOrderId.value);
+    }
+    if (materializedAt.present) {
+      map['materialized_at'] = Variable<DateTime>(materializedAt.value);
+    }
+    if (claimedPaymentMethod.present) {
+      map['claimed_payment_method'] =
+          Variable<String>(claimedPaymentMethod.value);
+    }
+    if (claimedTenderAmount.present) {
+      map['claimed_tender_amount'] =
+          Variable<double>(claimedTenderAmount.value);
+    }
+    if (proofImageUrl.present) {
+      map['proof_image_url'] = Variable<String>(proofImageUrl.value);
+    }
+    if (customerReference.present) {
+      map['customer_reference'] = Variable<String>(customerReference.value);
+    }
+    if (note.present) {
+      map['note'] = Variable<String>(note.value);
+    }
+    if (claimRecordedAt.present) {
+      map['claim_recorded_at'] = Variable<DateTime>(claimRecordedAt.value);
+    }
+    if (backendClaimId.present) {
+      map['backend_claim_id'] = Variable<String>(backendClaimId.value);
+    }
+    if (claimSubmittedAt.present) {
+      map['claim_submitted_at'] = Variable<DateTime>(claimSubmittedAt.value);
+    }
+    if (lastErrorCode.present) {
+      map['last_error_code'] = Variable<String>(lastErrorCode.value);
+    }
+    if (lastErrorMessage.present) {
+      map['last_error_message'] = Variable<String>(lastErrorMessage.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SaleOutageOrderEntriesCompanion(')
+          ..write('localIntentId: $localIntentId, ')
+          ..write('orderNumber: $orderNumber, ')
+          ..write('tenantId: $tenantId, ')
+          ..write('branchId: $branchId, ')
+          ..write('accountId: $accountId, ')
+          ..write('saleType: $saleType, ')
+          ..write('paymentMethodRequested: $paymentMethodRequested, ')
+          ..write('tenderCurrency: $tenderCurrency, ')
+          ..write('cashReceivedUsd: $cashReceivedUsd, ')
+          ..write('cashReceivedKhr: $cashReceivedKhr, ')
+          ..write('totalUsd: $totalUsd, ')
+          ..write('totalKhr: $totalKhr, ')
+          ..write('linesJson: $linesJson, ')
+          ..write('state: $state, ')
+          ..write('sourceMode: $sourceMode, ')
+          ..write('backendOrderId: $backendOrderId, ')
+          ..write('materializedAt: $materializedAt, ')
+          ..write('claimedPaymentMethod: $claimedPaymentMethod, ')
+          ..write('claimedTenderAmount: $claimedTenderAmount, ')
+          ..write('proofImageUrl: $proofImageUrl, ')
+          ..write('customerReference: $customerReference, ')
+          ..write('note: $note, ')
+          ..write('claimRecordedAt: $claimRecordedAt, ')
+          ..write('backendClaimId: $backendClaimId, ')
+          ..write('claimSubmittedAt: $claimSubmittedAt, ')
+          ..write('lastErrorCode: $lastErrorCode, ')
+          ..write('lastErrorMessage: $lastErrorMessage, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $PolicyCacheEntriesTable extends PolicyCacheEntries
     with TableInfo<$PolicyCacheEntriesTable, PolicyCacheEntry> {
   @override
@@ -621,6 +2793,17 @@ class $PolicyCacheEntriesTable extends PolicyCacheEntries
       requiredDuringInsert: true,
       defaultConstraints: GeneratedColumn.constraintIsAlways(
           'CHECK ("sale_allow_pay_later" IN (0, 1))'));
+  static const VerificationMeta _saleAllowManualExternalPaymentClaimMeta =
+      const VerificationMeta('saleAllowManualExternalPaymentClaim');
+  @override
+  late final GeneratedColumn<bool> saleAllowManualExternalPaymentClaim =
+      GeneratedColumn<bool>(
+          'sale_allow_manual_external_payment_claim', aliasedName, false,
+          type: DriftSqlType.bool,
+          requiredDuringInsert: false,
+          defaultConstraints: GeneratedColumn.constraintIsAlways(
+              'CHECK ("sale_allow_manual_external_payment_claim" IN (0, 1))'),
+          defaultValue: const Constant(false));
   static const VerificationMeta _createdAtMeta =
       const VerificationMeta('createdAt');
   @override
@@ -662,6 +2845,7 @@ class $PolicyCacheEntriesTable extends PolicyCacheEntries
         saleKhrRoundingMode,
         saleKhrRoundingGranularity,
         saleAllowPayLater,
+        saleAllowManualExternalPaymentClaim,
         createdAt,
         updatedAt,
         cachedAt,
@@ -747,6 +2931,13 @@ class $PolicyCacheEntriesTable extends PolicyCacheEntries
     } else if (isInserting) {
       context.missing(_saleAllowPayLaterMeta);
     }
+    if (data.containsKey('sale_allow_manual_external_payment_claim')) {
+      context.handle(
+          _saleAllowManualExternalPaymentClaimMeta,
+          saleAllowManualExternalPaymentClaim.isAcceptableOrUnknown(
+              data['sale_allow_manual_external_payment_claim']!,
+              _saleAllowManualExternalPaymentClaimMeta));
+    }
     if (data.containsKey('created_at')) {
       context.handle(_createdAtMeta,
           createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
@@ -808,6 +2999,9 @@ class $PolicyCacheEntriesTable extends PolicyCacheEntries
           data['${effectivePrefix}sale_khr_rounding_granularity'])!,
       saleAllowPayLater: attachedDatabase.typeMapping.read(
           DriftSqlType.bool, data['${effectivePrefix}sale_allow_pay_later'])!,
+      saleAllowManualExternalPaymentClaim: attachedDatabase.typeMapping.read(
+          DriftSqlType.bool,
+          data['${effectivePrefix}sale_allow_manual_external_payment_claim'])!,
       createdAt: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}created_at'])!,
       updatedAt: attachedDatabase.typeMapping
@@ -838,6 +3032,7 @@ class PolicyCacheEntry extends DataClass
   final String saleKhrRoundingMode;
   final String saleKhrRoundingGranularity;
   final bool saleAllowPayLater;
+  final bool saleAllowManualExternalPaymentClaim;
   final String createdAt;
   final String updatedAt;
   final DateTime cachedAt;
@@ -853,6 +3048,7 @@ class PolicyCacheEntry extends DataClass
       required this.saleKhrRoundingMode,
       required this.saleKhrRoundingGranularity,
       required this.saleAllowPayLater,
+      required this.saleAllowManualExternalPaymentClaim,
       required this.createdAt,
       required this.updatedAt,
       required this.cachedAt,
@@ -871,6 +3067,8 @@ class PolicyCacheEntry extends DataClass
     map['sale_khr_rounding_granularity'] =
         Variable<String>(saleKhrRoundingGranularity);
     map['sale_allow_pay_later'] = Variable<bool>(saleAllowPayLater);
+    map['sale_allow_manual_external_payment_claim'] =
+        Variable<bool>(saleAllowManualExternalPaymentClaim);
     map['created_at'] = Variable<String>(createdAt);
     map['updated_at'] = Variable<String>(updatedAt);
     map['cached_at'] = Variable<DateTime>(cachedAt);
@@ -894,6 +3092,8 @@ class PolicyCacheEntry extends DataClass
       saleKhrRoundingMode: Value(saleKhrRoundingMode),
       saleKhrRoundingGranularity: Value(saleKhrRoundingGranularity),
       saleAllowPayLater: Value(saleAllowPayLater),
+      saleAllowManualExternalPaymentClaim:
+          Value(saleAllowManualExternalPaymentClaim),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
       cachedAt: Value(cachedAt),
@@ -924,6 +3124,8 @@ class PolicyCacheEntry extends DataClass
       saleKhrRoundingGranularity:
           serializer.fromJson<String>(json['saleKhrRoundingGranularity']),
       saleAllowPayLater: serializer.fromJson<bool>(json['saleAllowPayLater']),
+      saleAllowManualExternalPaymentClaim: serializer
+          .fromJson<bool>(json['saleAllowManualExternalPaymentClaim']),
       createdAt: serializer.fromJson<String>(json['createdAt']),
       updatedAt: serializer.fromJson<String>(json['updatedAt']),
       cachedAt: serializer.fromJson<DateTime>(json['cachedAt']),
@@ -946,6 +3148,8 @@ class PolicyCacheEntry extends DataClass
       'saleKhrRoundingGranularity':
           serializer.toJson<String>(saleKhrRoundingGranularity),
       'saleAllowPayLater': serializer.toJson<bool>(saleAllowPayLater),
+      'saleAllowManualExternalPaymentClaim':
+          serializer.toJson<bool>(saleAllowManualExternalPaymentClaim),
       'createdAt': serializer.toJson<String>(createdAt),
       'updatedAt': serializer.toJson<String>(updatedAt),
       'cachedAt': serializer.toJson<DateTime>(cachedAt),
@@ -964,6 +3168,7 @@ class PolicyCacheEntry extends DataClass
           String? saleKhrRoundingMode,
           String? saleKhrRoundingGranularity,
           bool? saleAllowPayLater,
+          bool? saleAllowManualExternalPaymentClaim,
           String? createdAt,
           String? updatedAt,
           DateTime? cachedAt,
@@ -981,6 +3186,9 @@ class PolicyCacheEntry extends DataClass
         saleKhrRoundingGranularity:
             saleKhrRoundingGranularity ?? this.saleKhrRoundingGranularity,
         saleAllowPayLater: saleAllowPayLater ?? this.saleAllowPayLater,
+        saleAllowManualExternalPaymentClaim:
+            saleAllowManualExternalPaymentClaim ??
+                this.saleAllowManualExternalPaymentClaim,
         createdAt: createdAt ?? this.createdAt,
         updatedAt: updatedAt ?? this.updatedAt,
         cachedAt: cachedAt ?? this.cachedAt,
@@ -1014,6 +3222,10 @@ class PolicyCacheEntry extends DataClass
       saleAllowPayLater: data.saleAllowPayLater.present
           ? data.saleAllowPayLater.value
           : this.saleAllowPayLater,
+      saleAllowManualExternalPaymentClaim:
+          data.saleAllowManualExternalPaymentClaim.present
+              ? data.saleAllowManualExternalPaymentClaim.value
+              : this.saleAllowManualExternalPaymentClaim,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
       cachedAt: data.cachedAt.present ? data.cachedAt.value : this.cachedAt,
@@ -1037,6 +3249,8 @@ class PolicyCacheEntry extends DataClass
           ..write('saleKhrRoundingMode: $saleKhrRoundingMode, ')
           ..write('saleKhrRoundingGranularity: $saleKhrRoundingGranularity, ')
           ..write('saleAllowPayLater: $saleAllowPayLater, ')
+          ..write(
+              'saleAllowManualExternalPaymentClaim: $saleAllowManualExternalPaymentClaim, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('cachedAt: $cachedAt, ')
@@ -1057,6 +3271,7 @@ class PolicyCacheEntry extends DataClass
       saleKhrRoundingMode,
       saleKhrRoundingGranularity,
       saleAllowPayLater,
+      saleAllowManualExternalPaymentClaim,
       createdAt,
       updatedAt,
       cachedAt,
@@ -1075,6 +3290,8 @@ class PolicyCacheEntry extends DataClass
           other.saleKhrRoundingMode == this.saleKhrRoundingMode &&
           other.saleKhrRoundingGranularity == this.saleKhrRoundingGranularity &&
           other.saleAllowPayLater == this.saleAllowPayLater &&
+          other.saleAllowManualExternalPaymentClaim ==
+              this.saleAllowManualExternalPaymentClaim &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt &&
           other.cachedAt == this.cachedAt &&
@@ -1092,6 +3309,7 @@ class PolicyCacheEntriesCompanion extends UpdateCompanion<PolicyCacheEntry> {
   final Value<String> saleKhrRoundingMode;
   final Value<String> saleKhrRoundingGranularity;
   final Value<bool> saleAllowPayLater;
+  final Value<bool> saleAllowManualExternalPaymentClaim;
   final Value<String> createdAt;
   final Value<String> updatedAt;
   final Value<DateTime> cachedAt;
@@ -1108,6 +3326,7 @@ class PolicyCacheEntriesCompanion extends UpdateCompanion<PolicyCacheEntry> {
     this.saleKhrRoundingMode = const Value.absent(),
     this.saleKhrRoundingGranularity = const Value.absent(),
     this.saleAllowPayLater = const Value.absent(),
+    this.saleAllowManualExternalPaymentClaim = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.cachedAt = const Value.absent(),
@@ -1125,6 +3344,7 @@ class PolicyCacheEntriesCompanion extends UpdateCompanion<PolicyCacheEntry> {
     required String saleKhrRoundingMode,
     required String saleKhrRoundingGranularity,
     required bool saleAllowPayLater,
+    this.saleAllowManualExternalPaymentClaim = const Value.absent(),
     required String createdAt,
     required String updatedAt,
     required DateTime cachedAt,
@@ -1153,6 +3373,7 @@ class PolicyCacheEntriesCompanion extends UpdateCompanion<PolicyCacheEntry> {
     Expression<String>? saleKhrRoundingMode,
     Expression<String>? saleKhrRoundingGranularity,
     Expression<bool>? saleAllowPayLater,
+    Expression<bool>? saleAllowManualExternalPaymentClaim,
     Expression<String>? createdAt,
     Expression<String>? updatedAt,
     Expression<DateTime>? cachedAt,
@@ -1175,6 +3396,9 @@ class PolicyCacheEntriesCompanion extends UpdateCompanion<PolicyCacheEntry> {
       if (saleKhrRoundingGranularity != null)
         'sale_khr_rounding_granularity': saleKhrRoundingGranularity,
       if (saleAllowPayLater != null) 'sale_allow_pay_later': saleAllowPayLater,
+      if (saleAllowManualExternalPaymentClaim != null)
+        'sale_allow_manual_external_payment_claim':
+            saleAllowManualExternalPaymentClaim,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (cachedAt != null) 'cached_at': cachedAt,
@@ -1194,6 +3418,7 @@ class PolicyCacheEntriesCompanion extends UpdateCompanion<PolicyCacheEntry> {
       Value<String>? saleKhrRoundingMode,
       Value<String>? saleKhrRoundingGranularity,
       Value<bool>? saleAllowPayLater,
+      Value<bool>? saleAllowManualExternalPaymentClaim,
       Value<String>? createdAt,
       Value<String>? updatedAt,
       Value<DateTime>? cachedAt,
@@ -1212,6 +3437,9 @@ class PolicyCacheEntriesCompanion extends UpdateCompanion<PolicyCacheEntry> {
       saleKhrRoundingGranularity:
           saleKhrRoundingGranularity ?? this.saleKhrRoundingGranularity,
       saleAllowPayLater: saleAllowPayLater ?? this.saleAllowPayLater,
+      saleAllowManualExternalPaymentClaim:
+          saleAllowManualExternalPaymentClaim ??
+              this.saleAllowManualExternalPaymentClaim,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       cachedAt: cachedAt ?? this.cachedAt,
@@ -1255,6 +3483,10 @@ class PolicyCacheEntriesCompanion extends UpdateCompanion<PolicyCacheEntry> {
     if (saleAllowPayLater.present) {
       map['sale_allow_pay_later'] = Variable<bool>(saleAllowPayLater.value);
     }
+    if (saleAllowManualExternalPaymentClaim.present) {
+      map['sale_allow_manual_external_payment_claim'] =
+          Variable<bool>(saleAllowManualExternalPaymentClaim.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<String>(createdAt.value);
     }
@@ -1288,6 +3520,8 @@ class PolicyCacheEntriesCompanion extends UpdateCompanion<PolicyCacheEntry> {
           ..write('saleKhrRoundingMode: $saleKhrRoundingMode, ')
           ..write('saleKhrRoundingGranularity: $saleKhrRoundingGranularity, ')
           ..write('saleAllowPayLater: $saleAllowPayLater, ')
+          ..write(
+              'saleAllowManualExternalPaymentClaim: $saleAllowManualExternalPaymentClaim, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('cachedAt: $cachedAt, ')
@@ -9399,6 +11633,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
   late final $SyncCheckpointEntriesTable syncCheckpointEntries =
       $SyncCheckpointEntriesTable(this);
+  late final $OfflineCommandQueueEntriesTable offlineCommandQueueEntries =
+      $OfflineCommandQueueEntriesTable(this);
+  late final $SaleOutageOrderEntriesTable saleOutageOrderEntries =
+      $SaleOutageOrderEntriesTable(this);
   late final $PolicyCacheEntriesTable policyCacheEntries =
       $PolicyCacheEntriesTable(this);
   late final $CashSessionSnapshotEntriesTable cashSessionSnapshotEntries =
@@ -9440,6 +11678,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   @override
   List<DatabaseSchemaEntity> get allSchemaEntities => [
         syncCheckpointEntries,
+        offlineCommandQueueEntries,
+        saleOutageOrderEntries,
         policyCacheEntries,
         cashSessionSnapshotEntries,
         cashSessionMovementCacheEntries,
@@ -9669,6 +11909,825 @@ class $$SyncCheckpointEntriesTableOrderingComposer
           ColumnOrderings(column, joinBuilders: joinBuilders));
 }
 
+typedef $$OfflineCommandQueueEntriesTableCreateCompanionBuilder
+    = OfflineCommandQueueEntriesCompanion Function({
+  required String clientOpId,
+  required String operationType,
+  Value<String> tenantId,
+  Value<String> branchId,
+  Value<String> accountId,
+  required DateTime occurredAt,
+  required String payloadJson,
+  Value<String?> dependsOnClientOpId,
+  required String status,
+  Value<int> retryCount,
+  required DateTime createdAt,
+  required DateTime updatedAt,
+  Value<DateTime?> lastAttemptAt,
+  Value<DateTime?> lastSyncedAt,
+  Value<String?> lastErrorCode,
+  Value<String?> lastErrorMessage,
+  Value<int> rowid,
+});
+typedef $$OfflineCommandQueueEntriesTableUpdateCompanionBuilder
+    = OfflineCommandQueueEntriesCompanion Function({
+  Value<String> clientOpId,
+  Value<String> operationType,
+  Value<String> tenantId,
+  Value<String> branchId,
+  Value<String> accountId,
+  Value<DateTime> occurredAt,
+  Value<String> payloadJson,
+  Value<String?> dependsOnClientOpId,
+  Value<String> status,
+  Value<int> retryCount,
+  Value<DateTime> createdAt,
+  Value<DateTime> updatedAt,
+  Value<DateTime?> lastAttemptAt,
+  Value<DateTime?> lastSyncedAt,
+  Value<String?> lastErrorCode,
+  Value<String?> lastErrorMessage,
+  Value<int> rowid,
+});
+
+class $$OfflineCommandQueueEntriesTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $OfflineCommandQueueEntriesTable,
+    OfflineCommandQueueEntry,
+    $$OfflineCommandQueueEntriesTableFilterComposer,
+    $$OfflineCommandQueueEntriesTableOrderingComposer,
+    $$OfflineCommandQueueEntriesTableCreateCompanionBuilder,
+    $$OfflineCommandQueueEntriesTableUpdateCompanionBuilder> {
+  $$OfflineCommandQueueEntriesTableTableManager(
+      _$AppDatabase db, $OfflineCommandQueueEntriesTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          filteringComposer: $$OfflineCommandQueueEntriesTableFilterComposer(
+              ComposerState(db, table)),
+          orderingComposer: $$OfflineCommandQueueEntriesTableOrderingComposer(
+              ComposerState(db, table)),
+          updateCompanionCallback: ({
+            Value<String> clientOpId = const Value.absent(),
+            Value<String> operationType = const Value.absent(),
+            Value<String> tenantId = const Value.absent(),
+            Value<String> branchId = const Value.absent(),
+            Value<String> accountId = const Value.absent(),
+            Value<DateTime> occurredAt = const Value.absent(),
+            Value<String> payloadJson = const Value.absent(),
+            Value<String?> dependsOnClientOpId = const Value.absent(),
+            Value<String> status = const Value.absent(),
+            Value<int> retryCount = const Value.absent(),
+            Value<DateTime> createdAt = const Value.absent(),
+            Value<DateTime> updatedAt = const Value.absent(),
+            Value<DateTime?> lastAttemptAt = const Value.absent(),
+            Value<DateTime?> lastSyncedAt = const Value.absent(),
+            Value<String?> lastErrorCode = const Value.absent(),
+            Value<String?> lastErrorMessage = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              OfflineCommandQueueEntriesCompanion(
+            clientOpId: clientOpId,
+            operationType: operationType,
+            tenantId: tenantId,
+            branchId: branchId,
+            accountId: accountId,
+            occurredAt: occurredAt,
+            payloadJson: payloadJson,
+            dependsOnClientOpId: dependsOnClientOpId,
+            status: status,
+            retryCount: retryCount,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            lastAttemptAt: lastAttemptAt,
+            lastSyncedAt: lastSyncedAt,
+            lastErrorCode: lastErrorCode,
+            lastErrorMessage: lastErrorMessage,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String clientOpId,
+            required String operationType,
+            Value<String> tenantId = const Value.absent(),
+            Value<String> branchId = const Value.absent(),
+            Value<String> accountId = const Value.absent(),
+            required DateTime occurredAt,
+            required String payloadJson,
+            Value<String?> dependsOnClientOpId = const Value.absent(),
+            required String status,
+            Value<int> retryCount = const Value.absent(),
+            required DateTime createdAt,
+            required DateTime updatedAt,
+            Value<DateTime?> lastAttemptAt = const Value.absent(),
+            Value<DateTime?> lastSyncedAt = const Value.absent(),
+            Value<String?> lastErrorCode = const Value.absent(),
+            Value<String?> lastErrorMessage = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              OfflineCommandQueueEntriesCompanion.insert(
+            clientOpId: clientOpId,
+            operationType: operationType,
+            tenantId: tenantId,
+            branchId: branchId,
+            accountId: accountId,
+            occurredAt: occurredAt,
+            payloadJson: payloadJson,
+            dependsOnClientOpId: dependsOnClientOpId,
+            status: status,
+            retryCount: retryCount,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            lastAttemptAt: lastAttemptAt,
+            lastSyncedAt: lastSyncedAt,
+            lastErrorCode: lastErrorCode,
+            lastErrorMessage: lastErrorMessage,
+            rowid: rowid,
+          ),
+        ));
+}
+
+class $$OfflineCommandQueueEntriesTableFilterComposer
+    extends FilterComposer<_$AppDatabase, $OfflineCommandQueueEntriesTable> {
+  $$OfflineCommandQueueEntriesTableFilterComposer(super.$state);
+  ColumnFilters<String> get clientOpId => $state.composableBuilder(
+      column: $state.table.clientOpId,
+      builder: (column, joinBuilders) =>
+          ColumnFilters(column, joinBuilders: joinBuilders));
+
+  ColumnFilters<String> get operationType => $state.composableBuilder(
+      column: $state.table.operationType,
+      builder: (column, joinBuilders) =>
+          ColumnFilters(column, joinBuilders: joinBuilders));
+
+  ColumnFilters<String> get tenantId => $state.composableBuilder(
+      column: $state.table.tenantId,
+      builder: (column, joinBuilders) =>
+          ColumnFilters(column, joinBuilders: joinBuilders));
+
+  ColumnFilters<String> get branchId => $state.composableBuilder(
+      column: $state.table.branchId,
+      builder: (column, joinBuilders) =>
+          ColumnFilters(column, joinBuilders: joinBuilders));
+
+  ColumnFilters<String> get accountId => $state.composableBuilder(
+      column: $state.table.accountId,
+      builder: (column, joinBuilders) =>
+          ColumnFilters(column, joinBuilders: joinBuilders));
+
+  ColumnFilters<DateTime> get occurredAt => $state.composableBuilder(
+      column: $state.table.occurredAt,
+      builder: (column, joinBuilders) =>
+          ColumnFilters(column, joinBuilders: joinBuilders));
+
+  ColumnFilters<String> get payloadJson => $state.composableBuilder(
+      column: $state.table.payloadJson,
+      builder: (column, joinBuilders) =>
+          ColumnFilters(column, joinBuilders: joinBuilders));
+
+  ColumnFilters<String> get dependsOnClientOpId => $state.composableBuilder(
+      column: $state.table.dependsOnClientOpId,
+      builder: (column, joinBuilders) =>
+          ColumnFilters(column, joinBuilders: joinBuilders));
+
+  ColumnFilters<String> get status => $state.composableBuilder(
+      column: $state.table.status,
+      builder: (column, joinBuilders) =>
+          ColumnFilters(column, joinBuilders: joinBuilders));
+
+  ColumnFilters<int> get retryCount => $state.composableBuilder(
+      column: $state.table.retryCount,
+      builder: (column, joinBuilders) =>
+          ColumnFilters(column, joinBuilders: joinBuilders));
+
+  ColumnFilters<DateTime> get createdAt => $state.composableBuilder(
+      column: $state.table.createdAt,
+      builder: (column, joinBuilders) =>
+          ColumnFilters(column, joinBuilders: joinBuilders));
+
+  ColumnFilters<DateTime> get updatedAt => $state.composableBuilder(
+      column: $state.table.updatedAt,
+      builder: (column, joinBuilders) =>
+          ColumnFilters(column, joinBuilders: joinBuilders));
+
+  ColumnFilters<DateTime> get lastAttemptAt => $state.composableBuilder(
+      column: $state.table.lastAttemptAt,
+      builder: (column, joinBuilders) =>
+          ColumnFilters(column, joinBuilders: joinBuilders));
+
+  ColumnFilters<DateTime> get lastSyncedAt => $state.composableBuilder(
+      column: $state.table.lastSyncedAt,
+      builder: (column, joinBuilders) =>
+          ColumnFilters(column, joinBuilders: joinBuilders));
+
+  ColumnFilters<String> get lastErrorCode => $state.composableBuilder(
+      column: $state.table.lastErrorCode,
+      builder: (column, joinBuilders) =>
+          ColumnFilters(column, joinBuilders: joinBuilders));
+
+  ColumnFilters<String> get lastErrorMessage => $state.composableBuilder(
+      column: $state.table.lastErrorMessage,
+      builder: (column, joinBuilders) =>
+          ColumnFilters(column, joinBuilders: joinBuilders));
+}
+
+class $$OfflineCommandQueueEntriesTableOrderingComposer
+    extends OrderingComposer<_$AppDatabase, $OfflineCommandQueueEntriesTable> {
+  $$OfflineCommandQueueEntriesTableOrderingComposer(super.$state);
+  ColumnOrderings<String> get clientOpId => $state.composableBuilder(
+      column: $state.table.clientOpId,
+      builder: (column, joinBuilders) =>
+          ColumnOrderings(column, joinBuilders: joinBuilders));
+
+  ColumnOrderings<String> get operationType => $state.composableBuilder(
+      column: $state.table.operationType,
+      builder: (column, joinBuilders) =>
+          ColumnOrderings(column, joinBuilders: joinBuilders));
+
+  ColumnOrderings<String> get tenantId => $state.composableBuilder(
+      column: $state.table.tenantId,
+      builder: (column, joinBuilders) =>
+          ColumnOrderings(column, joinBuilders: joinBuilders));
+
+  ColumnOrderings<String> get branchId => $state.composableBuilder(
+      column: $state.table.branchId,
+      builder: (column, joinBuilders) =>
+          ColumnOrderings(column, joinBuilders: joinBuilders));
+
+  ColumnOrderings<String> get accountId => $state.composableBuilder(
+      column: $state.table.accountId,
+      builder: (column, joinBuilders) =>
+          ColumnOrderings(column, joinBuilders: joinBuilders));
+
+  ColumnOrderings<DateTime> get occurredAt => $state.composableBuilder(
+      column: $state.table.occurredAt,
+      builder: (column, joinBuilders) =>
+          ColumnOrderings(column, joinBuilders: joinBuilders));
+
+  ColumnOrderings<String> get payloadJson => $state.composableBuilder(
+      column: $state.table.payloadJson,
+      builder: (column, joinBuilders) =>
+          ColumnOrderings(column, joinBuilders: joinBuilders));
+
+  ColumnOrderings<String> get dependsOnClientOpId => $state.composableBuilder(
+      column: $state.table.dependsOnClientOpId,
+      builder: (column, joinBuilders) =>
+          ColumnOrderings(column, joinBuilders: joinBuilders));
+
+  ColumnOrderings<String> get status => $state.composableBuilder(
+      column: $state.table.status,
+      builder: (column, joinBuilders) =>
+          ColumnOrderings(column, joinBuilders: joinBuilders));
+
+  ColumnOrderings<int> get retryCount => $state.composableBuilder(
+      column: $state.table.retryCount,
+      builder: (column, joinBuilders) =>
+          ColumnOrderings(column, joinBuilders: joinBuilders));
+
+  ColumnOrderings<DateTime> get createdAt => $state.composableBuilder(
+      column: $state.table.createdAt,
+      builder: (column, joinBuilders) =>
+          ColumnOrderings(column, joinBuilders: joinBuilders));
+
+  ColumnOrderings<DateTime> get updatedAt => $state.composableBuilder(
+      column: $state.table.updatedAt,
+      builder: (column, joinBuilders) =>
+          ColumnOrderings(column, joinBuilders: joinBuilders));
+
+  ColumnOrderings<DateTime> get lastAttemptAt => $state.composableBuilder(
+      column: $state.table.lastAttemptAt,
+      builder: (column, joinBuilders) =>
+          ColumnOrderings(column, joinBuilders: joinBuilders));
+
+  ColumnOrderings<DateTime> get lastSyncedAt => $state.composableBuilder(
+      column: $state.table.lastSyncedAt,
+      builder: (column, joinBuilders) =>
+          ColumnOrderings(column, joinBuilders: joinBuilders));
+
+  ColumnOrderings<String> get lastErrorCode => $state.composableBuilder(
+      column: $state.table.lastErrorCode,
+      builder: (column, joinBuilders) =>
+          ColumnOrderings(column, joinBuilders: joinBuilders));
+
+  ColumnOrderings<String> get lastErrorMessage => $state.composableBuilder(
+      column: $state.table.lastErrorMessage,
+      builder: (column, joinBuilders) =>
+          ColumnOrderings(column, joinBuilders: joinBuilders));
+}
+
+typedef $$SaleOutageOrderEntriesTableCreateCompanionBuilder
+    = SaleOutageOrderEntriesCompanion Function({
+  required String localIntentId,
+  required String orderNumber,
+  required String tenantId,
+  required String branchId,
+  required String accountId,
+  required String saleType,
+  required String paymentMethodRequested,
+  required String tenderCurrency,
+  Value<double> cashReceivedUsd,
+  Value<double> cashReceivedKhr,
+  required double totalUsd,
+  required double totalKhr,
+  required String linesJson,
+  required String state,
+  required String sourceMode,
+  Value<String?> backendOrderId,
+  Value<DateTime?> materializedAt,
+  Value<String?> claimedPaymentMethod,
+  Value<double?> claimedTenderAmount,
+  Value<String?> proofImageUrl,
+  Value<String?> customerReference,
+  Value<String?> note,
+  Value<DateTime?> claimRecordedAt,
+  Value<String?> backendClaimId,
+  Value<DateTime?> claimSubmittedAt,
+  Value<String?> lastErrorCode,
+  Value<String?> lastErrorMessage,
+  required DateTime createdAt,
+  required DateTime updatedAt,
+  Value<int> rowid,
+});
+typedef $$SaleOutageOrderEntriesTableUpdateCompanionBuilder
+    = SaleOutageOrderEntriesCompanion Function({
+  Value<String> localIntentId,
+  Value<String> orderNumber,
+  Value<String> tenantId,
+  Value<String> branchId,
+  Value<String> accountId,
+  Value<String> saleType,
+  Value<String> paymentMethodRequested,
+  Value<String> tenderCurrency,
+  Value<double> cashReceivedUsd,
+  Value<double> cashReceivedKhr,
+  Value<double> totalUsd,
+  Value<double> totalKhr,
+  Value<String> linesJson,
+  Value<String> state,
+  Value<String> sourceMode,
+  Value<String?> backendOrderId,
+  Value<DateTime?> materializedAt,
+  Value<String?> claimedPaymentMethod,
+  Value<double?> claimedTenderAmount,
+  Value<String?> proofImageUrl,
+  Value<String?> customerReference,
+  Value<String?> note,
+  Value<DateTime?> claimRecordedAt,
+  Value<String?> backendClaimId,
+  Value<DateTime?> claimSubmittedAt,
+  Value<String?> lastErrorCode,
+  Value<String?> lastErrorMessage,
+  Value<DateTime> createdAt,
+  Value<DateTime> updatedAt,
+  Value<int> rowid,
+});
+
+class $$SaleOutageOrderEntriesTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $SaleOutageOrderEntriesTable,
+    SaleOutageOrderEntry,
+    $$SaleOutageOrderEntriesTableFilterComposer,
+    $$SaleOutageOrderEntriesTableOrderingComposer,
+    $$SaleOutageOrderEntriesTableCreateCompanionBuilder,
+    $$SaleOutageOrderEntriesTableUpdateCompanionBuilder> {
+  $$SaleOutageOrderEntriesTableTableManager(
+      _$AppDatabase db, $SaleOutageOrderEntriesTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          filteringComposer: $$SaleOutageOrderEntriesTableFilterComposer(
+              ComposerState(db, table)),
+          orderingComposer: $$SaleOutageOrderEntriesTableOrderingComposer(
+              ComposerState(db, table)),
+          updateCompanionCallback: ({
+            Value<String> localIntentId = const Value.absent(),
+            Value<String> orderNumber = const Value.absent(),
+            Value<String> tenantId = const Value.absent(),
+            Value<String> branchId = const Value.absent(),
+            Value<String> accountId = const Value.absent(),
+            Value<String> saleType = const Value.absent(),
+            Value<String> paymentMethodRequested = const Value.absent(),
+            Value<String> tenderCurrency = const Value.absent(),
+            Value<double> cashReceivedUsd = const Value.absent(),
+            Value<double> cashReceivedKhr = const Value.absent(),
+            Value<double> totalUsd = const Value.absent(),
+            Value<double> totalKhr = const Value.absent(),
+            Value<String> linesJson = const Value.absent(),
+            Value<String> state = const Value.absent(),
+            Value<String> sourceMode = const Value.absent(),
+            Value<String?> backendOrderId = const Value.absent(),
+            Value<DateTime?> materializedAt = const Value.absent(),
+            Value<String?> claimedPaymentMethod = const Value.absent(),
+            Value<double?> claimedTenderAmount = const Value.absent(),
+            Value<String?> proofImageUrl = const Value.absent(),
+            Value<String?> customerReference = const Value.absent(),
+            Value<String?> note = const Value.absent(),
+            Value<DateTime?> claimRecordedAt = const Value.absent(),
+            Value<String?> backendClaimId = const Value.absent(),
+            Value<DateTime?> claimSubmittedAt = const Value.absent(),
+            Value<String?> lastErrorCode = const Value.absent(),
+            Value<String?> lastErrorMessage = const Value.absent(),
+            Value<DateTime> createdAt = const Value.absent(),
+            Value<DateTime> updatedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              SaleOutageOrderEntriesCompanion(
+            localIntentId: localIntentId,
+            orderNumber: orderNumber,
+            tenantId: tenantId,
+            branchId: branchId,
+            accountId: accountId,
+            saleType: saleType,
+            paymentMethodRequested: paymentMethodRequested,
+            tenderCurrency: tenderCurrency,
+            cashReceivedUsd: cashReceivedUsd,
+            cashReceivedKhr: cashReceivedKhr,
+            totalUsd: totalUsd,
+            totalKhr: totalKhr,
+            linesJson: linesJson,
+            state: state,
+            sourceMode: sourceMode,
+            backendOrderId: backendOrderId,
+            materializedAt: materializedAt,
+            claimedPaymentMethod: claimedPaymentMethod,
+            claimedTenderAmount: claimedTenderAmount,
+            proofImageUrl: proofImageUrl,
+            customerReference: customerReference,
+            note: note,
+            claimRecordedAt: claimRecordedAt,
+            backendClaimId: backendClaimId,
+            claimSubmittedAt: claimSubmittedAt,
+            lastErrorCode: lastErrorCode,
+            lastErrorMessage: lastErrorMessage,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String localIntentId,
+            required String orderNumber,
+            required String tenantId,
+            required String branchId,
+            required String accountId,
+            required String saleType,
+            required String paymentMethodRequested,
+            required String tenderCurrency,
+            Value<double> cashReceivedUsd = const Value.absent(),
+            Value<double> cashReceivedKhr = const Value.absent(),
+            required double totalUsd,
+            required double totalKhr,
+            required String linesJson,
+            required String state,
+            required String sourceMode,
+            Value<String?> backendOrderId = const Value.absent(),
+            Value<DateTime?> materializedAt = const Value.absent(),
+            Value<String?> claimedPaymentMethod = const Value.absent(),
+            Value<double?> claimedTenderAmount = const Value.absent(),
+            Value<String?> proofImageUrl = const Value.absent(),
+            Value<String?> customerReference = const Value.absent(),
+            Value<String?> note = const Value.absent(),
+            Value<DateTime?> claimRecordedAt = const Value.absent(),
+            Value<String?> backendClaimId = const Value.absent(),
+            Value<DateTime?> claimSubmittedAt = const Value.absent(),
+            Value<String?> lastErrorCode = const Value.absent(),
+            Value<String?> lastErrorMessage = const Value.absent(),
+            required DateTime createdAt,
+            required DateTime updatedAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              SaleOutageOrderEntriesCompanion.insert(
+            localIntentId: localIntentId,
+            orderNumber: orderNumber,
+            tenantId: tenantId,
+            branchId: branchId,
+            accountId: accountId,
+            saleType: saleType,
+            paymentMethodRequested: paymentMethodRequested,
+            tenderCurrency: tenderCurrency,
+            cashReceivedUsd: cashReceivedUsd,
+            cashReceivedKhr: cashReceivedKhr,
+            totalUsd: totalUsd,
+            totalKhr: totalKhr,
+            linesJson: linesJson,
+            state: state,
+            sourceMode: sourceMode,
+            backendOrderId: backendOrderId,
+            materializedAt: materializedAt,
+            claimedPaymentMethod: claimedPaymentMethod,
+            claimedTenderAmount: claimedTenderAmount,
+            proofImageUrl: proofImageUrl,
+            customerReference: customerReference,
+            note: note,
+            claimRecordedAt: claimRecordedAt,
+            backendClaimId: backendClaimId,
+            claimSubmittedAt: claimSubmittedAt,
+            lastErrorCode: lastErrorCode,
+            lastErrorMessage: lastErrorMessage,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            rowid: rowid,
+          ),
+        ));
+}
+
+class $$SaleOutageOrderEntriesTableFilterComposer
+    extends FilterComposer<_$AppDatabase, $SaleOutageOrderEntriesTable> {
+  $$SaleOutageOrderEntriesTableFilterComposer(super.$state);
+  ColumnFilters<String> get localIntentId => $state.composableBuilder(
+      column: $state.table.localIntentId,
+      builder: (column, joinBuilders) =>
+          ColumnFilters(column, joinBuilders: joinBuilders));
+
+  ColumnFilters<String> get orderNumber => $state.composableBuilder(
+      column: $state.table.orderNumber,
+      builder: (column, joinBuilders) =>
+          ColumnFilters(column, joinBuilders: joinBuilders));
+
+  ColumnFilters<String> get tenantId => $state.composableBuilder(
+      column: $state.table.tenantId,
+      builder: (column, joinBuilders) =>
+          ColumnFilters(column, joinBuilders: joinBuilders));
+
+  ColumnFilters<String> get branchId => $state.composableBuilder(
+      column: $state.table.branchId,
+      builder: (column, joinBuilders) =>
+          ColumnFilters(column, joinBuilders: joinBuilders));
+
+  ColumnFilters<String> get accountId => $state.composableBuilder(
+      column: $state.table.accountId,
+      builder: (column, joinBuilders) =>
+          ColumnFilters(column, joinBuilders: joinBuilders));
+
+  ColumnFilters<String> get saleType => $state.composableBuilder(
+      column: $state.table.saleType,
+      builder: (column, joinBuilders) =>
+          ColumnFilters(column, joinBuilders: joinBuilders));
+
+  ColumnFilters<String> get paymentMethodRequested => $state.composableBuilder(
+      column: $state.table.paymentMethodRequested,
+      builder: (column, joinBuilders) =>
+          ColumnFilters(column, joinBuilders: joinBuilders));
+
+  ColumnFilters<String> get tenderCurrency => $state.composableBuilder(
+      column: $state.table.tenderCurrency,
+      builder: (column, joinBuilders) =>
+          ColumnFilters(column, joinBuilders: joinBuilders));
+
+  ColumnFilters<double> get cashReceivedUsd => $state.composableBuilder(
+      column: $state.table.cashReceivedUsd,
+      builder: (column, joinBuilders) =>
+          ColumnFilters(column, joinBuilders: joinBuilders));
+
+  ColumnFilters<double> get cashReceivedKhr => $state.composableBuilder(
+      column: $state.table.cashReceivedKhr,
+      builder: (column, joinBuilders) =>
+          ColumnFilters(column, joinBuilders: joinBuilders));
+
+  ColumnFilters<double> get totalUsd => $state.composableBuilder(
+      column: $state.table.totalUsd,
+      builder: (column, joinBuilders) =>
+          ColumnFilters(column, joinBuilders: joinBuilders));
+
+  ColumnFilters<double> get totalKhr => $state.composableBuilder(
+      column: $state.table.totalKhr,
+      builder: (column, joinBuilders) =>
+          ColumnFilters(column, joinBuilders: joinBuilders));
+
+  ColumnFilters<String> get linesJson => $state.composableBuilder(
+      column: $state.table.linesJson,
+      builder: (column, joinBuilders) =>
+          ColumnFilters(column, joinBuilders: joinBuilders));
+
+  ColumnFilters<String> get state => $state.composableBuilder(
+      column: $state.table.state,
+      builder: (column, joinBuilders) =>
+          ColumnFilters(column, joinBuilders: joinBuilders));
+
+  ColumnFilters<String> get sourceMode => $state.composableBuilder(
+      column: $state.table.sourceMode,
+      builder: (column, joinBuilders) =>
+          ColumnFilters(column, joinBuilders: joinBuilders));
+
+  ColumnFilters<String> get backendOrderId => $state.composableBuilder(
+      column: $state.table.backendOrderId,
+      builder: (column, joinBuilders) =>
+          ColumnFilters(column, joinBuilders: joinBuilders));
+
+  ColumnFilters<DateTime> get materializedAt => $state.composableBuilder(
+      column: $state.table.materializedAt,
+      builder: (column, joinBuilders) =>
+          ColumnFilters(column, joinBuilders: joinBuilders));
+
+  ColumnFilters<String> get claimedPaymentMethod => $state.composableBuilder(
+      column: $state.table.claimedPaymentMethod,
+      builder: (column, joinBuilders) =>
+          ColumnFilters(column, joinBuilders: joinBuilders));
+
+  ColumnFilters<double> get claimedTenderAmount => $state.composableBuilder(
+      column: $state.table.claimedTenderAmount,
+      builder: (column, joinBuilders) =>
+          ColumnFilters(column, joinBuilders: joinBuilders));
+
+  ColumnFilters<String> get proofImageUrl => $state.composableBuilder(
+      column: $state.table.proofImageUrl,
+      builder: (column, joinBuilders) =>
+          ColumnFilters(column, joinBuilders: joinBuilders));
+
+  ColumnFilters<String> get customerReference => $state.composableBuilder(
+      column: $state.table.customerReference,
+      builder: (column, joinBuilders) =>
+          ColumnFilters(column, joinBuilders: joinBuilders));
+
+  ColumnFilters<String> get note => $state.composableBuilder(
+      column: $state.table.note,
+      builder: (column, joinBuilders) =>
+          ColumnFilters(column, joinBuilders: joinBuilders));
+
+  ColumnFilters<DateTime> get claimRecordedAt => $state.composableBuilder(
+      column: $state.table.claimRecordedAt,
+      builder: (column, joinBuilders) =>
+          ColumnFilters(column, joinBuilders: joinBuilders));
+
+  ColumnFilters<String> get backendClaimId => $state.composableBuilder(
+      column: $state.table.backendClaimId,
+      builder: (column, joinBuilders) =>
+          ColumnFilters(column, joinBuilders: joinBuilders));
+
+  ColumnFilters<DateTime> get claimSubmittedAt => $state.composableBuilder(
+      column: $state.table.claimSubmittedAt,
+      builder: (column, joinBuilders) =>
+          ColumnFilters(column, joinBuilders: joinBuilders));
+
+  ColumnFilters<String> get lastErrorCode => $state.composableBuilder(
+      column: $state.table.lastErrorCode,
+      builder: (column, joinBuilders) =>
+          ColumnFilters(column, joinBuilders: joinBuilders));
+
+  ColumnFilters<String> get lastErrorMessage => $state.composableBuilder(
+      column: $state.table.lastErrorMessage,
+      builder: (column, joinBuilders) =>
+          ColumnFilters(column, joinBuilders: joinBuilders));
+
+  ColumnFilters<DateTime> get createdAt => $state.composableBuilder(
+      column: $state.table.createdAt,
+      builder: (column, joinBuilders) =>
+          ColumnFilters(column, joinBuilders: joinBuilders));
+
+  ColumnFilters<DateTime> get updatedAt => $state.composableBuilder(
+      column: $state.table.updatedAt,
+      builder: (column, joinBuilders) =>
+          ColumnFilters(column, joinBuilders: joinBuilders));
+}
+
+class $$SaleOutageOrderEntriesTableOrderingComposer
+    extends OrderingComposer<_$AppDatabase, $SaleOutageOrderEntriesTable> {
+  $$SaleOutageOrderEntriesTableOrderingComposer(super.$state);
+  ColumnOrderings<String> get localIntentId => $state.composableBuilder(
+      column: $state.table.localIntentId,
+      builder: (column, joinBuilders) =>
+          ColumnOrderings(column, joinBuilders: joinBuilders));
+
+  ColumnOrderings<String> get orderNumber => $state.composableBuilder(
+      column: $state.table.orderNumber,
+      builder: (column, joinBuilders) =>
+          ColumnOrderings(column, joinBuilders: joinBuilders));
+
+  ColumnOrderings<String> get tenantId => $state.composableBuilder(
+      column: $state.table.tenantId,
+      builder: (column, joinBuilders) =>
+          ColumnOrderings(column, joinBuilders: joinBuilders));
+
+  ColumnOrderings<String> get branchId => $state.composableBuilder(
+      column: $state.table.branchId,
+      builder: (column, joinBuilders) =>
+          ColumnOrderings(column, joinBuilders: joinBuilders));
+
+  ColumnOrderings<String> get accountId => $state.composableBuilder(
+      column: $state.table.accountId,
+      builder: (column, joinBuilders) =>
+          ColumnOrderings(column, joinBuilders: joinBuilders));
+
+  ColumnOrderings<String> get saleType => $state.composableBuilder(
+      column: $state.table.saleType,
+      builder: (column, joinBuilders) =>
+          ColumnOrderings(column, joinBuilders: joinBuilders));
+
+  ColumnOrderings<String> get paymentMethodRequested =>
+      $state.composableBuilder(
+          column: $state.table.paymentMethodRequested,
+          builder: (column, joinBuilders) =>
+              ColumnOrderings(column, joinBuilders: joinBuilders));
+
+  ColumnOrderings<String> get tenderCurrency => $state.composableBuilder(
+      column: $state.table.tenderCurrency,
+      builder: (column, joinBuilders) =>
+          ColumnOrderings(column, joinBuilders: joinBuilders));
+
+  ColumnOrderings<double> get cashReceivedUsd => $state.composableBuilder(
+      column: $state.table.cashReceivedUsd,
+      builder: (column, joinBuilders) =>
+          ColumnOrderings(column, joinBuilders: joinBuilders));
+
+  ColumnOrderings<double> get cashReceivedKhr => $state.composableBuilder(
+      column: $state.table.cashReceivedKhr,
+      builder: (column, joinBuilders) =>
+          ColumnOrderings(column, joinBuilders: joinBuilders));
+
+  ColumnOrderings<double> get totalUsd => $state.composableBuilder(
+      column: $state.table.totalUsd,
+      builder: (column, joinBuilders) =>
+          ColumnOrderings(column, joinBuilders: joinBuilders));
+
+  ColumnOrderings<double> get totalKhr => $state.composableBuilder(
+      column: $state.table.totalKhr,
+      builder: (column, joinBuilders) =>
+          ColumnOrderings(column, joinBuilders: joinBuilders));
+
+  ColumnOrderings<String> get linesJson => $state.composableBuilder(
+      column: $state.table.linesJson,
+      builder: (column, joinBuilders) =>
+          ColumnOrderings(column, joinBuilders: joinBuilders));
+
+  ColumnOrderings<String> get state => $state.composableBuilder(
+      column: $state.table.state,
+      builder: (column, joinBuilders) =>
+          ColumnOrderings(column, joinBuilders: joinBuilders));
+
+  ColumnOrderings<String> get sourceMode => $state.composableBuilder(
+      column: $state.table.sourceMode,
+      builder: (column, joinBuilders) =>
+          ColumnOrderings(column, joinBuilders: joinBuilders));
+
+  ColumnOrderings<String> get backendOrderId => $state.composableBuilder(
+      column: $state.table.backendOrderId,
+      builder: (column, joinBuilders) =>
+          ColumnOrderings(column, joinBuilders: joinBuilders));
+
+  ColumnOrderings<DateTime> get materializedAt => $state.composableBuilder(
+      column: $state.table.materializedAt,
+      builder: (column, joinBuilders) =>
+          ColumnOrderings(column, joinBuilders: joinBuilders));
+
+  ColumnOrderings<String> get claimedPaymentMethod => $state.composableBuilder(
+      column: $state.table.claimedPaymentMethod,
+      builder: (column, joinBuilders) =>
+          ColumnOrderings(column, joinBuilders: joinBuilders));
+
+  ColumnOrderings<double> get claimedTenderAmount => $state.composableBuilder(
+      column: $state.table.claimedTenderAmount,
+      builder: (column, joinBuilders) =>
+          ColumnOrderings(column, joinBuilders: joinBuilders));
+
+  ColumnOrderings<String> get proofImageUrl => $state.composableBuilder(
+      column: $state.table.proofImageUrl,
+      builder: (column, joinBuilders) =>
+          ColumnOrderings(column, joinBuilders: joinBuilders));
+
+  ColumnOrderings<String> get customerReference => $state.composableBuilder(
+      column: $state.table.customerReference,
+      builder: (column, joinBuilders) =>
+          ColumnOrderings(column, joinBuilders: joinBuilders));
+
+  ColumnOrderings<String> get note => $state.composableBuilder(
+      column: $state.table.note,
+      builder: (column, joinBuilders) =>
+          ColumnOrderings(column, joinBuilders: joinBuilders));
+
+  ColumnOrderings<DateTime> get claimRecordedAt => $state.composableBuilder(
+      column: $state.table.claimRecordedAt,
+      builder: (column, joinBuilders) =>
+          ColumnOrderings(column, joinBuilders: joinBuilders));
+
+  ColumnOrderings<String> get backendClaimId => $state.composableBuilder(
+      column: $state.table.backendClaimId,
+      builder: (column, joinBuilders) =>
+          ColumnOrderings(column, joinBuilders: joinBuilders));
+
+  ColumnOrderings<DateTime> get claimSubmittedAt => $state.composableBuilder(
+      column: $state.table.claimSubmittedAt,
+      builder: (column, joinBuilders) =>
+          ColumnOrderings(column, joinBuilders: joinBuilders));
+
+  ColumnOrderings<String> get lastErrorCode => $state.composableBuilder(
+      column: $state.table.lastErrorCode,
+      builder: (column, joinBuilders) =>
+          ColumnOrderings(column, joinBuilders: joinBuilders));
+
+  ColumnOrderings<String> get lastErrorMessage => $state.composableBuilder(
+      column: $state.table.lastErrorMessage,
+      builder: (column, joinBuilders) =>
+          ColumnOrderings(column, joinBuilders: joinBuilders));
+
+  ColumnOrderings<DateTime> get createdAt => $state.composableBuilder(
+      column: $state.table.createdAt,
+      builder: (column, joinBuilders) =>
+          ColumnOrderings(column, joinBuilders: joinBuilders));
+
+  ColumnOrderings<DateTime> get updatedAt => $state.composableBuilder(
+      column: $state.table.updatedAt,
+      builder: (column, joinBuilders) =>
+          ColumnOrderings(column, joinBuilders: joinBuilders));
+}
+
 typedef $$PolicyCacheEntriesTableCreateCompanionBuilder
     = PolicyCacheEntriesCompanion Function({
   required String tenantId,
@@ -9680,6 +12739,7 @@ typedef $$PolicyCacheEntriesTableCreateCompanionBuilder
   required String saleKhrRoundingMode,
   required String saleKhrRoundingGranularity,
   required bool saleAllowPayLater,
+  Value<bool> saleAllowManualExternalPaymentClaim,
   required String createdAt,
   required String updatedAt,
   required DateTime cachedAt,
@@ -9698,6 +12758,7 @@ typedef $$PolicyCacheEntriesTableUpdateCompanionBuilder
   Value<String> saleKhrRoundingMode,
   Value<String> saleKhrRoundingGranularity,
   Value<bool> saleAllowPayLater,
+  Value<bool> saleAllowManualExternalPaymentClaim,
   Value<String> createdAt,
   Value<String> updatedAt,
   Value<DateTime> cachedAt,
@@ -9733,6 +12794,8 @@ class $$PolicyCacheEntriesTableTableManager extends RootTableManager<
             Value<String> saleKhrRoundingMode = const Value.absent(),
             Value<String> saleKhrRoundingGranularity = const Value.absent(),
             Value<bool> saleAllowPayLater = const Value.absent(),
+            Value<bool> saleAllowManualExternalPaymentClaim =
+                const Value.absent(),
             Value<String> createdAt = const Value.absent(),
             Value<String> updatedAt = const Value.absent(),
             Value<DateTime> cachedAt = const Value.absent(),
@@ -9750,6 +12813,8 @@ class $$PolicyCacheEntriesTableTableManager extends RootTableManager<
             saleKhrRoundingMode: saleKhrRoundingMode,
             saleKhrRoundingGranularity: saleKhrRoundingGranularity,
             saleAllowPayLater: saleAllowPayLater,
+            saleAllowManualExternalPaymentClaim:
+                saleAllowManualExternalPaymentClaim,
             createdAt: createdAt,
             updatedAt: updatedAt,
             cachedAt: cachedAt,
@@ -9767,6 +12832,8 @@ class $$PolicyCacheEntriesTableTableManager extends RootTableManager<
             required String saleKhrRoundingMode,
             required String saleKhrRoundingGranularity,
             required bool saleAllowPayLater,
+            Value<bool> saleAllowManualExternalPaymentClaim =
+                const Value.absent(),
             required String createdAt,
             required String updatedAt,
             required DateTime cachedAt,
@@ -9784,6 +12851,8 @@ class $$PolicyCacheEntriesTableTableManager extends RootTableManager<
             saleKhrRoundingMode: saleKhrRoundingMode,
             saleKhrRoundingGranularity: saleKhrRoundingGranularity,
             saleAllowPayLater: saleAllowPayLater,
+            saleAllowManualExternalPaymentClaim:
+                saleAllowManualExternalPaymentClaim,
             createdAt: createdAt,
             updatedAt: updatedAt,
             cachedAt: cachedAt,
@@ -9842,6 +12911,12 @@ class $$PolicyCacheEntriesTableFilterComposer
       column: $state.table.saleAllowPayLater,
       builder: (column, joinBuilders) =>
           ColumnFilters(column, joinBuilders: joinBuilders));
+
+  ColumnFilters<bool> get saleAllowManualExternalPaymentClaim =>
+      $state.composableBuilder(
+          column: $state.table.saleAllowManualExternalPaymentClaim,
+          builder: (column, joinBuilders) =>
+              ColumnFilters(column, joinBuilders: joinBuilders));
 
   ColumnFilters<String> get createdAt => $state.composableBuilder(
       column: $state.table.createdAt,
@@ -9917,6 +12992,12 @@ class $$PolicyCacheEntriesTableOrderingComposer
       column: $state.table.saleAllowPayLater,
       builder: (column, joinBuilders) =>
           ColumnOrderings(column, joinBuilders: joinBuilders));
+
+  ColumnOrderings<bool> get saleAllowManualExternalPaymentClaim =>
+      $state.composableBuilder(
+          column: $state.table.saleAllowManualExternalPaymentClaim,
+          builder: (column, joinBuilders) =>
+              ColumnOrderings(column, joinBuilders: joinBuilders));
 
   ColumnOrderings<String> get createdAt => $state.composableBuilder(
       column: $state.table.createdAt,
@@ -13126,6 +16207,13 @@ class $AppDatabaseManager {
   $AppDatabaseManager(this._db);
   $$SyncCheckpointEntriesTableTableManager get syncCheckpointEntries =>
       $$SyncCheckpointEntriesTableTableManager(_db, _db.syncCheckpointEntries);
+  $$OfflineCommandQueueEntriesTableTableManager
+      get offlineCommandQueueEntries =>
+          $$OfflineCommandQueueEntriesTableTableManager(
+              _db, _db.offlineCommandQueueEntries);
+  $$SaleOutageOrderEntriesTableTableManager get saleOutageOrderEntries =>
+      $$SaleOutageOrderEntriesTableTableManager(
+          _db, _db.saleOutageOrderEntries);
   $$PolicyCacheEntriesTableTableManager get policyCacheEntries =>
       $$PolicyCacheEntriesTableTableManager(_db, _db.policyCacheEntries);
   $$CashSessionSnapshotEntriesTableTableManager

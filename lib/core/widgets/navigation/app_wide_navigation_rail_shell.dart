@@ -7,6 +7,7 @@ import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/core/widgets/navigation/app_navigation_config.dart';
 import 'package:modular_pos/core/widgets/navigation/navigation_layer_back_button.dart';
 import 'package:modular_pos/core/widgets/navigation/tenant_profile_header.dart';
+import 'package:modular_pos/core/widgets/sync/global_sync_status_indicator.dart';
 import 'package:modular_pos/features/auth/domain/active_branch_context_provider.dart';
 import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
 import 'package:modular_pos/features/auth/domain/auth_role.dart';
@@ -29,99 +30,121 @@ class AppScaffoldShell extends ConsumerWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isWide = AppBreakpoints.isLarge(constraints.maxWidth);
-        if (!isWide) return child;
+        final shellBody = isWide ? _buildWideShell(context, ref) : child;
 
-        final session = ref.watch(loginControllerProvider).session;
-        final role = resolveSessionAuthRole(session);
-        final isAdminOrOwner = role == AuthRole.admin || role == AuthRole.owner;
-        final isBranchLayer = _isBranchScopedPath(currentPath);
-        final layer = isBranchLayer
-            ? AppNavigationLayer.branch
-            : AppNavigationLayer.tenant;
-        final sections = buildAppNavigationSections(role: role, layer: layer);
-        final tenantName = _resolveTenantName(session);
-        final activeBranchId = ref.watch(activeBranchContextIdProvider);
-        final activeBranchNameOverride = ref.watch(
-          authActiveBranchNameOverrideProvider,
-        );
-        final branchName = _resolveBranchName(
-          ref.watch(authActiveBranchProvider),
-          session?.user.branches ?? const <UserBranch>[],
-          activeBranchId: activeBranchId,
-          activeBranchNameOverride: activeBranchNameOverride,
-        );
-        final tenantInitial = tenantName.isNotEmpty
-            ? tenantName.characters.first.toUpperCase()
-            : '?';
-        final hasMatch = _hasMatch(currentPath, sections);
-        final defaultRoute = _defaultRoute(
-          role: role,
-          hasActiveBranchContext: (activeBranchId ?? '').trim().isNotEmpty,
-        );
-        final showFallbackSelection = _shouldUseFallbackSelection(currentPath);
-        final layerBackTarget = _resolveLayerBackTarget(
-          role: role,
-          currentPath: currentPath,
-          isBranchLayer: isBranchLayer,
-        );
-        final layerBackTooltip = _resolveLayerBackTooltip(
-          role: role,
-          currentPath: currentPath,
-          isBranchLayer: isBranchLayer,
-        );
-
-        return SafeArea(
-          child: Row(
-            children: [
-              Material(
-                color: Theme.of(context).colorScheme.surface,
-                child: SizedBox(
-                  width: 280,
-                  child: ListView(
-                    padding: const EdgeInsets.all(16),
-                    children: [
-                      _RailHeader(
-                        tenantName: tenantName,
-                        branchName: branchName,
-                        tenantInitial: tenantInitial,
-                        currentPath: currentPath,
-                        allowQuickSwitch: isAdminOrOwner && isBranchLayer,
-                        availableBranches: _branchOptions(
-                          session?.user.branches ?? const <UserBranch>[],
-                        ),
-                        onLayerBackPressed: layerBackTarget == null
-                            ? null
-                            : () => context.go(layerBackTarget),
-                        layerBackTooltip: layerBackTooltip,
-                      ),
-                      const SizedBox(height: 16),
-                      for (final section in sections) ...[
-                        if (section.destinations.isNotEmpty)
-                          _RailSectionHeader(label: section.label),
-                        for (final destination in section.destinations)
-                          _RailDestinationTile(
-                            destination: destination,
-                            selected:
-                                appNavigationDestinationMatchesPath(
-                                  currentPath,
-                                  destination,
-                                ) ||
-                                (!hasMatch &&
-                                    showFallbackSelection &&
-                                    destination.route == defaultRoute),
-                          ),
-                        const SizedBox(height: 8),
-                      ],
-                    ],
+        return Stack(
+          children: [
+            shellBody,
+            Positioned.fill(
+              child: SafeArea(
+                child: Align(
+                  alignment: Alignment.topRight,
+                  child: Padding(
+                    padding: EdgeInsets.only(
+                      top: isWide ? 16 : 12,
+                      right: isWide ? 16 : 12,
+                    ),
+                    child: GlobalSyncStatusIndicator(compact: !isWide),
                   ),
                 ),
               ),
-              const VerticalDivider(width: 1),
-              Expanded(child: child),
-            ],
-          ),
+            ),
+          ],
         );
       },
+    );
+  }
+
+  Widget _buildWideShell(BuildContext context, WidgetRef ref) {
+    final session = ref.watch(loginControllerProvider).session;
+    final role = resolveSessionAuthRole(session);
+    final isAdminOrOwner = role == AuthRole.admin || role == AuthRole.owner;
+    final isBranchLayer = _isBranchScopedPath(currentPath);
+    final layer = isBranchLayer
+        ? AppNavigationLayer.branch
+        : AppNavigationLayer.tenant;
+    final sections = buildAppNavigationSections(role: role, layer: layer);
+    final tenantName = _resolveTenantName(session);
+    final activeBranchId = ref.watch(activeBranchContextIdProvider);
+    final activeBranchNameOverride = ref.watch(
+      authActiveBranchNameOverrideProvider,
+    );
+    final branchName = _resolveBranchName(
+      ref.watch(authActiveBranchProvider),
+      session?.user.branches ?? const <UserBranch>[],
+      activeBranchId: activeBranchId,
+      activeBranchNameOverride: activeBranchNameOverride,
+    );
+    final tenantInitial = tenantName.isNotEmpty
+        ? tenantName.characters.first.toUpperCase()
+        : '?';
+    final hasMatch = _hasMatch(currentPath, sections);
+    final defaultRoute = _defaultRoute(
+      role: role,
+      hasActiveBranchContext: (activeBranchId ?? '').trim().isNotEmpty,
+    );
+    final showFallbackSelection = _shouldUseFallbackSelection(currentPath);
+    final layerBackTarget = _resolveLayerBackTarget(
+      role: role,
+      currentPath: currentPath,
+      isBranchLayer: isBranchLayer,
+    );
+    final layerBackTooltip = _resolveLayerBackTooltip(
+      role: role,
+      currentPath: currentPath,
+      isBranchLayer: isBranchLayer,
+    );
+
+    return SafeArea(
+      child: Row(
+        children: [
+          Material(
+            color: Theme.of(context).colorScheme.surface,
+            child: SizedBox(
+              width: 280,
+              child: ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  _RailHeader(
+                    tenantName: tenantName,
+                    branchName: branchName,
+                    tenantInitial: tenantInitial,
+                    currentPath: currentPath,
+                    allowQuickSwitch: isAdminOrOwner && isBranchLayer,
+                    availableBranches: _branchOptions(
+                      session?.user.branches ?? const <UserBranch>[],
+                    ),
+                    onLayerBackPressed: layerBackTarget == null
+                        ? null
+                        : () => context.go(layerBackTarget),
+                    layerBackTooltip: layerBackTooltip,
+                  ),
+                  const SizedBox(height: 16),
+                  for (final section in sections) ...[
+                    if (section.destinations.isNotEmpty)
+                      _RailSectionHeader(label: section.label),
+                    for (final destination in section.destinations)
+                      _RailDestinationTile(
+                        destination: destination,
+                        selected:
+                            appNavigationDestinationMatchesPath(
+                              currentPath,
+                              destination,
+                            ) ||
+                            (!hasMatch &&
+                                showFallbackSelection &&
+                                destination.route == defaultRoute),
+                      ),
+                    const SizedBox(height: 8),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          const VerticalDivider(width: 1),
+          Expanded(child: child),
+        ],
+      ),
     );
   }
 }
