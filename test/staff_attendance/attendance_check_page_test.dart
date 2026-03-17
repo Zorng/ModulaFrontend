@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:modular_pos/features/auth/domain/models/auth_session.dart';
@@ -6,6 +8,7 @@ import 'package:modular_pos/features/auth/domain/models/user.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/staff/data/repository/staff_shift_repository.dart';
 import 'package:modular_pos/features/staff/domain/models/staff_shift_models.dart';
+import 'package:modular_pos/features/staff_attendance/data/attendance_cache_store.dart';
 import 'package:modular_pos/features/staff_attendance/data/attendance_repository_contract.dart';
 import 'package:modular_pos/features/staff_attendance/data/staff_attendance_repository.dart';
 import 'package:modular_pos/features/staff_attendance/domain/models/attendance_record.dart';
@@ -26,6 +29,9 @@ void main() {
         tester,
         const AttendanceCheckPage(),
         overrides: [
+          attendanceCacheStoreProvider.overrideWithValue(
+            _MemoryAttendanceCacheStore(),
+          ),
           loginControllerProvider.overrideWith(
             () => _StaticLoginController(session),
           ),
@@ -82,7 +88,8 @@ void main() {
         ],
       );
 
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
 
       expect(find.text('14:00 - 22:00'), findsOneWidget);
       expect(find.text('One-time shift'), findsOneWidget);
@@ -99,6 +106,9 @@ void main() {
         tester,
         const AttendanceCheckPage(),
         overrides: [
+          attendanceCacheStoreProvider.overrideWithValue(
+            _MemoryAttendanceCacheStore(),
+          ),
           loginControllerProvider.overrideWith(
             () => _StaticLoginController(_session()),
           ),
@@ -155,7 +165,8 @@ void main() {
         ],
       );
 
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
 
       expect(find.text('Recurring shift'), findsOneWidget);
       expect(find.text('Next one-time shift'), findsOneWidget);
@@ -170,6 +181,9 @@ void main() {
         tester,
         const AttendanceCheckPage(),
         overrides: [
+          attendanceCacheStoreProvider.overrideWithValue(
+            _MemoryAttendanceCacheStore(),
+          ),
           loginControllerProvider.overrideWith(
             () => _StaticLoginController(_session()),
           ),
@@ -187,13 +201,167 @@ void main() {
         ],
       );
 
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
 
       expect(find.text('No Shift Today'), findsOneWidget);
       final button = tester.widget<FilledButton>(
         find.widgetWithText(FilledButton, 'Check-in'),
       );
       expect(button.onPressed, isNotNull);
+    });
+
+    testWidgets('shows cached attendance state while refresh is in flight', (
+      tester,
+    ) async {
+      final cacheStore = _MemoryAttendanceCacheStore();
+      final now = DateTime.now();
+      await cacheStore.writeContext(
+        scope: const AttendanceCacheScope(
+          tenantId: 'tenant-1',
+          branchId: 'branch-1',
+          accountId: 'user-1',
+        ),
+        context: const AttendanceContext(
+          canCheckIn: false,
+          reasonCode: AttendanceReasonCodes.alreadyCheckedIn,
+          reasonMessage: 'Already checked in.',
+          activeShift: null,
+          activeAttendance: ActiveAttendanceSession(
+            attendanceId: 'attendance-1',
+            startAt: '2026-03-16T01:00:00Z',
+          ),
+          locationVerificationMode: AttendanceLocationVerificationMode.disabled,
+          geofence: null,
+        ),
+      );
+      await cacheStore.writeRecords(
+        scope: const AttendanceCacheScope(
+          tenantId: 'tenant-1',
+          branchId: 'branch-1',
+          accountId: 'user-1',
+        ),
+        records: [
+          AttendanceRecord(
+            id: 'record-1',
+            tenantId: 'tenant-1',
+            branchId: 'branch-1',
+            employeeId: 'user-1',
+            type: 'CHECK_IN',
+            occurredAt: DateTime(now.year, now.month, now.day, 8),
+            createdAt: DateTime(now.year, now.month, now.day, 8),
+          ),
+        ],
+      );
+
+      await pumpApp(
+        tester,
+        const AttendanceCheckPage(),
+        overrides: [
+          attendanceCacheStoreProvider.overrideWithValue(cacheStore),
+          loginControllerProvider.overrideWith(
+            () => _StaticLoginController(_session()),
+          ),
+          staffAttendanceRepositoryProvider.overrideWithValue(
+            StaffAttendanceRepository(_PendingAttendanceRepository()),
+          ),
+          staffShiftRepositoryProvider.overrideWithValue(
+            _FakeStaffShiftRepository(
+              schedule: const StaffShiftSchedule(
+                patterns: <StaffShiftPattern>[],
+                instances: <StaffShiftInstance>[],
+              ),
+            ),
+          ),
+        ],
+      );
+
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.widgetWithText(FilledButton, 'Check-out'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 13));
+    });
+
+    testWidgets('keeps cached attendance state when refresh times out', (
+      tester,
+    ) async {
+      final cacheStore = _MemoryAttendanceCacheStore();
+      final now = DateTime.now();
+      await cacheStore.writeContext(
+        scope: const AttendanceCacheScope(
+          tenantId: 'tenant-1',
+          branchId: 'branch-1',
+          accountId: 'user-1',
+        ),
+        context: const AttendanceContext(
+          canCheckIn: false,
+          reasonCode: AttendanceReasonCodes.alreadyCheckedIn,
+          reasonMessage: 'Already checked in.',
+          activeShift: null,
+          activeAttendance: ActiveAttendanceSession(
+            attendanceId: 'attendance-1',
+            startAt: '2026-03-16T01:00:00Z',
+          ),
+          locationVerificationMode: AttendanceLocationVerificationMode.disabled,
+          geofence: null,
+        ),
+      );
+      await cacheStore.writeRecords(
+        scope: const AttendanceCacheScope(
+          tenantId: 'tenant-1',
+          branchId: 'branch-1',
+          accountId: 'user-1',
+        ),
+        records: [
+          AttendanceRecord(
+            id: 'record-1',
+            tenantId: 'tenant-1',
+            branchId: 'branch-1',
+            employeeId: 'user-1',
+            type: 'CHECK_IN',
+            occurredAt: DateTime(now.year, now.month, now.day, 8),
+            createdAt: DateTime(now.year, now.month, now.day, 8),
+          ),
+        ],
+      );
+
+      await pumpApp(
+        tester,
+        const AttendanceCheckPage(),
+        overrides: [
+          attendanceCacheStoreProvider.overrideWithValue(cacheStore),
+          attendanceRequestTimeoutProvider.overrideWithValue(
+            const Duration(milliseconds: 10),
+          ),
+          loginControllerProvider.overrideWith(
+            () => _StaticLoginController(_session()),
+          ),
+          staffAttendanceRepositoryProvider.overrideWithValue(
+            StaffAttendanceRepository(
+              _PendingAttendanceRepository(),
+              requestTimeout: const Duration(milliseconds: 10),
+            ),
+          ),
+          staffShiftRepositoryProvider.overrideWithValue(
+            _FakeStaffShiftRepository(
+              schedule: const StaffShiftSchedule(
+                patterns: <StaffShiftPattern>[],
+                instances: <StaffShiftInstance>[],
+              ),
+            ),
+          ),
+        ],
+      );
+
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 30));
+
+      final button = tester.widget<FilledButton>(
+        find.widgetWithText(FilledButton, 'Check-out'),
+      );
+      expect(button.onPressed, isNotNull);
+      expect(find.text('Failed to load today attendance'), findsOneWidget);
     });
   });
 }
@@ -275,6 +443,80 @@ class _FakeAttendanceRepository implements AttendanceRepository {
     AttendanceScheduleRange range,
   ) async {
     return const <AttendanceShiftScheduleEntry>[];
+  }
+}
+
+class _PendingAttendanceRepository implements AttendanceRepository {
+  final Completer<AttendanceContext> _contextCompleter =
+      Completer<AttendanceContext>();
+  final Completer<List<AttendanceRecord>> _recordsCompleter =
+      Completer<List<AttendanceRecord>>();
+
+  @override
+  Future<AttendanceMutationResult> checkIn(
+    AttendanceCheckInPayload payload,
+  ) async {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<AttendanceMutationResult> checkOut(
+    AttendanceCheckOutPayload payload,
+  ) async {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<AttendanceContext> getAttendanceContext({required String branchId}) =>
+      _contextCompleter.future;
+
+  @override
+  Future<List<AttendanceRecord>> getAttendanceRecords(
+    AttendanceRecordsFilter filters,
+  ) => _recordsCompleter.future;
+
+  @override
+  Future<List<AttendanceShiftScheduleEntry>> getMySchedule(
+    AttendanceScheduleRange range,
+  ) async {
+    return const <AttendanceShiftScheduleEntry>[];
+  }
+}
+
+class _MemoryAttendanceCacheStore implements AttendanceCacheStore {
+  final Map<AttendanceCacheScope, AttendanceContext> _contexts =
+      <AttendanceCacheScope, AttendanceContext>{};
+  final Map<AttendanceCacheScope, List<AttendanceRecord>> _records =
+      <AttendanceCacheScope, List<AttendanceRecord>>{};
+
+  @override
+  Future<void> clear(AttendanceCacheScope scope) async {
+    _contexts.remove(scope);
+    _records.remove(scope);
+  }
+
+  @override
+  Future<AttendanceCacheSnapshot> read(AttendanceCacheScope scope) async {
+    return AttendanceCacheSnapshot(
+      context: _contexts[scope],
+      records: List<AttendanceRecord>.from(_records[scope] ?? const []),
+    );
+  }
+
+  @override
+  Future<void> writeContext({
+    required AttendanceCacheScope scope,
+    required AttendanceContext context,
+  }) async {
+    _contexts[scope] = context;
+  }
+
+  @override
+  Future<void> writeRecords({
+    required AttendanceCacheScope scope,
+    required List<AttendanceRecord> records,
+  }) async {
+    _records[scope] = List<AttendanceRecord>.from(records);
   }
 }
 

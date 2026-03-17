@@ -4,6 +4,7 @@ import 'package:modular_pos/core/theme/app_buttons.dart';
 import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
 import 'package:modular_pos/features/staff/data/repository/staff_shift_repository.dart';
 import 'package:modular_pos/features/staff/domain/models/staff_shift_models.dart';
+import 'package:modular_pos/features/staff_attendance/data/attendance_cache_store.dart';
 import 'package:modular_pos/features/staff_attendance/data/attendance_repository_contract.dart';
 import 'package:modular_pos/features/staff_attendance/data/staff_attendance_repository.dart';
 import 'package:modular_pos/features/staff_attendance/domain/models/attendance_record.dart';
@@ -44,9 +45,28 @@ class _AttendanceCheckPageState extends ConsumerState<AttendanceCheckPage> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadCachedAttendanceData();
       _loadSchedule();
       _loadAttendanceContext();
       _loadTodayAttendance();
+    });
+  }
+
+  Future<void> _loadCachedAttendanceData() async {
+    final scope = ref.read(attendanceCacheScopeProvider);
+    if (scope == null) return;
+
+    final snapshot = await ref.read(attendanceCacheStoreProvider).read(scope);
+    if (!mounted) return;
+    if (snapshot.context == null && snapshot.records.isEmpty) return;
+
+    final todayAttendance = _deriveTodayAttendance(snapshot.records);
+    setState(() {
+      if (snapshot.context != null) {
+        _attendanceContext = snapshot.context!;
+      }
+      _todayCheckInAt = todayAttendance.checkInAt;
+      _todayCheckOutAt = todayAttendance.checkOutAt;
     });
   }
 
@@ -89,6 +109,7 @@ class _AttendanceCheckPageState extends ConsumerState<AttendanceCheckPage> {
   }
 
   Future<void> _loadAttendanceContext() async {
+    final requestedScope = ref.read(attendanceCacheScopeProvider);
     setState(() => _contextLoading = true);
     try {
       final repo = ref.read(staffAttendanceRepositoryProvider);
@@ -101,11 +122,20 @@ class _AttendanceCheckPageState extends ConsumerState<AttendanceCheckPage> {
       final attendanceContext = await repo.getAttendanceContext(
         branchId: branchId,
       );
+      if (requestedScope != null) {
+        await ref
+            .read(attendanceCacheStoreProvider)
+            .writeContext(scope: requestedScope, context: attendanceContext);
+      }
       if (!mounted) return;
+      if (requestedScope != null &&
+          ref.read(attendanceCacheScopeProvider) != requestedScope) {
+        return;
+      }
       setState(() => _attendanceContext = attendanceContext);
     } catch (_) {
       if (!mounted) return;
-      setState(() => _attendanceContext = const AttendanceContext.empty());
+      setState(() => _errorMessage = 'Failed to refresh attendance context');
     } finally {
       if (mounted) {
         setState(() => _contextLoading = false);
@@ -114,6 +144,7 @@ class _AttendanceCheckPageState extends ConsumerState<AttendanceCheckPage> {
   }
 
   Future<void> _loadTodayAttendance() async {
+    final requestedScope = ref.read(attendanceCacheScopeProvider);
     setState(() {
       _errorMessage = null;
     });
@@ -140,7 +171,16 @@ class _AttendanceCheckPageState extends ConsumerState<AttendanceCheckPage> {
         limit: 100,
         offset: 0,
       );
+      if (requestedScope != null) {
+        await ref
+            .read(attendanceCacheStoreProvider)
+            .writeRecords(scope: requestedScope, records: records);
+      }
       if (!mounted) return;
+      if (requestedScope != null &&
+          ref.read(attendanceCacheScopeProvider) != requestedScope) {
+        return;
+      }
       _syncTodayFromRecords(records);
     } catch (_) {
       if (!mounted) return;
@@ -229,6 +269,17 @@ class _AttendanceCheckPageState extends ConsumerState<AttendanceCheckPage> {
   }
 
   void _syncTodayFromRecords(List<AttendanceRecord> records) {
+    final todayAttendance = _deriveTodayAttendance(records);
+
+    setState(() {
+      _todayCheckInAt = todayAttendance.checkInAt;
+      _todayCheckOutAt = todayAttendance.checkOutAt;
+    });
+  }
+
+  ({DateTime? checkInAt, DateTime? checkOutAt}) _deriveTodayAttendance(
+    List<AttendanceRecord> records,
+  ) {
     final todayKey = formatDateKey(DateTime.now());
     final todayRecords =
         records
@@ -255,17 +306,10 @@ class _AttendanceCheckPageState extends ConsumerState<AttendanceCheckPage> {
       orElse: () => checkIn,
     );
 
-    final todayCheckInAt = checkIn.type == 'CHECK_IN'
-        ? checkIn.occurredAt
-        : null;
-    final todayCheckOutAt = checkOut.type == 'CHECK_OUT'
-        ? checkOut.occurredAt
-        : null;
-
-    setState(() {
-      _todayCheckInAt = todayCheckInAt;
-      _todayCheckOutAt = todayCheckOutAt;
-    });
+    return (
+      checkInAt: checkIn.type == 'CHECK_IN' ? checkIn.occurredAt : null,
+      checkOutAt: checkOut.type == 'CHECK_OUT' ? checkOut.occurredAt : null,
+    );
   }
 
   String _scheduleLabelForDay(int dayIndex) {

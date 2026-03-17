@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/core/config/app_env.dart';
 import 'package:modular_pos/features/staff_attendance/data/api_attendance_repository.dart';
@@ -31,42 +33,51 @@ final staffAttendanceRepositoryProvider = Provider<StaffAttendanceRepository>((
   ref,
 ) {
   final repository = ref.watch(attendanceRepositoryProvider);
-  return StaffAttendanceRepository(repository);
+  final requestTimeout = ref.watch(attendanceRequestTimeoutProvider);
+  return StaffAttendanceRepository(repository, requestTimeout: requestTimeout);
 });
 
+final attendanceRequestTimeoutProvider = Provider<Duration>(
+  (ref) => const Duration(seconds: 12),
+);
+
 class StaffAttendanceRepository {
-  StaffAttendanceRepository(this._repository);
+  StaffAttendanceRepository(
+    this._repository, {
+    this.requestTimeout = const Duration(seconds: 12),
+  });
 
   final AttendanceRepository _repository;
+  final Duration requestTimeout;
 
   Future<AttendanceContext> getAttendanceContext({
     required String branchId,
   }) async {
-    return _repository.getAttendanceContext(branchId: branchId);
+    return _withTimeout(_repository.getAttendanceContext(branchId: branchId));
   }
 
   Future<AttendanceMutationResult> checkInWithPayload(
     AttendanceCheckInPayload payload,
   ) async {
-    return _repository.checkIn(payload);
+    return _withTimeout(_repository.checkIn(payload));
   }
 
   Future<AttendanceMutationResult> checkOutWithPayload(
     AttendanceCheckOutPayload payload,
   ) async {
-    return _repository.checkOut(payload);
+    return _withTimeout(_repository.checkOut(payload));
   }
 
   Future<List<AttendanceShiftScheduleEntry>> getMySchedule(
     AttendanceScheduleRange range,
   ) async {
-    return _repository.getMySchedule(range);
+    return _withTimeout(_repository.getMySchedule(range));
   }
 
   Future<List<AttendanceRecord>> getAttendanceRecords(
     AttendanceRecordsFilter filters,
   ) async {
-    return _repository.getAttendanceRecords(filters);
+    return _withTimeout(_repository.getAttendanceRecords(filters));
   }
 
   Future<List<AttendanceRecord>> fetchAdminAttendance({
@@ -77,15 +88,17 @@ class StaffAttendanceRepository {
     int limit = 100,
     int offset = 0,
   }) async {
-    return _repository.getAttendanceRecords(
-      AttendanceRecordsFilter(
-        branchId: branchId,
-        employeeId: employeeId,
-        from: _parseIsoDate(from),
-        to: _parseIsoDate(to),
-        limit: limit,
-        offset: offset,
-        selfOnly: false,
+    return _withTimeout(
+      _repository.getAttendanceRecords(
+        AttendanceRecordsFilter(
+          branchId: branchId,
+          employeeId: employeeId,
+          from: _parseIsoDate(from),
+          to: _parseIsoDate(to),
+          limit: limit,
+          offset: offset,
+          selfOnly: false,
+        ),
       ),
     );
   }
@@ -97,14 +110,16 @@ class StaffAttendanceRepository {
     int limit = 100,
     int offset = 0,
   }) async {
-    return _repository.getAttendanceRecords(
-      AttendanceRecordsFilter(
-        branchId: branchId,
-        from: _parseIsoDate(from),
-        to: _parseIsoDate(to),
-        limit: limit,
-        offset: offset,
-        selfOnly: true,
+    return _withTimeout(
+      _repository.getAttendanceRecords(
+        AttendanceRecordsFilter(
+          branchId: branchId,
+          from: _parseIsoDate(from),
+          to: _parseIsoDate(to),
+          limit: limit,
+          offset: offset,
+          selfOnly: true,
+        ),
       ),
     );
   }
@@ -112,8 +127,8 @@ class StaffAttendanceRepository {
   Future<List<AttendanceShiftScheduleEntry>> fetchMyShiftSchedule({
     String? branchId,
   }) async {
-    return _repository.getMySchedule(
-      AttendanceScheduleRange(branchId: branchId),
+    return _withTimeout(
+      _repository.getMySchedule(AttendanceScheduleRange(branchId: branchId)),
     );
   }
 
@@ -124,14 +139,16 @@ class StaffAttendanceRepository {
     int? earlyMinutes,
     String? note,
   }) async {
-    final result = await _repository.checkIn(
-      AttendanceCheckInPayload(
-        branchId: null,
-        deviceLat: _readCoordinate(location, 'lat'),
-        deviceLng: _readCoordinate(location, 'lng'),
-        deviceAccuracyM: null,
-        clientOpId: _buildClientOpId(prefix: 'legacy-check-in'),
-        clientTs: occurredAt,
+    final result = await _withTimeout(
+      _repository.checkIn(
+        AttendanceCheckInPayload(
+          branchId: null,
+          deviceLat: _readCoordinate(location, 'lat'),
+          deviceLng: _readCoordinate(location, 'lng'),
+          deviceAccuracyM: null,
+          clientOpId: _buildClientOpId(prefix: 'legacy-check-in'),
+          clientTs: occurredAt,
+        ),
       ),
     );
     return result.record;
@@ -141,17 +158,23 @@ class StaffAttendanceRepository {
     required String occurredAt,
     Map<String, num>? location,
   }) async {
-    final result = await _repository.checkOut(
-      AttendanceCheckOutPayload(
-        branchId: null,
-        deviceLat: _readCoordinate(location, 'lat'),
-        deviceLng: _readCoordinate(location, 'lng'),
-        deviceAccuracyM: null,
-        clientOpId: _buildClientOpId(prefix: 'legacy-check-out'),
-        clientTs: occurredAt,
+    final result = await _withTimeout(
+      _repository.checkOut(
+        AttendanceCheckOutPayload(
+          branchId: null,
+          deviceLat: _readCoordinate(location, 'lat'),
+          deviceLng: _readCoordinate(location, 'lng'),
+          deviceAccuracyM: null,
+          clientOpId: _buildClientOpId(prefix: 'legacy-check-out'),
+          clientTs: occurredAt,
+        ),
       ),
     );
     return result.record;
+  }
+
+  Future<T> _withTimeout<T>(Future<T> future) {
+    return future.timeout(requestTimeout);
   }
 
   DateTime? _parseIsoDate(String? value) {

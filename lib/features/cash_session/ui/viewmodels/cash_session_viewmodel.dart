@@ -1,10 +1,15 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/core/network/api_contract.dart';
+import 'package:modular_pos/features/auth/domain/active_branch_context_provider.dart';
 import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
 import 'package:modular_pos/features/auth/domain/auth_role.dart';
+import 'package:modular_pos/features/auth/domain/auth_tenant_provider.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
+import 'package:modular_pos/features/cash_session/data/cash_session_cache_store.dart';
+import 'package:modular_pos/features/cash_session/data/cash_session_error_codes.dart';
 import 'package:modular_pos/features/cash_session/data/cash_session_movement_repository.dart';
 import 'package:modular_pos/features/cash_session/data/cash_session_repository.dart';
 import 'package:modular_pos/features/cash_session/data/cash_session_sales_repository.dart';
@@ -13,6 +18,19 @@ import 'package:modular_pos/features/cash_session/domain/models/cash_session.dar
 import 'package:modular_pos/features/cash_session/domain/models/cash_session_sale.dart';
 
 enum SessionStatus { notStarted, open, closed, forceClosed }
+
+final cashSessionRequestTimeoutProvider = Provider<Duration>(
+  (ref) => const Duration(seconds: 12),
+);
+
+final cashSessionBranchContextProvider = Provider<CashSessionBranchContext?>((
+  ref,
+) {
+  final tenantId = (ref.watch(authTenantIdProvider) ?? '').trim();
+  final branchId = (ref.watch(activeBranchContextIdProvider) ?? '').trim();
+  if (tenantId.isEmpty || branchId.isEmpty) return null;
+  return CashSessionBranchContext(tenantId: tenantId, branchId: branchId);
+});
 
 class CashSessionState {
   static const _unset = Object();
@@ -180,10 +198,12 @@ class CashSessionState {
 
 class CashSessionViewModel extends Notifier<CashSessionState> {
   CashSessionRepository get _repo => ref.read(cashSessionRepositoryProvider);
+  CashSessionCacheStore get _cache => ref.read(cashSessionCacheStoreProvider);
   CashSessionMovementRepository get _movementRepo =>
       ref.read(cashSessionMovementRepositoryProvider);
   CashSessionSalesRepository get _salesRepo =>
       ref.read(cashSessionSalesRepositoryProvider);
+  Duration get _requestTimeout => ref.read(cashSessionRequestTimeoutProvider);
 
   @override
   CashSessionState build() {
@@ -204,7 +224,28 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
   }
 
   Future<void> load() async {
+    final requestedContext = ref.read(cashSessionBranchContextProvider);
     state = state.copyWith(isLoading: true, error: null, errorCode: null);
+    if (requestedContext != null) {
+      final cached = await _cache.read(
+        tenantId: requestedContext.tenantId,
+        branchId: requestedContext.branchId,
+      );
+      if (ref.read(cashSessionBranchContextProvider) == requestedContext &&
+          cached.session != null) {
+        state = state.copyWith(
+          isLoading: true,
+          session: cached.session,
+          movements: cached.movements,
+          sales: cached.sales,
+          hasMoreSales: cached.sales.length == state.salesFetchLimit,
+          isLoadingMoreSales: false,
+          error: null,
+          errorCode: null,
+          canForceClose: _canForceClose(cached.session),
+        );
+      }
+    }
     await _fetchActiveSession(loadMovements: true, loadSales: true);
   }
 
@@ -229,10 +270,12 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
   }) async {
     state = state.copyWith(isLoading: true, error: null, errorCode: null);
     try {
-      final session = await _repo.openSession(
-        openingFloatUsd: usdAmount,
-        openingFloatKhr: khrAmount,
-        note: note,
+      final session = await _withTimeout(
+        _repo.openSession(
+          openingFloatUsd: usdAmount,
+          openingFloatKhr: khrAmount,
+          note: note,
+        ),
       );
       _applySession(session);
       await _loadSessionDetails(
@@ -289,11 +332,13 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
       final safeReason = trimmedReason.length >= 3
           ? trimmedReason
           : 'Manual movement';
-      await _movementRepo.recordPaidIn(
-        sessionId: sessionId,
-        amountUsd: amountUsd,
-        amountKhr: amountKhr,
-        reason: safeReason,
+      await _withTimeout(
+        _movementRepo.recordPaidIn(
+          sessionId: sessionId,
+          amountUsd: amountUsd,
+          amountKhr: amountKhr,
+          reason: safeReason,
+        ),
       );
       await _fetchActiveSession(loadMovements: true, loadSales: true);
     } catch (error) {
@@ -312,10 +357,12 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
 
     state = state.copyWith(isLoadingMoreSales: true);
     try {
-      final nextPage = await _salesRepo.listSales(
-        sessionId: sessionId,
-        limit: state.salesFetchLimit,
-        offset: state.sales.length,
+      final nextPage = await _withTimeout(
+        _salesRepo.listSales(
+          sessionId: sessionId,
+          limit: state.salesFetchLimit,
+          offset: state.sales.length,
+        ),
       );
       final merged = List<CashSessionSale>.from(state.sales)..addAll(nextPage);
       state = state.copyWith(
@@ -325,6 +372,7 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
         error: null,
         errorCode: null,
       );
+      await _persistCurrentSnapshot();
     } catch (error) {
       state = state.copyWith(
         isLoadingMoreSales: false,
@@ -348,11 +396,13 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
       final safeReason = trimmedReason.length >= 3
           ? trimmedReason
           : 'Manual movement';
-      await _movementRepo.recordPaidOut(
-        sessionId: sessionId,
-        amountUsd: amountUsd,
-        amountKhr: amountKhr,
-        reason: safeReason,
+      await _withTimeout(
+        _movementRepo.recordPaidOut(
+          sessionId: sessionId,
+          amountUsd: amountUsd,
+          amountKhr: amountKhr,
+          reason: safeReason,
+        ),
       );
       await _fetchActiveSession(loadMovements: true, loadSales: true);
     } catch (error) {
@@ -374,11 +424,13 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
       final safeReason = trimmedReason.length >= 3
           ? trimmedReason
           : 'Manual adjustment';
-      await _movementRepo.recordAdjustment(
-        sessionId: sessionId,
-        amountUsdDelta: amountUsdDelta,
-        amountKhrDelta: amountKhrDelta,
-        reason: safeReason,
+      await _withTimeout(
+        _movementRepo.recordAdjustment(
+          sessionId: sessionId,
+          amountUsdDelta: amountUsdDelta,
+          amountKhrDelta: amountKhrDelta,
+          reason: safeReason,
+        ),
       );
       await _fetchActiveSession(loadMovements: true, loadSales: true);
     } catch (error) {
@@ -396,11 +448,13 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
 
     state = state.copyWith(isLoading: true, error: null, errorCode: null);
     try {
-      await _repo.closeSession(
-        sessionId: sessionId,
-        countedCashUsd: countedUsd,
-        countedCashKhr: countedKhr,
-        note: note,
+      await _withTimeout(
+        _repo.closeSession(
+          sessionId: sessionId,
+          countedCashUsd: countedUsd,
+          countedCashKhr: countedKhr,
+          note: note,
+        ),
       );
       await _fetchActiveSession(loadMovements: true, loadSales: true);
     } catch (error) {
@@ -419,12 +473,14 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
 
     state = state.copyWith(isLoading: true, error: null, errorCode: null);
     try {
-      await _repo.forceCloseSession(
-        sessionId: sessionId,
-        countedCashUsd: countedUsd,
-        countedCashKhr: countedKhr,
-        reason: reason,
-        note: note,
+      await _withTimeout(
+        _repo.forceCloseSession(
+          sessionId: sessionId,
+          countedCashUsd: countedUsd,
+          countedCashKhr: countedKhr,
+          reason: reason,
+          note: note,
+        ),
       );
       await _fetchActiveSession(loadMovements: true, loadSales: true);
     } catch (error) {
@@ -436,10 +492,14 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
     bool loadMovements = false,
     bool loadSales = false,
   }) async {
+    final requestedContext = ref.read(cashSessionBranchContextProvider);
     try {
-      final active = await _repo.getActiveSession();
+      final active = await _withTimeout(_repo.getActiveSession());
+      if (ref.read(cashSessionBranchContextProvider) != requestedContext) {
+        return;
+      }
       if (active == null || active.id.isEmpty) {
-        _clearSession();
+        await _clearSession(clearCache: true);
         return;
       }
       _applySession(active);
@@ -451,6 +511,9 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
         );
       }
     } catch (error) {
+      if (ref.read(cashSessionBranchContextProvider) != requestedContext) {
+        return;
+      }
       _setError(error);
     }
   }
@@ -460,18 +523,24 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
     required bool loadMovements,
     required bool loadSales,
   }) async {
+    final requestedContext = ref.read(cashSessionBranchContextProvider);
     try {
       final movementFuture = loadMovements
-          ? _movementRepo.listMovements(sessionId: sessionId)
+          ? _withTimeout(_movementRepo.listMovements(sessionId: sessionId))
           : Future.value(state.movements);
       final salesFuture = loadSales
-          ? _salesRepo.listSales(
-              sessionId: sessionId,
-              limit: state.salesFetchLimit,
-              offset: 0,
+          ? _withTimeout(
+              _salesRepo.listSales(
+                sessionId: sessionId,
+                limit: state.salesFetchLimit,
+                offset: 0,
+              ),
             )
           : Future.value(state.sales);
       final results = await Future.wait<Object>([movementFuture, salesFuture]);
+      if (ref.read(cashSessionBranchContextProvider) != requestedContext) {
+        return;
+      }
       final movements = results[0] as List<CashMovement>;
       final sales = results[1] as List<CashSessionSale>;
       state = state.copyWith(
@@ -486,14 +555,18 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
         errorCode: null,
         canForceClose: _canForceClose(state.session),
       );
+      await _persistCurrentSnapshot();
     } catch (error) {
+      if (ref.read(cashSessionBranchContextProvider) != requestedContext) {
+        return;
+      }
       _setError(error);
     }
   }
 
   void _applySession(CashSession session) {
     if (session.id.isEmpty) {
-      _clearSession();
+      unawaited(_clearSession(clearCache: false));
       return;
     }
 
@@ -506,7 +579,16 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
     );
   }
 
-  void _clearSession() {
+  Future<void> _clearSession({required bool clearCache}) async {
+    if (clearCache) {
+      final context = ref.read(cashSessionBranchContextProvider);
+      if (context != null) {
+        await _cache.clear(
+          tenantId: context.tenantId,
+          branchId: context.branchId,
+        );
+      }
+    }
     state = state.copyWith(
       isLoading: false,
       session: null,
@@ -517,6 +599,23 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
       error: null,
       errorCode: null,
       canForceClose: false,
+    );
+  }
+
+  Future<void> _persistCurrentSnapshot() async {
+    final context = ref.read(cashSessionBranchContextProvider);
+    final session = state.session;
+    if (context == null || session == null || session.id.isEmpty) return;
+    if (session.tenantId.trim() != context.tenantId ||
+        session.branchId.trim() != context.branchId) {
+      return;
+    }
+    await _cache.write(
+      tenantId: context.tenantId,
+      branchId: context.branchId,
+      session: session,
+      movements: state.movements,
+      sales: state.sales,
     );
   }
 
@@ -546,13 +645,23 @@ class CashSessionViewModel extends Notifier<CashSessionState> {
   }
 
   String _errorMessage(Object error) {
+    if (error is TimeoutException) {
+      return 'Cash session request timed out. Check your connection and try again.';
+    }
     if (error is ApiClientException) return error.message;
     return error.toString();
   }
 
   String? _errorCode(Object error) {
+    if (error is TimeoutException) {
+      return CashSessionErrorCodes.offlineUnreachable;
+    }
     if (error is ApiClientException) return error.code;
     return null;
+  }
+
+  Future<T> _withTimeout<T>(Future<T> future) {
+    return future.timeout(_requestTimeout);
   }
 
   String _resolveCurrentAccountId(session) {
@@ -599,3 +708,23 @@ final cashSessionViewModelProvider =
     NotifierProvider<CashSessionViewModel, CashSessionState>(
       CashSessionViewModel.new,
     );
+
+class CashSessionBranchContext {
+  const CashSessionBranchContext({
+    required this.tenantId,
+    required this.branchId,
+  });
+
+  final String tenantId;
+  final String branchId;
+
+  @override
+  bool operator ==(Object other) {
+    return other is CashSessionBranchContext &&
+        other.tenantId == tenantId &&
+        other.branchId == branchId;
+  }
+
+  @override
+  int get hashCode => Object.hash(tenantId, branchId);
+}

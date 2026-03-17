@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/core/network/api_contract.dart';
+import 'package:modular_pos/features/auth/domain/auth_tenant_provider.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/menu/data/menu_api.dart';
+import 'package:modular_pos/features/menu/data/menu_cache_store.dart';
 import 'package:modular_pos/features/menu/data/menu_repository.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_branch.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_category.dart';
@@ -15,10 +19,22 @@ final menuViewModelProvider = NotifierProvider<MenuViewModel, MenuState>(
   MenuViewModel.new,
 );
 
+final menuRequestTimeoutProvider = Provider<Duration>(
+  (ref) => const Duration(seconds: 12),
+);
+
 class MenuViewModel extends Notifier<MenuState> {
   MenuRepository get _menuRepository => ref.read(menuRepositoryProvider);
+  MenuCacheStore get _cache => ref.read(menuCacheStoreProvider);
+  Duration get _requestTimeout => ref.read(menuRequestTimeoutProvider);
 
   ({String message, String? code}) _mapError(Object error) {
+    if (error is TimeoutException) {
+      return (
+        message: 'Menu request timed out. Check your connection and try again.',
+        code: 'OFFLINE_UNREACHABLE',
+      );
+    }
     if (error is ApiClientException) {
       return (message: error.message, code: error.code);
     }
@@ -103,6 +119,10 @@ class MenuViewModel extends Notifier<MenuState> {
     String? branchId,
     MenuReadLane readLane = MenuReadLane.management,
   }) async {
+    final requestedScope = _resolveCacheScope(
+      branchId: branchId,
+      readLane: readLane,
+    );
     try {
       state = state.copyWith(isLoading: true, error: null, errorCode: null);
       final userBranches = _resolveUserBranches();
@@ -111,11 +131,47 @@ class MenuViewModel extends Notifier<MenuState> {
           requestedBranchFilter.isEmpty || requestedBranchFilter == 'all'
           ? null
           : requestedBranchFilter;
-      final bundle = await _menuRepository.fetchMenuData(
-        readLane: readLane,
-        status: 'active',
-        branchIdFilter: branchIdFilter,
+      if (requestedScope != null) {
+        final cached = await _cache.read(requestedScope);
+        if (_sameScope(
+              requestedScope,
+              _resolveCacheScope(branchId: branchId, readLane: readLane),
+            ) &&
+            _hasMenuBundle(cached)) {
+          final selectedBranch = branchIdFilter ?? 'all';
+          final branches = userBranches.isNotEmpty
+              ? userBranches
+              : cached!.branches;
+          state = state.copyWith(
+            isLoading: true,
+            allItems: cached!.items,
+            filteredItems: _applyFilters(items: cached.items),
+            categories: cached.categories,
+            modifierGroups: cached.modifierGroups,
+            branches: branches,
+            selectedCategoryId: 'all',
+            selectedBranchId: selectedBranch,
+            error: null,
+            errorCode: null,
+          );
+        }
+      }
+      final bundle = await _withTimeout(
+        _menuRepository.fetchMenuData(
+          readLane: readLane,
+          status: 'active',
+          branchIdFilter: branchIdFilter,
+        ),
       );
+      if (!_sameScope(
+        requestedScope,
+        _resolveCacheScope(branchId: branchId, readLane: readLane),
+      )) {
+        return;
+      }
+      if (requestedScope != null) {
+        await _cache.write(scope: requestedScope, bundle: bundle);
+      }
       final branches = userBranches.isNotEmpty ? userBranches : bundle.branches;
       final selectedBranch = branchIdFilter ?? 'all';
 
@@ -152,6 +208,12 @@ class MenuViewModel extends Notifier<MenuState> {
         selectedBranchId: selectedBranch,
       );
     } catch (e) {
+      if (!_sameScope(
+        requestedScope,
+        _resolveCacheScope(branchId: branchId, readLane: readLane),
+      )) {
+        return;
+      }
       final mapped = _mapError(e);
       state = state.copyWith(
         isLoading: false,
@@ -331,8 +393,8 @@ class MenuViewModel extends Notifier<MenuState> {
   Future<void> refreshCategories({String? status}) async {
     try {
       state = state.copyWith(isLoading: true, error: null, errorCode: null);
-      final categories = await _menuRepository.fetchCategoriesOnly(
-        status: status,
+      final categories = await _withTimeout(
+        _menuRepository.fetchCategoriesOnly(status: status),
       );
       state = state.copyWith(
         isLoading: false,
@@ -355,8 +417,8 @@ class MenuViewModel extends Notifier<MenuState> {
       final normalizedStatus = status.trim().isEmpty
           ? 'active'
           : status.trim().toLowerCase();
-      final groups = await _menuRepository.fetchModifierGroupsOnly(
-        status: normalizedStatus,
+      final groups = await _withTimeout(
+        _menuRepository.fetchModifierGroupsOnly(status: normalizedStatus),
       );
       state = state.copyWith(isLoading: false, modifierGroups: groups);
     } catch (e) {
@@ -708,5 +770,53 @@ class MenuViewModel extends Notifier<MenuState> {
           ),
         )
         .toList();
+  }
+
+  MenuCacheQuery? _resolveCacheScope({
+    String? branchId,
+    required MenuReadLane readLane,
+  }) {
+    final tenantId =
+        (ref.read(authTenantIdProvider) ??
+                ref.read(loginControllerProvider).session?.activeTenantId ??
+                ref.read(loginControllerProvider).session?.user.tenantId ??
+                '')
+            .trim();
+    if (tenantId.isEmpty) return null;
+
+    final normalizedBranchFilter = (branchId ?? state.selectedBranchId).trim();
+    final branchIdFilter =
+        normalizedBranchFilter.isEmpty || normalizedBranchFilter == 'all'
+        ? null
+        : normalizedBranchFilter;
+
+    return MenuCacheQuery(
+      tenantId: tenantId,
+      scopeKey: buildMenuCacheScopeKey(
+        readLane: readLane,
+        status: 'active',
+        branchIdFilter: branchIdFilter,
+      ),
+      readLane: readLane,
+      status: 'active',
+      branchIdFilter: branchIdFilter,
+    );
+  }
+
+  Future<T> _withTimeout<T>(Future<T> future) {
+    return future.timeout(_requestTimeout);
+  }
+
+  bool _sameScope(MenuCacheQuery? a, MenuCacheQuery? b) {
+    if (a == null || b == null) return a == b;
+    return a.tenantId == b.tenantId && a.scopeKey == b.scopeKey;
+  }
+
+  bool _hasMenuBundle(MenuDataBundle? bundle) {
+    if (bundle == null) return false;
+    return bundle.items.isNotEmpty ||
+        bundle.categories.isNotEmpty ||
+        bundle.modifierGroups.isNotEmpty ||
+        bundle.branches.isNotEmpty;
   }
 }

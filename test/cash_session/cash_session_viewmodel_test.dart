@@ -1,12 +1,16 @@
+import 'dart:async';
 import 'dart:convert';
 
+import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:modular_pos/core/network/api_contract.dart';
+import 'package:modular_pos/core/storage/app_database.dart';
 import 'package:modular_pos/features/auth/domain/models/auth_session.dart';
 import 'package:modular_pos/features/auth/domain/models/tenant_membership.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
+import 'package:modular_pos/features/cash_session/data/cash_session_cache_store.dart';
 import 'package:modular_pos/features/cash_session/data/cash_session_error_codes.dart';
 import 'package:modular_pos/features/cash_session/data/cash_session_movement_repository.dart';
 import 'package:modular_pos/features/cash_session/data/cash_session_repository.dart';
@@ -118,6 +122,169 @@ void _stubEmptySales(_MockCashSessionSalesRepository repo) {
 }
 
 void main() {
+  test(
+    'load shows cached active session while remote refresh is still in flight',
+    () async {
+      final repo = _MockCashSessionRepository();
+      final movementRepo = _MockCashSessionMovementRepository();
+      final salesRepo = _MockCashSessionSalesRepository();
+      final database = AppDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
+      final cacheStore = DriftCashSessionCacheStore(database);
+      await cacheStore.write(
+        tenantId: 'tenant-1',
+        branchId: 'branch-1',
+        session: _buildCashSession(),
+        movements: const [],
+        sales: const [],
+      );
+
+      final completer = Completer<CashSession?>();
+      when(() => repo.getActiveSession()).thenAnswer((_) => completer.future);
+      when(
+        () => movementRepo.listMovements(sessionId: any(named: 'sessionId')),
+      ).thenAnswer((_) async => const []);
+      _stubEmptySales(salesRepo);
+
+      final container = createTestContainer(
+        overrides: [
+          appDatabaseProvider.overrideWithValue(database),
+          cashSessionRepositoryProvider.overrideWithValue(repo),
+          cashSessionMovementRepositoryProvider.overrideWithValue(movementRepo),
+          cashSessionSalesRepositoryProvider.overrideWithValue(salesRepo),
+          cashSessionBranchContextProvider.overrideWithValue(
+            const CashSessionBranchContext(
+              tenantId: 'tenant-1',
+              branchId: 'branch-1',
+            ),
+          ),
+          loginControllerProvider.overrideWith(_TestLoginController.new),
+        ],
+      );
+
+      final notifier = container.read(cashSessionViewModelProvider.notifier);
+      final loadFuture = notifier.load();
+      await Future<void>.delayed(Duration.zero);
+
+      final loadingState = container.read(cashSessionViewModelProvider);
+      expect(loadingState.isLoading, isTrue);
+      expect(loadingState.sessionId, 'session-1');
+
+      completer.complete(_buildCashSession(status: CashSessionStatuses.open));
+      await loadFuture;
+
+      final state = container.read(cashSessionViewModelProvider);
+      expect(state.isLoading, isFalse);
+      expect(state.sessionId, 'session-1');
+    },
+  );
+
+  test(
+    'load clears cached branch session when server reports no active session',
+    () async {
+      final repo = _MockCashSessionRepository();
+      final movementRepo = _MockCashSessionMovementRepository();
+      final salesRepo = _MockCashSessionSalesRepository();
+      final database = AppDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
+      final cacheStore = DriftCashSessionCacheStore(database);
+      await cacheStore.write(
+        tenantId: 'tenant-1',
+        branchId: 'branch-1',
+        session: _buildCashSession(),
+        movements: const [],
+        sales: const [],
+      );
+
+      when(() => repo.getActiveSession()).thenAnswer((_) async => null);
+      when(
+        () => movementRepo.listMovements(sessionId: any(named: 'sessionId')),
+      ).thenAnswer((_) async => const []);
+      _stubEmptySales(salesRepo);
+
+      final container = createTestContainer(
+        overrides: [
+          appDatabaseProvider.overrideWithValue(database),
+          cashSessionRepositoryProvider.overrideWithValue(repo),
+          cashSessionMovementRepositoryProvider.overrideWithValue(movementRepo),
+          cashSessionSalesRepositoryProvider.overrideWithValue(salesRepo),
+          cashSessionBranchContextProvider.overrideWithValue(
+            const CashSessionBranchContext(
+              tenantId: 'tenant-1',
+              branchId: 'branch-1',
+            ),
+          ),
+          loginControllerProvider.overrideWith(_TestLoginController.new),
+        ],
+      );
+
+      final notifier = container.read(cashSessionViewModelProvider.notifier);
+      await notifier.load();
+
+      final state = container.read(cashSessionViewModelProvider);
+      expect(state.session, isNull);
+
+      final cached = await cacheStore.read(
+        tenantId: 'tenant-1',
+        branchId: 'branch-1',
+      );
+      expect(cached.session, isNull);
+    },
+  );
+
+  test(
+    'load stops loading and keeps cached branch session when refresh times out',
+    () async {
+      final repo = _MockCashSessionRepository();
+      final movementRepo = _MockCashSessionMovementRepository();
+      final salesRepo = _MockCashSessionSalesRepository();
+      final database = AppDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
+      final cacheStore = DriftCashSessionCacheStore(database);
+      await cacheStore.write(
+        tenantId: 'tenant-1',
+        branchId: 'branch-1',
+        session: _buildCashSession(),
+        movements: const [],
+        sales: const [],
+      );
+
+      final completer = Completer<CashSession?>();
+      when(() => repo.getActiveSession()).thenAnswer((_) => completer.future);
+      when(
+        () => movementRepo.listMovements(sessionId: any(named: 'sessionId')),
+      ).thenAnswer((_) async => const []);
+      _stubEmptySales(salesRepo);
+
+      final container = createTestContainer(
+        overrides: [
+          appDatabaseProvider.overrideWithValue(database),
+          cashSessionRepositoryProvider.overrideWithValue(repo),
+          cashSessionMovementRepositoryProvider.overrideWithValue(movementRepo),
+          cashSessionSalesRepositoryProvider.overrideWithValue(salesRepo),
+          cashSessionBranchContextProvider.overrideWithValue(
+            const CashSessionBranchContext(
+              tenantId: 'tenant-1',
+              branchId: 'branch-1',
+            ),
+          ),
+          cashSessionRequestTimeoutProvider.overrideWithValue(
+            const Duration(milliseconds: 10),
+          ),
+          loginControllerProvider.overrideWith(_TestLoginController.new),
+        ],
+      );
+
+      final notifier = container.read(cashSessionViewModelProvider.notifier);
+      await notifier.load();
+
+      final state = container.read(cashSessionViewModelProvider);
+      expect(state.isLoading, isFalse);
+      expect(state.sessionId, 'session-1');
+      expect(state.errorCode, CashSessionErrorCodes.offlineUnreachable);
+    },
+  );
+
   test('load clears state when there is no active session', () async {
     final repo = _MockCashSessionRepository();
     final movementRepo = _MockCashSessionMovementRepository();
