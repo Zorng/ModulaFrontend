@@ -9,6 +9,7 @@ import 'package:modular_pos/features/staff/data/repository/staff_branch_assignme
 import 'package:modular_pos/features/staff/domain/models/staff_membership_models.dart';
 import 'package:modular_pos/features/staff/ui/components/staff_branch_selection_list.dart';
 import 'package:modular_pos/features/staff/ui/components/staff_role_chip.dart';
+import 'package:modular_pos/features/staff/ui/viewmodels/staff_membership_detail_provider.dart';
 import 'package:modular_pos/features/staff/ui/viewmodels/staff_membership_list_controller.dart';
 import 'package:modular_pos/features/staff/ui/viewmodels/staff_support_providers.dart';
 
@@ -257,6 +258,7 @@ class _StaffInvitePageState extends ConsumerState<StaffInvitePage> {
       await ref
           .read(staffMembershipListControllerProvider.notifier)
           .reconcileAfterMutation();
+      ref.invalidate(staffMembershipDetailPageProvider(result.membershipId));
       if (!mounted) return;
       setState(() {
         _inviteResult = result;
@@ -293,6 +295,9 @@ class _StaffInvitePageState extends ConsumerState<StaffInvitePage> {
           .read(staffMembershipListControllerProvider.notifier)
           .reconcileAfterMutation();
       if (!mounted) return;
+      ref.invalidate(
+        staffMembershipDetailPageProvider(inviteResult.membershipId),
+      );
       context.goNamed(
         AppRoute.staffDetail.name,
         pathParameters: {'membershipId': inviteResult.membershipId},

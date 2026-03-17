@@ -161,7 +161,9 @@ class StaffAttendanceReviewTabPage extends ConsumerWidget {
 
                     final staffMenu = DropdownMenu<String?>(
                       width: menuWidth,
-                      requestFocusOnTap: false,
+                      requestFocusOnTap: true,
+                      enableFilter: true,
+                      menuHeight: 250,
                       initialSelection: state.selectedAccountId,
                       label: const Text('Staff'),
                       inputDecorationTheme: _topDropdownDecorationTheme,

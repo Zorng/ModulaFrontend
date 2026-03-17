@@ -11,7 +11,6 @@ import 'package:modular_pos/features/staff/ui/viewmodels/staff_shift_controller.
 
 class StaffShiftTabPage extends ConsumerStatefulWidget {
   const StaffShiftTabPage({super.key});
-
   @override
   ConsumerState<StaffShiftTabPage> createState() => _StaffShiftTabPageState();
 }
@@ -23,22 +22,12 @@ class _StaffShiftTabPageState extends ConsumerState<StaffShiftTabPage>
   static const double _dialogMaxWidth = 600;
   static const double _rangeModalMaxWidth = 560;
   static const double _rangeModalMaxHeight = 680;
-  static const double _topControlHeight = 56;
+  // static const double _topControlHeight = 56;
 
   static const MenuStyle _whiteDropdownMenuStyle = MenuStyle(
     backgroundColor: WidgetStatePropertyAll<Color>(Colors.white),
     surfaceTintColor: WidgetStatePropertyAll<Color>(Colors.white),
   );
-
-  static const InputDecorationTheme _topDropdownDecorationTheme =
-      InputDecorationTheme(
-        hintStyle: TextStyle(fontSize: 14),
-        constraints: BoxConstraints(
-          minHeight: _topControlHeight,
-          maxHeight: _topControlHeight,
-        ),
-        border: OutlineInputBorder(),
-      );
 
   @override
   void initState() {
@@ -169,6 +158,192 @@ class _StaffShiftTabPageState extends ConsumerState<StaffShiftTabPage>
     );
   }
 
+  Future<void> _openFiltersDialog(
+    BuildContext context,
+    WidgetRef ref,
+    StaffShiftState state,
+  ) async {
+    final controller = ref.read(staffShiftControllerProvider.notifier);
+
+    String? draftBranchId = state.selectedBranchId;
+    String? draftMembershipId = state.selectedMembershipId;
+    DateTimeRange draftDateRange = state.dateRange;
+
+    await showDialog<void>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          constraints: const BoxConstraints(maxWidth: _dialogMaxWidth),
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 24,
+          ),
+          backgroundColor: Colors.white,
+          title: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              const Text('Filters'),
+              TextButton(
+                onPressed: () => setDialogState(() {
+                  draftMembershipId = null;
+                }),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  minimumSize: const Size(0, 32),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: const Text('Clear filter'),
+              ),
+            ],
+          ),
+          content: _buildDialogContent(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final fieldWidth = constraints.maxWidth;
+                final rangeLabelStart = _fmtDate(draftDateRange.start);
+                final rangeLabelEnd = _fmtDate(draftDateRange.end);
+                return SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // ── Date range ──────────────────────────────────
+                      SizedBox(
+                        width: fieldWidth,
+                        child: InkWell(
+                          onTap: () async {
+                            final picked = await _showSelectRangeModal(
+                              context,
+                              draftDateRange,
+                            );
+                            if (picked != null) {
+                              setDialogState(() => draftDateRange = picked);
+                            }
+                          },
+                          borderRadius: BorderRadius.circular(12),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 12,
+                            ),
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Colors.grey.shade300),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.date_range_outlined,
+                                  size: 20,
+                                  color: Colors.grey.shade700,
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Date range',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
+                                            ?.copyWith(
+                                              color: Colors.grey.shade600,
+                                            ),
+                                      ),
+                                      Text(
+                                        '$rangeLabelStart – $rangeLabelEnd',
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.bodyMedium,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Icon(
+                                  Icons.chevron_right,
+                                  color: Colors.grey.shade400,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      // ── Branch ──────────────────────────────────────
+                      DropdownMenu<String?>(
+                        key: ValueKey('filter_branch_$draftBranchId'),
+                        width: fieldWidth,
+                        requestFocusOnTap: true,
+                        enableFilter: true,
+                        menuHeight: 220,
+                        initialSelection: draftBranchId,
+                        label: const Text('Branch'),
+                        leadingIcon: const Icon(Icons.store_outlined),
+                        menuStyle: _whiteDropdownMenuStyle,
+                        onSelected: (v) =>
+                            setDialogState(() => draftBranchId = v),
+                        dropdownMenuEntries: [
+                          for (final branch in state.branches)
+                            DropdownMenuEntry<String?>(
+                              value: branch.branchId,
+                              label: branch.branchName,
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      // ── Staff ────────────────────────────────────────
+                      DropdownMenu<String?>(
+                        key: ValueKey('filter_staff_$draftMembershipId'),
+                        width: fieldWidth,
+                        requestFocusOnTap: true,
+                        enableFilter: true,
+                        menuHeight: 220,
+                        initialSelection: draftMembershipId,
+                        label: const Text('Staff'),
+                        leadingIcon: const Icon(Icons.person_outline),
+                        menuStyle: _whiteDropdownMenuStyle,
+                        onSelected: (v) =>
+                            setDialogState(() => draftMembershipId = v),
+                        dropdownMenuEntries: [
+                          const DropdownMenuEntry<String?>(
+                            value: null,
+                            label: 'All staff',
+                          ),
+                          for (final m in state.memberships)
+                            DropdownMenuEntry<String?>(
+                              value: m.membershipId,
+                              label: m.displayName,
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+          actions: [
+            _buildDialogActions(
+              context: context,
+              confirmLabel: 'Apply',
+              onConfirm: () async {
+                Navigator.of(context).pop();
+                await controller.setFilters(
+                  branchId: draftBranchId,
+                  membershipId: draftMembershipId,
+                  dateRange: draftDateRange,
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final asyncState = ref.watch(staffShiftControllerProvider);
@@ -199,187 +374,79 @@ class _StaffShiftTabPageState extends ConsumerState<StaffShiftTabPage>
             ),
           ),
           data: (state) {
-            final topButtonStyle = FilledButton.styleFrom(
-              minimumSize: const Size(0, _topControlHeight),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            );
+            // final topButtonStyle = FilledButton.styleFrom(
+            //   minimumSize: const Size(0, _topControlHeight),
+            //   shape: RoundedRectangleBorder(
+            //     borderRadius: BorderRadius.circular(10),
+            //   ),
+            // );
 
             final membershipById = {
               for (final membership in state.memberships)
                 membership.membershipId: membership.displayName,
             };
 
-            final addPatternButton = FilledButton.tonalIcon(
-              style: topButtonStyle,
-              onPressed: state.selectedBranchId == null || state.isSaving
-                  ? null
-                  : () => _showPatternDialog(context, ref, state),
-              icon: const Icon(Icons.event_repeat_outlined),
-              label: const Text('Add pattern'),
-            );
-            final addShiftButton = FilledButton.tonalIcon(
-              style: topButtonStyle,
-              onPressed: state.selectedBranchId == null || state.isSaving
-                  ? null
-                  : () => _showInstanceDialog(context, ref, state),
-              icon: const Icon(Icons.event_available_outlined),
-              label: const Text('Add shift'),
-            );
+            // final addPatternButton = FilledButton.tonalIcon(
+            //   style: topButtonStyle,
+            //   onPressed: state.selectedBranchId == null || state.isSaving
+            //       ? null
+            //       : () => _showPatternDialog(context, ref, state),
+            //   icon: const Icon(Icons.event_repeat_outlined),
+            //   label: const Text('Add pattern'),
+            // );
+            // final addShiftButton = FilledButton.tonalIcon(
+            //   style: topButtonStyle,
+            //   onPressed: state.selectedBranchId == null || state.isSaving
+            //       ? null
+            //       : () => _showInstanceDialog(context, ref, state),
+            //   icon: const Icon(Icons.event_available_outlined),
+            //   label: const Text('Add shift'),
+            // );
 
-            final activeAddButton = _isPatternsTab
-                ? addPatternButton
-                : addShiftButton;
+            // final activeAddButton = _isPatternsTab
+            //     ? addPatternButton
+            //     : addShiftButton;
 
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final menuWidth =
-                        (constraints.maxWidth - 16 - _topControlHeight) / 2;
-
-                    final branchMenu = DropdownMenu<String?>(
-                      width: menuWidth,
-                      requestFocusOnTap: false,
-                      initialSelection: state.selectedBranchId,
-                      label: const Text('Branch'),
-                      inputDecorationTheme: _topDropdownDecorationTheme,
-                      menuStyle: _whiteDropdownMenuStyle,
-                      textStyle: const TextStyle(
-                        fontSize: 14,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      onSelected: controller.setBranchId,
-                      dropdownMenuEntries: [
-                        for (final branch in state.branches)
-                          DropdownMenuEntry<String?>(
-                            value: branch.branchId,
-                            label: branch.branchName,
-                            labelWidget: Text(
-                              branch.branchName,
-                              overflow: TextOverflow.ellipsis,
-                              maxLines: 1,
-                            ),
-                          ),
-                      ],
-                    );
-
-                    final staffMenu = DropdownMenu<String?>(
-                      width: menuWidth,
-                      requestFocusOnTap: false,
-                      initialSelection: state.selectedMembershipId,
-                      label: const Text('Staff'),
-                      inputDecorationTheme: _topDropdownDecorationTheme,
-                      menuStyle: _whiteDropdownMenuStyle,
-                      textStyle: const TextStyle(
-                        fontSize: 14,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      onSelected: controller.setMembershipId,
-                      dropdownMenuEntries: [
-                        const DropdownMenuEntry<String?>(
-                          value: null,
-                          label: 'All staff',
-                        ),
-                        ...state.memberships.map(
-                          (membership) => DropdownMenuEntry<String?>(
-                            value: membership.membershipId,
-                            label: membership.displayName,
-                          ),
-                        ),
-                      ],
-                    );
-
-                    final dateRangeBtn = FilledButton.tonalIcon(
-                      style: topButtonStyle,
-                      onPressed: () async {
-                        final picked = await _showSelectRangeModal(
-                          context,
-                          state.dateRange,
-                        );
-                        if (picked != null) {
-                          await controller.setDateRange(picked);
-                        }
-                      },
-                      icon: const Icon(Icons.date_range_outlined),
-                      label: const Text('Date range'),
-                    );
-
-                    final refreshBtn = Tooltip(
-                      message: 'Refresh',
-                      child: IconButton.filledTonal(
-                        onPressed: state.isRefreshing
-                            ? null
-                            : controller.refresh,
-                        style: IconButton.styleFrom(
-                          minimumSize: const Size(
-                            _topControlHeight,
-                            _topControlHeight,
-                          ),
-                          maximumSize: const Size(
-                            _topControlHeight,
-                            _topControlHeight,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                        icon: state.isRefreshing
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
+                // Replace the existing Builder(...) that builds the filter row with:
+                Builder(
+                  builder: (context) {
+                    final selectedBranch = state.branches
+                        .where((b) => b.branchId == state.selectedBranchId)
+                        .firstOrNull;
+                    final selectedMembership =
+                        state.selectedMembershipId == null
+                        ? null
+                        : state.memberships
+                              .where(
+                                (m) =>
+                                    m.membershipId ==
+                                    state.selectedMembershipId,
                               )
-                            : const Icon(Icons.refresh),
-                      ),
-                    );
+                              .firstOrNull;
+                    final dateLabel =
+                        '${_fmtDate(state.dateRange.start)} – ${_fmtDate(state.dateRange.end)}';
 
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(child: dateRangeBtn),
-                            const SizedBox(width: 8),
-                            Expanded(child: activeAddButton),
-                            const SizedBox(width: 8),
-                            refreshBtn,
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                        Row(
-                          children: [
-                            branchMenu,
-                            const SizedBox(width: 8),
-                            staffMenu,
-                            const SizedBox(width: 8),
-                            IconButton(
-                              tooltip: 'Clear filters',
-                              onPressed: state.selectedMembershipId != null
-                                  ? controller.clearFilters
-                                  : null,
-                              style: IconButton.styleFrom(
-                                minimumSize: const Size(
-                                  _topControlHeight,
-                                  _topControlHeight,
-                                ),
-                                maximumSize: const Size(
-                                  _topControlHeight,
-                                  _topControlHeight,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                              ),
-                              icon: const Icon(Icons.filter_alt_off_outlined),
-                            ),
-                          ],
-                        ),
-                      ],
+                    return _FilterBar(
+                      selectedBranchName: selectedBranch?.branchName,
+                      dateLabel: dateLabel,
+                      selectedMembershipName: selectedMembership?.displayName,
+                      isSaving: state.isSaving,
+                      isRefreshing: state.isRefreshing,
+                      isPatternsTab: _isPatternsTab,
+                      onOpenFilters: () =>
+                          _openFiltersDialog(context, ref, state),
+                      onAddPattern:
+                          state.selectedBranchId == null || state.isSaving
+                          ? null
+                          : () => _showPatternDialog(context, ref, state),
+                      onAddShift:
+                          state.selectedBranchId == null || state.isSaving
+                          ? null
+                          : () => _showInstanceDialog(context, ref, state),
+                      onRefresh: state.isRefreshing ? null : controller.refresh,
                     );
                   },
                 ),
@@ -1058,4 +1125,251 @@ class _StaffShiftTabPageState extends ConsumerState<StaffShiftTabPage>
   Widget _buildDialogContent({required Widget child}) {
     return SizedBox(width: double.maxFinite, child: child);
   }
+}
+
+// ── Filter bar ───────────────────────────────────────────────
+
+class _FilterBar extends StatelessWidget {
+  const _FilterBar({
+    required this.dateLabel,
+    required this.isSaving,
+    required this.isRefreshing,
+    required this.isPatternsTab,
+    required this.onOpenFilters,
+    this.selectedBranchName,
+    this.selectedMembershipName,
+    this.onAddPattern,
+    this.onAddShift,
+    this.onRefresh,
+  });
+
+  final String? selectedBranchName;
+  final String dateLabel;
+  final String? selectedMembershipName;
+  final bool isSaving;
+  final bool isRefreshing;
+  final bool isPatternsTab;
+  final VoidCallback onOpenFilters;
+  final VoidCallback? onAddPattern;
+  final VoidCallback? onAddShift;
+  final VoidCallback? onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'Current filter',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: colorScheme.primary,
+              letterSpacing: 0.2,
+            ),
+          ),
+          const SizedBox(height: 6),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isWide = constraints.maxWidth > 600;
+
+              final chipsRow = SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _FilterChipPill(
+                      label: 'Branch: ${selectedBranchName ?? 'All branches'}',
+                    ),
+                    const SizedBox(width: 6),
+                    _FilterChipPill(label: 'Date: $dateLabel'),
+                    const SizedBox(width: 6),
+                    _FilterChipPill(
+                      label:
+                          'Staff: ${selectedMembershipName ?? 'All staff'}',
+                    ),
+                  ],
+                ),
+              );
+
+              final buttonStyle = FilledButton.styleFrom(
+                minimumSize: const Size(0, 36),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              );
+
+              final filterBtn = TextButton(
+                style: TextButton.styleFrom(
+                  foregroundColor: colorScheme.primary,
+                  textStyle: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  minimumSize: const Size(0, 36),
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                ),
+                onPressed: onOpenFilters,
+                child: const Text('Filter'),
+              );
+
+              final addBtn = FilledButton.tonalIcon(
+                style: buttonStyle,
+                onPressed: isPatternsTab ? onAddPattern : onAddShift,
+                icon: Icon(
+                  isPatternsTab
+                      ? Icons.event_repeat_outlined
+                      : Icons.event_available_outlined,
+                  size: 16,
+                ),
+                label: Text(isPatternsTab ? 'Add pattern' : 'Add shift'),
+              );
+
+              final refreshBtn = IconButton.filledTonal(
+                onPressed: onRefresh,
+                style: IconButton.styleFrom(
+                  minimumSize: const Size(36, 36),
+                  maximumSize: const Size(36, 36),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                icon: isRefreshing
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.refresh, size: 18),
+              );
+
+              if (isWide) {
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(child: chipsRow),
+                    const SizedBox(width: 10),
+                    filterBtn,
+                    const SizedBox(width: 6),
+                    addBtn,
+                    const SizedBox(width: 6),
+                    refreshBtn,
+                  ],
+                );
+              }
+
+              // ── Small screen: two full-width rows ────────────────
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Row 1: chips (scrollable) + primary add button
+                  Row(
+                    children: [
+                      Expanded(child: chipsRow),
+                      const SizedBox(width: 8),
+                      addBtn,
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  // Row 2: filter button (left) + refresh (right)
+                  Row(
+                    children: [
+                      filterBtn,
+                      const Spacer(),
+                      refreshBtn,
+                    ],
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Pill-style filter chip ─────────────────────────────────────────────────
+
+class _FilterChipPill extends StatelessWidget {
+  const _FilterChipPill({required this.label, this.onDeleted});
+
+  final String label;
+  final VoidCallback? onDeleted;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.only(
+        left: 10,
+        right: onDeleted != null ? 6 : 10,
+        top: 6,
+        bottom: 6,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+          ),
+          if (onDeleted != null) ...[
+            const SizedBox(width: 4),
+            GestureDetector(
+              onTap: onDeleted,
+              child: Icon(
+                Icons.close_rounded,
+                size: 14,
+                color: Colors.grey.shade600,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+// ── Date format helper ─────────────────────────────────────────────────────
+
+String _fmtDate(DateTime d) {
+  const months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+  return '${months[d.month - 1]} ${d.day}';
 }
