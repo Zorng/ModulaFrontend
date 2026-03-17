@@ -17,6 +17,7 @@ import 'package:modular_pos/features/inventory/ui/view/inventory_stock_items/wid
 import 'package:modular_pos/features/inventory/ui/viewmodels/category_controller.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/inventory_error_mapper.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_controller.dart';
+import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_state.dart';
 import 'package:modular_pos/features/inventory/ui/widgets/inventory_dropdown.dart';
 
 class InventoryStockItemsPage extends ConsumerStatefulWidget {
@@ -55,6 +56,9 @@ class _InventoryStockItemsPageState
   Widget build(BuildContext context) {
     final inventoryState = ref.watch(stockInventoryControllerProvider);
     final categoryState = ref.watch(categoryControllerProvider);
+    final isLargeScreen = AppBreakpoints.isLarge(
+      MediaQuery.of(context).size.width,
+    );
     final categoryLookup = {
       for (final c in categoryState.categories) c.id: c.name,
     };
@@ -87,117 +91,43 @@ class _InventoryStockItemsPageState
         ..sort((a, b) => a.label.compareTo(b.label)),
     ];
 
+    if (isLargeScreen) {
+      return Scaffold(
+        body: Padding(
+          padding: const EdgeInsets.all(16),
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildFiltersBar(
+                  context: context,
+                  categoryEntries: categoryEntries,
+                ),
+                const SizedBox(height: 16),
+                _buildDesktopBody(
+                  context: context,
+                  inventoryState: inventoryState,
+                  categoryLookup: categoryLookup,
+                  hasActiveFilters: hasActiveFilters,
+                  hasNoStockItems: hasNoStockItems,
+                  compactViewButtonStyle: compactViewButtonStyle,
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final hasNavigationRail = AppBreakpoints.isLarge(
-                  MediaQuery.of(context).size.width,
-                );
-                final availableWidth = constraints.maxWidth;
-                final contentWidth = (availableWidth - 32).clamp(
-                  0.0,
-                  double.infinity,
-                );
-                final desktopFilterWidth = (availableWidth * 0.18).clamp(
-                  180.0,
-                  240.0,
-                );
-                final desktopButtonWidth = 132.0;
-                final compactButtonWidth = contentWidth < 420 ? 108.0 : 120.0;
-                final button = AppAddNewButton(
-                  label: 'Add new',
-                  onPressed: () => context.push(AppRoute.inventoryAddItem.path),
-                );
-
-                final categoryFilter = InventoryDropdown<String>(
-                  initialValue: _categoryFilterId,
-                  entries: categoryEntries,
-                  onSelected: (value) {
-                    setState(() => _categoryFilterId = value ?? 'all');
-                    _reloadStockItems();
-                  },
-                );
-
-                final statusFilter = InventoryDropdown<_ActiveFilter>(
-                  initialValue: _activeFilter,
-                  entries: const [
-                    DropdownMenuEntry(
-                      value: _ActiveFilter.all,
-                      label: 'All statuses',
-                    ),
-                    DropdownMenuEntry(
-                      value: _ActiveFilter.active,
-                      label: 'Active',
-                    ),
-                    DropdownMenuEntry(
-                      value: _ActiveFilter.inactive,
-                      label: 'Archived',
-                    ),
-                  ],
-                  onSelected: (value) {
-                    final selected = value ?? _ActiveFilter.all;
-                    setState(() => _activeFilter = selected);
-                    _reloadStockItems();
-                  },
-                );
-
-                if (hasNavigationRail) {
-                  return Row(
-                    children: [
-                      Expanded(
-                        child: AppSearchBar(
-                          hintText: 'Search by name',
-                          fillColor: Colors.white,
-                          controller: _searchController,
-                          onChanged: _onSearchChanged,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      SizedBox(
-                        width: desktopFilterWidth,
-                        child: categoryFilter,
-                      ),
-                      const SizedBox(width: 12),
-                      SizedBox(width: desktopFilterWidth, child: statusFilter),
-                      const SizedBox(width: 12),
-                      SizedBox(width: desktopButtonWidth, child: button),
-                    ],
-                  );
-                }
-
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: AppSearchBar(
-                            hintText: 'Search by name',
-                            fillColor: Colors.white,
-                            controller: _searchController,
-                            onChanged: _onSearchChanged,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        SizedBox(width: compactButtonWidth, child: button),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(child: statusFilter),
-                        const SizedBox(width: 8),
-                        Expanded(child: categoryFilter),
-                      ],
-                    ),
-                  ],
-                );
-              },
+            _buildFiltersBar(
+              context: context,
+              categoryEntries: categoryEntries,
             ),
             const SizedBox(height: 16),
             Expanded(
@@ -540,6 +470,354 @@ class _InventoryStockItemsPageState
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildFiltersBar({
+    required BuildContext context,
+    required List<DropdownMenuEntry<String>> categoryEntries,
+  }) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final hasNavigationRail = AppBreakpoints.isLarge(
+          MediaQuery.of(context).size.width,
+        );
+        final availableWidth = constraints.maxWidth;
+        final contentWidth = (availableWidth - 32).clamp(0.0, double.infinity);
+        final desktopFilterWidth = (availableWidth * 0.18).clamp(180.0, 240.0);
+        const desktopButtonWidth = 132.0;
+        final compactButtonWidth = contentWidth < 420 ? 108.0 : 120.0;
+        final button = AppAddNewButton(
+          label: 'Add new',
+          onPressed: () => context.push(AppRoute.inventoryAddItem.path),
+        );
+
+        final categoryFilter = InventoryDropdown<String>(
+          initialValue: _categoryFilterId,
+          entries: categoryEntries,
+          onSelected: (value) {
+            setState(() => _categoryFilterId = value ?? 'all');
+            _reloadStockItems();
+          },
+        );
+
+        final statusFilter = InventoryDropdown<_ActiveFilter>(
+          initialValue: _activeFilter,
+          entries: const [
+            DropdownMenuEntry(value: _ActiveFilter.all, label: 'All statuses'),
+            DropdownMenuEntry(value: _ActiveFilter.active, label: 'Active'),
+            DropdownMenuEntry(value: _ActiveFilter.inactive, label: 'Archived'),
+          ],
+          onSelected: (value) {
+            final selected = value ?? _ActiveFilter.all;
+            setState(() => _activeFilter = selected);
+            _reloadStockItems();
+          },
+        );
+
+        if (hasNavigationRail) {
+          return Row(
+            children: [
+              Expanded(
+                child: AppSearchBar(
+                  hintText: 'Search by name',
+                  fillColor: Colors.white,
+                  controller: _searchController,
+                  onChanged: _onSearchChanged,
+                ),
+              ),
+              const SizedBox(width: 12),
+              SizedBox(width: desktopFilterWidth, child: categoryFilter),
+              const SizedBox(width: 12),
+              SizedBox(width: desktopFilterWidth, child: statusFilter),
+              const SizedBox(width: 12),
+              SizedBox(width: desktopButtonWidth, child: button),
+            ],
+          );
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: AppSearchBar(
+                    hintText: 'Search by name',
+                    fillColor: Colors.white,
+                    controller: _searchController,
+                    onChanged: _onSearchChanged,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                SizedBox(width: compactButtonWidth, child: button),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(child: statusFilter),
+                const SizedBox(width: 8),
+                Expanded(child: categoryFilter),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildDesktopBody({
+    required BuildContext context,
+    required StockInventoryState inventoryState,
+    required Map<String, String> categoryLookup,
+    required bool hasActiveFilters,
+    required bool hasNoStockItems,
+    required ButtonStyle compactViewButtonStyle,
+  }) {
+    if (inventoryState.isLoading) {
+      return const SizedBox(
+        width: double.infinity,
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: 96),
+          child: Center(child: CircularProgressIndicator()),
+        ),
+      );
+    }
+
+    if (inventoryState.error != null) {
+      return SizedBox(
+        width: double.infinity,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 96, horizontal: 16),
+          child: Center(
+            child: Text(
+              UserErrorMessage.build(
+                context: 'Failed to load stock items',
+                error: inventoryState.error,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (hasNoStockItems) {
+      return SizedBox(
+        width: double.infinity,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 64),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 520),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.inventory_2_outlined,
+                      size: 48,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      hasActiveFilters
+                          ? 'No stock items match your filters'
+                          : 'No stock items yet',
+                      style: Theme.of(context).textTheme.titleLarge,
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      hasActiveFilters
+                          ? 'Try a different category, status, or search term.'
+                          : 'Create your first stock item to start managing inventory.',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(context).hintColor,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final tableContentWidth = constraints.maxWidth < 980
+            ? 980.0
+            : constraints.maxWidth;
+        final items = inventoryState.stockItems;
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: SizedBox(
+            width: tableContentWidth,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(
+                  decoration: BoxDecoration(
+                    color: AppTableTheme.background,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppTableTheme.divider),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(1),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(11),
+                      child: DataTable(
+                        dataRowMinHeight: 60,
+                        dataRowMaxHeight: 70,
+                        headingRowColor: WidgetStateProperty.all(
+                          AppTableTheme.headerBackground,
+                        ),
+                        dataRowColor: const WidgetStatePropertyAll(
+                          AppTableTheme.background,
+                        ),
+                        dividerThickness: 1,
+                        border: const TableBorder(
+                          horizontalInside: BorderSide(
+                            color: AppTableTheme.divider,
+                          ),
+                        ),
+                        columns: const [
+                          DataColumn(
+                            label: Text('No.', style: AppTableTheme.headerText),
+                          ),
+                          DataColumn(
+                            label: Text(
+                              'Item',
+                              style: AppTableTheme.headerText,
+                            ),
+                          ),
+                          DataColumn(
+                            label: Text(
+                              'Category',
+                              style: AppTableTheme.headerText,
+                            ),
+                          ),
+                          DataColumn(
+                            label: Text(
+                              'Threshold',
+                              style: AppTableTheme.headerText,
+                            ),
+                          ),
+                          DataColumn(
+                            label: Text(
+                              'Action',
+                              style: AppTableTheme.headerText,
+                            ),
+                          ),
+                        ],
+                        rows: List<DataRow>.generate(items.length, (index) {
+                          final item = items[index];
+
+                          return DataRow(
+                            cells: [
+                              DataCell(
+                                Text(
+                                  '${inventoryState.stockItemsVisibleRangeStart + index}',
+                                  style: AppTableTheme.cellText,
+                                ),
+                              ),
+                              DataCell(
+                                SizedBox(
+                                  width: 280,
+                                  child: Row(
+                                    children: [
+                                      StockItemImage(imageUrl: item.imageUrl),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Text(
+                                          item.name,
+                                          style: Theme.of(
+                                            context,
+                                          ).textTheme.bodyMedium,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              DataCell(
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 6,
+                                  ),
+                                  decoration:
+                                      AppTableTheme.categoryPillDecoration,
+                                  child: Text(
+                                    categoryLabel(item, categoryLookup),
+                                    style: AppTableTheme.categoryPillText,
+                                  ),
+                                ),
+                              ),
+                              DataCell(
+                                Text(
+                                  '${item.minThreshold} ${item.baseUnit}',
+                                  style: AppTableTheme.cellText,
+                                ),
+                              ),
+                              DataCell(
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: [
+                                    ElevatedButton(
+                                      style: compactViewButtonStyle,
+                                      onPressed: () => context.push(
+                                        AppRoute.inventoryStockDetail.path,
+                                        extra: item,
+                                      ),
+                                      child: const Text('View'),
+                                    ),
+                                    if (!item.isActive)
+                                      OutlinedButton.icon(
+                                        onPressed: () => _restoreItem(item),
+                                        icon: const Icon(
+                                          Icons.restore_outlined,
+                                          size: 18,
+                                        ),
+                                        label: const Text('Restore'),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          );
+                        }),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                AppPaginationBar(
+                  rangeLabel:
+                      'Showing ${inventoryState.stockItemsVisibleRangeStart}-${inventoryState.stockItemsVisibleRangeEnd} entries',
+                  currentPage: inventoryState.stockItemsCurrentPage,
+                  totalPages: inventoryState.stockItemsTotalPages,
+                  canGoPrevious: inventoryState.hasPreviousStockItemsPage,
+                  canGoNext: inventoryState.hasNextStockItemsPage,
+                  isLoading: inventoryState.isStockItemsPageLoading,
+                  onPageSelected: _goToStockItemsPage,
+                  onPrevious: _goToPreviousStockItemsPage,
+                  onNext: _goToNextStockItemsPage,
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
