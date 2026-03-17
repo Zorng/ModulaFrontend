@@ -86,6 +86,9 @@ class MockMenuRepository extends MenuRepository {
   Future<void> archiveCategory(String categoryId) async {}
 
   @override
+  Future<void> restoreCategory(String categoryId) async {}
+
+  @override
   Future<ModifierGroup> createModifierGroup(ModifierGroup group) async {
     if (group.id.isNotEmpty) return group;
     return group.copyWith(id: 'mock-modifier-group-id');

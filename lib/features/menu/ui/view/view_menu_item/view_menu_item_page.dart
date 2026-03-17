@@ -132,7 +132,7 @@ class ViewMenuItemPage extends ConsumerWidget {
             Text(categoryName, style: Theme.of(context).textTheme.bodyMedium),
             const SizedBox(height: 16),
             Text(
-              '\$${latestItem.price.toStringAsFixed(2)}',
+              '\$ ${latestItem.price.toStringAsFixed(2)}',
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                 color: Theme.of(context).primaryColor,
               ),

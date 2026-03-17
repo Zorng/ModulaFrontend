@@ -87,6 +87,8 @@ abstract class MenuRepository {
 
   Future<void> archiveCategory(String categoryId);
 
+  Future<void> restoreCategory(String categoryId);
+
   Future<void> deleteCategory(String categoryId) {
     return archiveCategory(categoryId);
   }

@@ -161,6 +161,9 @@ DateTime? _asDateTime(dynamic value) {
 
 String _normalizeStatus(String? value, {required bool fallbackIsActive}) {
   final raw = (value ?? '').trim().toUpperCase();
-  if (raw == 'ACTIVE' || raw == 'ARCHIVED') return raw;
+  if (raw == 'ACTIVE') return raw;
+  if (raw == 'ARCHIVED' || raw == 'ARCHIVE' || raw == 'INACTIVE') {
+    return 'ARCHIVED';
+  }
   return fallbackIsActive ? 'ACTIVE' : 'ARCHIVED';
 }

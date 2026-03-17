@@ -271,10 +271,23 @@ void main() {
           ),
         ),
       );
+      when(
+        () => dio.post<void>(
+          '/v0/menu/categories/cat-1/restore',
+          options: any(named: 'options'),
+        ),
+      ).thenAnswer(
+        (_) async => Response<void>(
+          requestOptions: RequestOptions(
+            path: '/v0/menu/categories/cat-1/restore',
+          ),
+        ),
+      );
 
       await api.createCategory({'name': 'Coffee'});
       await api.updateCategory({'id': 'cat-1', 'name': 'Coffee & Tea'});
       await api.deleteCategory('cat-1');
+      await api.restoreCategory('cat-1');
 
       final createOptions =
           verify(
@@ -302,6 +315,14 @@ void main() {
                 ),
               ).captured.single
               as Options;
+      final restoreOptions =
+          verify(
+                () => dio.post<void>(
+                  '/v0/menu/categories/cat-1/restore',
+                  options: captureAny(named: 'options'),
+                ),
+              ).captured.single
+              as Options;
 
       expect(
         _idempotencyRequest(createOptions).actionKey,
@@ -318,6 +339,10 @@ void main() {
       expect(
         _idempotencyRequest(archiveOptions).actionKey,
         'menu.categories.archive',
+      );
+      expect(
+        _idempotencyRequest(restoreOptions).actionKey,
+        'menu.categories.restore',
       );
     });
 

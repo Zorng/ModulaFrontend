@@ -9,6 +9,7 @@ import 'package:modular_pos/features/menu/data/dto/modifier_group_dto.dart';
 import 'package:modular_pos/features/menu/data/menu_api.dart';
 import 'package:modular_pos/features/menu/data/menu_repository.dart';
 import 'package:modular_pos/features/menu/data/remote_menu_repository.dart';
+import 'package:modular_pos/features/menu/domain/models/menu_category.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_composition.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
@@ -24,6 +25,63 @@ void main() {
   });
 
   group('RemoteMenuRepository', () {
+    test('fetchCategoriesOnly filters active and archived categories', () async {
+      final api = _MockMenuApi();
+      final repository = RemoteMenuRepository(api);
+
+      when(
+        () => api.fetchCategories(status: any(named: 'status')),
+      ).thenAnswer(
+        (_) async => const [
+          MenuCategoryDto(
+            id: 'cat-active-1',
+            tenantId: 'tenant-1',
+            name: 'Coffee',
+            status: 'ACTIVE',
+            description: '',
+            isActive: true,
+            displayOrder: 1,
+            createdAt: null,
+            updatedAt: null,
+          ),
+          MenuCategoryDto(
+            id: 'cat-active-2',
+            tenantId: 'tenant-1',
+            name: 'Tea',
+            status: 'ACTIVE',
+            description: '',
+            isActive: true,
+            displayOrder: 2,
+            createdAt: null,
+            updatedAt: null,
+          ),
+          MenuCategoryDto(
+            id: 'cat-archived-1',
+            tenantId: 'tenant-1',
+            name: 'Legacy',
+            status: 'ARCHIVED',
+            description: '',
+            isActive: false,
+            displayOrder: 3,
+            createdAt: null,
+            updatedAt: null,
+          ),
+        ],
+      );
+
+      final active = await repository.fetchCategoriesOnly(status: 'active');
+      final archived = await repository.fetchCategoriesOnly(status: 'archived');
+
+      expect(
+        active.map((c) => c.id).toList(),
+        ['cat-active-1', 'cat-active-2'],
+      );
+      expect(archived.map((c) => c.id).toList(), ['cat-archived-1']);
+
+      verify(() => api.fetchCategories(status: 'active')).called(1);
+      verify(() => api.fetchCategories(status: 'archived')).called(1);
+    });
+
     test(
       'fetchMenuData management lane applies status filter with no read fallback',
       () async {
@@ -222,6 +280,44 @@ void main() {
         );
       },
     );
+
+    test('updateCategory includes status for restore/archive flows', () async {
+      final api = _MockMenuApi();
+      final repository = RemoteMenuRepository(api);
+
+      when(() => api.updateCategory(any())).thenAnswer(
+        (_) async => const MenuCategoryDto(
+          id: 'cat-1',
+          tenantId: 'tenant-1',
+          name: 'Coffee',
+          status: 'ACTIVE',
+          description: 'Hot drinks',
+          isActive: true,
+          displayOrder: 1,
+          createdAt: null,
+          updatedAt: null,
+        ),
+      );
+
+      await repository.updateCategory(
+        const MenuCategory(
+          id: 'cat-1',
+          tenantId: 'tenant-1',
+          name: 'Coffee',
+          status: 'ACTIVE',
+          description: 'Hot drinks',
+        ),
+      );
+
+      final payload =
+          verify(() => api.updateCategory(captureAny())).captured.single
+              as Map<String, dynamic>;
+
+      expect(payload['id'], 'cat-1');
+      expect(payload['name'], 'Coffee');
+      expect(payload['description'], 'Hot drinks');
+      expect(payload['status'], 'ACTIVE');
+    });
 
     test(
       'createMenuItem preserves requested visibility and modifier ids',

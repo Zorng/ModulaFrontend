@@ -42,6 +42,21 @@ class _MenuPageState extends ConsumerState<MenuPage> {
             DropdownMenuEntry<String>(value: branch.id, label: branch.name),
       ),
     ];
+    const statusOptions = <DropdownMenuEntry<String>>[
+      DropdownMenuEntry<String>(value: 'active', label: 'Active'),
+      DropdownMenuEntry<String>(value: 'archived', label: 'Archived'),
+    ];
+    final selectedCategoryName = categories
+        .firstWhere(
+          (category) => category.id == menuState.selectedCategoryId,
+          orElse: () => categories.first,
+        )
+        .name;
+    final emptyMessage =
+        menuState.selectedStatus == 'archived' &&
+            menuState.selectedCategoryId != 'all'
+        ? 'No archived menu items found in $selectedCategoryName.'
+        : 'No menu items match your filters.';
 
     return Scaffold(
       body: Padding(
@@ -55,6 +70,9 @@ class _MenuPageState extends ConsumerState<MenuPage> {
               branchOptions: branchOptions,
               selectedBranchId: menuState.selectedBranchId,
               onBranchSelected: notifier.filterByBranch,
+              statusOptions: statusOptions,
+              selectedStatus: menuState.selectedStatus,
+              onStatusSelected: notifier.filterByStatus,
               onSearchChanged: notifier.searchItems,
               onAddPressed: () async {
                 final result = await context.push<MenuItem>(
@@ -72,6 +90,7 @@ class _MenuPageState extends ConsumerState<MenuPage> {
                 items: items,
                 categories: menuState.categories,
                 branches: menuState.branches,
+                emptyMessage: emptyMessage,
                 onItemTap: (item) => _openItemDetail(context, item),
               ),
             ),

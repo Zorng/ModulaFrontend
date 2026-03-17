@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:modular_pos/core/logging/app_log.dart';
 import 'package:modular_pos/features/menu/data/menu_api.dart';
 import 'package:modular_pos/features/menu/data/dto/menu_composition_dto.dart';
@@ -38,7 +39,9 @@ class RemoteMenuRepository extends MenuRepository {
         : status.trim().toLowerCase();
 
     // Fetch pieces separately to avoid snapshot staleness.
-    final categoriesFuture = _api.fetchCategories(status: normalizedStatus);
+    final categoriesFuture = Future.wait([
+      _api.fetchCategories(status: 'active'),
+    ]);
     final modifiersFuture = _api.fetchModifierGroups(status: normalizedStatus);
     final itemsFuture = _api.fetchMenuItems(
       includeAllBranches: includeAllBranches,
@@ -49,16 +52,15 @@ class RemoteMenuRepository extends MenuRepository {
       offset: offset,
       branchId: includeAllBranches ? branchIdFilter : null,
     );
-    final categoriesRaw = await categoriesFuture;
+    final categoriesRawGroups = await categoriesFuture;
     final modifiersRaw = await modifiersFuture;
     final itemsRaw = await itemsFuture;
+    final categoriesRaw = categoriesRawGroups
+        .expand((group) => group)
+        .toList(growable: false);
 
     final branches = branchesRaw
         .map(MenuMappers.toBranch)
-        .toList(growable: false);
-    final categories = categoriesRaw
-        .where((dto) => _matchesRequestedStatus(dto.status, normalizedStatus))
-        .map(MenuMappers.toCategory)
         .toList(growable: false);
     final modifierGroups = modifiersRaw
         .where((dto) => _matchesRequestedStatus(dto.status, normalizedStatus))
@@ -67,6 +69,14 @@ class RemoteMenuRepository extends MenuRepository {
     final items = itemsRaw
         .where((dto) => _matchesRequestedStatus(dto.status, normalizedStatus))
         .map(MenuMappers.toItem)
+        .toList(growable: false);
+    final categories = categoriesRaw
+        .map(MenuMappers.toCategory)
+        .fold<Map<String, MenuCategory>>({}, (acc, category) {
+          acc.putIfAbsent(category.id, () => category);
+          return acc;
+        })
+        .values
         .toList(growable: false);
 
     return MenuDataBundle(
@@ -79,8 +89,13 @@ class RemoteMenuRepository extends MenuRepository {
 
   @override
   Future<List<MenuCategory>> fetchCategoriesOnly({String? status}) async {
-    final categoriesRaw = await _api.fetchCategories(status: status);
-    return categoriesRaw.map(MenuMappers.toCategory).toList(growable: false);
+    final requestedStatus = (status ?? '').trim().toLowerCase();
+    final normalizedStatus = requestedStatus.isEmpty ? 'active' : requestedStatus;
+    final categoriesRaw = await _api.fetchCategories(status: normalizedStatus);
+    return categoriesRaw
+        .where((dto) => _matchesRequestedStatus(dto.status, normalizedStatus))
+        .map(MenuMappers.toCategory)
+        .toList(growable: false);
   }
 
   @override
@@ -166,14 +181,23 @@ class RemoteMenuRepository extends MenuRepository {
 
   @override
   Future<MenuCategory> createCategory(MenuCategory category) async {
-    final payload = {'name': category.name};
+    final payload = {
+      'name': category.name,
+      'description': category.description,
+      'status': category.status,
+    };
     final dto = await _api.createCategory(payload);
     return MenuMappers.toCategory(dto);
   }
 
   @override
   Future<MenuCategory> updateCategory(MenuCategory category) async {
-    final payload = {'id': category.id, 'name': category.name};
+    final payload = {
+      'id': category.id,
+      'name': category.name,
+      'description': category.description,
+      'status': category.status,
+    };
     final dto = await _api.updateCategory(payload);
     return MenuMappers.toCategory(dto);
   }
@@ -181,6 +205,11 @@ class RemoteMenuRepository extends MenuRepository {
   @override
   Future<void> archiveCategory(String categoryId) async {
     await _api.deleteCategory(categoryId);
+  }
+
+  @override
+  Future<void> restoreCategory(String categoryId) async {
+    await _api.restoreCategory(categoryId);
   }
 
   @override
@@ -343,7 +372,7 @@ class RemoteMenuRepository extends MenuRepository {
     MenuItem? previous,
   }) async {
     final dto = await _api.updateMenuItem(
-      _menuItemPayload(item),
+      _menuItemPayload(item, previous: previous),
       imagePath: imagePath,
       imageBytes: imageBytes,
     );
@@ -401,27 +430,61 @@ class RemoteMenuRepository extends MenuRepository {
     );
   }
 
-  Map<String, dynamic> _menuItemPayload(MenuItem item) {
+  Map<String, dynamic> _menuItemPayload(MenuItem item, {MenuItem? previous}) {
     final visibleBranchIds = item.visibleBranchIds.isNotEmpty
         ? item.visibleBranchIds
         : item.branchIds;
-    return {
+    if (previous == null) {
+      return {
+        'id': item.id.isEmpty ? null : item.id,
+        'name': item.name,
+        'basePrice': item.basePrice,
+        'status': item.status,
+        'categoryId': item.categoryId.isEmpty ? null : item.categoryId,
+        'imageUrl': item.imageUrl,
+        'modifierGroupIds': item.modifierGroupIds,
+        'visibleBranchIds': visibleBranchIds,
+      };
+    }
+
+    final payload = <String, dynamic>{
       'id': item.id.isEmpty ? null : item.id,
-      'name': item.name,
-      'basePrice': item.basePrice,
-      'categoryId': item.categoryId.isEmpty ? null : item.categoryId,
-      'imageUrl': item.imageUrl,
-      'modifierGroupIds': item.modifierGroupIds,
-      'visibleBranchIds': visibleBranchIds,
     };
+    if (item.name != previous.name) {
+      payload['name'] = item.name;
+    }
+    if (item.basePrice != previous.basePrice) {
+      payload['basePrice'] = item.basePrice;
+    }
+    if (item.status != previous.status) {
+      payload['status'] = item.status;
+    }
+    if (item.categoryId != previous.categoryId) {
+      payload['categoryId'] = item.categoryId.isEmpty ? null : item.categoryId;
+    }
+    if (item.imageUrl != previous.imageUrl) {
+      payload['imageUrl'] = item.imageUrl;
+    }
+    if (!listEquals(item.modifierGroupIds, previous.modifierGroupIds)) {
+      payload['modifierGroupIds'] = item.modifierGroupIds;
+    }
+    if (!listEquals(visibleBranchIds, previous.visibleBranchIds)) {
+      payload['visibleBranchIds'] = visibleBranchIds;
+    }
+    return payload;
   }
 
   bool _matchesRequestedStatus(String status, String requestedStatus) {
+    final normalizedStatus = status.trim().toUpperCase();
+    final isArchived =
+        normalizedStatus == 'ARCHIVED' ||
+        normalizedStatus == 'ARCHIVE' ||
+        normalizedStatus == 'INACTIVE';
     switch (requestedStatus.trim().toLowerCase()) {
       case 'active':
-        return status.trim().toUpperCase() == 'ACTIVE';
+        return !isArchived;
       case 'archived':
-        return status.trim().toUpperCase() == 'ARCHIVED';
+        return isArchived;
       case 'all':
         return true;
       default:

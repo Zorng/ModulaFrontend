@@ -5,27 +5,20 @@ class MenuFormFieldLabel extends StatelessWidget {
     super.key,
     required this.text,
     this.isRequired = false,
+    this.isOptional = false,
   });
 
   final String text;
   final bool isRequired;
+  final bool isOptional;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
-      child: RichText(
-        text: TextSpan(
-          text: text,
-          style: Theme.of(context).textTheme.titleSmall,
-          children: [
-            if (isRequired)
-              const TextSpan(
-                text: ' *',
-                style: TextStyle(color: Colors.red),
-              ),
-          ],
-        ),
+      child: Text(
+        isOptional ? '$text (Optional)' : text,
+        style: Theme.of(context).textTheme.titleSmall,
       ),
     );
   }

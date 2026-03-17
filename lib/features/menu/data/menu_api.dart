@@ -107,6 +107,11 @@ class MenuApi {
     final normalizedStatus = status.trim().isEmpty
         ? 'active'
         : status.trim().toLowerCase();
+    final requestStatus = switch (normalizedStatus) {
+      'active' => 'ACTIVE',
+      'archived' => 'ARCHIVED',
+      _ => normalizedStatus,
+    };
     final path = includeAllBranches
         ? '$_menuPrefix/items/all'
         : '$_menuPrefix/items';
@@ -114,7 +119,7 @@ class MenuApi {
     final normalizedSearch = search?.trim();
     final normalizedBranchId = branchId?.trim();
     final query = <String, dynamic>{
-      'status': normalizedStatus,
+      'status': requestStatus,
       if (normalizedCategoryId != null) 'categoryId': normalizedCategoryId,
       if (normalizedSearch != null && normalizedSearch.isNotEmpty)
         'search': normalizedSearch,
@@ -243,6 +248,21 @@ class MenuApi {
         '$_menuPrefix/categories/$categoryId/archive',
         options: _writeOptions(
           actionKey: 'menu.categories.archive',
+          payload: {'categoryId': categoryId},
+        ),
+      );
+    } on DioError catch (error) {
+      throw MenuApiException.fromDio(error);
+    }
+  }
+
+  Future<void> restoreCategory(String categoryId) async {
+    final dio = _requireDio();
+    try {
+      await dio.post<void>(
+        '$_menuPrefix/categories/$categoryId/restore',
+        options: _writeOptions(
+          actionKey: 'menu.categories.restore',
           payload: {'categoryId': categoryId},
         ),
       );
@@ -430,6 +450,7 @@ class MenuApi {
         payload,
         imagePath: imagePath,
         imageBytes: imageBytes,
+        isPatch: true,
       );
       final response = await dio.patch<Map<String, dynamic>>(
         '$_menuPrefix/items/$itemId',
@@ -557,23 +578,43 @@ class MenuApi {
     Map<String, dynamic> payload, {
     String? imagePath,
     List<int>? imageBytes,
+    bool isPatch = false,
   }) async {
     final body = Map<String, dynamic>.from(payload)
       ..remove('id')
       ..removeWhere((key, value) => value == null);
 
-    final normalized = <String, dynamic>{
-      'name': body['name']?.toString() ?? '',
-      'basePrice': _asDouble(
+    final normalized = <String, dynamic>{};
+    if (!isPatch || body.containsKey('name')) {
+      normalized['name'] = body['name']?.toString() ?? '';
+    }
+    if (!isPatch ||
+        body.containsKey('basePrice') ||
+        body.containsKey('priceUsd') ||
+        body.containsKey('price')) {
+      normalized['basePrice'] = _asDouble(
         body['basePrice'] ?? body['priceUsd'] ?? body['price'],
-      ),
-      'categoryId': _nullableCategoryId(body['categoryId']),
-      'modifierGroupIds': _asStringList(body['modifierGroupIds']),
-      'visibleBranchIds': _asStringList(
+      );
+    }
+    if (!isPatch || body.containsKey('status')) {
+      normalized['status'] = _normalizeMenuItemStatus(body['status']?.toString());
+    }
+    if (!isPatch || body.containsKey('categoryId')) {
+      normalized['categoryId'] = _nullableCategoryId(body['categoryId']);
+    }
+    if (!isPatch || body.containsKey('modifierGroupIds')) {
+      normalized['modifierGroupIds'] = _asStringList(body['modifierGroupIds']);
+    }
+    if (!isPatch ||
+        body.containsKey('visibleBranchIds') ||
+        body.containsKey('branchIds')) {
+      normalized['visibleBranchIds'] = _asStringList(
         body['visibleBranchIds'] ?? body['branchIds'],
-      ),
-      'imageUrl': body['imageUrl']?.toString(),
-    };
+      );
+    }
+    if (!isPatch || body.containsKey('imageUrl')) {
+      normalized['imageUrl'] = body['imageUrl']?.toString();
+    }
 
     if ((imagePath ?? '').trim().isNotEmpty ||
         (imageBytes != null && imageBytes.isNotEmpty)) {
@@ -721,6 +762,14 @@ String _normalizeSelectionMode(String? value) {
   final raw = (value ?? '').trim().toUpperCase();
   if (raw == 'MULTI' || raw == 'MULTIPLE') return 'MULTI';
   return 'SINGLE';
+}
+
+String _normalizeMenuItemStatus(String? value) {
+  final raw = (value ?? '').trim().toUpperCase();
+  if (raw == 'ARCHIVED' || raw == 'ARCHIVE' || raw == 'INACTIVE') {
+    return 'ARCHIVED';
+  }
+  return 'ACTIVE';
 }
 
 String? _errorCodeFrom(dynamic value) {

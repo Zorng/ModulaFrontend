@@ -97,8 +97,6 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
     final categories = state.categories;
     final modifierGroups = state.modifierGroups;
     final branches = state.branches;
-    final isWide = !AppBreakpoints.isSmall(MediaQuery.of(context).size.width);
-
     if (!_hasInitializedBranchSelection &&
         _selectedBranchIds.isEmpty &&
         branches.isNotEmpty) {
@@ -124,16 +122,6 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
         surfaceTintColor: Colors.white,
         centerTitle: false,
         title: Text(_title),
-        actions: [
-          if (isView)
-            _ViewActionBar(
-              isWide: isWide,
-              isActive: _isActive,
-              isBusy: _isSaving,
-              onEdit: () => setState(() => _mode = _MenuItemFormMode.edit),
-              onToggleActive: _toggleActiveState,
-            ),
-        ],
       ),
       body: Form(
         key: _formKey,
@@ -285,21 +273,19 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
                 ],
               ),
             ),
-            if (isEditing)
+            if (!isCreate)
               _SectionSpacer(
-                child: Card(
-                  color: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: _MenuActionRow(
-                      isSaving: _isSaving,
-                      isCreate: isCreate,
-                      onCancel: _handleCancel,
-                      onSave: _save,
-                    ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: _MenuActionRow(
+                    isView: isView,
+                    isActive: _isActive,
+                    isSaving: _isSaving,
+                    isCreate: isCreate,
+                    onCancel: _handleCancel,
+                    onSave: _save,
+                    onEdit: () => setState(() => _mode = _MenuItemFormMode.edit),
+                    onToggleActive: _toggleActiveState,
                   ),
                 ),
               ),
@@ -342,7 +328,20 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
           controller: _priceController,
           readOnly: !isEditing,
           enabled: isEditing,
-          decoration: const InputDecoration(hintText: '0.00'),
+          decoration: InputDecoration(
+            hintText: '0.00',
+            prefixIcon: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+              child: Text(
+                '\$',
+                style: Theme.of(context).textTheme.bodyLarge,
+              ),
+            ),
+            prefixIconConstraints: const BoxConstraints(
+              minWidth: 0,
+              minHeight: 0,
+            ),
+          ),
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           inputFormatters: [
             FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
@@ -364,7 +363,7 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const MenuFormFieldLabel(text: 'Category'),
+            const MenuFormFieldLabel(text: 'Category', isOptional: true),
             DropdownMenu<String>(
               width: constraints.maxWidth,
               initialSelection: _selectedCategoryId ?? '',
@@ -395,7 +394,7 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
     );
 
     return [
-      if (isSmallScreen && isCreate) ...[
+      if (isSmallScreen) ...[
         nameField,
         const SizedBox(height: 16),
         priceField,
@@ -547,13 +546,15 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
       }
       if (!mounted) return;
       setState(() => _isActive = !_isActive);
-      ScaffoldMessenger.of(context).showSnackBar(
+      final messenger = ScaffoldMessenger.of(context);
+      messenger.showSnackBar(
         SnackBar(
           content: Text(
             _isActive ? 'Menu item restored' : 'Menu item archived',
           ),
         ),
       );
+      context.pop();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -565,67 +566,39 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
   }
 
   Future<bool> _confirmArchive() async {
+    final cancelStyle = AppTheme.cancelActionButtonStyle;
+    final archiveStyle = FilledButton.styleFrom(
+      backgroundColor: Theme.of(context).colorScheme.primary,
+      foregroundColor: Colors.white,
+    );
     final result = await showDialog<bool>(
       context: context,
-      builder: (context) {
-        return Dialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    IconButton(
-                      tooltip: 'Close',
-                      onPressed: () => Navigator.of(context).pop(false),
-                      icon: const Icon(Icons.close),
-                    ),
-                  ],
-                ),
-                const Icon(
-                  Icons.warning_amber_rounded,
-                  size: 44,
-                  color: Colors.orange,
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'Archive this item?',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Are you sure you want to archive this item? You can restore it later.',
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.of(context).pop(false),
-                        child: const Text('Cancel'),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: FilledButton(
-                        onPressed: () => Navigator.of(context).pop(true),
-                        child: const Text('Archive'),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+      builder: (context) => AlertDialog(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        surfaceTintColor: Theme.of(context).scaffoldBackgroundColor,
+        title: const Text('Archive menu item?'),
+        content: Text(
+          '"${widget.initialItem?.name ?? _nameController.text.trim()}" will be archived and removed from active menu items.',
+        ),
+        actions: [
+          SizedBox(
+            width: 120,
+            child: FilledButton(
+              style: cancelStyle,
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
             ),
           ),
-        );
-      },
+          SizedBox(
+            width: 120,
+            child: FilledButton(
+              style: archiveStyle,
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Archive'),
+            ),
+          ),
+        ],
+      ),
     );
     return result ?? false;
   }
@@ -651,6 +624,7 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
   }
 
   Future<void> _showBranchSelection(List<MenuBranch> branches) async {
+    final useDialog = !AppBreakpoints.isSmall(MediaQuery.of(context).size.width);
     await showCheckboxSelectionSheet<MenuBranch>(
       context: context,
       title: 'Select branches',
@@ -658,6 +632,10 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
       selectedValues: _selectedBranchIds,
       idBuilder: (branch) => branch.id,
       titleBuilder: (branch) => branch.name,
+      useDialog: useDialog,
+      showSelectAllAction: true,
+      selectAllLabel: 'Apply all branches',
+      clearAllLabel: 'Clear all branches',
       onApply: (selection) {
         setState(() {
           _selectedBranchIds
@@ -669,110 +647,6 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
     );
   }
 }
-
-class _ViewActionBar extends StatelessWidget {
-  const _ViewActionBar({
-    required this.isWide,
-    required this.isActive,
-    required this.isBusy,
-    required this.onEdit,
-    required this.onToggleActive,
-  });
-
-  final bool isWide;
-  final bool isActive;
-  final bool isBusy;
-  final VoidCallback onEdit;
-  final VoidCallback onToggleActive;
-
-  @override
-  Widget build(BuildContext context) {
-    if (!isWide) {
-      return PopupMenuButton<_ViewAction>(
-        enabled: !isBusy,
-        onSelected: (value) {
-          if (value == _ViewAction.edit) {
-            onEdit();
-            return;
-          }
-          onToggleActive();
-        },
-        itemBuilder: (context) => [
-          const PopupMenuItem(value: _ViewAction.edit, child: Text('Edit')),
-          PopupMenuItem(
-            value: _ViewAction.toggleActive,
-            child: Text(isActive ? 'Archive' : 'Restore'),
-          ),
-        ],
-      );
-    }
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (isActive)
-            SizedBox(
-              width: 120,
-              child: FilledButton.icon(
-                onPressed: isBusy ? null : onEdit,
-                icon: const Icon(Icons.edit_outlined, size: 18),
-                label: const Text('Edit'),
-              ),
-            )
-          else
-            SizedBox(
-              width: 120,
-              child: FilledButton(
-                onPressed: isBusy ? null : onToggleActive,
-                style: FilledButton.styleFrom(
-                  backgroundColor: Theme.of(context).colorScheme.primary,
-                  foregroundColor: Colors.white,
-                ),
-                child: const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.restore, size: 18),
-                    SizedBox(width: 6),
-                    Text('Restore'),
-                  ],
-                ),
-              ),
-            ),
-          const SizedBox(width: 8),
-          SizedBox(
-            width: 120,
-            child: FilledButton(
-              style: FilledButton.styleFrom(
-                backgroundColor: Theme.of(
-                  context,
-                ).colorScheme.secondaryContainer,
-                foregroundColor: Theme.of(
-                  context,
-                ).colorScheme.onSecondaryContainer,
-              ),
-              onPressed: isBusy ? null : (isActive ? onToggleActive : onEdit),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    isActive ? Icons.archive_outlined : Icons.edit_outlined,
-                    size: 18,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(isActive ? 'Archive' : 'Edit'),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-enum _ViewAction { edit, toggleActive }
 
 class _MenuSectionCard extends StatelessWidget {
   const _MenuSectionCard({
@@ -789,6 +663,8 @@ class _MenuSectionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       color: Colors.white,
+      elevation: 0,
+      shadowColor: Colors.transparent,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -822,16 +698,24 @@ class _SectionSpacer extends StatelessWidget {
 
 class _MenuActionRow extends StatelessWidget {
   const _MenuActionRow({
+    required this.isView,
+    required this.isActive,
     required this.isSaving,
     required this.isCreate,
     required this.onCancel,
     required this.onSave,
+    required this.onEdit,
+    required this.onToggleActive,
   });
 
+  final bool isView;
+  final bool isActive;
   final bool isSaving;
   final bool isCreate;
   final VoidCallback onCancel;
   final VoidCallback onSave;
+  final VoidCallback onEdit;
+  final VoidCallback onToggleActive;
 
   @override
   Widget build(BuildContext context) {
@@ -840,6 +724,42 @@ class _MenuActionRow extends StatelessWidget {
       backgroundColor: Theme.of(context).colorScheme.primary,
       foregroundColor: Colors.white,
     );
+
+    if (isView) {
+      final primaryStyle = FilledButton.styleFrom(
+        backgroundColor: Theme.of(context).colorScheme.primary,
+        foregroundColor: Colors.white,
+      );
+      final whiteActionStyle = AppTheme.cancelActionButtonStyle;
+
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          SizedBox(
+            width: 160,
+            child: FilledButton.icon(
+              style: whiteActionStyle,
+              onPressed: isSaving ? null : onToggleActive,
+              icon: Icon(
+                isActive ? Icons.archive_outlined : Icons.restore,
+                size: 18,
+              ),
+              label: Text(isActive ? 'Archive' : 'Restore'),
+            ),
+          ),
+          const SizedBox(width: 12),
+          SizedBox(
+            width: 140,
+            child: FilledButton.icon(
+              style: primaryStyle,
+              onPressed: isSaving ? null : onEdit,
+              icon: const Icon(Icons.edit_outlined, size: 18),
+              label: const Text('Edit'),
+            ),
+          ),
+        ],
+      );
+    }
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.end,

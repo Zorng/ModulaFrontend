@@ -6,11 +6,12 @@ import 'package:modular_pos/core/feedback/user_error_message.dart';
 import 'package:modular_pos/core/theme/app_table_theme.dart';
 import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/core/widgets/forms/app_search_add_bar.dart';
+import 'package:modular_pos/features/inventory/ui/widgets/inventory_dropdown.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_category.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/features/menu/ui/view/add_category/add_category_page.dart';
 import 'package:modular_pos/features/menu/ui/view/categories_management/widgets/category_tile.dart';
-import 'package:modular_pos/features/menu/ui/view/categories_management/widgets/edit_category_sheet.dart';
+import 'package:modular_pos/features/menu/ui/view/categories_management/widgets/menu_category_action_menu.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
 
 /// A page for managing menu categories.
@@ -25,13 +26,16 @@ class CategoriesManagementPage extends ConsumerStatefulWidget {
 class _CategoriesManagementPageState
     extends ConsumerState<CategoriesManagementPage> {
   final _searchController = TextEditingController();
+  String _selectedStatus = 'active';
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      ref.read(menuViewModelProvider.notifier).refreshCategories();
+      ref.read(menuViewModelProvider.notifier).refreshCategories(
+        status: _selectedStatus,
+      );
     });
   }
 
@@ -45,8 +49,17 @@ class _CategoriesManagementPageState
   Widget build(BuildContext context) {
     final menuState = ref.watch(menuViewModelProvider);
     final isWide = AppBreakpoints.isLarge(MediaQuery.of(context).size.width);
+    const statusOptions = <DropdownMenuEntry<String>>[
+      DropdownMenuEntry<String>(value: 'active', label: 'Active'),
+      DropdownMenuEntry<String>(value: 'archived', label: 'Archived'),
+    ];
     final query = _searchController.text.trim().toLowerCase();
     final categories = menuState.categories.where((category) {
+      final matchesStatus = switch (_selectedStatus) {
+        'archived' => !category.isActive,
+        _ => category.isActive,
+      };
+      if (!matchesStatus) return false;
       if (query.isEmpty) return true;
       return category.name.toLowerCase().contains(query);
     }).toList()..sort((a, b) => a.name.compareTo(b.name));
@@ -65,15 +78,63 @@ class _CategoriesManagementPageState
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            AppSearchAddBar(
-              searchHint: 'Search categories...',
-              searchController: _searchController,
-              onSearchChanged: (_) => setState(() {}),
-              addButtonLabel: 'Add category',
-              onAddPressed: () {
-                _openCreateCategory(context, useDialog: isWide);
-              },
-            ),
+            if (isWide)
+              Row(
+                children: [
+                  Expanded(
+                    child: AppSearchAddBar(
+                      searchHint: 'Search categories...',
+                      searchController: _searchController,
+                      onSearchChanged: (_) => setState(() {}),
+                      middleChild: InventoryDropdown<String>(
+                        initialValue: _selectedStatus,
+                        entries: statusOptions,
+                        onSelected: (value) async {
+                          if (value == null) return;
+                          setState(() => _selectedStatus = value);
+                          await ref
+                              .read(menuViewModelProvider.notifier)
+                              .refreshCategories(status: value);
+                        },
+                      ),
+                      middleMaxWidth: 160,
+                      addButtonLabel: 'Add category',
+                      onAddPressed: () {
+                        _openCreateCategory(context, useDialog: isWide);
+                      },
+                    ),
+                  ),
+                ],
+              )
+            else
+              Column(
+                children: [
+                  AppSearchAddBar(
+                    searchHint: 'Search categories...',
+                    searchController: _searchController,
+                    onSearchChanged: (_) => setState(() {}),
+                    addButtonLabel: 'Add category',
+                    onAddPressed: () {
+                      _openCreateCategory(context, useDialog: isWide);
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: InventoryDropdown<String>(
+                      initialValue: _selectedStatus,
+                      entries: statusOptions,
+                      onSelected: (value) async {
+                        if (value == null) return;
+                        setState(() => _selectedStatus = value);
+                        await ref
+                            .read(menuViewModelProvider.notifier)
+                            .refreshCategories(status: value);
+                      },
+                    ),
+                  ),
+                ],
+              ),
             const SizedBox(height: 16),
             Expanded(
               child: menuState.isLoading
@@ -105,8 +166,7 @@ class _CategoriesManagementPageState
                               return CategoryTile(
                                 category: category,
                                 itemCount: count,
-                                onTap: () =>
-                                    _openCategoryPage(context, category),
+                                onArchived: _reloadActiveFilter,
                               );
                             },
                           );
@@ -168,12 +228,6 @@ class _CategoriesManagementPageState
                                         ),
                                         DataColumn(
                                           label: Text(
-                                            'Status',
-                                            style: AppTableTheme.headerText,
-                                          ),
-                                        ),
-                                        DataColumn(
-                                          label: Text(
                                             'Action',
                                             style: AppTableTheme.headerText,
                                           ),
@@ -183,7 +237,6 @@ class _CategoriesManagementPageState
                                         categories.length,
                                         (index) {
                                           final category = categories[index];
-                                          final isActive = category.isActive;
                                           final count =
                                               itemCountByCategory[category
                                                   .id] ??
@@ -209,39 +262,18 @@ class _CategoriesManagementPageState
                                                 ),
                                               ),
                                               DataCell(
-                                                Container(
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                        horizontal: 12,
-                                                        vertical: 6,
-                                                      ),
-                                                  decoration: isActive
-                                                      ? AppTableTheme
-                                                            .healthyDecoration
-                                                      : AppTableTheme
-                                                            .dangerDecoration,
-                                                  child: Text(
-                                                    isActive
-                                                        ? 'Active'
-                                                        : 'Inactive',
-                                                    style: isActive
-                                                        ? AppTableTheme
-                                                              .healthyText
-                                                        : AppTableTheme
-                                                              .dangerText,
-                                                  ),
-                                                ),
-                                              ),
-                                              DataCell(
                                                 SizedBox(
                                                   width: 96,
                                                   child: ElevatedButton(
                                                     style: AppTableTheme
                                                         .actionButtonStyle,
                                                     onPressed: () =>
-                                                        _openCategoryDialog(
+                                                        MenuCategoryActionMenu.openView(
                                                           context,
                                                           category,
+                                                          useDialog: true,
+                                                          onArchived:
+                                                              _reloadActiveFilter,
                                                         ),
                                                     child: const Text('View'),
                                                   ),
@@ -283,42 +315,25 @@ class _CategoriesManagementPageState
           constraints: const BoxConstraints(maxWidth: 520),
           child: AddCategoryDialogBody(
             showHeader: true,
-            showActionBar: true,
             onClose: () => Navigator.of(dialogContext).pop(),
           ),
         ),
       ),
     );
+    if (!mounted) return;
+    _reloadCurrentFilter();
   }
 
-  Future<void> _openCategoryPage(
-    BuildContext context,
-    MenuCategory category,
-  ) async {
-    await context.push(AppRoute.adminMenuEditCategory.path, extra: category);
-    if (!mounted) return;
-    await ref.read(menuViewModelProvider.notifier).refreshCategories();
+  void _reloadCurrentFilter() {
+    ref
+        .read(menuViewModelProvider.notifier)
+        .refreshCategories(status: _selectedStatus);
   }
 
-  Future<void> _openCategoryDialog(
-    BuildContext context,
-    MenuCategory category, {
-    bool startInEdit = false,
-  }) async {
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) => Dialog(
-        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 520),
-          child: EditCategorySheet(
-            category: category,
-            startInEdit: startInEdit,
-          ),
-        ),
-      ),
-    );
-    if (!mounted) return;
-    await ref.read(menuViewModelProvider.notifier).refreshCategories();
+  void _reloadActiveFilter() {
+    setState(() => _selectedStatus = 'active');
+    ref
+        .read(menuViewModelProvider.notifier)
+        .refreshCategories(status: 'active');
   }
 }
