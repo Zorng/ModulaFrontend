@@ -9,7 +9,11 @@ abstract class PolicyCacheStore {
     required String branchId,
   });
 
-  Future<void> write(BranchPolicy policy);
+  Future<void> write(
+    BranchPolicy policy, {
+    String? syncCursorApplied,
+    DateTime? lastPullAt,
+  });
 
   Future<void> clear({required String tenantId, required String branchId});
 }
@@ -47,7 +51,11 @@ class DriftPolicyCacheStore implements PolicyCacheStore {
   }
 
   @override
-  Future<void> write(BranchPolicy policy) {
+  Future<void> write(
+    BranchPolicy policy, {
+    String? syncCursorApplied,
+    DateTime? lastPullAt,
+  }) {
     return _db
         .into(_db.policyCacheEntries)
         .insertOnConflictUpdate(
@@ -64,8 +72,8 @@ class DriftPolicyCacheStore implements PolicyCacheStore {
             createdAt: policy.createdAt,
             updatedAt: policy.updatedAt,
             cachedAt: DateTime.now(),
-            syncCursorApplied: const Value.absent(),
-            lastPullAt: const Value.absent(),
+            syncCursorApplied: Value(syncCursorApplied),
+            lastPullAt: Value(lastPullAt),
           ),
         );
   }

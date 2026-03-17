@@ -33,7 +33,7 @@ Practical summary:
 - `attendance` cache-first pilot: done
 - `shift` cache-first pilot: done
 - remaining first-wave modules: complete
-- pull-sync orchestrator: not started
+- pull-sync orchestrator: generic foundation done, real consumers rolling out
 - offline queue / replay: not started
 
 ---
@@ -62,6 +62,11 @@ Practical summary:
 | Attendance cache-first | Mixed current-context + records cache | Validated | Analyzer + focused tests passed | `AttendanceCheckPage` and `AttendanceHistoryPage` now read cached state first |
 | Shift cache-first | Normalized schedule cache | Validated | Analyzer + focused tests passed | Admin shift schedule now reads cached filter options and scoped schedule first |
 | Pull-sync orchestrator | Shared `sync/pull` convergence layer | Validated | Analyzer + focused tests passed | Generic foundation landed with device ID, scope-set keying, transport, status, checkpoint-safe advancement, and pluggable consumers |
+| Policy pull consumer | Policy payload application into local cache | Validated | Analyzer + focused tests passed | Parses defensive policy payload shapes, persists sync metadata, and is registered from `main.dart` |
+| Cash session pull consumer | Cash-session snapshot application into local cache | Validated | Analyzer + focused tests passed | Applies defensive session bundles, preserves cached detail lists on partial payloads, clears cache on explicit no-active-session payloads, and is registered from `main.dart` |
+| Menu pull consumer | Branch-context menu bundle application into local cache | Validated | Analyzer + focused tests passed | Hydrates the sale-facing `branchContext` cache for the active branch, preserves existing lists on partial payloads, and is registered from `main.dart` |
+| Attendance pull consumer | Attendance context + record application into local cache | Validated | Analyzer + focused tests passed | Hydrates the active account/branch attendance cache, preserves cached records on context-only partial payloads, and is registered from `main.dart` |
+| Shift pull consumer | Tenant options + scoped schedule application into local cache | Validated | Analyzer + focused tests passed | Hydrates tenant-wide branch/membership options and writes scoped schedules only when pull payload includes explicit range metadata |
 | Offline command queue | Replay-safe write queue / `sync/push` | Deferred | Not run | Explicitly out of current implementation scope |
 | Notifications/SSE | Operational notifications | Deferred | Not run | Intentionally later |
 
@@ -81,17 +86,23 @@ Practical summary:
 - [sync_models.dart](/Users/mac/flutterProjects/modular/lib/core/sync/sync_models.dart)
 - [sync_pull_api.dart](/Users/mac/flutterProjects/modular/lib/core/sync/sync_pull_api.dart)
 - [sync_pull_orchestrator.dart](/Users/mac/flutterProjects/modular/lib/core/sync/sync_pull_orchestrator.dart)
+- [main.dart](/Users/mac/flutterProjects/modular/lib/main.dart)
 
 ### Policy pilot
 - [policy_cache_store.dart](/Users/mac/flutterProjects/modular/lib/features/policy/data/policy_cache_store.dart)
+- [policy_mapper.dart](/Users/mac/flutterProjects/modular/lib/features/policy/data/policy_mapper.dart)
+- [policy_sync_pull_consumer.dart](/Users/mac/flutterProjects/modular/lib/features/policy/data/policy_sync_pull_consumer.dart)
 - [policy_viewmodel.dart](/Users/mac/flutterProjects/modular/lib/features/policy/ui/viewmodels/policy_viewmodel.dart)
 
 ### Cash session pilot
 - [cash_session_cache_store.dart](/Users/mac/flutterProjects/modular/lib/features/cash_session/data/cash_session_cache_store.dart)
+- [cash_session_mapper.dart](/Users/mac/flutterProjects/modular/lib/features/cash_session/data/cash_session_mapper.dart)
+- [cash_session_sync_pull_consumer.dart](/Users/mac/flutterProjects/modular/lib/features/cash_session/data/cash_session_sync_pull_consumer.dart)
 - [cash_session_viewmodel.dart](/Users/mac/flutterProjects/modular/lib/features/cash_session/ui/viewmodels/cash_session_viewmodel.dart)
 
 ### Menu pilot
 - [menu_cache_store.dart](/Users/mac/flutterProjects/modular/lib/features/menu/data/menu_cache_store.dart)
+- [menu_sync_pull_consumer.dart](/Users/mac/flutterProjects/modular/lib/features/menu/data/menu_sync_pull_consumer.dart)
 - [menu_viewmodel.dart](/Users/mac/flutterProjects/modular/lib/features/menu/ui/viewmodels/menu_viewmodel.dart)
 
 Sale dependency note:
@@ -105,11 +116,15 @@ Sale dependency note:
 
 ### Attendance pilot
 - [attendance_cache_store.dart](/Users/mac/flutterProjects/modular/lib/features/staff_attendance/data/attendance_cache_store.dart)
+- [attendance_mapper.dart](/Users/mac/flutterProjects/modular/lib/features/staff_attendance/data/attendance_mapper.dart)
+- [attendance_sync_pull_consumer.dart](/Users/mac/flutterProjects/modular/lib/features/staff_attendance/data/attendance_sync_pull_consumer.dart)
 - [attendance_check_page.dart](/Users/mac/flutterProjects/modular/lib/features/staff_attendance/ui/view/attendance_check/attendance_check_page.dart)
 - [attendance_history_page.dart](/Users/mac/flutterProjects/modular/lib/features/staff_attendance/ui/view/attendance_history/attendance_history_page.dart)
 
 ### Shift pilot
 - [staff_shift_cache_store.dart](/Users/mac/flutterProjects/modular/lib/features/staff/data/staff_shift_cache_store.dart)
+- [staff_shift_mapper.dart](/Users/mac/flutterProjects/modular/lib/features/staff/data/staff_shift_mapper.dart)
+- [staff_shift_sync_pull_consumer.dart](/Users/mac/flutterProjects/modular/lib/features/staff/data/staff_shift_sync_pull_consumer.dart)
 - [staff_shift_controller.dart](/Users/mac/flutterProjects/modular/lib/features/staff/ui/viewmodels/staff_shift_controller.dart)
 
 ### Web runtime files
@@ -134,38 +149,45 @@ Focused test files:
 - [sync_pull_orchestrator_test.dart](/Users/mac/flutterProjects/modular/test/core/sync/sync_pull_orchestrator_test.dart)
 - [policy_cache_store_test.dart](/Users/mac/flutterProjects/modular/test/policy/policy_cache_store_test.dart)
 - [policy_notifier_test.dart](/Users/mac/flutterProjects/modular/test/policy/policy_notifier_test.dart)
+- [policy_sync_pull_consumer_test.dart](/Users/mac/flutterProjects/modular/test/policy/policy_sync_pull_consumer_test.dart)
 - [cash_session_cache_store_test.dart](/Users/mac/flutterProjects/modular/test/cash_session/cash_session_cache_store_test.dart)
+- [cash_session_sync_pull_consumer_test.dart](/Users/mac/flutterProjects/modular/test/cash_session/cash_session_sync_pull_consumer_test.dart)
 - [cash_session_viewmodel_test.dart](/Users/mac/flutterProjects/modular/test/cash_session/cash_session_viewmodel_test.dart)
 - [menu_cache_store_test.dart](/Users/mac/flutterProjects/modular/test/menu/menu_cache_store_test.dart)
 - [menu_viewmodel_test.dart](/Users/mac/flutterProjects/modular/test/menu/menu_viewmodel_test.dart)
+- [menu_sync_pull_consumer_test.dart](/Users/mac/flutterProjects/modular/test/menu/menu_sync_pull_consumer_test.dart)
 - [attendance_cache_store_test.dart](/Users/mac/flutterProjects/modular/test/staff_attendance/attendance_cache_store_test.dart)
 - [attendance_check_page_test.dart](/Users/mac/flutterProjects/modular/test/staff_attendance/attendance_check_page_test.dart)
 - [attendance_history_page_test.dart](/Users/mac/flutterProjects/modular/test/staff_attendance/attendance_history_page_test.dart)
+- [attendance_sync_pull_consumer_test.dart](/Users/mac/flutterProjects/modular/test/staff_attendance/attendance_sync_pull_consumer_test.dart)
 - [staff_shift_cache_store_test.dart](/Users/mac/flutterProjects/modular/test/staff/staff_shift_cache_store_test.dart)
 - [staff_shift_controller_test.dart](/Users/mac/flutterProjects/modular/test/staff/staff_shift_controller_test.dart)
+- [staff_shift_sync_pull_consumer_test.dart](/Users/mac/flutterProjects/modular/test/staff/staff_shift_sync_pull_consumer_test.dart)
 
 ---
 
 ## Next Recommended Slice
 
 1. Shared convergence step after first-wave module rollout
-- register real feature pull consumers on top of the generic orchestrator foundation
+- wire automatic `sync/pull` triggering into the real hydration/reconnect pathways
 
 Reason:
 - the generic orchestration layer now exists
-- the next missing work is module-specific pull payload application into the existing caches
+- the first-wave module-specific pull payload application into the existing caches is now wired end to end; the next missing work is orchestration triggers and any deeper module-shape refinements
 
 ---
 
 ## Open Implementation Questions
 
-1. Should `cashSession` land as one mixed-cache slice or be split into:
-- active session snapshot first
-- movements/history/sales second
+1. Which app lifecycle points should trigger automatic `sync/pull` first:
+- app hydration after login
+- tenant switch
+- branch switch
+- reconnect
 
-2. Should the first orchestrator version be introduced before `menu`, or after `cashSession` proves the second module pattern?
+2. Do we want an initial conservative scope-set strategy per trigger, or always request the full first-wave module set?
 
-3. Do we want a temporary feature flag around cache-first reads during the first two pilot modules?
+3. Do we want a temporary feature flag around orchestrated pull triggering during the first live rollout?
 
 ---
 
@@ -182,6 +204,11 @@ Reason:
 | Menu pilot | Validated | Cache-first bundle load implemented |
 | Attendance pilot | Validated | Check page + history page now render cached state first |
 | Shift pilot | Validated | Cache-first load now covers filter options + scoped schedule |
-| Pull-sync orchestrator | Validated | Generic foundation implemented; feature consumers still pending |
+| Pull-sync orchestrator | Validated | Generic foundation implemented; first-wave consumers (`policy`, `cashSession`, `menu`, `attendance`, `shift`) are wired |
+| Policy pull consumer | Validated | Registered from `main.dart` and writes sync metadata into the cache |
+| Cash session pull consumer | Validated | Registered from `main.dart`; applies bundle payloads and explicit clear semantics |
+| Menu pull consumer | Validated | Registered from `main.dart`; hydrates branch-context menu cache for sale |
+| Attendance pull consumer | Validated | Registered from `main.dart`; hydrates active account/branch attendance cache |
+| Shift pull consumer | Validated | Registered from `main.dart`; hydrates tenant options and scoped schedules when payload supplies range metadata |
 | Offline queue | Deferred | Separate milestone |
 | Notifications/SSE | Deferred | Separate milestone |

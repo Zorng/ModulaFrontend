@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/features/staff/data/api/staff_shift_api.dart';
+import 'package:modular_pos/features/staff/data/staff_shift_mapper.dart';
 import 'package:modular_pos/features/staff/domain/models/staff_shift_models.dart';
 
 abstract class StaffShiftRepository {
@@ -89,13 +90,13 @@ class RemoteStaffShiftRepository implements StaffShiftRepository {
       to: to,
       membershipId: membershipId,
     );
-    return _toSchedule(dto);
+    return mapStaffShiftScheduleDto(dto);
   }
 
   @override
   Future<StaffShiftSchedule> fetchMySchedule() async {
     final dto = await _api.fetchMySchedule();
-    return _toSchedule(dto);
+    return mapStaffShiftScheduleDto(dto);
   }
 
   @override
@@ -123,7 +124,7 @@ class RemoteStaffShiftRepository implements StaffShiftRepository {
       }..removeWhere((key, value) => value == null),
       intentId: intentId,
     );
-    return _toPattern(dto);
+    return mapStaffShiftPatternDto(dto);
   }
 
   @override
@@ -150,7 +151,7 @@ class RemoteStaffShiftRepository implements StaffShiftRepository {
       },
       intentId: intentId,
     );
-    return _toPattern(dto);
+    return mapStaffShiftPatternDto(dto);
   }
 
   @override
@@ -164,7 +165,7 @@ class RemoteStaffShiftRepository implements StaffShiftRepository {
       reason: reason,
       intentId: intentId,
     );
-    return _toPattern(dto);
+    return mapStaffShiftPatternDto(dto);
   }
 
   @override
@@ -188,7 +189,7 @@ class RemoteStaffShiftRepository implements StaffShiftRepository {
       }..removeWhere((key, value) => value == null),
       intentId: intentId,
     );
-    return _toInstance(dto);
+    return mapStaffShiftInstanceDto(dto);
   }
 
   @override
@@ -212,7 +213,7 @@ class RemoteStaffShiftRepository implements StaffShiftRepository {
       },
       intentId: intentId,
     );
-    return _toInstance(dto);
+    return mapStaffShiftInstanceDto(dto);
   }
 
   @override
@@ -226,53 +227,6 @@ class RemoteStaffShiftRepository implements StaffShiftRepository {
       reason: reason,
       intentId: intentId,
     );
-    return _toInstance(dto);
-  }
-
-  StaffShiftSchedule _toSchedule(dynamic dto) {
-    return StaffShiftSchedule(
-      membershipId: dto.membershipId,
-      patterns: dto.patterns
-          .map<StaffShiftPattern>(_toPattern)
-          .toList(growable: false),
-      instances: dto.instances
-          .map<StaffShiftInstance>(_toInstance)
-          .toList(growable: false),
-    );
-  }
-
-  StaffShiftPattern _toPattern(dynamic dto) {
-    return StaffShiftPattern(
-      id: dto.id,
-      tenantId: dto.tenantId,
-      membershipId: dto.membershipId,
-      branchId: dto.branchId,
-      daysOfWeek: dto.daysOfWeek,
-      plannedStartTime: dto.plannedStartTime,
-      plannedEndTime: dto.plannedEndTime,
-      status: parseStaffShiftPatternStatus(dto.status),
-      effectiveFrom: dto.effectiveFrom,
-      effectiveTo: dto.effectiveTo,
-      note: dto.note,
-      createdAt: dto.createdAt,
-      updatedAt: dto.updatedAt,
-    );
-  }
-
-  StaffShiftInstance _toInstance(dynamic dto) {
-    return StaffShiftInstance(
-      id: dto.id,
-      tenantId: dto.tenantId,
-      membershipId: dto.membershipId,
-      branchId: dto.branchId,
-      patternId: dto.patternId,
-      date: dto.date,
-      plannedStartTime: dto.plannedStartTime,
-      plannedEndTime: dto.plannedEndTime,
-      status: parseStaffShiftInstanceStatus(dto.status),
-      note: dto.note,
-      createdAt: dto.createdAt,
-      updatedAt: dto.updatedAt,
-    );
+    return mapStaffShiftInstanceDto(dto);
   }
 }
