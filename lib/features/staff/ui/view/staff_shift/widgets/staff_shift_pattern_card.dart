@@ -31,6 +31,10 @@ class StaffShiftPatternCard extends StatelessWidget {
         .map((w) => w.isNotEmpty ? w[0].toUpperCase() : '')
         .join();
 
+    final buttonStyle = FilledButton.styleFrom(
+      minimumSize: const Size(0, 44),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+    );   
     return Card(
       color: Colors.white,
       elevation: 0,
@@ -157,14 +161,7 @@ class StaffShiftPatternCard extends StatelessWidget {
                 Expanded(
                   child: FilledButton(
                     onPressed: onEdit,
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size(0, 42),
-                      backgroundColor: Colors.grey.shade900,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
+                    style: buttonStyle,
                     child: const Text('Edit'),
                   ),
                 ),

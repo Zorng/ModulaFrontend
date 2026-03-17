@@ -374,43 +374,14 @@ class _StaffShiftTabPageState extends ConsumerState<StaffShiftTabPage>
             ),
           ),
           data: (state) {
-            // final topButtonStyle = FilledButton.styleFrom(
-            //   minimumSize: const Size(0, _topControlHeight),
-            //   shape: RoundedRectangleBorder(
-            //     borderRadius: BorderRadius.circular(10),
-            //   ),
-            // );
 
             final membershipById = {
               for (final membership in state.memberships)
                 membership.membershipId: membership.displayName,
             };
-
-            // final addPatternButton = FilledButton.tonalIcon(
-            //   style: topButtonStyle,
-            //   onPressed: state.selectedBranchId == null || state.isSaving
-            //       ? null
-            //       : () => _showPatternDialog(context, ref, state),
-            //   icon: const Icon(Icons.event_repeat_outlined),
-            //   label: const Text('Add pattern'),
-            // );
-            // final addShiftButton = FilledButton.tonalIcon(
-            //   style: topButtonStyle,
-            //   onPressed: state.selectedBranchId == null || state.isSaving
-            //       ? null
-            //       : () => _showInstanceDialog(context, ref, state),
-            //   icon: const Icon(Icons.event_available_outlined),
-            //   label: const Text('Add shift'),
-            // );
-
-            // final activeAddButton = _isPatternsTab
-            //     ? addPatternButton
-            //     : addShiftButton;
-
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Replace the existing Builder(...) that builds the filter row with:
                 Builder(
                   builder: (context) {
                     final selectedBranch = state.branches
@@ -433,6 +404,7 @@ class _StaffShiftTabPageState extends ConsumerState<StaffShiftTabPage>
                       selectedBranchName: selectedBranch?.branchName,
                       dateLabel: dateLabel,
                       selectedMembershipName: selectedMembership?.displayName,
+                      hasActiveFilter: state.selectedMembershipId != null,
                       isSaving: state.isSaving,
                       isRefreshing: state.isRefreshing,
                       isPatternsTab: _isPatternsTab,
@@ -1136,6 +1108,7 @@ class _FilterBar extends StatelessWidget {
     required this.isRefreshing,
     required this.isPatternsTab,
     required this.onOpenFilters,
+    required this.hasActiveFilter,
     this.selectedBranchName,
     this.selectedMembershipName,
     this.onAddPattern,
@@ -1149,6 +1122,7 @@ class _FilterBar extends StatelessWidget {
   final bool isSaving;
   final bool isRefreshing;
   final bool isPatternsTab;
+  final bool hasActiveFilter;
   final VoidCallback onOpenFilters;
   final VoidCallback? onAddPattern;
   final VoidCallback? onAddShift;
@@ -1172,138 +1146,160 @@ class _FilterBar extends StatelessWidget {
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            'Current filter',
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isWide = constraints.maxWidth > 600;
+
+          final currentFilterTitle = Text(
+            'Current Filter',
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w600,
               color: colorScheme.primary,
               letterSpacing: 0.2,
             ),
-          ),
-          const SizedBox(height: 6),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final isWide = constraints.maxWidth > 600;
+          );
 
-              final chipsRow = SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    _FilterChipPill(
-                      label: 'Branch: ${selectedBranchName ?? 'All branches'}',
+          final chipsRow = SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _FilterChipPill(
+                  label: 'Branch: ${selectedBranchName ?? 'All branches'}',
+                ),
+                const SizedBox(width: 6),
+                _FilterChipPill(label: 'Date: $dateLabel'),
+                const SizedBox(width: 6),
+                _FilterChipPill(
+                  label: 'Staff: ${selectedMembershipName ?? 'All staff'}',
+                ),
+              ],
+            ),
+          );
+
+          final buttonStyle = FilledButton.styleFrom(
+            minimumSize: const Size(0, 44),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+          );
+
+          final filterBtn = TextButton(
+            style: TextButton.styleFrom(
+              foregroundColor: colorScheme.primary,
+              textStyle: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              minimumSize: const Size(0, 44),
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+            ),
+            onPressed: onOpenFilters,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                const Text('Filter'),
+                if (hasActiveFilter)
+                  Positioned(
+                    top: -3,
+                    right: -7,
+                    child: Container(
+                      width: 7,
+                      height: 7,
+                      decoration: BoxDecoration(
+                        color: colorScheme.primary,
+                        shape: BoxShape.circle,
+                      ),
                     ),
-                    const SizedBox(width: 6),
-                    _FilterChipPill(label: 'Date: $dateLabel'),
-                    const SizedBox(width: 6),
-                    _FilterChipPill(
-                      label:
-                          'Staff: ${selectedMembershipName ?? 'All staff'}',
-                    ),
-                  ],
-                ),
-              );
-
-              final buttonStyle = FilledButton.styleFrom(
-                minimumSize: const Size(0, 36),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              );
-
-              final filterBtn = TextButton(
-                style: TextButton.styleFrom(
-                  foregroundColor: colorScheme.primary,
-                  textStyle: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
                   ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  minimumSize: const Size(0, 36),
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                ),
-                onPressed: onOpenFilters,
-                child: const Text('Filter'),
-              );
+              ],
+            ),
+          );
 
-              final addBtn = FilledButton.tonalIcon(
-                style: buttonStyle,
-                onPressed: isPatternsTab ? onAddPattern : onAddShift,
-                icon: Icon(
-                  isPatternsTab
-                      ? Icons.event_repeat_outlined
-                      : Icons.event_available_outlined,
-                  size: 16,
-                ),
-                label: Text(isPatternsTab ? 'Add pattern' : 'Add shift'),
-              );
+          final addPatternBtn = FilledButton.tonalIcon(
+            style: buttonStyle,
+            onPressed: onAddPattern,
+            icon: const Icon(Icons.event_repeat_outlined, size: 16),
+            label: const Text('Add pattern'),
+          );
 
-              final refreshBtn = IconButton.filledTonal(
-                onPressed: onRefresh,
-                style: IconButton.styleFrom(
-                  minimumSize: const Size(36, 36),
-                  maximumSize: const Size(36, 36),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                icon: isRefreshing
-                    ? const SizedBox(
-                        width: 14,
-                        height: 14,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.refresh, size: 18),
-              );
+          final addShiftBtn = FilledButton.tonalIcon(
+            style: buttonStyle,
+            onPressed: onAddShift,
+            icon: const Icon(Icons.event_available_outlined, size: 16),
+            label: const Text('Add shift'),
+          );
 
-              if (isWide) {
-                return Row(
+          final refreshBtn = IconButton.filledTonal(
+            onPressed: onRefresh,
+            style: IconButton.styleFrom(
+              minimumSize: const Size(44, 44),
+              maximumSize: const Size(44, 44),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            icon: isRefreshing
+                ? const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.refresh, size: 18),
+          );
+
+          if (isWide) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(children: [currentFilterTitle, const Spacer(), filterBtn]),
+                const SizedBox(height: 6),
+                Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Expanded(child: chipsRow),
                     const SizedBox(width: 10),
-                    filterBtn,
-                    const SizedBox(width: 6),
-                    addBtn,
+                    isPatternsTab ? addPatternBtn : addShiftBtn,
                     const SizedBox(width: 6),
                     refreshBtn,
                   ],
-                );
-              }
+                ),
+              ],
+            );
+          }
 
-              // ── Small screen: two full-width rows ────────────────
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                mainAxisSize: MainAxisSize.min,
+          // ── Small screen: primary actions first, filter info below ──────────
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Row 1: primary action buttons
+              Row(
                 children: [
-                  // Row 1: chips (scrollable) + primary add button
-                  Row(
-                    children: [
-                      Expanded(child: chipsRow),
-                      const SizedBox(width: 8),
-                      addBtn,
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  // Row 2: filter button (left) + refresh (right)
-                  Row(
-                    children: [
-                      filterBtn,
-                      const Spacer(),
-                      refreshBtn,
-                    ],
-                  ),
+                  Expanded(child: addPatternBtn),
+                  const SizedBox(width: 6),
+                  Expanded(child: addShiftBtn),
                 ],
-              );
-            },
-          ),
-        ],
+              ),
+              const SizedBox(height: 15),
+              const Divider(height: 1, thickness: 1),
+              // Row 2: "Current filter" label (left) + filter button (right)
+              Row(children: [currentFilterTitle, const Spacer(), filterBtn]),
+              // Row 3: scrollable chips + refresh
+              Row(
+                children: [
+                  Expanded(child: chipsRow),
+                  const SizedBox(width: 6),
+                  refreshBtn,
+                ],
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -1312,44 +1308,22 @@ class _FilterBar extends StatelessWidget {
 // ── Pill-style filter chip ─────────────────────────────────────────────────
 
 class _FilterChipPill extends StatelessWidget {
-  const _FilterChipPill({required this.label, this.onDeleted});
+  const _FilterChipPill({required this.label});
 
   final String label;
-  final VoidCallback? onDeleted;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.only(
-        left: 10,
-        right: onDeleted != null ? 6 : 10,
-        top: 6,
-        bottom: 6,
-      ),
+      padding: EdgeInsets.only(left: 10, right: 6, top: 6, bottom: 6),
       decoration: BoxDecoration(
         color: Colors.grey.shade100,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: Colors.grey.shade200),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
-          ),
-          if (onDeleted != null) ...[
-            const SizedBox(width: 4),
-            GestureDetector(
-              onTap: onDeleted,
-              child: Icon(
-                Icons.close_rounded,
-                size: 14,
-                color: Colors.grey.shade600,
-              ),
-            ),
-          ],
-        ],
+      child: Text(
+        label,
+        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
       ),
     );
   }

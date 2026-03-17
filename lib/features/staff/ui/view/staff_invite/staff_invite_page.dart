@@ -211,7 +211,6 @@ class _StaffInvitePageState extends ConsumerState<StaffInvitePage> {
                             ),
                             const SizedBox(width: 12),
                             Expanded(
-                              flex: 3,
                               child: FilledButton(
                                 onPressed: _isSavingBranches
                                     ? null

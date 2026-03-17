@@ -27,6 +27,8 @@ class StaffMembershipListState {
     required this.offset,
     required this.canLoadMore,
     required this.branchNameById,
+    this.selectedBranchId,
+    this.selectedRoleKey,
     this.isRefreshing = false,
     this.isLoadingMore = false,
     this.inlineError,
@@ -39,9 +41,33 @@ class StaffMembershipListState {
   final int offset;
   final bool canLoadMore;
   final Map<String, String> branchNameById;
+  final String? selectedBranchId;
+  final String? selectedRoleKey;
   final bool isRefreshing;
   final bool isLoadingMore;
   final String? inlineError;
+
+  // ── Derived ──────────────────────────────────────────────────────────────
+
+  bool get hasActiveFilter =>
+      statusFilter != StaffListStatusFilter.all ||
+      selectedBranchId != null ||
+      selectedRoleKey != null;
+
+  List<StaffMembershipSummary> get displayedMemberships {
+    return memberships.where((m) {
+      if (selectedBranchId != null && !m.branchIds.contains(selectedBranchId)) {
+        return false;
+      }
+      if (selectedRoleKey != null && m.roleKey != selectedRoleKey) {
+        return false;
+      }
+      return true;
+    }).toList();
+  }
+
+  Set<String> get availableRoleKeys =>
+      memberships.map((m) => m.roleKey).toSet();
 
   StaffMembershipListState copyWith({
     List<StaffMembershipSummary>? memberships,
@@ -51,6 +77,10 @@ class StaffMembershipListState {
     int? offset,
     bool? canLoadMore,
     Map<String, String>? branchNameById,
+    String? selectedBranchId,
+    String? selectedRoleKey,
+    bool clearSelectedBranchId = false,
+    bool clearSelectedRoleKey = false,
     bool? isRefreshing,
     bool? isLoadingMore,
     String? inlineError,
@@ -64,6 +94,12 @@ class StaffMembershipListState {
       offset: offset ?? this.offset,
       canLoadMore: canLoadMore ?? this.canLoadMore,
       branchNameById: branchNameById ?? this.branchNameById,
+      selectedBranchId: clearSelectedBranchId
+          ? null
+          : selectedBranchId ?? this.selectedBranchId,
+      selectedRoleKey: clearSelectedRoleKey
+          ? null
+          : selectedRoleKey ?? this.selectedRoleKey,
       isRefreshing: isRefreshing ?? this.isRefreshing,
       isLoadingMore: isLoadingMore ?? this.isLoadingMore,
       inlineError: clearInlineError ? null : inlineError ?? this.inlineError,
@@ -71,10 +107,11 @@ class StaffMembershipListState {
   }
 }
 
-final staffMembershipListControllerProvider = AsyncNotifierProvider<
-  StaffMembershipListController,
-  StaffMembershipListState
->(StaffMembershipListController.new);
+final staffMembershipListControllerProvider =
+    AsyncNotifierProvider<
+      StaffMembershipListController,
+      StaffMembershipListState
+    >(StaffMembershipListController.new);
 
 class StaffMembershipListController
     extends AsyncNotifier<StaffMembershipListState> {
@@ -85,7 +122,9 @@ class StaffMembershipListController
 
   StaffMembershipListState? get _currentState {
     final current = state;
-    return current is AsyncData<StaffMembershipListState> ? current.value : null;
+    return current is AsyncData<StaffMembershipListState>
+        ? current.value
+        : null;
   }
 
   @override
@@ -106,16 +145,40 @@ class StaffMembershipListController
       searchQuery: trimmed,
       statusFilter: current?.statusFilter ?? StaffListStatusFilter.all,
       keepDataWhileLoading: true,
+      selectedBranchId: current?.selectedBranchId,
+      selectedRoleKey: current?.selectedRoleKey,
     );
   }
 
-  Future<void> setStatusFilter(StaffListStatusFilter value) async {
+  Future<void> setFilters({
+    required StaffListStatusFilter statusFilter,
+    required String? branchId,
+    required String? roleKey,
+  }) async {
     final current = _currentState;
-    if (current != null && current.statusFilter == value) return;
+    if (current == null) return;
+
+    if (current.statusFilter == statusFilter) {
+      // Frontend-only change — no API call needed
+      state = AsyncData(
+        current.copyWith(
+          clearSelectedBranchId: branchId == null,
+          selectedBranchId: branchId,
+          clearSelectedRoleKey: roleKey == null,
+          selectedRoleKey: roleKey,
+          clearInlineError: true,
+        ),
+      );
+      return;
+    }
+
+    // Status changed — backend reload required
     await _reload(
-      searchQuery: current?.searchQuery ?? '',
-      statusFilter: value,
+      searchQuery: current.searchQuery,
+      statusFilter: statusFilter,
       keepDataWhileLoading: true,
+      selectedBranchId: branchId,
+      selectedRoleKey: roleKey,
     );
   }
 
@@ -144,13 +207,15 @@ class StaffMembershipListController
         limit: current.limit,
         offset: 0,
       );
-      state = AsyncData(refreshed);
+      state = AsyncData(
+        refreshed.copyWith(
+          selectedBranchId: current.selectedBranchId,
+          selectedRoleKey: current.selectedRoleKey,
+        ),
+      );
     } catch (error) {
       state = AsyncData(
-        current.copyWith(
-          isRefreshing: false,
-          inlineError: error.toString(),
-        ),
+        current.copyWith(isRefreshing: false, inlineError: error.toString()),
       );
     }
   }
@@ -183,10 +248,7 @@ class StaffMembershipListController
       );
     } catch (error) {
       state = AsyncData(
-        current.copyWith(
-          isLoadingMore: false,
-          inlineError: error.toString(),
-        ),
+        current.copyWith(isLoadingMore: false, inlineError: error.toString()),
       );
     }
   }
@@ -200,6 +262,8 @@ class StaffMembershipListController
     required String searchQuery,
     required StaffListStatusFilter statusFilter,
     required bool keepDataWhileLoading,
+    String? selectedBranchId,
+    String? selectedRoleKey,
   }) async {
     final current = _currentState;
     if (keepDataWhileLoading && current != null) {
@@ -213,13 +277,17 @@ class StaffMembershipListController
           limit: current.limit,
           offset: 0,
         );
-        state = AsyncData(next);
+        state = AsyncData(
+          next.copyWith(
+            clearSelectedBranchId: selectedBranchId == null,
+            selectedBranchId: selectedBranchId,
+            clearSelectedRoleKey: selectedRoleKey == null,
+            selectedRoleKey: selectedRoleKey,
+          ),
+        );
       } catch (error) {
         state = AsyncData(
-          current.copyWith(
-            isRefreshing: false,
-            inlineError: error.toString(),
-          ),
+          current.copyWith(isRefreshing: false, inlineError: error.toString()),
         );
       }
       return;

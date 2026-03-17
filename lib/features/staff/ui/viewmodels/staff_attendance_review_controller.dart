@@ -137,6 +137,18 @@ class StaffAttendanceReviewController
     );
   }
 
+  Future<void> setFilters({
+    required String? branchId,
+    required String? accountId,
+    required DateTimeRange dateRange,
+  }) async {
+    await _reload(
+      selectedBranchId: branchId,
+      selectedAccountId: accountId,
+      dateRange: dateRange,
+    );
+  }
+
   Future<void> clearFilters() async {
     final current = _currentState;
     if (current == null) return;
