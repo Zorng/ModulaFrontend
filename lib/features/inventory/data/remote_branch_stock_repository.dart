@@ -57,12 +57,12 @@ class RemoteBranchStockRepository extends BranchStockRepository {
     final includeArchivedItems = normalizedStatus != 'active';
 
     // Always fetch master items so we can hydrate unit/piece info.
-    final masterDtos = await _api.fetchStockItems(
+    final masterResult = await _api.fetchStockItems(
       status: normalizedStatus,
       limit: 200,
       offset: 0,
     );
-    final masterById = {for (final dto in masterDtos) dto.id: dto};
+    final masterById = {for (final dto in masterResult.items) dto.id: dto};
 
     if (branchId == null || branchId.isEmpty) {
       final aggregateDtos = await _api.fetchAggregateStock(

@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/features/inventory/data/inventory_journal_repository.dart';
+import 'package:modular_pos/features/inventory/data/inventory_paginated_result.dart';
 import 'package:modular_pos/features/inventory/data/mock_inventory_store.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_journal_entry.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_batch.dart';
@@ -86,7 +87,7 @@ class MockInventoryJournalRepository extends InventoryJournalRepository {
   }
 
   @override
-  Future<List<InventoryJournalEntry>> fetch({
+  Future<InventoryPaginatedResult<InventoryJournalEntry>> fetch({
     String? branchId,
     bool tenantWide = false,
     String? stockItemId,
@@ -116,7 +117,7 @@ class MockInventoryJournalRepository extends InventoryJournalRepository {
   }
 
   @override
-  Future<List<StockBatch>> fetchRestockBatches({
+  Future<InventoryPaginatedResult<StockBatch>> fetchRestockBatches({
     String? branchId,
     String status = 'all',
     String? stockItemId,

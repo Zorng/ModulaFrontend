@@ -23,7 +23,7 @@ class InventoryJournalState extends Equatable {
     this.pageSize = 10,
     this.currentPage = 1,
     this.pageOffset = 0,
-    this.hasNextPage = true,
+    this.total = 0,
     this.error,
     this.errorCode,
   });
@@ -40,17 +40,26 @@ class InventoryJournalState extends Equatable {
   final int pageSize;
   final int currentPage;
   final int pageOffset;
-  final bool hasNextPage;
+  final int total;
   final String? error;
   final InventoryErrorCode? errorCode;
 
   bool get hasPreviousPage => !isAccumulatingPages && currentPage > 1;
 
+  int get totalPages => total <= 0 ? 1 : ((total + pageSize - 1) ~/ pageSize);
+
+  bool get hasNextPage => currentPage < totalPages;
+
   int get visibleRangeStart =>
       entries.isEmpty ? 0 : (isAccumulatingPages ? 1 : pageOffset + 1);
 
-  int get visibleRangeEnd =>
-      isAccumulatingPages ? entries.length : pageOffset + entries.length;
+  int get visibleRangeEnd {
+    if (entries.isEmpty) return 0;
+    final rawEnd = isAccumulatingPages
+        ? entries.length
+        : pageOffset + entries.length;
+    return total > 0 ? rawEnd.clamp(0, total) : rawEnd;
+  }
 
   InventoryJournalState copyWith({
     bool? isLoading,
@@ -65,7 +74,7 @@ class InventoryJournalState extends Equatable {
     int? pageSize,
     int? currentPage,
     int? pageOffset,
-    bool? hasNextPage,
+    int? total,
     String? error,
     InventoryErrorCode? errorCode,
   }) {
@@ -84,7 +93,7 @@ class InventoryJournalState extends Equatable {
       pageSize: pageSize ?? this.pageSize,
       currentPage: currentPage ?? this.currentPage,
       pageOffset: pageOffset ?? this.pageOffset,
-      hasNextPage: hasNextPage ?? this.hasNextPage,
+      total: total ?? this.total,
       error: error,
       errorCode: errorCode,
     );
@@ -104,7 +113,7 @@ class InventoryJournalState extends Equatable {
     pageSize,
     currentPage,
     pageOffset,
-    hasNextPage,
+    total,
     error,
     errorCode,
   ];

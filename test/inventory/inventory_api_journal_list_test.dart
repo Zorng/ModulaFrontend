@@ -24,24 +24,30 @@ void main() {
           requestOptions: RequestOptions(path: '/v0/inventory/journal'),
           data: {
             'success': true,
-            'data': [
-              {
-                'id': 'je-1',
-                'tenantId': 'tenant-1',
-                'branchId': 'branch-1',
-                'stockItemId': 'item-1',
-                'direction': 'OUT',
-                'quantityInBaseUnit': 250,
-                'reasonCode': 'SALE_DEDUCTION',
-                'sourceType': 'SALE_ORDER',
-                'sourceId': 'sale-1',
-                'idempotencyKey': 'idem-1',
-                'occurredAt': '2026-02-20T00:00:00.000Z',
-                'actorAccountId': 'acct-1',
-                'note': 'Sale consumed',
-                'createdAt': '2026-02-20T00:00:00.000Z',
-              },
-            ],
+            'data': {
+              'items': [
+                {
+                  'id': 'je-1',
+                  'tenantId': 'tenant-1',
+                  'branchId': 'branch-1',
+                  'stockItemId': 'item-1',
+                  'direction': 'OUT',
+                  'quantityInBaseUnit': 250,
+                  'reasonCode': 'SALE_DEDUCTION',
+                  'sourceType': 'SALE_ORDER',
+                  'sourceId': 'sale-1',
+                  'idempotencyKey': 'idem-1',
+                  'occurredAt': '2026-02-20T00:00:00.000Z',
+                  'actorAccountId': 'acct-1',
+                  'note': 'Sale consumed',
+                  'createdAt': '2026-02-20T00:00:00.000Z',
+                },
+              ],
+              'limit': 100,
+              'offset': 20,
+              'total': 101,
+              'hasMore': true,
+            },
           },
         ),
       );
@@ -67,9 +73,13 @@ void main() {
           },
         ),
       ).called(1);
-      expect(rows, hasLength(1));
-      expect(rows.first.id, 'je-1');
-      expect(rows.first.delta, -250);
+      expect(rows.items, hasLength(1));
+      expect(rows.items.first.id, 'je-1');
+      expect(rows.items.first.delta, -250);
+      expect(rows.limit, 100);
+      expect(rows.offset, 20);
+      expect(rows.total, 101);
+      expect(rows.hasMore, isTrue);
     },
   );
 
@@ -83,7 +93,16 @@ void main() {
     ).thenAnswer(
       (_) async => Response<Map<String, dynamic>>(
         requestOptions: RequestOptions(path: '/v0/inventory/journal'),
-        data: {'success': true, 'data': const []},
+        data: {
+          'success': true,
+          'data': {
+            'items': const [],
+            'limit': 50,
+            'offset': 0,
+            'total': 0,
+            'hasMore': false,
+          },
+        },
       ),
     );
 
@@ -118,7 +137,16 @@ void main() {
     ).thenAnswer(
       (_) async => Response<Map<String, dynamic>>(
         requestOptions: RequestOptions(path: '/v0/inventory/journal'),
-        data: {'success': true, 'data': const []},
+        data: {
+          'success': true,
+          'data': {
+            'items': const [],
+            'limit': 50,
+            'offset': 0,
+            'total': 0,
+            'hasMore': false,
+          },
+        },
       ),
     );
 
@@ -157,7 +185,16 @@ void main() {
       ).thenAnswer(
         (_) async => Response<Map<String, dynamic>>(
           requestOptions: RequestOptions(path: '/v0/inventory/journal'),
-          data: {'success': true, 'data': const []},
+          data: {
+            'success': true,
+            'data': {
+              'items': const [],
+              'limit': 50,
+              'offset': 0,
+              'total': 0,
+              'hasMore': false,
+            },
+          },
         ),
       );
 
@@ -190,7 +227,16 @@ void main() {
       ).thenAnswer(
         (_) async => Response<Map<String, dynamic>>(
           requestOptions: RequestOptions(path: '/v0/inventory/journal/all'),
-          data: {'success': true, 'data': const []},
+          data: {
+            'success': true,
+            'data': {
+              'items': const [],
+              'limit': 20,
+              'offset': 0,
+              'total': 0,
+              'hasMore': false,
+            },
+          },
         ),
       );
 

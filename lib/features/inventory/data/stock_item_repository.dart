@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/core/config/app_env.dart';
+import 'package:modular_pos/features/inventory/data/inventory_paginated_result.dart';
 import 'package:modular_pos/features/inventory/data/mock_stock_item_repository.dart';
 import 'package:modular_pos/features/inventory/data/remote_stock_item_repository.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
@@ -19,7 +20,13 @@ final stockItemRepositoryProvider = Provider<StockItemRepository>((ref) {
 abstract class StockItemRepository {
   const StockItemRepository();
 
-  Future<List<StockItem>> fetchMasterStockItems({int pageSize = 200});
+  Future<InventoryPaginatedResult<StockItem>> fetchMasterStockItems({
+    String status = 'all',
+    String? search,
+    String? categoryId,
+    int pageSize = 200,
+    int offset = 0,
+  });
 
   Future<StockItem> fetchStockItemById(String id);
 

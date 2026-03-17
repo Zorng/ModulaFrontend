@@ -3,6 +3,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:modular_pos/features/inventory/data/dto/inventory_journal_entry_dto.dart';
 import 'package:modular_pos/features/inventory/data/dto/restock_batch_dto.dart';
 import 'package:modular_pos/features/inventory/data/inventory_api.dart';
+import 'package:modular_pos/features/inventory/data/inventory_paginated_result.dart';
 import 'package:modular_pos/features/inventory/data/remote_inventory_journal_repository.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_journal_entry.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_status.dart';
@@ -205,22 +206,28 @@ void main() {
           offset: 20,
         ),
       ).thenAnswer(
-        (_) async => [
-          InventoryJournalEntryDto.fromJson({
-            'id': 'je-1',
-            'branchId': 'branch-1',
-            'branchName': 'Main Branch',
-            'stockItemId': 'item-1',
-            'stockItemName': 'Whole Milk',
-            'reasonCode': 'SALE_DEDUCTION',
-            'direction': 'OUT',
-            'quantityInBaseUnit': 250,
-            'note': 'Sale consumed',
-            'actorAccountId': 'acct-1',
-            'createdAt': '2026-02-20T00:00:00.000Z',
-            'occurredAt': '2026-02-20T00:00:00.000Z',
-          }),
-        ],
+        (_) async => InventoryPaginatedResult(
+          items: [
+            InventoryJournalEntryDto.fromJson({
+              'id': 'je-1',
+              'branchId': 'branch-1',
+              'branchName': 'Main Branch',
+              'stockItemId': 'item-1',
+              'stockItemName': 'Whole Milk',
+              'reasonCode': 'SALE_DEDUCTION',
+              'direction': 'OUT',
+              'quantityInBaseUnit': 250,
+              'note': 'Sale consumed',
+              'actorAccountId': 'acct-1',
+              'createdAt': '2026-02-20T00:00:00.000Z',
+              'occurredAt': '2026-02-20T00:00:00.000Z',
+            }),
+          ],
+          limit: 100,
+          offset: 20,
+          total: 101,
+          hasMore: true,
+        ),
       );
 
       final rows = await repository.fetch(
@@ -243,9 +250,13 @@ void main() {
           offset: 20,
         ),
       ).called(1);
-      expect(rows, hasLength(1));
-      expect(rows.first.reason, InventoryJournalReason.sale);
-      expect(rows.first.delta, -250);
+      expect(rows.items, hasLength(1));
+      expect(rows.items.first.reason, InventoryJournalReason.sale);
+      expect(rows.items.first.delta, -250);
+      expect(rows.limit, 100);
+      expect(rows.offset, 20);
+      expect(rows.total, 101);
+      expect(rows.hasMore, isTrue);
     },
   );
 
@@ -266,7 +277,15 @@ void main() {
         limit: 50,
         offset: 0,
       ),
-    ).thenAnswer((_) async => const []);
+    ).thenAnswer(
+      (_) async => const InventoryPaginatedResult(
+        items: <InventoryJournalEntryDto>[],
+        limit: 50,
+        offset: 0,
+        total: 0,
+        hasMore: false,
+      ),
+    );
 
     await repository.fetch(from: from, to: to);
 
@@ -311,7 +330,15 @@ void main() {
             limit: any(named: 'limit'),
             offset: any(named: 'offset'),
           ),
-        ).thenAnswer((_) async => const []);
+        ).thenAnswer(
+          (_) async => const InventoryPaginatedResult(
+            items: <InventoryJournalEntryDto>[],
+            limit: 50,
+            offset: 0,
+            total: 0,
+            hasMore: false,
+          ),
+        );
 
         await repository.fetch(reason: reason);
 
@@ -347,76 +374,82 @@ void main() {
         offset: 0,
       ),
     ).thenAnswer(
-      (_) async => [
-        InventoryJournalEntryDto.fromJson({
-          'id': 'restock-1',
-          'stockItemId': 'item-1',
-          'reasonCode': 'RESTOCK',
-          'direction': 'IN',
-          'quantityInBaseUnit': 10,
-          'createdAt': '2026-03-03T00:00:00.000Z',
-          'occurredAt': '2026-03-03T00:00:00.000Z',
-        }),
-        InventoryJournalEntryDto.fromJson({
-          'id': 'adj-add-1',
-          'stockItemId': 'item-1',
-          'reasonCode': 'ADJUSTMENT',
-          'direction': 'IN',
-          'quantityInBaseUnit': 5,
-          'createdAt': '2026-03-03T00:00:00.000Z',
-          'occurredAt': '2026-03-03T00:00:00.000Z',
-        }),
-        InventoryJournalEntryDto.fromJson({
-          'id': 'adj-remove-1',
-          'stockItemId': 'item-1',
-          'reasonCode': 'ADJUSTMENT',
-          'direction': 'OUT',
-          'quantityInBaseUnit': 3,
-          'createdAt': '2026-03-03T00:00:00.000Z',
-          'occurredAt': '2026-03-03T00:00:00.000Z',
-        }),
-        InventoryJournalEntryDto.fromJson({
-          'id': 'sale-1',
-          'stockItemId': 'item-1',
-          'reasonCode': 'SALE_DEDUCTION',
-          'direction': 'OUT',
-          'quantityInBaseUnit': 2,
-          'createdAt': '2026-03-03T00:00:00.000Z',
-          'occurredAt': '2026-03-03T00:00:00.000Z',
-        }),
-        InventoryJournalEntryDto.fromJson({
-          'id': 'void-1',
-          'stockItemId': 'item-1',
-          'reasonCode': 'VOID_REVERSAL',
-          'direction': 'IN',
-          'quantityInBaseUnit': 1,
-          'createdAt': '2026-03-03T00:00:00.000Z',
-          'occurredAt': '2026-03-03T00:00:00.000Z',
-        }),
-        InventoryJournalEntryDto.fromJson({
-          'id': 'reopen-1',
-          'stockItemId': 'item-1',
-          'reasonCode': 'REOPEN',
-          'direction': 'IN',
-          'quantityInBaseUnit': 1,
-          'createdAt': '2026-03-03T00:00:00.000Z',
-          'occurredAt': '2026-03-03T00:00:00.000Z',
-        }),
-        InventoryJournalEntryDto.fromJson({
-          'id': 'other-1',
-          'stockItemId': 'item-1',
-          'reasonCode': 'OTHER',
-          'direction': 'IN',
-          'quantityInBaseUnit': 1,
-          'createdAt': '2026-03-03T00:00:00.000Z',
-          'occurredAt': '2026-03-03T00:00:00.000Z',
-        }),
-      ],
+      (_) async => InventoryPaginatedResult(
+        items: [
+          InventoryJournalEntryDto.fromJson({
+            'id': 'restock-1',
+            'stockItemId': 'item-1',
+            'reasonCode': 'RESTOCK',
+            'direction': 'IN',
+            'quantityInBaseUnit': 10,
+            'createdAt': '2026-03-03T00:00:00.000Z',
+            'occurredAt': '2026-03-03T00:00:00.000Z',
+          }),
+          InventoryJournalEntryDto.fromJson({
+            'id': 'adj-add-1',
+            'stockItemId': 'item-1',
+            'reasonCode': 'ADJUSTMENT',
+            'direction': 'IN',
+            'quantityInBaseUnit': 5,
+            'createdAt': '2026-03-03T00:00:00.000Z',
+            'occurredAt': '2026-03-03T00:00:00.000Z',
+          }),
+          InventoryJournalEntryDto.fromJson({
+            'id': 'adj-remove-1',
+            'stockItemId': 'item-1',
+            'reasonCode': 'ADJUSTMENT',
+            'direction': 'OUT',
+            'quantityInBaseUnit': 3,
+            'createdAt': '2026-03-03T00:00:00.000Z',
+            'occurredAt': '2026-03-03T00:00:00.000Z',
+          }),
+          InventoryJournalEntryDto.fromJson({
+            'id': 'sale-1',
+            'stockItemId': 'item-1',
+            'reasonCode': 'SALE_DEDUCTION',
+            'direction': 'OUT',
+            'quantityInBaseUnit': 2,
+            'createdAt': '2026-03-03T00:00:00.000Z',
+            'occurredAt': '2026-03-03T00:00:00.000Z',
+          }),
+          InventoryJournalEntryDto.fromJson({
+            'id': 'void-1',
+            'stockItemId': 'item-1',
+            'reasonCode': 'VOID_REVERSAL',
+            'direction': 'IN',
+            'quantityInBaseUnit': 1,
+            'createdAt': '2026-03-03T00:00:00.000Z',
+            'occurredAt': '2026-03-03T00:00:00.000Z',
+          }),
+          InventoryJournalEntryDto.fromJson({
+            'id': 'reopen-1',
+            'stockItemId': 'item-1',
+            'reasonCode': 'REOPEN',
+            'direction': 'IN',
+            'quantityInBaseUnit': 1,
+            'createdAt': '2026-03-03T00:00:00.000Z',
+            'occurredAt': '2026-03-03T00:00:00.000Z',
+          }),
+          InventoryJournalEntryDto.fromJson({
+            'id': 'other-1',
+            'stockItemId': 'item-1',
+            'reasonCode': 'OTHER',
+            'direction': 'IN',
+            'quantityInBaseUnit': 1,
+            'createdAt': '2026-03-03T00:00:00.000Z',
+            'occurredAt': '2026-03-03T00:00:00.000Z',
+          }),
+        ],
+        limit: 50,
+        offset: 0,
+        total: 7,
+        hasMore: false,
+      ),
     );
 
     final rows = await repository.fetch();
 
-    expect(rows.map((entry) => entry.reason), [
+    expect(rows.items.map((entry) => entry.reason), [
       InventoryJournalReason.restock,
       InventoryJournalReason.add,
       InventoryJournalReason.remove,

@@ -69,14 +69,57 @@ class StockInventoryController extends Notifier<StockInventoryState> {
   }
 
   Future<void> loadStockItems({String status = 'all'}) async {
+    await loadStockItemsPage(status: status);
+  }
+
+  Future<void> loadStockItemsPage({
+    String status = 'all',
+    String? search,
+    String? categoryId,
+    int limit = 10,
+    int page = 1,
+    bool pageTransition = false,
+    bool accumulatePages = false,
+  }) async {
+    final safeLimit = limit <= 0 ? 10 : limit;
+    final safePage = page <= 0 ? 1 : page;
+    final safeOffset = (safePage - 1) * safeLimit;
+    final normalizedStatus = _normalizeListStatus(status);
+    final normalizedSearch = search?.trim() ?? '';
+    final normalizedCategoryId = categoryId?.trim() ?? '';
     try {
-      state = state.copyWith(isLoading: true, error: null, errorCode: null);
-      final items = await _repository.fetchMasterStockItems();
-      final mapped = items
-          .where((item) => _matchesStatus(item, status))
-          .map(_toCatalogItem)
-          .toList(growable: false);
-      state = state.copyWith(isLoading: false, stockItems: mapped);
+      state = state.copyWith(
+        isLoading: !pageTransition && !accumulatePages,
+        isStockItemsPageLoading: pageTransition && !accumulatePages,
+        isLoadingMoreStockItems: accumulatePages,
+        error: null,
+        errorCode: null,
+        stockItemsPageSize: safeLimit,
+        stockItemsStatus: normalizedStatus,
+        stockItemsSearch: normalizedSearch,
+        stockItemsCategoryId: normalizedCategoryId,
+      );
+      final fetched = await _repository.fetchMasterStockItems(
+        status: normalizedStatus,
+        search: normalizedSearch.isEmpty ? null : normalizedSearch,
+        categoryId: normalizedCategoryId.isEmpty ? null : normalizedCategoryId,
+        pageSize: safeLimit,
+        offset: safeOffset,
+      );
+      final mapped = fetched.items.map(_toCatalogItem).toList(growable: false);
+      final nextItems = accumulatePages && safePage > 1
+          ? _mergeStockItems(state.stockItems, mapped)
+          : mapped;
+      state = state.copyWith(
+        isLoading: false,
+        isStockItemsPageLoading: false,
+        isLoadingMoreStockItems: false,
+        isAccumulatingStockItems: accumulatePages,
+        stockItems: nextItems,
+        stockItemsCurrentPage: safePage,
+        stockItemsOffset: accumulatePages ? 0 : safeOffset,
+        stockItemsTotal: fetched.total,
+      );
     } catch (e) {
       final mapped = mapInventoryError(
         e,
@@ -84,6 +127,8 @@ class StockInventoryController extends Notifier<StockInventoryState> {
       );
       state = state.copyWith(
         isLoading: false,
+        isStockItemsPageLoading: false,
+        isLoadingMoreStockItems: false,
         stockItems: const [],
         error: mapped.message,
         errorCode: mapped.code,
@@ -96,8 +141,77 @@ class StockInventoryController extends Notifier<StockInventoryState> {
       return true;
     }
 
-    final items = await _repository.fetchMasterStockItems();
-    return items.isNotEmpty;
+    final fetched = await _repository.fetchMasterStockItems(pageSize: 1);
+    return fetched.items.isNotEmpty;
+  }
+
+  Future<void> goToNextStockItemsPage() async {
+    if (state.isLoading || state.isStockItemsPageLoading) return;
+    if (!state.hasNextStockItemsPage) return;
+    await loadStockItemsPage(
+      status: state.stockItemsStatus,
+      search: state.stockItemsSearch,
+      categoryId: state.stockItemsCategoryId.isEmpty
+          ? null
+          : state.stockItemsCategoryId,
+      limit: state.stockItemsPageSize,
+      page: state.stockItemsCurrentPage + 1,
+      pageTransition: true,
+    );
+  }
+
+  Future<void> goToPreviousStockItemsPage() async {
+    if (state.isLoading || state.isStockItemsPageLoading) return;
+    if (!state.hasPreviousStockItemsPage) return;
+    await loadStockItemsPage(
+      status: state.stockItemsStatus,
+      search: state.stockItemsSearch,
+      categoryId: state.stockItemsCategoryId.isEmpty
+          ? null
+          : state.stockItemsCategoryId,
+      limit: state.stockItemsPageSize,
+      page: state.stockItemsCurrentPage - 1,
+      pageTransition: true,
+    );
+  }
+
+  Future<void> goToStockItemsPage(int page) async {
+    if (state.isLoading || state.isStockItemsPageLoading) return;
+    if (page < 1 ||
+        page > state.stockItemsTotalPages ||
+        page == state.stockItemsCurrentPage) {
+      return;
+    }
+    await loadStockItemsPage(
+      status: state.stockItemsStatus,
+      search: state.stockItemsSearch,
+      categoryId: state.stockItemsCategoryId.isEmpty
+          ? null
+          : state.stockItemsCategoryId,
+      limit: state.stockItemsPageSize,
+      page: page,
+      pageTransition: true,
+    );
+  }
+
+  Future<void> loadMoreStockItems() async {
+    if (state.isLoading ||
+        state.isStockItemsPageLoading ||
+        state.isLoadingMoreStockItems) {
+      return;
+    }
+    if (!state.hasNextStockItemsPage) return;
+    await loadStockItemsPage(
+      status: state.stockItemsStatus,
+      search: state.stockItemsSearch,
+      categoryId: state.stockItemsCategoryId.isEmpty
+          ? null
+          : state.stockItemsCategoryId,
+      limit: state.stockItemsPageSize,
+      page: state.stockItemsCurrentPage + 1,
+      pageTransition: true,
+      accumulatePages: true,
+    );
   }
 
   Future<void> loadRestockBatches({
@@ -130,17 +244,18 @@ class StockInventoryController extends Notifier<StockInventoryState> {
         restockBatchBranchId: normalizedBranchId,
         hasMoreRestockBatches: canAppend ? state.hasMoreRestockBatches : true,
       );
-      final batches = await _journalRepository.fetchRestockBatches(
+      final fetched = await _journalRepository.fetchRestockBatches(
         branchId: normalizedBranchId.isEmpty ? null : normalizedBranchId,
         status: normalizedStatus,
         stockItemId: stockItemId,
         limit: safeLimit,
         offset: safeOffset,
       );
+      final batches = fetched.items;
       final nextBatches = canAppend
           ? _mergeBatches(state.batches, batches)
           : batches;
-      final hasMore = batches.length == safeLimit;
+      final hasMore = fetched.hasMore;
       state = state.copyWith(
         isBatchesLoading: false,
         isLoadingMoreBatches: false,
@@ -801,6 +916,20 @@ class StockInventoryController extends Notifier<StockInventoryState> {
     return merged;
   }
 
+  List<StockItem> _mergeStockItems(
+    List<StockItem> existing,
+    List<StockItem> next,
+  ) {
+    final seen = <String>{for (final item in existing) item.id};
+    final merged = <StockItem>[...existing];
+    for (final item in next) {
+      if (seen.add(item.id)) {
+        merged.add(item);
+      }
+    }
+    return merged;
+  }
+
   String _normalizeListStatus(String value) {
     switch (value.trim().toLowerCase()) {
       case 'active':
@@ -809,18 +938,6 @@ class StockInventoryController extends Notifier<StockInventoryState> {
         return value.trim().toLowerCase();
       default:
         return 'active';
-    }
-  }
-
-  bool _matchesStatus(StockItem item, String status) {
-    switch (status.trim().toLowerCase()) {
-      case 'active':
-        return item.isActive;
-      case 'archived':
-        return !item.isActive;
-      case 'all':
-      default:
-        return true;
     }
   }
 

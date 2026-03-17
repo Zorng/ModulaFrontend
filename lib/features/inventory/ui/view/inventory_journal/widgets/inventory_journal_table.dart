@@ -7,9 +7,12 @@ class _JournalDesktopTable extends StatelessWidget {
     required this.hideItemColumn,
     required this.hideBranchColumn,
     required this.rangeLabel,
+    required this.currentPage,
+    required this.totalPages,
     required this.hasPreviousPage,
     required this.hasNextPage,
     required this.isPageLoading,
+    required this.onPageSelected,
     required this.onPreviousPage,
     required this.onNextPage,
   });
@@ -19,65 +22,85 @@ class _JournalDesktopTable extends StatelessWidget {
   final bool hideItemColumn;
   final bool hideBranchColumn;
   final String rangeLabel;
+  final int currentPage;
+  final int totalPages;
   final bool hasPreviousPage;
   final bool hasNextPage;
   final bool isPageLoading;
+  final ValueChanged<int> onPageSelected;
   final VoidCallback onPreviousPage;
   final VoidCallback onNextPage;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Expanded(
-          child: Container(
-            decoration: BoxDecoration(
-              color: AppTableTheme.background,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppTableTheme.divider),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(1),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(11),
-                child: ColoredBox(
-                  color: AppTableTheme.background,
-                  child: SingleChildScrollView(
-                    child: Column(
-                      children: [
-                        _DesktopTableHeader(
-                          hideItemColumn: hideItemColumn,
-                          hideBranchColumn: hideBranchColumn,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final contentWidth = constraints.maxWidth < 980
+            ? 980.0
+            : constraints.maxWidth;
+
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: SizedBox(
+            width: contentWidth,
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      color: AppTableTheme.background,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppTableTheme.divider),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(1),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(11),
+                        child: ColoredBox(
+                          color: AppTableTheme.background,
+                          child: Column(
+                            children: [
+                              _DesktopTableHeader(
+                                hideItemColumn: hideItemColumn,
+                                hideBranchColumn: hideBranchColumn,
+                              ),
+                              for (final group in groups) ...[
+                                _DateDividerRow(date: group.date),
+                                for (final entry in group.entries)
+                                  _DesktopEntryRow(
+                                    entry: entry,
+                                    baseUnitLookup: baseUnitLookup,
+                                    hideItemColumn: hideItemColumn,
+                                    hideBranchColumn: hideBranchColumn,
+                                  ),
+                              ],
+                            ],
+                          ),
                         ),
-                        for (final group in groups) ...[
-                          _DateDividerRow(date: group.date),
-                          for (final entry in group.entries)
-                            _DesktopEntryRow(
-                              entry: entry,
-                              baseUnitLookup: baseUnitLookup,
-                              hideItemColumn: hideItemColumn,
-                              hideBranchColumn: hideBranchColumn,
-                            ),
-                        ],
-                      ],
+                      ),
                     ),
                   ),
-                ),
+                  const SizedBox(height: 16),
+                  AppPaginationBar(
+                    rangeLabel: rangeLabel,
+                    currentPage: currentPage,
+                    totalPages: totalPages,
+                    canGoPrevious: hasPreviousPage,
+                    canGoNext: hasNextPage,
+                    isLoading: isPageLoading,
+                    onPageSelected: onPageSelected,
+                    onPrevious: onPreviousPage,
+                    onNext: onNextPage,
+                  ),
+                ],
               ),
             ),
           ),
-        ),
-        const SizedBox(height: 16),
-        AppPaginationBar(
-          rangeLabel: rangeLabel,
-          canGoPrevious: hasPreviousPage,
-          canGoNext: hasNextPage,
-          isLoading: isPageLoading,
-          onPrevious: onPreviousPage,
-          onNext: onNextPage,
-        ),
-      ],
+        );
+      },
     );
   }
 }

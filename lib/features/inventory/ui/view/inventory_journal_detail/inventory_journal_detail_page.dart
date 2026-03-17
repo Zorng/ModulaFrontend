@@ -145,8 +145,8 @@ class _InventoryJournalDetailPageState
     if (!needsHydrate) return;
 
     final repo = ref.read(stockItemRepositoryProvider);
-    final items = await repo.fetchMasterStockItems();
-    final lookup = {for (final item in items) item.id: item.name};
+    final fetched = await repo.fetchMasterStockItems();
+    final lookup = {for (final item in fetched.items) item.id: item.name};
     setState(() {
       _entries = _entries
           .map(

@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/core/network/api_contract.dart';
+import 'package:modular_pos/features/inventory/data/inventory_paginated_result.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_category.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_journal_entry.dart';
 import 'package:modular_pos/features/inventory/domain/models/on_hand_record.dart';
@@ -116,8 +117,42 @@ class MockInventoryStore {
     }
   }
 
-  List<StockItem> fetchMasterStockItems({int pageSize = 200}) {
-    return _items.values.take(pageSize).toList(growable: false);
+  InventoryPaginatedResult<StockItem> fetchMasterStockItems({
+    String status = 'all',
+    String? search,
+    String? categoryId,
+    int pageSize = 200,
+    int offset = 0,
+  }) {
+    final normalizedStatus = status.trim().toLowerCase();
+    final normalizedSearch = search?.trim().toLowerCase() ?? '';
+    final normalizedCategoryId = categoryId?.trim() ?? '';
+    final filtered = _items.values
+        .where((item) {
+          final matchesStatus = switch (normalizedStatus) {
+            'active' => item.isActive,
+            'archived' => !item.isActive,
+            _ => true,
+          };
+          final matchesSearch =
+              normalizedSearch.isEmpty ||
+              item.name.toLowerCase().contains(normalizedSearch);
+          final matchesCategory =
+              normalizedCategoryId.isEmpty ||
+              item.categoryId == normalizedCategoryId;
+          return matchesStatus && matchesSearch && matchesCategory;
+        })
+        .toList(growable: false);
+    final safeOffset = offset.clamp(0, filtered.length);
+    final end = (safeOffset + pageSize).clamp(0, filtered.length);
+    final items = filtered.sublist(safeOffset, end);
+    return InventoryPaginatedResult<StockItem>(
+      items: items,
+      limit: pageSize,
+      offset: safeOffset,
+      total: filtered.length,
+      hasMore: end < filtered.length,
+    );
   }
 
   StockItem fetchStockItemById(String id) {
@@ -445,7 +480,7 @@ class MockInventoryStore {
     return resultingOnHand;
   }
 
-  List<InventoryJournalEntry> fetchJournal({
+  InventoryPaginatedResult<InventoryJournalEntry> fetchJournal({
     String? branchId,
     bool tenantWide = false,
     String? stockItemId,
@@ -498,7 +533,7 @@ class MockInventoryStore {
             .toList(growable: false)
           ..sort((left, right) => right.occurredAt.compareTo(left.occurredAt));
 
-    return _page(filtered, limit: limit, offset: offset);
+    return _paginate(filtered, limit: limit, offset: offset);
   }
 
   List<InventoryJournalEntry> lowStockAlerts({String? branchId}) {
@@ -527,7 +562,7 @@ class MockInventoryStore {
         .toList(growable: false);
   }
 
-  List<StockBatch> fetchRestockBatches({
+  InventoryPaginatedResult<StockBatch> fetchRestockBatches({
     String? branchId,
     String status = 'all',
     String? stockItemId,
@@ -564,8 +599,10 @@ class MockInventoryStore {
             (left, right) => right.receivedDate.compareTo(left.receivedDate),
           );
 
-    final paged = _page(filtered, limit: limit ?? 50, offset: offset ?? 0);
-    return paged.map((batch) => batch.toDomain()).toList(growable: false);
+    final mapped = filtered
+        .map((batch) => batch.toDomain())
+        .toList(growable: false);
+    return _paginate(mapped, limit: limit ?? 50, offset: offset ?? 0);
   }
 
   StockBatch updateRestockBatchMetadata({
@@ -975,6 +1012,23 @@ class MockInventoryStore {
     if (safeOffset >= items.length) return <T>[];
     final end = (safeOffset + safeLimit).clamp(0, items.length);
     return items.sublist(safeOffset, end);
+  }
+
+  InventoryPaginatedResult<T> _paginate<T>(
+    List<T> items, {
+    required int limit,
+    required int offset,
+  }) {
+    final safeLimit = limit <= 0 ? 50 : limit;
+    final safeOffset = offset < 0 ? 0 : offset;
+    final paged = _page(items, limit: safeLimit, offset: safeOffset);
+    return InventoryPaginatedResult<T>(
+      items: paged,
+      limit: safeLimit,
+      offset: safeOffset,
+      total: items.length,
+      hasMore: safeOffset + paged.length < items.length,
+    );
   }
 
   InventoryJournalReason _reasonFromAdjustment({

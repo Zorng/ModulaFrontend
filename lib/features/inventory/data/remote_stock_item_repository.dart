@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/features/inventory/data/dto/stock_item_dto.dart';
 import 'package:modular_pos/features/inventory/data/inventory_api.dart';
+import 'package:modular_pos/features/inventory/data/inventory_paginated_result.dart';
 import 'package:modular_pos/features/inventory/data/stock_item_repository.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
 
@@ -15,23 +16,37 @@ class RemoteStockItemRepository extends StockItemRepository {
   final InventoryApi _api;
 
   @override
-  Future<List<StockItem>> fetchMasterStockItems({int pageSize = 200}) async {
-    final masterDtos = await _api.fetchStockItems(
-      status: 'all',
+  Future<InventoryPaginatedResult<StockItem>> fetchMasterStockItems({
+    String status = 'all',
+    String? search,
+    String? categoryId,
+    int pageSize = 200,
+    int offset = 0,
+  }) async {
+    final masterResult = await _api.fetchStockItems(
+      status: status,
+      search: search,
+      categoryId: categoryId,
       limit: pageSize,
-      offset: 0,
+      offset: offset,
     );
-    return masterDtos
-        .map(
-          (dto) => _toStockItem(
-            dto: dto,
-            branchId: '',
-            branchName: '',
-            onHand: 0,
-            minThreshold: dto.lowStockThreshold ?? 0,
-          ),
-        )
-        .toList(growable: false);
+    return InventoryPaginatedResult<StockItem>(
+      items: masterResult.items
+          .map(
+            (dto) => _toStockItem(
+              dto: dto,
+              branchId: '',
+              branchName: '',
+              onHand: 0,
+              minThreshold: dto.lowStockThreshold ?? 0,
+            ),
+          )
+          .toList(growable: false),
+      limit: masterResult.limit,
+      offset: masterResult.offset,
+      total: masterResult.total,
+      hasMore: masterResult.hasMore,
+    );
   }
 
   @override

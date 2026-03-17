@@ -25,19 +25,25 @@ void main() {
         requestOptions: RequestOptions(path: '/v0/inventory/items'),
         data: {
           'success': true,
-          'data': [
-            {
-              'id': 'item-1',
-              'tenantId': 'tenant-1',
-              'categoryId': 'cat-1',
-              'name': 'Whole Milk',
-              'baseUnit': 'ml',
-              'lowStockThreshold': 1000,
-              'status': 'ACTIVE',
-              'createdAt': '2026-02-20T00:00:00.000Z',
-              'updatedAt': '2026-02-21T00:00:00.000Z',
-            },
-          ],
+          'data': {
+            'items': [
+              {
+                'id': 'item-1',
+                'tenantId': 'tenant-1',
+                'categoryId': 'cat-1',
+                'name': 'Whole Milk',
+                'baseUnit': 'ml',
+                'lowStockThreshold': 1000,
+                'status': 'ACTIVE',
+                'createdAt': '2026-02-20T00:00:00.000Z',
+                'updatedAt': '2026-02-21T00:00:00.000Z',
+              },
+            ],
+            'limit': 25,
+            'offset': 0,
+            'total': 1,
+            'hasMore': false,
+          },
         },
       ),
     );
@@ -63,8 +69,12 @@ void main() {
         },
       ),
     ).called(1);
-    expect(rows, hasLength(1));
-    expect(rows.first.id, 'item-1');
+    expect(rows.items, hasLength(1));
+    expect(rows.items.first.id, 'item-1');
+    expect(rows.limit, 25);
+    expect(rows.offset, 0);
+    expect(rows.total, 1);
+    expect(rows.hasMore, isFalse);
   });
 
   test('fetchStockItems normalizes unknown status to all', () async {
@@ -77,7 +87,16 @@ void main() {
     ).thenAnswer(
       (_) async => Response<Map<String, dynamic>>(
         requestOptions: RequestOptions(path: '/v0/inventory/items'),
-        data: {'success': true, 'data': const []},
+        data: {
+          'success': true,
+          'data': {
+            'items': const [],
+            'limit': 50,
+            'offset': 0,
+            'total': 0,
+            'hasMore': false,
+          },
+        },
       ),
     );
 
@@ -125,19 +144,25 @@ void main() {
           requestOptions: RequestOptions(path: '/v0/inventory/items'),
           data: {
             'success': true,
-            'data': [
-              {
-                'id': 'item-1',
-                'tenantId': 'tenant-1',
-                'categoryId': 'cat-1',
-                'name': 'Whole Milk',
-                'baseUnit': 'ml',
-                'lowStockThreshold': 1000,
-                'status': 'ACTIVE',
-                'createdAt': '2026-02-20T00:00:00.000Z',
-                'updatedAt': '2026-02-21T00:00:00.000Z',
-              },
-            ],
+            'data': {
+              'items': [
+                {
+                  'id': 'item-1',
+                  'tenantId': 'tenant-1',
+                  'categoryId': 'cat-1',
+                  'name': 'Whole Milk',
+                  'baseUnit': 'ml',
+                  'lowStockThreshold': 1000,
+                  'status': 'ACTIVE',
+                  'createdAt': '2026-02-20T00:00:00.000Z',
+                  'updatedAt': '2026-02-21T00:00:00.000Z',
+                },
+              ],
+              'limit': 200,
+              'offset': 0,
+              'total': 1,
+              'hasMore': false,
+            },
           },
         );
       });
@@ -176,8 +201,8 @@ void main() {
           ),
         ),
       );
-      expect(rows, hasLength(1));
-      expect(rows.first.id, 'item-1');
+      expect(rows.items, hasLength(1));
+      expect(rows.items.first.id, 'item-1');
     },
   );
 

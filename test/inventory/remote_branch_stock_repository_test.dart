@@ -5,6 +5,7 @@ import 'package:modular_pos/features/inventory/data/dto/branch_stock_item_dto.da
 import 'package:modular_pos/features/inventory/data/dto/on_hand_record_dto.dart';
 import 'package:modular_pos/features/inventory/data/dto/stock_item_dto.dart';
 import 'package:modular_pos/features/inventory/data/inventory_api.dart';
+import 'package:modular_pos/features/inventory/data/inventory_paginated_result.dart';
 import 'package:modular_pos/features/inventory/data/remote_branch_stock_repository.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_status.dart';
 
@@ -26,20 +27,26 @@ void main() {
           offset: 0,
         ),
       ).thenAnswer(
-        (_) async => const [
-          StockItemDto(
-            id: 'item-1',
-            tenantId: 'tenant-1',
-            categoryId: 'cat-1',
-            name: 'Whole Milk',
-            baseUnit: 'ml',
-            imageUrl: null,
-            lowStockThreshold: 300,
-            status: InventoryStatus.active,
-            createdAt: '2026-03-03T00:00:00.000Z',
-            updatedAt: '2026-03-03T00:00:00.000Z',
-          ),
-        ],
+        (_) async => const InventoryPaginatedResult(
+          items: [
+            StockItemDto(
+              id: 'item-1',
+              tenantId: 'tenant-1',
+              categoryId: 'cat-1',
+              name: 'Whole Milk',
+              baseUnit: 'ml',
+              imageUrl: null,
+              lowStockThreshold: 300,
+              status: InventoryStatus.active,
+              createdAt: '2026-03-03T00:00:00.000Z',
+              updatedAt: '2026-03-03T00:00:00.000Z',
+            ),
+          ],
+          limit: 200,
+          offset: 0,
+          total: 1,
+          hasMore: false,
+        ),
       );
       when(
         () => api.fetchAggregateStock(includeArchivedItems: true),
@@ -83,20 +90,26 @@ void main() {
           offset: 0,
         ),
       ).thenAnswer(
-        (_) async => const [
-          StockItemDto(
-            id: 'item-1',
-            tenantId: 'tenant-1',
-            categoryId: 'cat-1',
-            name: 'Whole Milk',
-            baseUnit: 'ml',
-            imageUrl: null,
-            lowStockThreshold: 300,
-            status: InventoryStatus.active,
-            createdAt: '2026-03-03T00:00:00.000Z',
-            updatedAt: '2026-03-03T00:00:00.000Z',
-          ),
-        ],
+        (_) async => const InventoryPaginatedResult(
+          items: [
+            StockItemDto(
+              id: 'item-1',
+              tenantId: 'tenant-1',
+              categoryId: 'cat-1',
+              name: 'Whole Milk',
+              baseUnit: 'ml',
+              imageUrl: null,
+              lowStockThreshold: 300,
+              status: InventoryStatus.active,
+              createdAt: '2026-03-03T00:00:00.000Z',
+              updatedAt: '2026-03-03T00:00:00.000Z',
+            ),
+          ],
+          limit: 200,
+          offset: 0,
+          total: 1,
+          hasMore: false,
+        ),
       );
       when(
         () => api.fetchAggregateStock(includeArchivedItems: true),
@@ -163,20 +176,26 @@ void main() {
           offset: 0,
         ),
       ).thenAnswer(
-        (_) async => const [
-          StockItemDto(
-            id: 'item-1',
-            tenantId: 'tenant-1',
-            categoryId: 'cat-1',
-            name: 'Whole Milk',
-            baseUnit: 'ml',
-            imageUrl: 'https://cdn.example.com/stale.jpg',
-            lowStockThreshold: 300,
-            status: InventoryStatus.active,
-            createdAt: '2026-03-03T00:00:00.000Z',
-            updatedAt: '2026-03-03T00:00:00.000Z',
-          ),
-        ],
+        (_) async => const InventoryPaginatedResult(
+          items: [
+            StockItemDto(
+              id: 'item-1',
+              tenantId: 'tenant-1',
+              categoryId: 'cat-1',
+              name: 'Whole Milk',
+              baseUnit: 'ml',
+              imageUrl: 'https://cdn.example.com/stale.jpg',
+              lowStockThreshold: 300,
+              status: InventoryStatus.active,
+              createdAt: '2026-03-03T00:00:00.000Z',
+              updatedAt: '2026-03-03T00:00:00.000Z',
+            ),
+          ],
+          limit: 200,
+          offset: 0,
+          total: 1,
+          hasMore: false,
+        ),
       );
       when(
         () => api.fetchBranchStockItems(

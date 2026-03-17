@@ -10,6 +10,7 @@ import 'package:modular_pos/features/inventory/data/dto/branch_stock_projection_
 import 'package:modular_pos/features/inventory/data/dto/inventory_category_dto.dart';
 import 'package:modular_pos/features/inventory/data/dto/inventory_journal_entry_dto.dart';
 import 'package:modular_pos/features/inventory/data/inventory_api_envelope.dart';
+import 'package:modular_pos/features/inventory/data/inventory_paginated_result.dart';
 import 'package:modular_pos/features/inventory/data/dto/on_hand_record_dto.dart';
 import 'package:modular_pos/features/inventory/data/dto/restock_batch_dto.dart';
 import 'package:modular_pos/features/inventory/data/dto/stock_aggregate_item_dto.dart';
@@ -111,7 +112,7 @@ class InventoryApi {
   }
 
   // Stock items (master)
-  Future<List<StockItemDto>> fetchStockItems({
+  Future<InventoryPaginatedResult<StockItemDto>> fetchStockItems({
     String status = 'all',
     String? search,
     String? categoryId,
@@ -131,11 +132,17 @@ class InventoryApi {
         dio: _dio,
         queryParameters: query,
       );
-      final list = InventoryApiEnvelope.unwrapDataList(
+      final result = InventoryApiEnvelope.unwrapPaginatedDataList(
         response.data,
         fallbackMessage: 'Failed to fetch stock items.',
       );
-      return list.map(StockItemDto.fromJson).toList(growable: false);
+      return InventoryPaginatedResult<StockItemDto>(
+        items: result.items.map(StockItemDto.fromJson).toList(growable: false),
+        limit: result.limit,
+        offset: result.offset,
+        total: result.total,
+        hasMore: result.hasMore,
+      );
     } on DioError catch (error) {
       throw ApiClientException.fromDio(
         error,
@@ -336,7 +343,7 @@ class InventoryApi {
     return list.map(StockAggregateItemDto.fromJson).toList(growable: false);
   }
 
-  Future<List<RestockBatchDto>> fetchRestockBatches({
+  Future<InventoryPaginatedResult<RestockBatchDto>> fetchRestockBatches({
     String? branchId,
     String status = 'all',
     String? stockItemId,
@@ -355,11 +362,17 @@ class InventoryApi {
       '$_prefix/restock-batches',
       queryParameters: query,
     );
-    final list = InventoryApiEnvelope.unwrapDataList(
+    final result = InventoryApiEnvelope.unwrapPaginatedDataList(
       response.data,
       fallbackMessage: 'Failed to fetch restock batches.',
     );
-    return list.map(RestockBatchDto.fromJson).toList(growable: false);
+    return InventoryPaginatedResult<RestockBatchDto>(
+      items: result.items.map(RestockBatchDto.fromJson).toList(growable: false),
+      limit: result.limit,
+      offset: result.offset,
+      total: result.total,
+      hasMore: result.hasMore,
+    );
   }
 
   Future<InventoryJournalEntryDto?> createRestockBatch({
@@ -556,7 +569,7 @@ class InventoryApi {
     );
   }
 
-  Future<List<InventoryJournalEntryDto>> fetchJournal({
+  Future<InventoryPaginatedResult<InventoryJournalEntryDto>> fetchJournal({
     required String branchId,
     String? stockItemId,
     String? reasonCode,
@@ -585,14 +598,23 @@ class InventoryApi {
       '$_prefix/journal',
       queryParameters: query,
     );
-    final list = InventoryApiEnvelope.unwrapDataList(
+    final result = InventoryApiEnvelope.unwrapPaginatedDataList(
       response.data,
       fallbackMessage: 'Failed to fetch inventory journal.',
     );
-    return list.map(InventoryJournalEntryDto.fromJson).toList(growable: false);
+    return InventoryPaginatedResult<InventoryJournalEntryDto>(
+      items: result.items
+          .map(InventoryJournalEntryDto.fromJson)
+          .toList(growable: false),
+      limit: result.limit,
+      offset: result.offset,
+      total: result.total,
+      hasMore: result.hasMore,
+    );
   }
 
-  Future<List<InventoryJournalEntryDto>> fetchTenantJournal({
+  Future<InventoryPaginatedResult<InventoryJournalEntryDto>>
+  fetchTenantJournal({
     String? branchId,
     String? stockItemId,
     String? reasonCode,
@@ -621,11 +643,19 @@ class InventoryApi {
       '$_prefix/journal/all',
       queryParameters: query,
     );
-    final list = InventoryApiEnvelope.unwrapDataList(
+    final result = InventoryApiEnvelope.unwrapPaginatedDataList(
       response.data,
       fallbackMessage: 'Failed to fetch tenant inventory journal.',
     );
-    return list.map(InventoryJournalEntryDto.fromJson).toList(growable: false);
+    return InventoryPaginatedResult<InventoryJournalEntryDto>(
+      items: result.items
+          .map(InventoryJournalEntryDto.fromJson)
+          .toList(growable: false),
+      limit: result.limit,
+      offset: result.offset,
+      total: result.total,
+      hasMore: result.hasMore,
+    );
   }
 
   Future<List<InventoryJournalEntryDto>> fetchLowStockAlerts({

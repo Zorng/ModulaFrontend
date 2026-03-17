@@ -39,6 +39,7 @@ class InventoryJournalPage extends ConsumerStatefulWidget {
 class _InventoryJournalPageState extends ConsumerState<InventoryJournalPage> {
   static const int _pageSize = 10;
 
+  final ScrollController _pageScrollController = ScrollController();
   InventoryJournalReasonFilter? _selectedReasonFilter;
   InventoryJournalDatePreset _datePreset = InventoryJournalDatePreset.today;
   late DateTime _startDate;
@@ -80,6 +81,12 @@ class _InventoryJournalPageState extends ConsumerState<InventoryJournalPage> {
             accumulatePages: _usesLazyLoading,
           );
     });
+  }
+
+  @override
+  void dispose() {
+    _pageScrollController.dispose();
+    super.dispose();
   }
 
   @override
@@ -140,67 +147,120 @@ class _InventoryJournalPageState extends ConsumerState<InventoryJournalPage> {
     return Scaffold(
       body: Padding(
         padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _JournalPageHeader(
-              filterStatusItems: filterStatusItems,
-              hasFiltersApplied: hasFiltersApplied,
-              onFilterPressed: () => _openFilterModal(
-                context,
-                branchOptions: branchOptions,
-                stockItems: stockItems,
-                selectedBranchId: journalState.selectedBranchId,
-                selectedItemId: journalState.selectedStockItemId,
-                selectedItemName: selectedItemLabel,
+        child: NestedScrollView(
+          controller: _pageScrollController,
+          headerSliverBuilder: (context, innerBoxIsScrolled) => [
+            SliverToBoxAdapter(
+              child: _JournalPageHeader(
+                filterStatusItems: filterStatusItems,
+                hasFiltersApplied: hasFiltersApplied,
+                onFilterPressed: () => _openFilterModal(
+                  context,
+                  branchOptions: branchOptions,
+                  stockItems: stockItems,
+                  selectedBranchId: journalState.selectedBranchId,
+                  selectedItemId: journalState.selectedStockItemId,
+                  selectedItemName: selectedItemLabel,
+                ),
               ),
             ),
-            const SizedBox(height: 16),
             if (journalState.error != null && entries.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              _SelectionBanner(
-                text: journalState.error!,
-                actionLabel: 'Retry',
-                onPressed: _reloadCurrentQuery,
-                isError: true,
+              const SliverToBoxAdapter(child: SizedBox(height: 12)),
+              SliverToBoxAdapter(
+                child: _SelectionBanner(
+                  text: journalState.error!,
+                  actionLabel: 'Retry',
+                  onPressed: _reloadCurrentQuery,
+                  isError: true,
+                ),
               ),
             ],
-            const SizedBox(height: 16),
-            Expanded(
-              child: journalState.isLoading && entries.isEmpty
-                  ? const Center(child: CircularProgressIndicator())
-                  : journalState.error != null && entries.isEmpty
-                  ? _JournalInitialError(
-                      message: journalState.error!,
-                      onRetry: _reloadCurrentQuery,
-                    )
-                  : dateGroups.isEmpty
-                  ? _JournalEmptyState(message: _emptyStateMessage)
-                  : isSmallScreen
-                  ? _JournalMobileList(
-                      groups: dateGroups,
-                      baseUnitLookup: baseUnitLookup,
-                      hasNextPage: journalState.hasNextPage,
-                      isLoadingMore: journalState.isPageLoading,
-                      onLoadMore: _loadNextChunk,
-                    )
-                  : _JournalDesktopTable(
-                      groups: dateGroups,
-                      baseUnitLookup: baseUnitLookup,
-                      hideItemColumn:
-                          journalState.selectedStockItemId.isNotEmpty,
-                      hideBranchColumn: journalState.selectedBranchId != 'all',
-                      rangeLabel: rangeLabel,
-                      hasPreviousPage: journalState.hasPreviousPage,
-                      hasNextPage: journalState.hasNextPage,
-                      isPageLoading: journalState.isPageLoading,
-                      onPreviousPage: _goToPreviousPage,
-                      onNextPage: _goToNextPage,
-                    ),
-            ),
+            const SliverToBoxAdapter(child: SizedBox(height: 16)),
           ],
+          body: _buildScrollableBody(
+            isSmallScreen: isSmallScreen,
+            journalState: journalState,
+            dateGroups: dateGroups,
+            baseUnitLookup: baseUnitLookup,
+            rangeLabel: rangeLabel,
+          ),
         ),
       ),
+    );
+  }
+
+  Widget _buildScrollableBody({
+    required bool isSmallScreen,
+    required InventoryJournalState journalState,
+    required List<_JournalDateGroup> dateGroups,
+    required Map<String, String> baseUnitLookup,
+    required String rangeLabel,
+  }) {
+    if (journalState.isLoading && journalState.entries.isEmpty) {
+      return const CustomScrollView(
+        slivers: [
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: Center(child: CircularProgressIndicator()),
+          ),
+        ],
+      );
+    }
+
+    if (journalState.error != null && journalState.entries.isEmpty) {
+      return CustomScrollView(
+        slivers: [
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: _JournalInitialError(
+              message: journalState.error!,
+              onRetry: _reloadCurrentQuery,
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (dateGroups.isEmpty) {
+      return CustomScrollView(
+        slivers: [
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: _JournalEmptyState(message: _emptyStateMessage),
+          ),
+        ],
+      );
+    }
+
+    if (isSmallScreen) {
+      return _JournalMobileList(
+        groups: dateGroups,
+        baseUnitLookup: baseUnitLookup,
+        hasNextPage: journalState.hasNextPage,
+        isLoadingMore: journalState.isPageLoading,
+        onLoadMore: _loadNextChunk,
+      );
+    }
+
+    return ListView(
+      padding: EdgeInsets.zero,
+      children: [
+        _JournalDesktopTable(
+          groups: dateGroups,
+          baseUnitLookup: baseUnitLookup,
+          hideItemColumn: journalState.selectedStockItemId.isNotEmpty,
+          hideBranchColumn: journalState.selectedBranchId != 'all',
+          rangeLabel: rangeLabel,
+          currentPage: journalState.currentPage,
+          totalPages: journalState.totalPages,
+          hasPreviousPage: journalState.hasPreviousPage,
+          hasNextPage: journalState.hasNextPage,
+          isPageLoading: journalState.isPageLoading,
+          onPageSelected: _goToPage,
+          onPreviousPage: _goToPreviousPage,
+          onNextPage: _goToNextPage,
+        ),
+      ],
     );
   }
 
@@ -430,7 +490,27 @@ class _InventoryJournalPageState extends ConsumerState<InventoryJournalPage> {
           reason: inventoryJournalReasonFilterToDomainReason(
             _selectedReasonFilter,
           ),
-        );
+        )
+        .then((_) => _jumpToTopAfterPageChange());
+  }
+
+  Future<void> _goToPage(int page) {
+    final journalState = ref.read(inventoryJournalControllerProvider);
+    return ref
+        .read(inventoryJournalControllerProvider.notifier)
+        .goToPage(
+          page,
+          branchId: journalState.selectedBranchId == 'all'
+              ? null
+              : journalState.selectedBranchId,
+          stockItemId: journalState.selectedStockItemId.isEmpty
+              ? null
+              : journalState.selectedStockItemId,
+          reason: inventoryJournalReasonFilterToDomainReason(
+            _selectedReasonFilter,
+          ),
+        )
+        .then((_) => _jumpToTopAfterPageChange());
   }
 
   Future<void> _goToPreviousPage() {
@@ -447,7 +527,18 @@ class _InventoryJournalPageState extends ConsumerState<InventoryJournalPage> {
           reason: inventoryJournalReasonFilterToDomainReason(
             _selectedReasonFilter,
           ),
-        );
+        )
+        .then((_) => _jumpToTopAfterPageChange());
+  }
+
+  Future<void> _jumpToTopAfterPageChange() async {
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_pageScrollController.hasClients) return;
+      final position = _pageScrollController.position;
+      if (position.pixels <= 0) return;
+      _pageScrollController.jumpTo(0);
+    });
   }
 
   List<MapEntry<String, String>> _branchOptions(

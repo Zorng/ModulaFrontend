@@ -74,7 +74,7 @@ class InventoryJournalController extends Notifier<InventoryJournalState> {
         offset: safeOffset,
       );
 
-      final entries = fetched
+      final entries = fetched.items
           .where((entry) {
             if (normalizedBranchId == null) {
               return true;
@@ -104,11 +104,21 @@ class InventoryJournalController extends Notifier<InventoryJournalState> {
           )
           .toList();
 
+      if (enriched.isEmpty && safePage > 1) {
+        state = state.copyWith(
+          isLoading: false,
+          isPageLoading: false,
+          total: fetched.total,
+          error: null,
+          errorCode: null,
+        );
+        return;
+      }
+
       final nextEntries = accumulatePages && safePage > 1
           ? [...state.entries, ...enriched]
           : enriched;
       nextEntries.sort((a, b) => b.occurredAt.compareTo(a.occurredAt));
-      final hasNextPage = fetched.length == safeLimit;
       state = state.copyWith(
         isLoading: false,
         isPageLoading: false,
@@ -116,7 +126,7 @@ class InventoryJournalController extends Notifier<InventoryJournalState> {
         entries: nextEntries,
         currentPage: safePage,
         pageOffset: accumulatePages ? 0 : safeOffset,
-        hasNextPage: hasNextPage,
+        total: fetched.total,
         error: null,
         errorCode: null,
       );
@@ -150,6 +160,30 @@ class InventoryJournalController extends Notifier<InventoryJournalState> {
       dateFilter: state.dateFilter,
       limit: state.pageSize,
       page: state.currentPage + 1,
+      pageTransition: true,
+      accumulatePages: false,
+    );
+  }
+
+  Future<void> goToPage(
+    int page, {
+    String? branchId,
+    String? stockItemId,
+    InventoryJournalReason? reason,
+  }) async {
+    if (state.isLoading || state.isPageLoading) return;
+    if (page < 1 || page > state.totalPages || page == state.currentPage) {
+      return;
+    }
+    final selectedBranchId = branchId ?? state.selectedBranchId;
+    final selectedStockItemId = stockItemId ?? state.selectedStockItemId;
+    await load(
+      branchId: selectedBranchId == 'all' ? null : selectedBranchId,
+      stockItemId: selectedStockItemId.isEmpty ? null : selectedStockItemId,
+      reason: reason ?? state.selectedReason,
+      dateFilter: state.dateFilter,
+      limit: state.pageSize,
+      page: page,
       pageTransition: true,
       accumulatePages: false,
     );
@@ -204,7 +238,7 @@ class InventoryJournalController extends Notifier<InventoryJournalState> {
     next.sort((a, b) => b.occurredAt.compareTo(a.occurredAt));
     state = state.copyWith(
       entries: next,
-      hasNextPage: state.hasNextPage || state.currentPage > 1,
+      total: state.total + 1,
       isAccumulatingPages: state.isAccumulatingPages,
       error: null,
       errorCode: null,
@@ -232,8 +266,8 @@ class InventoryJournalController extends Notifier<InventoryJournalState> {
   }
 
   Future<Map<String, String>> _itemNameLookup() async {
-    final items = await _stockRepo.fetchMasterStockItems();
-    return {for (final item in items) item.id: item.name};
+    final fetched = await _stockRepo.fetchMasterStockItems();
+    return {for (final item in fetched.items) item.id: item.name};
   }
 
   bool _hasRealName(String name) {
