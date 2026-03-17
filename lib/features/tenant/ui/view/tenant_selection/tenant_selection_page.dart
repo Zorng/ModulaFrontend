@@ -99,13 +99,6 @@ class TenantSelectionPage extends ConsumerWidget {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  'Manage the organizations you have access to.',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                ),
                 const SizedBox(height: 24),
                 // Search + Create button
                 LayoutBuilder(
@@ -152,10 +145,6 @@ class TenantSelectionPage extends ConsumerWidget {
                     );
                   },
                 ),
-                const SizedBox(height: 32),
-                // Recently Used section
-                const _SectionHeader(title: 'Recently Used'),
-                // No tiles yet — data wiring pending
                 const SizedBox(height: 32),
                 // All Tenants section
                 const _SectionHeader(title: 'All Tenants'),

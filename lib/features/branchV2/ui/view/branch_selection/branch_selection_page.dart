@@ -334,26 +334,40 @@ class _BranchSelectionPageState extends ConsumerState<BranchSelectionPage> {
                   ? const Center(child: CircularProgressIndicator())
                   : branches.isEmpty
                   ? const Center(child: Text('No branch found.'))
-                  : ListView.separated(
-                      itemCount: branches.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 8),
-                      itemBuilder: (context, index) {
-                        final branch = branches[index];
-                        final displayBranch =
-                            !isSelectionMode &&
-                                activeBranchId.isNotEmpty &&
-                                branch.branchId == activeBranchId
-                            ? branch.copyWith(shouldHighlight: true)
-                            : branch;
-                        return BranchSelectionTile(
-                          branch: displayBranch,
-                          enabled: !isLoading,
-                          onTap: () => isSelectionMode
-                              ? onSelectionBranchTap(branch)
-                              : onBranchTap(branch.branchId),
-                          onManage: !isSelectionMode && state.canManageTenant
-                              ? () => onManageBranch(branch)
-                              : null,
+                  : LayoutBuilder(
+                      builder: (context, constraints) {
+                        final isSingleColumn = AppBreakpoints.isSmall(
+                          constraints.maxWidth,
+                        );
+                        return GridView.builder(
+                          gridDelegate:
+                              SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: isSingleColumn ? 1 : 2,
+                                crossAxisSpacing: 8,
+                                mainAxisSpacing: 8,
+                                mainAxisExtent: 230,
+                              ),
+                          itemCount: branches.length,
+                          itemBuilder: (context, index) {
+                            final branch = branches[index];
+                            final displayBranch =
+                                !isSelectionMode &&
+                                    activeBranchId.isNotEmpty &&
+                                    branch.branchId == activeBranchId
+                                ? branch.copyWith(shouldHighlight: true)
+                                : branch;
+                            return BranchSelectionTile(
+                              branch: displayBranch,
+                              enabled: !isLoading,
+                              onTap: () => isSelectionMode
+                                  ? onSelectionBranchTap(branch)
+                                  : onBranchTap(branch.branchId),
+                              onManage: !isSelectionMode &&
+                                      state.canManageTenant
+                                  ? () => onManageBranch(branch)
+                                  : null,
+                            );
+                          },
                         );
                       },
                     ),
