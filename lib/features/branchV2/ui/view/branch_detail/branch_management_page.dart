@@ -324,6 +324,9 @@ class _BranchManagementPageState extends ConsumerState<BranchManagementPage> {
                               child: SizedBox(
                                 height: 160,
                                 child: GoogleMap(
+                                  key: ValueKey(
+                                    '${picked.latitude},${picked.longitude},$radius',
+                                  ),
                                   initialCameraPosition: CameraPosition(
                                     target: picked,
                                     zoom: 15,
