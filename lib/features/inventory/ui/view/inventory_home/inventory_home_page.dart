@@ -122,7 +122,7 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
                 text: currentBranchName ?? 'the selected',
                 style: inventoryScopeBranchTextStyle,
               ),
-              const TextSpan(text: 'branch.'),
+              const TextSpan(text: ' branch.'),
             ],
           );
     final tableActionTextStyle = Theme.of(
