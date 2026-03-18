@@ -277,24 +277,34 @@ class InventoryApi {
     }
   }
 
-  Future<List<BranchStockItemDto>> fetchBranchStockItems({
+  Future<InventoryPaginatedResult<BranchStockItemDto>> fetchBranchStockItems({
     required String branchId,
     bool includeArchivedItems = true,
+    int? limit,
+    int? offset,
   }) async {
     final response = await _dio.get<Map<String, dynamic>>(
       '$_prefix/stock/branch',
       queryParameters: <String, dynamic>{
         'branchId': branchId,
         'includeArchivedItems': includeArchivedItems,
+        if (limit != null) 'limit': limit,
+        if (offset != null) 'offset': offset,
       },
     );
-    final list = InventoryApiEnvelope.unwrapDataList(
+    final result = InventoryApiEnvelope.unwrapPaginatedDataList(
       response.data,
       fallbackMessage: 'Failed to fetch branch stock items.',
     );
-    return list
-        .map((json) => BranchStockItemDto.fromJson(json))
-        .toList(growable: false);
+    return InventoryPaginatedResult<BranchStockItemDto>(
+      items: result.items
+          .map((json) => BranchStockItemDto.fromJson(json))
+          .toList(growable: false),
+      limit: result.limit,
+      offset: result.offset,
+      total: result.total,
+      hasMore: result.hasMore,
+    );
   }
 
   Future<void> assignStockItemToBranch({
@@ -311,36 +321,64 @@ class InventoryApi {
     required String branchId,
     bool includeArchivedItems = true,
   }) async {
-    final response = await _dio.get<Map<String, dynamic>>(
-      '$_prefix/stock/branch',
-      queryParameters: <String, dynamic>{
-        'branchId': branchId,
-        'includeArchivedItems': includeArchivedItems,
-      },
-    );
-    final list = InventoryApiEnvelope.unwrapDataList(
-      response.data,
-      fallbackMessage: 'Failed to fetch on-hand projections.',
-    );
-    return list
-        .map((json) => OnHandRecordDto.fromJson(json))
-        .toList(growable: false);
+    const pageSize = 200;
+    var offset = 0;
+    var hasMore = true;
+    final records = <OnHandRecordDto>[];
+
+    while (hasMore) {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '$_prefix/stock/branch',
+        queryParameters: <String, dynamic>{
+          'branchId': branchId,
+          'includeArchivedItems': includeArchivedItems,
+          'limit': pageSize,
+          'offset': offset,
+        },
+      );
+      final result = InventoryApiEnvelope.unwrapPaginatedDataList(
+        response.data,
+        fallbackMessage: 'Failed to fetch on-hand projections.',
+      );
+      records.addAll(
+        result.items.map(
+          (json) => OnHandRecordDto.fromJson(json, branchIdHint: branchId),
+        ),
+      );
+      hasMore = result.hasMore;
+      offset += result.items.length;
+      if (result.items.isEmpty) break;
+    }
+
+    return records;
   }
 
-  Future<List<StockAggregateItemDto>> fetchAggregateStock({
+  Future<InventoryPaginatedResult<StockAggregateItemDto>> fetchAggregateStock({
     bool includeArchivedItems = true,
+    int? limit,
+    int? offset,
   }) async {
     final response = await _dio.get<Map<String, dynamic>>(
       '$_prefix/stock/aggregate',
       queryParameters: <String, dynamic>{
         'includeArchivedItems': includeArchivedItems,
+        if (limit != null) 'limit': limit,
+        if (offset != null) 'offset': offset,
       },
     );
-    final list = InventoryApiEnvelope.unwrapDataList(
+    final result = InventoryApiEnvelope.unwrapPaginatedDataList(
       response.data,
       fallbackMessage: 'Failed to fetch aggregate stock.',
     );
-    return list.map(StockAggregateItemDto.fromJson).toList(growable: false);
+    return InventoryPaginatedResult<StockAggregateItemDto>(
+      items: result.items
+          .map(StockAggregateItemDto.fromJson)
+          .toList(growable: false),
+      limit: result.limit,
+      offset: result.offset,
+      total: result.total,
+      hasMore: result.hasMore,
+    );
   }
 
   Future<InventoryPaginatedResult<RestockBatchDto>> fetchRestockBatches({

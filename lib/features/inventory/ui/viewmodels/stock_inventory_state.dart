@@ -6,6 +6,9 @@ import 'package:modular_pos/features/inventory/ui/viewmodels/inventory_error_map
 class StockInventoryState extends Equatable {
   const StockInventoryState({
     this.isLoading = false,
+    this.isInventoryPageLoading = false,
+    this.isLoadingMoreInventoryItems = false,
+    this.isAccumulatingInventoryItems = false,
     this.isStockItemsPageLoading = false,
     this.isLoadingMoreStockItems = false,
     this.isAccumulatingStockItems = false,
@@ -14,6 +17,10 @@ class StockInventoryState extends Equatable {
     this.inventoryItems = const [],
     this.stockItems = const [],
     this.selectedInventoryBranchId = 'all',
+    this.inventoryPageSize = 10,
+    this.inventoryCurrentPage = 1,
+    this.inventoryOffset = 0,
+    this.inventoryTotal = 0,
     this.stockItemsPageSize = 10,
     this.stockItemsCurrentPage = 1,
     this.stockItemsOffset = 0,
@@ -33,6 +40,9 @@ class StockInventoryState extends Equatable {
   });
 
   final bool isLoading;
+  final bool isInventoryPageLoading;
+  final bool isLoadingMoreInventoryItems;
+  final bool isAccumulatingInventoryItems;
   final bool isStockItemsPageLoading;
   final bool isLoadingMoreStockItems;
   final bool isAccumulatingStockItems;
@@ -41,6 +51,10 @@ class StockInventoryState extends Equatable {
   final List<StockItem> inventoryItems;
   final List<StockItem> stockItems;
   final String selectedInventoryBranchId;
+  final int inventoryPageSize;
+  final int inventoryCurrentPage;
+  final int inventoryOffset;
+  final int inventoryTotal;
   final int stockItemsPageSize;
   final int stockItemsCurrentPage;
   final int stockItemsOffset;
@@ -57,6 +71,29 @@ class StockInventoryState extends Equatable {
   final String restockBatchBranchId;
   final String? error;
   final InventoryErrorCode? errorCode;
+
+  bool get hasPreviousInventoryPage =>
+      !isAccumulatingInventoryItems && inventoryCurrentPage > 1;
+
+  int get inventoryTotalPages => inventoryTotal <= 0
+      ? 1
+      : ((inventoryTotal + inventoryPageSize - 1) ~/ inventoryPageSize);
+
+  bool get hasNextInventoryPage => inventoryCurrentPage < inventoryTotalPages;
+
+  int get inventoryVisibleRangeStart => inventoryItems.isEmpty
+      ? 0
+      : (isAccumulatingInventoryItems ? 1 : inventoryOffset + 1);
+
+  int get inventoryVisibleRangeEnd {
+    if (inventoryItems.isEmpty) return 0;
+    final rawEnd = isAccumulatingInventoryItems
+        ? inventoryItems.length
+        : inventoryOffset + inventoryItems.length;
+    return inventoryTotal > 0
+        ? rawEnd.clamp(0, inventoryTotal).toInt()
+        : rawEnd;
+  }
 
   bool get hasPreviousStockItemsPage =>
       !isAccumulatingStockItems && stockItemsCurrentPage > 1;
@@ -77,11 +114,16 @@ class StockInventoryState extends Equatable {
     final rawEnd = isAccumulatingStockItems
         ? stockItems.length
         : stockItemsOffset + stockItems.length;
-    return stockItemsTotal > 0 ? rawEnd.clamp(0, stockItemsTotal) : rawEnd;
+    return stockItemsTotal > 0
+        ? rawEnd.clamp(0, stockItemsTotal).toInt()
+        : rawEnd;
   }
 
   StockInventoryState copyWith({
     bool? isLoading,
+    bool? isInventoryPageLoading,
+    bool? isLoadingMoreInventoryItems,
+    bool? isAccumulatingInventoryItems,
     bool? isStockItemsPageLoading,
     bool? isLoadingMoreStockItems,
     bool? isAccumulatingStockItems,
@@ -90,6 +132,10 @@ class StockInventoryState extends Equatable {
     List<StockItem>? inventoryItems,
     List<StockItem>? stockItems,
     String? selectedInventoryBranchId,
+    int? inventoryPageSize,
+    int? inventoryCurrentPage,
+    int? inventoryOffset,
+    int? inventoryTotal,
     int? stockItemsPageSize,
     int? stockItemsCurrentPage,
     int? stockItemsOffset,
@@ -109,6 +155,12 @@ class StockInventoryState extends Equatable {
   }) {
     return StockInventoryState(
       isLoading: isLoading ?? this.isLoading,
+      isInventoryPageLoading:
+          isInventoryPageLoading ?? this.isInventoryPageLoading,
+      isLoadingMoreInventoryItems:
+          isLoadingMoreInventoryItems ?? this.isLoadingMoreInventoryItems,
+      isAccumulatingInventoryItems:
+          isAccumulatingInventoryItems ?? this.isAccumulatingInventoryItems,
       isStockItemsPageLoading:
           isStockItemsPageLoading ?? this.isStockItemsPageLoading,
       isLoadingMoreStockItems:
@@ -121,6 +173,10 @@ class StockInventoryState extends Equatable {
       stockItems: stockItems ?? this.stockItems,
       selectedInventoryBranchId:
           selectedInventoryBranchId ?? this.selectedInventoryBranchId,
+      inventoryPageSize: inventoryPageSize ?? this.inventoryPageSize,
+      inventoryCurrentPage: inventoryCurrentPage ?? this.inventoryCurrentPage,
+      inventoryOffset: inventoryOffset ?? this.inventoryOffset,
+      inventoryTotal: inventoryTotal ?? this.inventoryTotal,
       stockItemsPageSize: stockItemsPageSize ?? this.stockItemsPageSize,
       stockItemsCurrentPage:
           stockItemsCurrentPage ?? this.stockItemsCurrentPage,
@@ -146,6 +202,9 @@ class StockInventoryState extends Equatable {
   @override
   List<Object?> get props => [
     isLoading,
+    isInventoryPageLoading,
+    isLoadingMoreInventoryItems,
+    isAccumulatingInventoryItems,
     isStockItemsPageLoading,
     isLoadingMoreStockItems,
     isAccumulatingStockItems,
@@ -154,6 +213,10 @@ class StockInventoryState extends Equatable {
     inventoryItems,
     stockItems,
     selectedInventoryBranchId,
+    inventoryPageSize,
+    inventoryCurrentPage,
+    inventoryOffset,
+    inventoryTotal,
     stockItemsPageSize,
     stockItemsCurrentPage,
     stockItemsOffset,

@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:modular_pos/core/theme/app_buttons.dart';
 import 'package:modular_pos/core/theme/app_table_theme.dart';
 
 class AppPaginationBar extends StatelessWidget {
+  static const double _itemGap = 8;
+
   const AppPaginationBar({
     super.key,
     required this.rangeLabel,
@@ -30,6 +31,10 @@ class AppPaginationBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (totalPages != null && totalPages! <= 1) {
+      return const SizedBox.shrink();
+    }
+
     final rangeTextStyle = Theme.of(
       context,
     ).textTheme.bodySmall?.copyWith(color: const Color(0xFF6B7280));
@@ -49,26 +54,32 @@ class AppPaginationBar extends StatelessWidget {
             ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final useNumericPagination =
-              _supportsNumericPagination && constraints.maxWidth >= 720;
+          final useNumericPagination = _supportsNumericPagination;
 
           final previousButton = FilledButton(
             onPressed: canGoPrevious && !isLoading ? onPrevious : null,
-            style: _navigationButtonStyle(context, primary: false),
-            child: const Text('Previous'),
+            style: _paginationButtonStyle(context),
+            child: const Icon(Icons.chevron_left, size: 18),
           );
 
           final nextButton = FilledButton(
             onPressed: canGoNext && !isLoading ? onNext : null,
-            style: _navigationButtonStyle(context, primary: true),
+            style: _paginationButtonStyle(context),
             child: isLoading
                 ? const SizedBox(
                     width: 16,
                     height: 16,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Text('Next'),
+                : const Icon(Icons.chevron_right, size: 18),
           );
+
+          final tokenWidgets = useNumericPagination
+              ? _buildPageTokens(
+                  currentPage: currentPage!,
+                  totalPages: totalPages!,
+                ).map((token) => _buildToken(context, token)).toList()
+              : const <Widget>[];
 
           final controls = SingleChildScrollView(
             scrollDirection: Axis.horizontal,
@@ -77,44 +88,11 @@ class AppPaginationBar extends StatelessWidget {
               children: [
                 previousButton,
                 if (useNumericPagination) ...[
-                  const SizedBox(width: 12),
-                  ..._buildPageTokens(
-                    currentPage: currentPage!,
-                    totalPages: totalPages!,
-                  ).expand(
-                    (token) => [
-                      if (token.isEllipsis)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 4),
-                          child: Text(
-                            '...',
-                            style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(
-                                  color: const Color(0xFF6B7280),
-                                  fontWeight: FontWeight.w600,
-                                ),
-                          ),
-                        )
-                      else
-                        FilledButton(
-                          onPressed: isLoading
-                              ? null
-                              : () {
-                                  if (token.page != currentPage) {
-                                    onPageSelected?.call(token.page!);
-                                  }
-                                },
-                          style: _pageButtonStyle(
-                            context,
-                            isCurrentPage: token.page == currentPage,
-                          ),
-                          child: Text('${token.page}'),
-                        ),
-                      const SizedBox(width: 8),
-                    ],
-                  ),
+                  const SizedBox(width: _itemGap),
+                  ..._separated(tokenWidgets),
+                  const SizedBox(width: _itemGap),
                 ] else
-                  const SizedBox(width: 12),
+                  const SizedBox(width: _itemGap),
                 nextButton,
               ],
             ),
@@ -143,38 +121,94 @@ class AppPaginationBar extends StatelessWidget {
   }
 
   bool get _supportsNumericPagination =>
-      currentPage != null && totalPages != null && onPageSelected != null;
+      currentPage != null &&
+      totalPages != null &&
+      totalPages! > 0 &&
+      onPageSelected != null;
 
-  ButtonStyle _navigationButtonStyle(
-    BuildContext context, {
-    required bool primary,
-  }) {
-    final base = primary
-        ? AppButtons.primary(context, compact: true)
-        : AppButtons.secondary(context, compact: true);
-    return base.copyWith(
-      minimumSize: const WidgetStatePropertyAll(Size(0, 40)),
-      padding: const WidgetStatePropertyAll(
-        EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+  Widget _buildToken(BuildContext context, _PaginationToken token) {
+    if (token.isEllipsis) {
+      return SizedBox(
+        width: 40,
+        height: 40,
+        child: Center(
+          child: Text(
+            '...',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: const Color(0xFF6B7280),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return FilledButton(
+      onPressed: isLoading
+          ? null
+          : () {
+              if (token.page != currentPage) {
+                onPageSelected?.call(token.page!);
+              }
+            },
+      style: _paginationButtonStyle(
+        context,
+        isCurrentPage: token.page == currentPage,
       ),
+      child: Text('${token.page}'),
     );
   }
 
-  ButtonStyle _pageButtonStyle(
+  List<Widget> _separated(List<Widget> children) {
+    if (children.isEmpty) return const <Widget>[];
+    final widgets = <Widget>[];
+    for (var index = 0; index < children.length; index++) {
+      if (index > 0) {
+        widgets.add(const SizedBox(width: _itemGap));
+      }
+      widgets.add(children[index]);
+    }
+    return widgets;
+  }
+
+  ButtonStyle _paginationButtonStyle(
     BuildContext context, {
-    required bool isCurrentPage,
+    bool isCurrentPage = false,
   }) {
-    final base = isCurrentPage
-        ? AppButtons.primary(context, compact: true)
-        : AppButtons.secondary(context, compact: true);
-    return base.copyWith(
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final borderColor = isCurrentPage ? scheme.primary : AppTableTheme.divider;
+    final backgroundColor = isCurrentPage ? scheme.primary : Colors.white;
+    final foregroundColor = isCurrentPage ? scheme.onPrimary : scheme.onSurface;
+
+    return ButtonStyle(
+      backgroundColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.disabled)) {
+          return Colors.white;
+        }
+        return backgroundColor;
+      }),
+      foregroundColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.disabled)) {
+          return scheme.onSurface.withValues(alpha: 0.38);
+        }
+        return foregroundColor;
+      }),
+      textStyle: WidgetStatePropertyAll(theme.textTheme.labelLarge),
       minimumSize: const WidgetStatePropertyAll(Size(40, 40)),
-      maximumSize: const WidgetStatePropertyAll(Size(48, 40)),
+      maximumSize: const WidgetStatePropertyAll(Size(40, 40)),
+      fixedSize: const WidgetStatePropertyAll(Size(40, 40)),
       padding: const WidgetStatePropertyAll(EdgeInsets.zero),
       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
       shape: WidgetStatePropertyAll(
         RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
+      side: WidgetStateProperty.resolveWith((states) {
+        final color = states.contains(WidgetState.disabled)
+            ? borderColor.withValues(alpha: 0.45)
+            : borderColor;
+        return BorderSide(color: color);
+      }),
     );
   }
 
@@ -186,43 +220,52 @@ class AppPaginationBar extends StatelessWidget {
       return const [];
     }
 
-    const windowSize = 5;
-    var start = currentPage - 2;
-    var end = currentPage + 2;
-
-    if (start < 1) {
-      end += 1 - start;
-      start = 1;
-    }
-    if (end > totalPages) {
-      start -= end - totalPages;
-      end = totalPages;
-    }
-
-    start = start.clamp(1, totalPages);
-    if (end - start + 1 > windowSize) {
-      start = end - windowSize + 1;
+    if (totalPages <= 7) {
+      return List<_PaginationToken>.generate(
+        totalPages,
+        (index) => _PaginationToken.page(index + 1),
+      );
     }
 
     final tokens = <_PaginationToken>[];
-    if (start > 1) {
-      tokens.add(const _PaginationToken.page(1));
-      if (start > 2) {
-        tokens.add(const _PaginationToken.ellipsis());
-      }
-    }
 
-    for (var page = start; page <= end; page++) {
+    void addPage(int page) {
+      if (tokens.any((token) => token.page == page && !token.isEllipsis)) {
+        return;
+      }
       tokens.add(_PaginationToken.page(page));
     }
 
-    if (end < totalPages) {
-      if (end < totalPages - 1) {
-        tokens.add(const _PaginationToken.ellipsis());
-      }
-      tokens.add(_PaginationToken.page(totalPages));
+    void addEllipsisIfNeeded() {
+      if (tokens.isEmpty || tokens.last.isEllipsis) return;
+      tokens.add(const _PaginationToken.ellipsis());
     }
 
+    if (currentPage <= 3) {
+      for (var page = 1; page <= 5; page++) {
+        addPage(page);
+      }
+      addEllipsisIfNeeded();
+      addPage(totalPages);
+      return tokens;
+    }
+
+    if (currentPage >= totalPages - 2) {
+      addPage(1);
+      addEllipsisIfNeeded();
+      for (var page = totalPages - 3; page <= totalPages; page++) {
+        addPage(page);
+      }
+      return tokens;
+    }
+
+    addPage(1);
+    addEllipsisIfNeeded();
+    for (var page = currentPage - 2; page <= currentPage + 2; page++) {
+      addPage(page);
+    }
+    addEllipsisIfNeeded();
+    addPage(totalPages);
     return tokens;
   }
 }

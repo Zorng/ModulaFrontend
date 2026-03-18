@@ -23,7 +23,7 @@ void main() {
           status: 'all',
           search: any(named: 'search'),
           categoryId: any(named: 'categoryId'),
-          limit: 200,
+          limit: 1000,
           offset: 0,
         ),
       ).thenAnswer(
@@ -49,29 +49,44 @@ void main() {
         ),
       );
       when(
-        () => api.fetchAggregateStock(includeArchivedItems: true),
+        () => api.fetchAggregateStock(
+          includeArchivedItems: true,
+          limit: 50,
+          offset: 0,
+        ),
       ).thenAnswer(
-        (_) async => const [
-          StockAggregateItemDto(
-            stockItemId: 'item-1',
-            stockItemName: 'Whole Milk',
-            baseUnit: 'ml',
-            totalOnHandInBaseUnit: 5400,
-            branchCount: 3,
-          ),
-        ],
+        (_) async => const InventoryPaginatedResult(
+          items: [
+            StockAggregateItemDto(
+              stockItemId: 'item-1',
+              stockItemName: 'Whole Milk',
+              baseUnit: 'ml',
+              totalOnHandInBaseUnit: 5400,
+              branchCount: 3,
+            ),
+          ],
+          limit: 50,
+          offset: 0,
+          total: 1,
+          hasMore: false,
+        ),
       );
 
       final rows = await repository.fetchStockItems();
 
       verify(
-        () => api.fetchAggregateStock(includeArchivedItems: true),
+        () => api.fetchAggregateStock(
+          includeArchivedItems: true,
+          limit: 50,
+          offset: 0,
+        ),
       ).called(1);
-      expect(rows, hasLength(1));
-      expect(rows.first.id, 'item-1');
-      expect(rows.first.branchId, 'all');
-      expect(rows.first.branchName, 'All Branches');
-      expect(rows.first.onHand, 5400);
+      expect(rows.items, hasLength(1));
+      expect(rows.total, 1);
+      expect(rows.items.first.id, 'item-1');
+      expect(rows.items.first.branchId, 'all');
+      expect(rows.items.first.branchName, 'All Branches');
+      expect(rows.items.first.onHand, 5400);
     },
   );
 
@@ -86,7 +101,7 @@ void main() {
           status: 'all',
           search: any(named: 'search'),
           categoryId: any(named: 'categoryId'),
-          limit: 200,
+          limit: 1000,
           offset: 0,
         ),
       ).thenAnswer(
@@ -112,38 +127,58 @@ void main() {
         ),
       );
       when(
-        () => api.fetchAggregateStock(includeArchivedItems: true),
-      ).thenAnswer((_) async => const []);
+        () => api.fetchAggregateStock(
+          includeArchivedItems: true,
+          limit: 50,
+          offset: 0,
+        ),
+      ).thenAnswer(
+        (_) async => const InventoryPaginatedResult(
+          items: [],
+          limit: 50,
+          offset: 0,
+          total: 0,
+          hasMore: false,
+        ),
+      );
       when(
         () => api.fetchBranchStockItems(
           branchId: 'branch-1',
           includeArchivedItems: true,
+          limit: 50,
+          offset: 0,
         ),
       ).thenAnswer(
-        (_) async => const [
-          BranchStockItemDto(
-            stockItemId: 'item-1',
-            stockItemName: 'Whole Milk',
-            baseUnit: 'ml',
-            branchId: 'branch-1',
-            onHand: 1200,
-            minThreshold: 300,
-            isLowStock: false,
-            updatedAt: '2026-03-03T00:00:00.000Z',
-            stockItem: StockItemDto(
-              id: 'item-1',
-              tenantId: '',
-              categoryId: null,
-              name: 'Whole Milk',
+        (_) async => const InventoryPaginatedResult(
+          items: [
+            BranchStockItemDto(
+              stockItemId: 'item-1',
+              stockItemName: 'Whole Milk',
               baseUnit: 'ml',
-              imageUrl: null,
-              lowStockThreshold: 300,
-              status: InventoryStatus.active,
-              createdAt: '',
-              updatedAt: '',
+              branchId: 'branch-1',
+              onHand: 1200,
+              minThreshold: 300,
+              isLowStock: false,
+              updatedAt: '2026-03-03T00:00:00.000Z',
+              stockItem: StockItemDto(
+                id: 'item-1',
+                tenantId: '',
+                categoryId: null,
+                name: 'Whole Milk',
+                baseUnit: 'ml',
+                imageUrl: null,
+                lowStockThreshold: 300,
+                status: InventoryStatus.active,
+                createdAt: '',
+                updatedAt: '',
+              ),
             ),
-          ),
-        ],
+          ],
+          limit: 50,
+          offset: 0,
+          total: 1,
+          hasMore: false,
+        ),
       );
 
       final rows = await repository.fetchStockItems(branchId: 'branch-1');
@@ -152,12 +187,14 @@ void main() {
         () => api.fetchBranchStockItems(
           branchId: 'branch-1',
           includeArchivedItems: true,
+          limit: 50,
+          offset: 0,
         ),
       ).called(1);
-      expect(rows, hasLength(1));
-      expect(rows.first.id, 'item-1');
-      expect(rows.first.branchId, 'branch-1');
-      expect(rows.first.onHand, 1200);
+      expect(rows.items, hasLength(1));
+      expect(rows.items.first.id, 'item-1');
+      expect(rows.items.first.branchId, 'branch-1');
+      expect(rows.items.first.onHand, 1200);
     },
   );
 
@@ -172,7 +209,7 @@ void main() {
           status: 'all',
           search: any(named: 'search'),
           categoryId: any(named: 'categoryId'),
-          limit: 200,
+          limit: 1000,
           offset: 0,
         ),
       ).thenAnswer(
@@ -201,38 +238,46 @@ void main() {
         () => api.fetchBranchStockItems(
           branchId: 'branch-1',
           includeArchivedItems: true,
+          limit: 50,
+          offset: 0,
         ),
       ).thenAnswer(
-        (_) async => const [
-          BranchStockItemDto(
-            stockItemId: 'item-1',
-            stockItemName: 'Whole Milk',
-            baseUnit: 'ml',
-            branchId: 'branch-1',
-            onHand: 1200,
-            minThreshold: 300,
-            isLowStock: false,
-            updatedAt: '2026-03-03T00:00:00.000Z',
-            stockItem: StockItemDto(
-              id: 'item-1',
-              tenantId: 'tenant-1',
-              categoryId: 'cat-1',
-              name: 'Whole Milk',
+        (_) async => const InventoryPaginatedResult(
+          items: [
+            BranchStockItemDto(
+              stockItemId: 'item-1',
+              stockItemName: 'Whole Milk',
               baseUnit: 'ml',
-              imageUrl: 'https://cdn.example.com/fresh.jpg',
-              lowStockThreshold: 300,
-              status: InventoryStatus.active,
-              createdAt: '2026-03-03T00:00:00.000Z',
+              branchId: 'branch-1',
+              onHand: 1200,
+              minThreshold: 300,
+              isLowStock: false,
               updatedAt: '2026-03-03T00:00:00.000Z',
+              stockItem: StockItemDto(
+                id: 'item-1',
+                tenantId: 'tenant-1',
+                categoryId: 'cat-1',
+                name: 'Whole Milk',
+                baseUnit: 'ml',
+                imageUrl: 'https://cdn.example.com/fresh.jpg',
+                lowStockThreshold: 300,
+                status: InventoryStatus.active,
+                createdAt: '2026-03-03T00:00:00.000Z',
+                updatedAt: '2026-03-03T00:00:00.000Z',
+              ),
             ),
-          ),
-        ],
+          ],
+          limit: 50,
+          offset: 0,
+          total: 1,
+          hasMore: false,
+        ),
       );
 
       final rows = await repository.fetchStockItems(branchId: 'branch-1');
 
-      expect(rows, hasLength(1));
-      expect(rows.first.imageUrl, 'https://cdn.example.com/fresh.jpg');
+      expect(rows.items, hasLength(1));
+      expect(rows.items.first.imageUrl, 'https://cdn.example.com/fresh.jpg');
     },
   );
 

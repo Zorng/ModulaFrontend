@@ -143,8 +143,8 @@ class MockInventoryStore {
           return matchesStatus && matchesSearch && matchesCategory;
         })
         .toList(growable: false);
-    final safeOffset = offset.clamp(0, filtered.length);
-    final end = (safeOffset + pageSize).clamp(0, filtered.length);
+    final safeOffset = offset.clamp(0, filtered.length).toInt();
+    final end = (safeOffset + pageSize).clamp(0, filtered.length).toInt();
     final items = filtered.sublist(safeOffset, end);
     return InventoryPaginatedResult<StockItem>(
       items: items,
@@ -287,40 +287,60 @@ class MockInventoryStore {
     _items[id] = current.copyWith(isActive: true);
   }
 
-  List<StockItem> fetchInventoryStockItems({
+  InventoryPaginatedResult<StockItem> fetchInventoryStockItems({
     String? branchId,
     String status = 'all',
+    int pageSize = 50,
+    int offset = 0,
   }) {
     final normalizedStatus = _normalizeStatus(status);
     final targetBranch = _normalizeBranch(branchId);
-    if (targetBranch != null) {
-      _ensureValidBranch(targetBranch);
-      return _positions.values
-          .where((position) => position.branchId == targetBranch)
-          .map((position) => _toInventoryItem(position, targetBranch))
-          .where((item) => _matchesStatus(item.isActive, normalizedStatus))
-          .toList(growable: false);
-    }
+    final filtered = targetBranch != null
+        ? () {
+            _ensureValidBranch(targetBranch);
+            return _positions.values
+                .where((position) => position.branchId == targetBranch)
+                .map((position) => _toInventoryItem(position, targetBranch))
+                .where(
+                  (item) => _matchesStatus(item.isActive, normalizedStatus),
+                )
+                .toList(growable: false);
+          }()
+        : () {
+            final totals = <String, int>{};
+            for (final position in _positions.values) {
+              totals[position.stockItemId] =
+                  (totals[position.stockItemId] ?? 0) + position.onHand;
+            }
+            return totals.entries
+                .map((entry) {
+                  final item = _items[entry.key];
+                  if (item == null) return null;
+                  return item.copyWith(
+                    branchId: '',
+                    branchName: '',
+                    onHand: entry.value,
+                    minThreshold: item.minThreshold,
+                  );
+                })
+                .whereType<StockItem>()
+                .where(
+                  (item) => _matchesStatus(item.isActive, normalizedStatus),
+                )
+                .toList(growable: false);
+          }();
 
-    final totals = <String, int>{};
-    for (final position in _positions.values) {
-      totals[position.stockItemId] =
-          (totals[position.stockItemId] ?? 0) + position.onHand;
-    }
-    return totals.entries
-        .map((entry) {
-          final item = _items[entry.key];
-          if (item == null) return null;
-          return item.copyWith(
-            branchId: '',
-            branchName: '',
-            onHand: entry.value,
-            minThreshold: item.minThreshold,
-          );
-        })
-        .whereType<StockItem>()
-        .where((item) => _matchesStatus(item.isActive, normalizedStatus))
-        .toList(growable: false);
+    final safePageSize = pageSize <= 0 ? 50 : pageSize;
+    final safeOffset = offset.clamp(0, filtered.length).toInt();
+    final end = (safeOffset + safePageSize).clamp(0, filtered.length).toInt();
+    final items = filtered.sublist(safeOffset, end);
+    return InventoryPaginatedResult<StockItem>(
+      items: items,
+      limit: safePageSize,
+      offset: safeOffset,
+      total: filtered.length,
+      hasMore: end < filtered.length,
+    );
   }
 
   List<OnHandRecord> fetchOnHand({
@@ -543,6 +563,7 @@ class MockInventoryStore {
     }
     final now = DateTime.now();
     return fetchInventoryStockItems(branchId: targetBranch, status: 'active')
+        .items
         .where((item) => item.isLowStock)
         .map(
           (item) => InventoryJournalEntry(
@@ -1010,7 +1031,7 @@ class MockInventoryStore {
     final safeLimit = limit <= 0 ? 50 : limit;
     final safeOffset = offset < 0 ? 0 : offset;
     if (safeOffset >= items.length) return <T>[];
-    final end = (safeOffset + safeLimit).clamp(0, items.length);
+    final end = (safeOffset + safeLimit).clamp(0, items.length).toInt();
     return items.sublist(safeOffset, end);
   }
 

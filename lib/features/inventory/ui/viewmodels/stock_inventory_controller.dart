@@ -31,18 +31,31 @@ class StockInventoryController extends Notifier<StockInventoryState> {
   Future<void> loadInventoryItems({
     String? branchId,
     String status = 'all',
+    int limit = 10,
+    int page = 1,
+    bool pageTransition = false,
+    bool accumulatePages = false,
   }) async {
     final targetBranchId = _normalizeBranchId(branchId);
+    final safeLimit = limit <= 0 ? 10 : limit;
+    final safePage = page <= 0 ? 1 : page;
+    final safeOffset = (safePage - 1) * safeLimit;
     try {
       state = state.copyWith(
-        isLoading: true,
+        isLoading: !pageTransition && !accumulatePages,
+        isInventoryPageLoading: pageTransition && !accumulatePages,
+        isLoadingMoreInventoryItems: accumulatePages,
+        isAccumulatingInventoryItems: accumulatePages,
         error: null,
         errorCode: null,
         selectedInventoryBranchId: targetBranchId ?? 'all',
+        inventoryPageSize: safeLimit,
       );
-      final items = await _branchStockRepository.fetchStockItems(
+      final fetched = await _branchStockRepository.fetchStockItems(
         branchId: targetBranchId,
         status: status,
+        pageSize: safeLimit,
+        offset: safeOffset,
       );
       final branchLookup = _branchLookup();
       final onHandData = await _fetchOnHand(
@@ -50,10 +63,24 @@ class StockInventoryController extends Notifier<StockInventoryState> {
         status: status,
       );
       final mapped = _applyOnHand(
-        items.map((item) => _withBranchName(item, branchLookup)).toList(),
+        fetched.items
+            .map((item) => _withBranchName(item, branchLookup))
+            .toList(),
         onHandData,
       );
-      state = state.copyWith(isLoading: false, inventoryItems: mapped);
+      final nextItems = accumulatePages && safePage > 1
+          ? _mergeStockItems(state.inventoryItems, mapped)
+          : mapped;
+      state = state.copyWith(
+        isLoading: false,
+        isInventoryPageLoading: false,
+        isLoadingMoreInventoryItems: false,
+        isAccumulatingInventoryItems: accumulatePages,
+        inventoryItems: nextItems,
+        inventoryCurrentPage: safePage,
+        inventoryOffset: accumulatePages ? 0 : safeOffset,
+        inventoryTotal: fetched.total,
+      );
     } catch (e) {
       final mapped = mapInventoryError(
         e,
@@ -61,11 +88,77 @@ class StockInventoryController extends Notifier<StockInventoryState> {
       );
       state = state.copyWith(
         isLoading: false,
-        inventoryItems: const [],
+        isInventoryPageLoading: false,
+        isLoadingMoreInventoryItems: false,
+        isAccumulatingInventoryItems: false,
+        inventoryItems: pageTransition || accumulatePages
+            ? state.inventoryItems
+            : const [],
         error: mapped.message,
         errorCode: mapped.code,
       );
     }
+  }
+
+  Future<void> goToNextInventoryPage() async {
+    if (state.isLoading || state.isInventoryPageLoading) return;
+    if (!state.hasNextInventoryPage) return;
+    await loadInventoryItems(
+      branchId: state.selectedInventoryBranchId == 'all'
+          ? null
+          : state.selectedInventoryBranchId,
+      limit: state.inventoryPageSize,
+      page: state.inventoryCurrentPage + 1,
+      pageTransition: true,
+    );
+  }
+
+  Future<void> goToPreviousInventoryPage() async {
+    if (state.isLoading || state.isInventoryPageLoading) return;
+    if (!state.hasPreviousInventoryPage) return;
+    await loadInventoryItems(
+      branchId: state.selectedInventoryBranchId == 'all'
+          ? null
+          : state.selectedInventoryBranchId,
+      limit: state.inventoryPageSize,
+      page: state.inventoryCurrentPage - 1,
+      pageTransition: true,
+    );
+  }
+
+  Future<void> goToInventoryPage(int page) async {
+    if (state.isLoading || state.isInventoryPageLoading) return;
+    if (page < 1 ||
+        page > state.inventoryTotalPages ||
+        page == state.inventoryCurrentPage) {
+      return;
+    }
+    await loadInventoryItems(
+      branchId: state.selectedInventoryBranchId == 'all'
+          ? null
+          : state.selectedInventoryBranchId,
+      limit: state.inventoryPageSize,
+      page: page,
+      pageTransition: true,
+    );
+  }
+
+  Future<void> loadMoreInventoryItems() async {
+    if (state.isLoading ||
+        state.isInventoryPageLoading ||
+        state.isLoadingMoreInventoryItems) {
+      return;
+    }
+    if (!state.hasNextInventoryPage) return;
+    await loadInventoryItems(
+      branchId: state.selectedInventoryBranchId == 'all'
+          ? null
+          : state.selectedInventoryBranchId,
+      limit: state.inventoryPageSize,
+      page: state.inventoryCurrentPage + 1,
+      pageTransition: true,
+      accumulatePages: true,
+    );
   }
 
   Future<void> loadStockItems({String status = 'all'}) async {

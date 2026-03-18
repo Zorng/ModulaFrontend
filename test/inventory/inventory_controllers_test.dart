@@ -49,6 +49,10 @@ class _SpyStockInventoryController extends StockInventoryController {
   Future<void> loadInventoryItems({
     String? branchId,
     String status = 'all',
+    int limit = 10,
+    int page = 1,
+    bool pageTransition = false,
+    bool accumulatePages = false,
   }) async {
     loadCalled = true;
   }
@@ -192,9 +196,11 @@ void main() {
         () => branchStockRepo.fetchStockItems(
           branchId: any(named: 'branchId'),
           status: any(named: 'status'),
+          pageSize: any(named: 'pageSize'),
+          offset: any(named: 'offset'),
         ),
       ).thenAnswer(
-        (_) async => const [
+        (_) async => _stockPage(const [
           StockItem(
             id: 'item-1',
             name: 'Iced Coffee',
@@ -207,7 +213,7 @@ void main() {
             minThreshold: 2,
             isActive: true,
           ),
-        ],
+        ]),
       );
       when(
         () => branchStockRepo.fetchOnHand(
@@ -248,6 +254,169 @@ void main() {
       final state = container.read(stockInventoryControllerProvider);
       expect(state.isLoading, isFalse);
       expect(state.inventoryItems.first.categoryId, 'cat-1');
+      expect(state.inventoryCurrentPage, 1);
+      expect(state.inventoryOffset, 0);
+      expect(state.inventoryTotal, 1);
+    },
+  );
+
+  test(
+    'StockInventoryController.loadInventoryItems stores paginated metadata',
+    () async {
+      final stockRepo = _MockStockItemRepository();
+      final branchStockRepo = _MockBranchStockRepository();
+      final journalRepo = _MockJournalRepository();
+
+      when(
+        () => branchStockRepo.fetchStockItems(
+          branchId: 'branch-1',
+          status: 'all',
+          pageSize: 10,
+          offset: 10,
+        ),
+      ).thenAnswer(
+        (_) async => _stockPage(
+          const [
+            StockItem(
+              id: 'item-2',
+              name: 'Whole Milk',
+              categoryId: 'cat-1',
+              baseUnit: 'ml',
+              pieceSize: 1,
+              branchId: 'branch-1',
+              branchName: '',
+              onHand: 1200,
+              minThreshold: 300,
+              isActive: true,
+            ),
+          ],
+          limit: 10,
+          offset: 10,
+          total: 23,
+          hasMore: true,
+        ),
+      );
+      when(
+        () => branchStockRepo.fetchOnHand(branchId: 'branch-1', status: 'all'),
+      ).thenAnswer((_) async => const []);
+
+      final container = createTestContainer(
+        overrides: [
+          stockItemRepositoryProvider.overrideWithValue(stockRepo),
+          branchStockRepositoryProvider.overrideWithValue(branchStockRepo),
+          inventoryJournalRepositoryProvider.overrideWithValue(journalRepo),
+        ],
+      );
+
+      final notifier = container.read(
+        stockInventoryControllerProvider.notifier,
+      );
+      await notifier.loadInventoryItems(branchId: 'branch-1', page: 2);
+
+      final state = container.read(stockInventoryControllerProvider);
+      expect(state.inventoryItems, hasLength(1));
+      expect(state.inventoryCurrentPage, 2);
+      expect(state.inventoryOffset, 10);
+      expect(state.inventoryTotal, 23);
+      expect(state.inventoryTotalPages, 3);
+      expect(state.inventoryVisibleRangeStart, 11);
+      expect(state.inventoryVisibleRangeEnd, 11);
+      expect(state.hasPreviousInventoryPage, isTrue);
+      expect(state.hasNextInventoryPage, isTrue);
+    },
+  );
+
+  test(
+    'StockInventoryController.loadMoreInventoryItems appends the next page',
+    () async {
+      final stockRepo = _MockStockItemRepository();
+      final branchStockRepo = _MockBranchStockRepository();
+      final journalRepo = _MockJournalRepository();
+
+      when(
+        () => branchStockRepo.fetchStockItems(
+          branchId: 'branch-1',
+          status: 'all',
+          pageSize: 1,
+          offset: 0,
+        ),
+      ).thenAnswer(
+        (_) async => _stockPage(
+          const [
+            StockItem(
+              id: 'item-1',
+              name: 'Iced Coffee',
+              categoryId: 'cat-1',
+              baseUnit: 'ml',
+              pieceSize: 1,
+              branchId: 'branch-1',
+              branchName: '',
+              onHand: 12,
+              minThreshold: 3,
+              isActive: true,
+            ),
+          ],
+          limit: 1,
+          offset: 0,
+          total: 2,
+          hasMore: true,
+        ),
+      );
+      when(
+        () => branchStockRepo.fetchStockItems(
+          branchId: 'branch-1',
+          status: 'all',
+          pageSize: 1,
+          offset: 1,
+        ),
+      ).thenAnswer(
+        (_) async => _stockPage(
+          const [
+            StockItem(
+              id: 'item-2',
+              name: 'Whole Milk',
+              categoryId: 'cat-1',
+              baseUnit: 'ml',
+              pieceSize: 1,
+              branchId: 'branch-1',
+              branchName: '',
+              onHand: 9,
+              minThreshold: 2,
+              isActive: true,
+            ),
+          ],
+          limit: 1,
+          offset: 1,
+          total: 2,
+          hasMore: false,
+        ),
+      );
+      when(
+        () => branchStockRepo.fetchOnHand(branchId: 'branch-1', status: 'all'),
+      ).thenAnswer((_) async => const []);
+
+      final container = createTestContainer(
+        overrides: [
+          stockItemRepositoryProvider.overrideWithValue(stockRepo),
+          branchStockRepositoryProvider.overrideWithValue(branchStockRepo),
+          inventoryJournalRepositoryProvider.overrideWithValue(journalRepo),
+        ],
+      );
+
+      final notifier = container.read(
+        stockInventoryControllerProvider.notifier,
+      );
+      await notifier.loadInventoryItems(branchId: 'branch-1', limit: 1);
+      await notifier.loadMoreInventoryItems();
+
+      final state = container.read(stockInventoryControllerProvider);
+      expect(state.inventoryItems.map((item) => item.id), ['item-1', 'item-2']);
+      expect(state.inventoryCurrentPage, 2);
+      expect(state.inventoryTotalPages, 2);
+      expect(state.isAccumulatingInventoryItems, isTrue);
+      expect(state.inventoryVisibleRangeStart, 1);
+      expect(state.inventoryVisibleRangeEnd, 2);
+      expect(state.hasNextInventoryPage, isFalse);
     },
   );
 
@@ -262,6 +431,8 @@ void main() {
         () => branchStockRepo.fetchStockItems(
           branchId: any(named: 'branchId'),
           status: any(named: 'status'),
+          pageSize: any(named: 'pageSize'),
+          offset: any(named: 'offset'),
         ),
       ).thenThrow(
         const ApiClientException(
@@ -1150,9 +1321,11 @@ void main() {
         () => branchStockRepo.fetchStockItems(
           branchId: 'branch-1',
           status: any(named: 'status'),
+          pageSize: any(named: 'pageSize'),
+          offset: any(named: 'offset'),
         ),
       ).thenAnswer(
-        (_) async => const [
+        (_) async => _stockPage(const [
           StockItem(
             id: 'item-1',
             name: 'Whole Milk',
@@ -1165,7 +1338,7 @@ void main() {
             minThreshold: 300,
             isActive: true,
           ),
-        ],
+        ]),
       );
       when(
         () => branchStockRepo.fetchOnHand(
@@ -1308,9 +1481,11 @@ void main() {
         () => branchStockRepo.fetchStockItems(
           branchId: 'branch-1',
           status: 'all',
+          pageSize: any(named: 'pageSize'),
+          offset: any(named: 'offset'),
         ),
       ).thenAnswer(
-        (_) async => const [
+        (_) async => _stockPage(const [
           StockItem(
             id: 'item-1',
             name: 'Iced Coffee',
@@ -1322,7 +1497,7 @@ void main() {
             minThreshold: 1,
             isActive: true,
           ),
-        ],
+        ]),
       );
       when(
         () => branchStockRepo.fetchOnHand(branchId: 'branch-1', status: 'all'),
@@ -1412,9 +1587,11 @@ void main() {
         () => branchStockRepo.fetchStockItems(
           branchId: 'branch-1',
           status: 'all',
+          pageSize: any(named: 'pageSize'),
+          offset: any(named: 'offset'),
         ),
       ).thenAnswer(
-        (_) async => const [
+        (_) async => _stockPage(const [
           StockItem(
             id: 'item-1',
             name: 'Iced Coffee',
@@ -1426,7 +1603,7 @@ void main() {
             minThreshold: 1,
             isActive: true,
           ),
-        ],
+        ]),
       );
       when(
         () => branchStockRepo.fetchOnHand(branchId: 'branch-1', status: 'all'),
@@ -1519,9 +1696,11 @@ void main() {
         () => branchStockRepo.fetchStockItems(
           branchId: 'branch-1',
           status: 'all',
+          pageSize: any(named: 'pageSize'),
+          offset: any(named: 'offset'),
         ),
       ).thenAnswer(
-        (_) async => const [
+        (_) async => _stockPage(const [
           StockItem(
             id: 'item-1',
             name: 'Iced Coffee',
@@ -1533,7 +1712,7 @@ void main() {
             minThreshold: 1,
             isActive: true,
           ),
-        ],
+        ]),
       );
 
       await notifier.applyInventoryAdjustment(

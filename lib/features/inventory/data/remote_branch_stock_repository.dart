@@ -5,6 +5,7 @@ import 'package:modular_pos/features/inventory/data/dto/on_hand_record_dto.dart'
 import 'package:modular_pos/features/inventory/data/dto/stock_aggregate_item_dto.dart';
 import 'package:modular_pos/features/inventory/data/dto/stock_item_dto.dart';
 import 'package:modular_pos/features/inventory/data/inventory_api.dart';
+import 'package:modular_pos/features/inventory/data/inventory_paginated_result.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_status.dart';
 import 'package:modular_pos/features/inventory/domain/models/on_hand_record.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
@@ -49,26 +50,32 @@ class RemoteBranchStockRepository extends BranchStockRepository {
   }
 
   @override
-  Future<List<StockItem>> fetchStockItems({
+  Future<InventoryPaginatedResult<StockItem>> fetchStockItems({
     String? branchId,
     String status = 'all',
+    int pageSize = 50,
+    int offset = 0,
   }) async {
     final normalizedStatus = _normalizeInventoryStatus(status);
     final includeArchivedItems = normalizedStatus != 'active';
+    final safePageSize = pageSize <= 0 ? 50 : pageSize;
+    final safeOffset = offset < 0 ? 0 : offset;
 
     // Always fetch master items so we can hydrate unit/piece info.
     final masterResult = await _api.fetchStockItems(
       status: normalizedStatus,
-      limit: 200,
+      limit: 1000,
       offset: 0,
     );
     final masterById = {for (final dto in masterResult.items) dto.id: dto};
 
     if (branchId == null || branchId.isEmpty) {
-      final aggregateDtos = await _api.fetchAggregateStock(
+      final aggregateResult = await _api.fetchAggregateStock(
         includeArchivedItems: includeArchivedItems,
+        limit: safePageSize,
+        offset: safeOffset,
       );
-      return aggregateDtos
+      final items = aggregateResult.items
           .map(
             (aggregate) => _toStockItemFromAggregate(
               aggregate: aggregate,
@@ -77,14 +84,23 @@ class RemoteBranchStockRepository extends BranchStockRepository {
           )
           .where((item) => _matchesStatus(item, normalizedStatus))
           .toList(growable: false);
+      return InventoryPaginatedResult<StockItem>(
+        items: items,
+        limit: aggregateResult.limit,
+        offset: aggregateResult.offset,
+        total: aggregateResult.total,
+        hasMore: aggregateResult.hasMore,
+      );
     }
 
-    final branchDtos = await _api.fetchBranchStockItems(
+    final branchResult = await _api.fetchBranchStockItems(
       branchId: branchId,
       includeArchivedItems: includeArchivedItems,
+      limit: safePageSize,
+      offset: safeOffset,
     );
 
-    return branchDtos
+    final items = branchResult.items
         .map(
           (assignment) => _toStockItemFromBranchAssignment(
             assignment: assignment,
@@ -94,6 +110,13 @@ class RemoteBranchStockRepository extends BranchStockRepository {
         )
         .where((item) => _matchesStatus(item, normalizedStatus))
         .toList(growable: false);
+    return InventoryPaginatedResult<StockItem>(
+      items: items,
+      limit: branchResult.limit,
+      offset: branchResult.offset,
+      total: branchResult.total,
+      hasMore: branchResult.hasMore,
+    );
   }
 
   @override

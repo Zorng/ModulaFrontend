@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/features/inventory/data/mock_branch_stock_repository.dart';
+import 'package:modular_pos/features/inventory/data/inventory_paginated_result.dart';
 import 'package:modular_pos/features/inventory/data/remote_branch_stock_repository.dart';
 import 'package:modular_pos/features/inventory/data/stock_item_repository.dart'
     show useMockInventoryRepositoryProvider;
@@ -22,9 +23,11 @@ abstract class BranchStockRepository {
     String status = 'all',
   });
 
-  Future<List<StockItem>> fetchStockItems({
+  Future<InventoryPaginatedResult<StockItem>> fetchStockItems({
     String? branchId,
     String status = 'all',
+    int pageSize = 50,
+    int offset = 0,
   });
 
   Future<void> assignToBranch({

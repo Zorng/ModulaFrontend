@@ -440,24 +440,27 @@ class _InventoryStockItemsPageState
                                         ),
                                       ),
                                     ),
-                                    const SizedBox(height: 16),
-                                    AppPaginationBar(
-                                      rangeLabel:
-                                          'Showing ${inventoryState.stockItemsVisibleRangeStart}-${inventoryState.stockItemsVisibleRangeEnd} entries',
-                                      currentPage:
-                                          inventoryState.stockItemsCurrentPage,
-                                      totalPages:
-                                          inventoryState.stockItemsTotalPages,
-                                      canGoPrevious: inventoryState
-                                          .hasPreviousStockItemsPage,
-                                      canGoNext:
-                                          inventoryState.hasNextStockItemsPage,
-                                      isLoading: inventoryState
-                                          .isStockItemsPageLoading,
-                                      onPageSelected: _goToStockItemsPage,
-                                      onPrevious: _goToPreviousStockItemsPage,
-                                      onNext: _goToNextStockItemsPage,
-                                    ),
+                                    if (inventoryState.stockItemsTotalPages >
+                                        1) ...[
+                                      const SizedBox(height: 16),
+                                      AppPaginationBar(
+                                        rangeLabel:
+                                            'Showing ${inventoryState.stockItemsVisibleRangeStart}-${inventoryState.stockItemsVisibleRangeEnd} entries',
+                                        currentPage: inventoryState
+                                            .stockItemsCurrentPage,
+                                        totalPages:
+                                            inventoryState.stockItemsTotalPages,
+                                        canGoPrevious: inventoryState
+                                            .hasPreviousStockItemsPage,
+                                        canGoNext: inventoryState
+                                            .hasNextStockItemsPage,
+                                        isLoading: inventoryState
+                                            .isStockItemsPageLoading,
+                                        onPageSelected: _goToStockItemsPage,
+                                        onPrevious: _goToPreviousStockItemsPage,
+                                        onNext: _goToNextStockItemsPage,
+                                      ),
+                                    ],
                                   ],
                                 ),
                               ),
@@ -800,19 +803,21 @@ class _InventoryStockItemsPageState
                     ),
                   ),
                 ),
-                const SizedBox(height: 16),
-                AppPaginationBar(
-                  rangeLabel:
-                      'Showing ${inventoryState.stockItemsVisibleRangeStart}-${inventoryState.stockItemsVisibleRangeEnd} entries',
-                  currentPage: inventoryState.stockItemsCurrentPage,
-                  totalPages: inventoryState.stockItemsTotalPages,
-                  canGoPrevious: inventoryState.hasPreviousStockItemsPage,
-                  canGoNext: inventoryState.hasNextStockItemsPage,
-                  isLoading: inventoryState.isStockItemsPageLoading,
-                  onPageSelected: _goToStockItemsPage,
-                  onPrevious: _goToPreviousStockItemsPage,
-                  onNext: _goToNextStockItemsPage,
-                ),
+                if (inventoryState.stockItemsTotalPages > 1) ...[
+                  const SizedBox(height: 16),
+                  AppPaginationBar(
+                    rangeLabel:
+                        'Showing ${inventoryState.stockItemsVisibleRangeStart}-${inventoryState.stockItemsVisibleRangeEnd} entries',
+                    currentPage: inventoryState.stockItemsCurrentPage,
+                    totalPages: inventoryState.stockItemsTotalPages,
+                    canGoPrevious: inventoryState.hasPreviousStockItemsPage,
+                    canGoNext: inventoryState.hasNextStockItemsPage,
+                    isLoading: inventoryState.isStockItemsPageLoading,
+                    onPageSelected: _goToStockItemsPage,
+                    onPrevious: _goToPreviousStockItemsPage,
+                    onNext: _goToNextStockItemsPage,
+                  ),
+                ],
               ],
             ),
           ),

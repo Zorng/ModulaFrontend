@@ -44,8 +44,8 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.text('Showing 11-20 entries'), findsOneWidget);
-    expect(find.text('Previous'), findsOneWidget);
-    expect(find.text('Next'), findsOneWidget);
+    expect(find.byIcon(Icons.chevron_left), findsOneWidget);
+    expect(find.byIcon(Icons.chevron_right), findsOneWidget);
     expect(find.widgetWithText(FilledButton, '1'), findsOneWidget);
     expect(find.widgetWithText(FilledButton, '6'), findsOneWidget);
     expect(find.widgetWithText(FilledButton, '7'), findsOneWidget);
@@ -67,10 +67,10 @@ void main() {
     );
   });
 
-  testWidgets('uses simple previous next mode on narrow layouts', (
+  testWidgets('renders near-start window as 1 2 3 4 5 ... last', (
     tester,
   ) async {
-    _setViewport(tester, const Size(360, 800));
+    _setViewport(tester, const Size(1280, 800));
     addTearDown(() => _resetViewport(tester));
 
     await pumpApp(
@@ -79,12 +79,11 @@ void main() {
         body: Padding(
           padding: EdgeInsets.all(16),
           child: AppPaginationBar(
-            rangeLabel:
-                'Showing 111-120 entries with a longer range label for wrapping',
-            canGoPrevious: true,
+            rangeLabel: 'Showing 1-10 entries',
+            canGoPrevious: false,
             canGoNext: true,
             isLoading: false,
-            currentPage: 8,
+            currentPage: 2,
             totalPages: 20,
             onPrevious: _noop,
             onPageSelected: _noopPage,
@@ -95,11 +94,149 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(tester.takeException(), isNull);
-    expect(find.text('Previous'), findsOneWidget);
-    expect(find.text('Next'), findsOneWidget);
-    expect(find.widgetWithText(FilledButton, '8'), findsNothing);
+    expect(find.widgetWithText(FilledButton, '1'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, '2'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, '3'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, '4'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, '5'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, '20'), findsOneWidget);
+    expect(find.text('...'), findsOneWidget);
+  });
+
+  testWidgets('renders near-end window as first ... last four pages', (
+    tester,
+  ) async {
+    _setViewport(tester, const Size(1280, 800));
+    addTearDown(() => _resetViewport(tester));
+
+    await pumpApp(
+      tester,
+      const Scaffold(
+        body: Padding(
+          padding: EdgeInsets.all(16),
+          child: AppPaginationBar(
+            rangeLabel: 'Showing 171-180 entries',
+            canGoPrevious: true,
+            canGoNext: true,
+            isLoading: false,
+            currentPage: 18,
+            totalPages: 20,
+            onPrevious: _noop,
+            onPageSelected: _noopPage,
+            onNext: _noop,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.widgetWithText(FilledButton, '1'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, '17'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, '18'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, '19'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, '20'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, '16'), findsNothing);
+    expect(find.text('...'), findsOneWidget);
+  });
+
+  testWidgets(
+    'keeps numeric pagination on narrow layouts when total pages exist',
+    (tester) async {
+      _setViewport(tester, const Size(360, 800));
+      addTearDown(() => _resetViewport(tester));
+
+      await pumpApp(
+        tester,
+        const Scaffold(
+          body: Padding(
+            padding: EdgeInsets.all(16),
+            child: AppPaginationBar(
+              rangeLabel:
+                  'Showing 111-120 entries with a longer range label for wrapping',
+              canGoPrevious: true,
+              canGoNext: true,
+              isLoading: false,
+              currentPage: 8,
+              totalPages: 20,
+              onPrevious: _noop,
+              onPageSelected: _noopPage,
+              onNext: _noop,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.byIcon(Icons.chevron_left), findsOneWidget);
+      expect(find.byIcon(Icons.chevron_right), findsOneWidget);
+      expect(find.widgetWithText(FilledButton, '1'), findsOneWidget);
+      expect(find.widgetWithText(FilledButton, '8'), findsOneWidget);
+      expect(find.widgetWithText(FilledButton, '20'), findsOneWidget);
+      expect(find.text('...'), findsNWidgets(2));
+    },
+  );
+
+  testWidgets('falls back to previous next only when total pages are unknown', (
+    tester,
+  ) async {
+    _setViewport(tester, const Size(1280, 800));
+    addTearDown(() => _resetViewport(tester));
+
+    await pumpApp(
+      tester,
+      const Scaffold(
+        body: Padding(
+          padding: EdgeInsets.all(16),
+          child: AppPaginationBar(
+            rangeLabel: 'Showing 11-20 entries',
+            canGoPrevious: true,
+            canGoNext: true,
+            isLoading: false,
+            onPrevious: _noop,
+            onNext: _noop,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byIcon(Icons.chevron_left), findsOneWidget);
+    expect(find.byIcon(Icons.chevron_right), findsOneWidget);
     expect(find.text('...'), findsNothing);
+    expect(find.widgetWithText(FilledButton, '1'), findsNothing);
+  });
+
+  testWidgets('hides pagination when total pages is 1', (tester) async {
+    _setViewport(tester, const Size(1280, 800));
+    addTearDown(() => _resetViewport(tester));
+
+    await pumpApp(
+      tester,
+      const Scaffold(
+        body: Padding(
+          padding: EdgeInsets.all(16),
+          child: AppPaginationBar(
+            rangeLabel: 'Showing 1-8 entries',
+            canGoPrevious: false,
+            canGoNext: false,
+            isLoading: false,
+            currentPage: 1,
+            totalPages: 1,
+            onPrevious: _noop,
+            onPageSelected: _noopPage,
+            onNext: _noop,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(AppPaginationBar), findsOneWidget);
+    expect(find.byType(FilledButton), findsNothing);
+    expect(find.byIcon(Icons.chevron_left), findsNothing);
+    expect(find.byIcon(Icons.chevron_right), findsNothing);
+    expect(find.text('1'), findsNothing);
   });
 
   testWidgets('page numbers are clickable and edge buttons disable correctly', (
@@ -132,10 +269,16 @@ void main() {
     await tester.pumpAndSettle();
 
     final previousButton = tester.widget<FilledButton>(
-      find.widgetWithText(FilledButton, 'Previous'),
+      find.ancestor(
+        of: find.byIcon(Icons.chevron_left),
+        matching: find.byType(FilledButton),
+      ),
     );
     final nextButton = tester.widget<FilledButton>(
-      find.widgetWithText(FilledButton, 'Next'),
+      find.ancestor(
+        of: find.byIcon(Icons.chevron_right),
+        matching: find.byType(FilledButton),
+      ),
     );
     expect(previousButton.onPressed, isNull);
     expect(nextButton.onPressed, isNotNull);

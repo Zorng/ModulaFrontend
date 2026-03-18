@@ -169,6 +169,10 @@ class FakeCategoryController extends CategoryController {
 class FakeStockInventoryController extends StockInventoryController {
   FakeStockInventoryController(
     this._state, {
+    this.onGoToInventoryPage,
+    this.onGoToNextInventoryPage,
+    this.onGoToPreviousInventoryPage,
+    this.onLoadMoreInventoryItems,
     this.onGoToStockItemsPage,
     this.onGoToNextStockItemsPage,
     this.onGoToPreviousStockItemsPage,
@@ -176,6 +180,10 @@ class FakeStockInventoryController extends StockInventoryController {
   });
 
   final StockInventoryState _state;
+  final ValueChanged<int>? onGoToInventoryPage;
+  final VoidCallback? onGoToNextInventoryPage;
+  final VoidCallback? onGoToPreviousInventoryPage;
+  final VoidCallback? onLoadMoreInventoryItems;
   final ValueChanged<int>? onGoToStockItemsPage;
   final VoidCallback? onGoToNextStockItemsPage;
   final VoidCallback? onGoToPreviousStockItemsPage;
@@ -222,7 +230,31 @@ class FakeStockInventoryController extends StockInventoryController {
   Future<void> loadInventoryItems({
     String? branchId,
     String status = 'all',
+    int limit = 10,
+    int page = 1,
+    bool pageTransition = false,
+    bool accumulatePages = false,
   }) async {}
+
+  @override
+  Future<void> goToInventoryPage(int page) async {
+    onGoToInventoryPage?.call(page);
+  }
+
+  @override
+  Future<void> goToNextInventoryPage() async {
+    onGoToNextInventoryPage?.call();
+  }
+
+  @override
+  Future<void> goToPreviousInventoryPage() async {
+    onGoToPreviousInventoryPage?.call();
+  }
+
+  @override
+  Future<void> loadMoreInventoryItems() async {
+    onLoadMoreInventoryItems?.call();
+  }
 
   @override
   Future<StockItem> loadStockItemDetail(String id) async {
@@ -283,6 +315,7 @@ class FakeStockInventoryController extends StockInventoryController {
 class FakeInventoryJournalController extends InventoryJournalController {
   FakeInventoryJournalController(
     this._state, {
+    this.onLoad,
     this.onGoToPage,
     this.onGoToNextPage,
     this.onGoToPreviousPage,
@@ -290,6 +323,7 @@ class FakeInventoryJournalController extends InventoryJournalController {
   });
 
   final InventoryJournalState _state;
+  final ValueChanged<FakeInventoryJournalLoadCall>? onLoad;
   final ValueChanged<int>? onGoToPage;
   final VoidCallback? onGoToNextPage;
   final VoidCallback? onGoToPreviousPage;
@@ -308,7 +342,20 @@ class FakeInventoryJournalController extends InventoryJournalController {
     int page = 1,
     bool pageTransition = false,
     bool accumulatePages = false,
-  }) async {}
+  }) async {
+    onLoad?.call(
+      FakeInventoryJournalLoadCall(
+        branchId: branchId,
+        stockItemId: stockItemId,
+        reason: reason,
+        dateFilter: dateFilter,
+        limit: limit,
+        page: page,
+        pageTransition: pageTransition,
+        accumulatePages: accumulatePages,
+      ),
+    );
+  }
 
   @override
   Future<void> goToPage(
@@ -348,6 +395,28 @@ class FakeInventoryJournalController extends InventoryJournalController {
   }
 }
 
+class FakeInventoryJournalLoadCall {
+  const FakeInventoryJournalLoadCall({
+    this.branchId,
+    this.stockItemId,
+    this.reason,
+    this.dateFilter,
+    required this.limit,
+    required this.page,
+    required this.pageTransition,
+    required this.accumulatePages,
+  });
+
+  final String? branchId;
+  final String? stockItemId;
+  final InventoryJournalReason? reason;
+  final InventoryJournalDateFilter? dateFilter;
+  final int limit;
+  final int page;
+  final bool pageTransition;
+  final bool accumulatePages;
+}
+
 class FakeStockItemRepository extends StockItemRepository {
   FakeStockItemRepository(this._items);
 
@@ -380,8 +449,8 @@ class FakeStockItemRepository extends StockItemRepository {
           return matchesStatus && matchesSearch && matchesCategory;
         })
         .toList(growable: false);
-    final safeOffset = offset.clamp(0, filtered.length);
-    final end = (safeOffset + pageSize).clamp(0, filtered.length);
+    final safeOffset = offset.clamp(0, filtered.length).toInt();
+    final end = (safeOffset + pageSize).clamp(0, filtered.length).toInt();
     final items = filtered.sublist(safeOffset, end);
     return InventoryPaginatedResult<StockItem>(
       items: items,
@@ -451,27 +520,40 @@ class FakeBranchStockRepository extends BranchStockRepository {
   }
 
   @override
-  Future<List<StockItem>> fetchStockItems({
+  Future<InventoryPaginatedResult<StockItem>> fetchStockItems({
     String? branchId,
     String status = 'all',
+    int pageSize = 50,
+    int offset = 0,
   }) async {
-    final filteredByStatus = _items.where((item) {
-      switch (status.trim().toLowerCase()) {
-        case 'active':
-          return item.isActive;
-        case 'archived':
-          return !item.isActive;
-        case 'all':
-        default:
-          return true;
-      }
-    });
-    if (branchId == null || branchId.isEmpty) {
-      return filteredByStatus.toList(growable: false);
-    }
-    return filteredByStatus
-        .where((item) => item.branchId == branchId)
+    final filteredByStatus = _items
+        .where((item) {
+          switch (status.trim().toLowerCase()) {
+            case 'active':
+              return item.isActive;
+            case 'archived':
+              return !item.isActive;
+            case 'all':
+            default:
+              return true;
+          }
+        })
         .toList(growable: false);
+    final scoped = (branchId == null || branchId.isEmpty)
+        ? filteredByStatus
+        : filteredByStatus
+              .where((item) => item.branchId == branchId)
+              .toList(growable: false);
+    final safePageSize = pageSize <= 0 ? 50 : pageSize;
+    final safeOffset = offset.clamp(0, scoped.length).toInt();
+    final end = (safeOffset + safePageSize).clamp(0, scoped.length).toInt();
+    return InventoryPaginatedResult<StockItem>(
+      items: scoped.sublist(safeOffset, end),
+      limit: safePageSize,
+      offset: safeOffset,
+      total: scoped.length,
+      hasMore: end < scoped.length,
+    );
   }
 
   @override

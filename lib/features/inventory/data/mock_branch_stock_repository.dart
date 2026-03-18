@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/features/inventory/data/branch_stock_repository.dart';
+import 'package:modular_pos/features/inventory/data/inventory_paginated_result.dart';
 import 'package:modular_pos/features/inventory/data/mock_inventory_store.dart';
 import 'package:modular_pos/features/inventory/domain/models/on_hand_record.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
@@ -32,9 +33,11 @@ class MockBranchStockRepository extends BranchStockRepository {
   }
 
   @override
-  Future<List<StockItem>> fetchStockItems({
+  Future<InventoryPaginatedResult<StockItem>> fetchStockItems({
     String? branchId,
     String status = 'all',
+    int pageSize = 50,
+    int offset = 0,
   }) async {
     final targetBranch =
         (branchId == null || branchId.isEmpty || branchId == 'all')
@@ -43,6 +46,8 @@ class MockBranchStockRepository extends BranchStockRepository {
     return _store.fetchInventoryStockItems(
       branchId: targetBranch,
       status: status,
+      pageSize: pageSize,
+      offset: offset,
     );
   }
 

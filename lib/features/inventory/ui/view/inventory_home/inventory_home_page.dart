@@ -8,6 +8,7 @@ import 'package:modular_pos/core/theme/app_table_theme.dart';
 import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/core/widgets/buttons/app_add_new_button.dart';
 import 'package:modular_pos/core/widgets/forms/app_search_bar.dart';
+import 'package:modular_pos/core/widgets/layout/app_pagination_bar.dart';
 import 'package:modular_pos/features/branchV2/ui/viewmodels/branch_controller.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
@@ -33,6 +34,8 @@ class InventoryHomePage extends ConsumerStatefulWidget {
 }
 
 class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
+  static const int _pageSize = 10;
+
   String _categoryFilter = 'All Categories';
   _StockStatus _stockStatus = _StockStatus.all;
   final _searchController = TextEditingController();
@@ -116,10 +119,10 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
             children: [
               const TextSpan(text: 'Current on hand is shown for '),
               TextSpan(
-                text: currentBranchName ?? 'the selected branch',
+                text: currentBranchName ?? 'the selected',
                 style: inventoryScopeBranchTextStyle,
               ),
-              const TextSpan(text: '.'),
+              const TextSpan(text: 'branch.'),
             ],
           );
     final tableActionTextStyle = Theme.of(
@@ -153,7 +156,6 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
       };
       return matchesCategory && matchesSearch && matchesStatus;
     }).toList()..sort((a, b) => a.name.compareTo(b.name));
-
     final categoryList = (categoryState.categories.map((c) => c.name).toList()
       ..sort());
     final categories = ['All Categories', ...categoryList];
@@ -237,11 +239,9 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
                           .toList(),
                       onSelected: (value) {
                         final selected = value ?? 'all';
-                        ref
-                            .read(stockInventoryControllerProvider.notifier)
-                            .loadInventoryItems(
-                              branchId: selected == 'all' ? null : selected,
-                            );
+                        _loadInventoryItemsPage(
+                          branchId: selected == 'all' ? null : selected,
+                        );
                       },
                     );
 
@@ -404,11 +404,9 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
                       .toList(),
                   onSelected: (value) {
                     final selected = value ?? 'all';
-                    ref
-                        .read(stockInventoryControllerProvider.notifier)
-                        .loadInventoryItems(
-                          branchId: selected == 'all' ? null : selected,
-                        );
+                    _loadInventoryItemsPage(
+                      branchId: selected == 'all' ? null : selected,
+                    );
                   },
                 );
 
@@ -559,17 +557,73 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
                           );
                           if (!hasNavigationRail) {
                             if (filtered.isEmpty) {
-                              return const Center(
-                                child: Text(
-                                  'No inventory items match your filters.',
-                                  style: TextStyle(color: Colors.grey),
-                                  textAlign: TextAlign.center,
+                              return Center(
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 24,
+                                  ),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        _inventoryEmptyFilterMessage(
+                                          hasMorePages: inventoryState
+                                              .hasNextInventoryPage,
+                                        ),
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodyMedium
+                                            ?.copyWith(
+                                              color: Theme.of(
+                                                context,
+                                              ).hintColor,
+                                            ),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                      if (inventoryState
+                                          .hasNextInventoryPage) ...[
+                                        const SizedBox(height: 16),
+                                        inventoryState
+                                                .isLoadingMoreInventoryItems
+                                            ? const CircularProgressIndicator()
+                                            : FilledButton(
+                                                onPressed:
+                                                    _loadMoreInventoryItems,
+                                                child: const Text('Load more'),
+                                              ),
+                                      ],
+                                    ],
+                                  ),
                                 ),
                               );
                             }
                             return ListView.separated(
-                              itemCount: filtered.length,
+                              padding: EdgeInsets.zero,
                               itemBuilder: (context, index) {
+                                if (index >= filtered.length) {
+                                  if (inventoryState
+                                      .isLoadingMoreInventoryItems) {
+                                    return const Padding(
+                                      padding: EdgeInsets.symmetric(
+                                        vertical: 12,
+                                      ),
+                                      child: Center(
+                                        child: CircularProgressIndicator(),
+                                      ),
+                                    );
+                                  }
+                                  return Center(
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 8,
+                                      ),
+                                      child: FilledButton(
+                                        onPressed: _loadMoreInventoryItems,
+                                        child: const Text('Load more'),
+                                      ),
+                                    ),
+                                  );
+                                }
                                 final item = filtered[index];
                                 return InventoryItemCard(
                                   item: item,
@@ -581,200 +635,28 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
                                     item,
                                     selectedBranchId: effectiveBranchId,
                                   ),
-                                  onViewHistory: () => _openHistory(item),
+                                  onViewHistory: () => _openHistory(
+                                    item,
+                                    selectedBranchId: effectiveBranchId,
+                                  ),
                                 );
                               },
                               separatorBuilder: (_, __) =>
                                   const SizedBox(height: 12),
+                              itemCount:
+                                  filtered.length +
+                                  (inventoryState.hasNextInventoryPage ? 1 : 0),
                             );
                           }
 
-                          if (filtered.isEmpty) {
-                            return const Center(
-                              child: Text(
-                                'No inventory items match your filters.',
-                                style: TextStyle(color: Colors.grey),
-                                textAlign: TextAlign.center,
-                              ),
-                            );
-                          }
-
-                          return SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: ConstrainedBox(
-                              constraints: BoxConstraints(
-                                minWidth: constraints.maxWidth,
-                              ),
-                              child: SingleChildScrollView(
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    color: AppTableTheme.background,
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                      color: AppTableTheme.divider,
-                                    ),
-                                  ),
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(1),
-                                    child: ClipRRect(
-                                      borderRadius: BorderRadius.circular(11),
-                                      child: DataTable(
-                                        dataRowMinHeight: 60,
-                                        dataRowMaxHeight: 70,
-                                        headingRowColor:
-                                            WidgetStateProperty.all(
-                                              AppTableTheme.headerBackground,
-                                            ),
-                                        dataRowColor:
-                                            const WidgetStatePropertyAll(
-                                              AppTableTheme.background,
-                                            ),
-                                        dividerThickness: 1,
-                                        border: const TableBorder(
-                                          horizontalInside: BorderSide(
-                                            color: AppTableTheme.divider,
-                                          ),
-                                        ),
-                                        columns: const [
-                                          DataColumn(
-                                            label: Text(
-                                              'No.',
-                                              style: AppTableTheme.headerText,
-                                            ),
-                                          ),
-                                          DataColumn(
-                                            label: Text(
-                                              'Item Name',
-                                              style: AppTableTheme.headerText,
-                                            ),
-                                          ),
-                                          DataColumn(
-                                            label: Text(
-                                              'Category',
-                                              style: AppTableTheme.headerText,
-                                            ),
-                                          ),
-                                          DataColumn(
-                                            label: Text(
-                                              'Current On Hand',
-                                              style: AppTableTheme.headerText,
-                                            ),
-                                          ),
-                                          DataColumn(
-                                            label: Text(
-                                              'Action',
-                                              style: AppTableTheme.headerText,
-                                            ),
-                                          ),
-                                        ],
-                                        rows: List<DataRow>.generate(filtered.length, (
-                                          index,
-                                        ) {
-                                          final item = filtered[index];
-
-                                          return DataRow(
-                                            cells: [
-                                              DataCell(
-                                                Text(
-                                                  '${index + 1}',
-                                                  style: AppTableTheme.cellText,
-                                                ),
-                                              ),
-                                              DataCell(
-                                                SizedBox(
-                                                  width: 280,
-                                                  child: Row(
-                                                    children: [
-                                                      StockItemImage(
-                                                        imageUrl: item.imageUrl,
-                                                      ),
-                                                      const SizedBox(width: 12),
-                                                      Expanded(
-                                                        child: Text(
-                                                          item.name,
-                                                          style:
-                                                              Theme.of(context)
-                                                                  .textTheme
-                                                                  .bodyMedium,
-                                                          maxLines: 1,
-                                                          overflow: TextOverflow
-                                                              .ellipsis,
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                              ),
-                                              DataCell(
-                                                Container(
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                        horizontal: 12,
-                                                        vertical: 6,
-                                                      ),
-                                                  decoration: AppTableTheme
-                                                      .categoryPillDecoration,
-                                                  child: Text(
-                                                    categoryLabel(
-                                                      item,
-                                                      categoryLookup,
-                                                    ),
-                                                    style: AppTableTheme
-                                                        .categoryPillText,
-                                                  ),
-                                                ),
-                                              ),
-                                              DataCell(
-                                                Text(
-                                                  '${item.onHand} ${item.baseUnit}',
-                                                  style: AppTableTheme.cellText,
-                                                ),
-                                              ),
-                                              DataCell(
-                                                SizedBox(
-                                                  width: 260,
-                                                  child: Row(
-                                                    children: [
-                                                      Expanded(
-                                                        child: FilledButton(
-                                                          onPressed: () =>
-                                                              _openAdjust(
-                                                                item,
-                                                                selectedBranchId:
-                                                                    effectiveBranchId,
-                                                              ),
-                                                          child: const Text(
-                                                            'Adjust',
-                                                          ),
-                                                        ),
-                                                      ),
-                                                      const SizedBox(width: 8),
-                                                      Expanded(
-                                                        child: OutlinedButton(
-                                                          style:
-                                                              viewHistoryButtonStyle,
-                                                          onPressed: () =>
-                                                              _openHistory(
-                                                                item,
-                                                              ),
-                                                          child: const Text(
-                                                            'View history',
-                                                          ),
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          );
-                                        }),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
+                          return _buildDesktopInventoryBody(
+                            context: context,
+                            inventoryState: inventoryState,
+                            hasInventoryItems: hasInventoryItems,
+                            filtered: filtered,
+                            categoryLookup: categoryLookup,
+                            viewHistoryButtonStyle: viewHistoryButtonStyle,
+                            effectiveBranchId: effectiveBranchId,
                           );
                         },
                       ),
@@ -796,10 +678,15 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
     );
   }
 
-  Future<void> _openHistory(StockItem item) async {
-    final branchId = item.branchId == 'all' || item.branchId.isEmpty
-        ? null
-        : item.branchId;
+  Future<void> _openHistory(
+    StockItem item, {
+    required String selectedBranchId,
+  }) async {
+    final branchId = selectedBranchId == 'all'
+        ? (item.branchId == 'all' || item.branchId.isEmpty
+              ? null
+              : item.branchId)
+        : selectedBranchId;
     await ref
         .read(inventoryJournalControllerProvider.notifier)
         .load(
@@ -810,7 +697,7 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
           ),
         );
     if (!mounted) return;
-    await context.push(AppRoute.inventoryJournal.path);
+    context.go(AppRoute.inventoryJournal.path);
   }
 
   Future<void> _openRestockFlow({String? branchId}) async {
@@ -829,7 +716,7 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
 
       await context.push(AppRoute.inventoryRestock.path);
       if (!mounted) return;
-      await controller.loadInventoryItems(branchId: branchId);
+      await _loadInventoryItemsPage(branchId: branchId);
     } catch (e) {
       if (!mounted) return;
       final mapped = mapInventoryError(
@@ -927,163 +814,253 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
       );
     }
 
-    if (filtered.isEmpty) {
-      return const SizedBox(
-        width: double.infinity,
-        child: Padding(
-          padding: EdgeInsets.symmetric(vertical: 96, horizontal: 16),
-          child: Center(
-            child: Text(
-              'No inventory items match your filters.',
-              style: TextStyle(color: Colors.grey),
-              textAlign: TextAlign.center,
-            ),
-          ),
-        ),
-      );
-    }
-
     return LayoutBuilder(
       builder: (context, constraints) {
-        return SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minWidth: constraints.maxWidth),
-            child: Container(
-              decoration: BoxDecoration(
-                color: AppTableTheme.background,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppTableTheme.divider),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(1),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(11),
-                  child: DataTable(
-                    dataRowMinHeight: 60,
-                    dataRowMaxHeight: 70,
-                    headingRowColor: WidgetStateProperty.all(
-                      AppTableTheme.headerBackground,
+        final tableContentWidth = constraints.maxWidth < 980
+            ? 980.0
+            : constraints.maxWidth;
+        final body = filtered.isEmpty
+            ? Container(
+                decoration: BoxDecoration(
+                  color: AppTableTheme.background,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppTableTheme.divider),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 72,
+                  horizontal: 24,
+                ),
+                child: Center(
+                  child: Text(
+                    _inventoryEmptyFilterMessage(
+                      hasMorePages: inventoryState.hasNextInventoryPage,
                     ),
-                    dataRowColor: const WidgetStatePropertyAll(
-                      AppTableTheme.background,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).hintColor,
                     ),
-                    dividerThickness: 1,
-                    border: const TableBorder(
-                      horizontalInside: BorderSide(
-                        color: AppTableTheme.divider,
-                      ),
-                    ),
-                    columns: const [
-                      DataColumn(
-                        label: Text('No.', style: AppTableTheme.headerText),
-                      ),
-                      DataColumn(
-                        label: Text(
-                          'Item Name',
-                          style: AppTableTheme.headerText,
-                        ),
-                      ),
-                      DataColumn(
-                        label: Text(
-                          'Category',
-                          style: AppTableTheme.headerText,
-                        ),
-                      ),
-                      DataColumn(
-                        label: Text(
-                          'Current On Hand',
-                          style: AppTableTheme.headerText,
-                        ),
-                      ),
-                      DataColumn(
-                        label: Text('Action', style: AppTableTheme.headerText),
-                      ),
-                    ],
-                    rows: List<DataRow>.generate(filtered.length, (index) {
-                      final item = filtered[index];
-                      return DataRow(
-                        cells: [
-                          DataCell(
-                            Text('${index + 1}', style: AppTableTheme.cellText),
-                          ),
-                          DataCell(
-                            SizedBox(
-                              width: 280,
-                              child: Row(
-                                children: [
-                                  StockItemImage(imageUrl: item.imageUrl),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Text(
-                                      item.name,
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.bodyMedium,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          DataCell(
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 6,
-                              ),
-                              decoration: AppTableTheme.categoryPillDecoration,
-                              child: Text(
-                                categoryLabel(item, categoryLookup),
-                                style: AppTableTheme.categoryPillText,
-                              ),
-                            ),
-                          ),
-                          DataCell(
-                            Text(
-                              '${item.onHand} ${item.baseUnit}',
-                              style: AppTableTheme.cellText,
-                            ),
-                          ),
-                          DataCell(
-                            SizedBox(
-                              width: 260,
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: FilledButton(
-                                      onPressed: () => _openAdjust(
-                                        item,
-                                        selectedBranchId: effectiveBranchId,
-                                      ),
-                                      child: const Text('Adjust'),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: OutlinedButton(
-                                      style: viewHistoryButtonStyle,
-                                      onPressed: () => _openHistory(item),
-                                      child: const Text('View history'),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      );
-                    }),
+                    textAlign: TextAlign.center,
                   ),
                 ),
-              ),
+              )
+            : Container(
+                decoration: BoxDecoration(
+                  color: AppTableTheme.background,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppTableTheme.divider),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(1),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(11),
+                    child: DataTable(
+                      dataRowMinHeight: 60,
+                      dataRowMaxHeight: 70,
+                      headingRowColor: WidgetStateProperty.all(
+                        AppTableTheme.headerBackground,
+                      ),
+                      dataRowColor: const WidgetStatePropertyAll(
+                        AppTableTheme.background,
+                      ),
+                      dividerThickness: 1,
+                      border: const TableBorder(
+                        horizontalInside: BorderSide(
+                          color: AppTableTheme.divider,
+                        ),
+                      ),
+                      columns: const [
+                        DataColumn(
+                          label: Text('No.', style: AppTableTheme.headerText),
+                        ),
+                        DataColumn(
+                          label: Text(
+                            'Item Name',
+                            style: AppTableTheme.headerText,
+                          ),
+                        ),
+                        DataColumn(
+                          label: Text(
+                            'Category',
+                            style: AppTableTheme.headerText,
+                          ),
+                        ),
+                        DataColumn(
+                          label: Text(
+                            'Current On Hand',
+                            style: AppTableTheme.headerText,
+                          ),
+                        ),
+                        DataColumn(
+                          label: Text(
+                            'Action',
+                            style: AppTableTheme.headerText,
+                          ),
+                        ),
+                      ],
+                      rows: List<DataRow>.generate(filtered.length, (index) {
+                        final item = filtered[index];
+                        return DataRow(
+                          cells: [
+                            DataCell(
+                              Text(
+                                '${inventoryState.inventoryVisibleRangeStart + index}',
+                                style: AppTableTheme.cellText,
+                              ),
+                            ),
+                            DataCell(
+                              SizedBox(
+                                width: 280,
+                                child: Row(
+                                  children: [
+                                    StockItemImage(imageUrl: item.imageUrl),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Text(
+                                        item.name,
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.bodyMedium,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            DataCell(
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 6,
+                                ),
+                                decoration:
+                                    AppTableTheme.categoryPillDecoration,
+                                child: Text(
+                                  categoryLabel(item, categoryLookup),
+                                  style: AppTableTheme.categoryPillText,
+                                ),
+                              ),
+                            ),
+                            DataCell(
+                              Text(
+                                '${item.onHand} ${item.baseUnit}',
+                                style: AppTableTheme.cellText,
+                              ),
+                            ),
+                            DataCell(
+                              SizedBox(
+                                width: 260,
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: FilledButton(
+                                        onPressed: () => _openAdjust(
+                                          item,
+                                          selectedBranchId: effectiveBranchId,
+                                        ),
+                                        child: const Text('Adjust'),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: OutlinedButton(
+                                        style: viewHistoryButtonStyle,
+                                        onPressed: () => _openHistory(
+                                          item,
+                                          selectedBranchId: effectiveBranchId,
+                                        ),
+                                        child: const Text('View history'),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        );
+                      }),
+                    ),
+                  ),
+                ),
+              );
+
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: SizedBox(
+            width: tableContentWidth,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                body,
+                if (inventoryState.inventoryTotalPages > 1) ...[
+                  const SizedBox(height: 16),
+                  AppPaginationBar(
+                    rangeLabel:
+                        'Showing ${inventoryState.inventoryVisibleRangeStart}-${inventoryState.inventoryVisibleRangeEnd} entries',
+                    currentPage: inventoryState.inventoryCurrentPage,
+                    totalPages: inventoryState.inventoryTotalPages,
+                    canGoPrevious: inventoryState.hasPreviousInventoryPage,
+                    canGoNext: inventoryState.hasNextInventoryPage,
+                    isLoading: inventoryState.isInventoryPageLoading,
+                    onPageSelected: _goToInventoryPage,
+                    onPrevious: _goToPreviousInventoryPage,
+                    onNext: _goToNextInventoryPage,
+                  ),
+                ],
+              ],
             ),
           ),
         );
       },
     );
+  }
+
+  String _inventoryEmptyFilterMessage({required bool hasMorePages}) {
+    if (hasMorePages) {
+      return 'No inventory items on this page match your filters.';
+    }
+    return 'No inventory items match your filters.';
+  }
+
+  Future<void> _loadInventoryItemsPage({
+    String? branchId,
+    int page = 1,
+    bool accumulatePages = false,
+  }) {
+    return ref
+        .read(stockInventoryControllerProvider.notifier)
+        .loadInventoryItems(
+          branchId: branchId,
+          limit: _pageSize,
+          page: page,
+          pageTransition: page > 1 && !accumulatePages,
+          accumulatePages: accumulatePages,
+        );
+  }
+
+  Future<void> _goToInventoryPage(int page) {
+    return ref
+        .read(stockInventoryControllerProvider.notifier)
+        .goToInventoryPage(page);
+  }
+
+  Future<void> _goToNextInventoryPage() {
+    return ref
+        .read(stockInventoryControllerProvider.notifier)
+        .goToNextInventoryPage();
+  }
+
+  Future<void> _goToPreviousInventoryPage() {
+    return ref
+        .read(stockInventoryControllerProvider.notifier)
+        .goToPreviousInventoryPage();
+  }
+
+  Future<void> _loadMoreInventoryItems() {
+    return ref
+        .read(stockInventoryControllerProvider.notifier)
+        .loadMoreInventoryItems();
   }
 }
 
