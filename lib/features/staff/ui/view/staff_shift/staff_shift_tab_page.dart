@@ -374,7 +374,6 @@ class _StaffShiftTabPageState extends ConsumerState<StaffShiftTabPage>
             ),
           ),
           data: (state) {
-
             final membershipById = {
               for (final membership in state.memberships)
                 membership.membershipId: membership.displayName,
@@ -466,24 +465,38 @@ class _StaffShiftTabPageState extends ConsumerState<StaffShiftTabPage>
                             );
                           }
                           if (isWide) {
-                            return Padding(
-                              padding: const EdgeInsets.only(top: 12),
-                              child: StaffShiftPatternDataTable(
-                                patterns: state.schedule.patterns,
-                                membershipById: membershipById,
-                                onEdit: (pattern) => _showPatternDialog(
-                                  context,
-                                  ref,
-                                  state,
-                                  pattern: pattern,
-                                ),
-                                onDeactivate: (pattern) =>
-                                    _showDeactivatePatternDialog(
-                                      context,
-                                      ref,
-                                      pattern: pattern,
+                            return Column(
+                              children: [
+                                Expanded(
+                                  child: Padding(
+                                    padding: const EdgeInsets.only(top: 12),
+                                    child: StaffShiftPatternDataTable(
+                                      patterns: state.schedule.patterns,
+                                      membershipById: membershipById,
+                                      onEdit: (pattern) => _showPatternDialog(
+                                        context,
+                                        ref,
+                                        state,
+                                        pattern: pattern,
+                                      ),
+                                      onDeactivate: (pattern) =>
+                                          _showDeactivatePatternDialog(
+                                            context,
+                                            ref,
+                                            pattern: pattern,
+                                          ),
                                     ),
-                              ),
+                                  ),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 12),
+                                  child: _buildLoadMoreButton(
+                                    canLoadMore: state.patternHasMore,
+                                    isLoading: state.isLoadingPatternMore,
+                                    onPressed: controller.loadMorePatterns,
+                                  ),
+                                ),
+                              ],
                             );
                           }
                           return ListView(
@@ -511,6 +524,17 @@ class _StaffShiftTabPageState extends ConsumerState<StaffShiftTabPage>
                                         ),
                                   ),
                                 ),
+                              if (state.schedule.patterns.isNotEmpty) ...[
+                                const SizedBox(height: 4),
+                                Align(
+                                  alignment: Alignment.center,
+                                  child: _buildLoadMoreButton(
+                                    canLoadMore: state.patternHasMore,
+                                    isLoading: state.isLoadingPatternMore,
+                                    onPressed: controller.loadMorePatterns,
+                                  ),
+                                ),
+                              ],
                             ],
                           );
                         },
@@ -535,24 +559,38 @@ class _StaffShiftTabPageState extends ConsumerState<StaffShiftTabPage>
                             );
                           }
                           if (isWide) {
-                            return Padding(
-                              padding: const EdgeInsets.only(top: 12),
-                              child: StaffShiftInstanceDataTable(
-                                instances: state.schedule.instances,
-                                membershipById: membershipById,
-                                onEdit: (instance) => _showInstanceDialog(
-                                  context,
-                                  ref,
-                                  state,
-                                  instance: instance,
-                                ),
-                                onCancel: (instance) =>
-                                    _showCancelInstanceDialog(
-                                      context,
-                                      ref,
-                                      instance: instance,
+                            return Column(
+                              children: [
+                                Expanded(
+                                  child: Padding(
+                                    padding: const EdgeInsets.only(top: 12),
+                                    child: StaffShiftInstanceDataTable(
+                                      instances: state.schedule.instances,
+                                      membershipById: membershipById,
+                                      onEdit: (instance) => _showInstanceDialog(
+                                        context,
+                                        ref,
+                                        state,
+                                        instance: instance,
+                                      ),
+                                      onCancel: (instance) =>
+                                          _showCancelInstanceDialog(
+                                            context,
+                                            ref,
+                                            instance: instance,
+                                          ),
                                     ),
-                              ),
+                                  ),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 12),
+                                  child: _buildLoadMoreButton(
+                                    canLoadMore: state.instanceHasMore,
+                                    isLoading: state.isLoadingInstanceMore,
+                                    onPressed: controller.loadMoreInstances,
+                                  ),
+                                ),
+                              ],
                             );
                           }
                           return ListView(
@@ -579,6 +617,17 @@ class _StaffShiftTabPageState extends ConsumerState<StaffShiftTabPage>
                                     ),
                                   ),
                                 ),
+                              if (state.schedule.instances.isNotEmpty) ...[
+                                const SizedBox(height: 4),
+                                Align(
+                                  alignment: Alignment.center,
+                                  child: _buildLoadMoreButton(
+                                    canLoadMore: state.instanceHasMore,
+                                    isLoading: state.isLoadingInstanceMore,
+                                    onPressed: controller.loadMoreInstances,
+                                  ),
+                                ),
+                              ],
                             ],
                           );
                         },
@@ -1096,6 +1145,23 @@ class _StaffShiftTabPageState extends ConsumerState<StaffShiftTabPage>
 
   Widget _buildDialogContent({required Widget child}) {
     return SizedBox(width: double.maxFinite, child: child);
+  }
+
+  Widget _buildLoadMoreButton({
+    required bool canLoadMore,
+    required bool isLoading,
+    required VoidCallback onPressed,
+  }) {
+    return OutlinedButton(
+      onPressed: canLoadMore && !isLoading ? onPressed : null,
+      child: isLoading
+          ? const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : Text(canLoadMore ? 'Load more' : 'All records loaded'),
+    );
   }
 }
 

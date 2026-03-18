@@ -35,7 +35,7 @@ class _AttendanceCheckPageState extends ConsumerState<AttendanceCheckPage> {
   DateTime? _todayCheckOutAt;
 
   List<AttendanceShiftScheduleEntry> _shiftSchedule = const [];
-  StaffShiftSchedule _canonicalShiftSchedule = const StaffShiftSchedule(
+  StaffShiftSchedule _canonicalShiftSchedule = StaffShiftSchedule(
     patterns: <StaffShiftPattern>[],
     instances: <StaffShiftInstance>[],
   );
@@ -59,7 +59,7 @@ class _AttendanceCheckPageState extends ConsumerState<AttendanceCheckPage> {
       if (branchId == null || branchId.isEmpty) {
         if (!mounted) return;
         setState(() {
-          _canonicalShiftSchedule = const StaffShiftSchedule(
+          _canonicalShiftSchedule = StaffShiftSchedule(
             patterns: <StaffShiftPattern>[],
             instances: <StaffShiftInstance>[],
           );

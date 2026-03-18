@@ -122,7 +122,7 @@ class _FakeStaffShiftRepository implements StaffShiftRepository {
 
   @override
   Future<StaffShiftSchedule> fetchMySchedule() async {
-    return const StaffShiftSchedule(patterns: [], instances: []);
+    return StaffShiftSchedule(patterns: [], instances: []);
   }
 
   @override
@@ -131,8 +131,10 @@ class _FakeStaffShiftRepository implements StaffShiftRepository {
     required String from,
     required String to,
     String? membershipId,
+    int? limit,
+    int? offset,
   }) async {
-    return const StaffShiftSchedule(patterns: [], instances: []);
+    return StaffShiftSchedule(patterns: [], instances: []);
   }
 
   @override
