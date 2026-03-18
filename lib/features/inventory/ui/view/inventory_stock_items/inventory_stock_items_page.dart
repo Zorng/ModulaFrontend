@@ -235,7 +235,7 @@ class _InventoryStockItemsPageState
                                 );
                               },
                               separatorBuilder: (_, __) =>
-                                  const SizedBox(height: 12),
+                                  const SizedBox(height: 6),
                               itemCount:
                                   items.length +
                                   (inventoryState.hasNextStockItemsPage

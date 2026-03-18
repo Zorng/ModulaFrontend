@@ -87,51 +87,6 @@ class _StockItemFormPageState extends ConsumerState<StockItemFormPage> {
         backgroundColor: Colors.white,
         title: Text(_title()),
         centerTitle: false,
-        actions: [
-          if (_mode == StockItemFormMode.view && _isActive)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: TextButton.icon(
-                onPressed: _isSaving ? null : _archiveItem,
-                icon: const Icon(Icons.archive_outlined, size: 18),
-                label: const Text('Archive'),
-              ),
-            ),
-          if (_mode == StockItemFormMode.view && !_isActive)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: TextButton.icon(
-                onPressed: _isSaving ? null : _restoreItem,
-                icon: const Icon(Icons.restore_outlined, size: 18),
-                label: const Text('Restore'),
-              ),
-            ),
-          if (_mode == StockItemFormMode.view && _isActive)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: isWide
-                  ? SizedBox(
-                      width: 120,
-                      child: FilledButton.icon(
-                        style: AppTheme.editActionButtonStyle,
-                        onPressed: _isSaving
-                            ? null
-                            : () => setState(
-                                () => _mode = StockItemFormMode.edit,
-                              ),
-                        icon: const Icon(Icons.edit_outlined, size: 18),
-                        label: const Text('Edit'),
-                      ),
-                    )
-                  : TextButton(
-                      onPressed: _isSaving
-                          ? null
-                          : () =>
-                                setState(() => _mode = StockItemFormMode.edit),
-                      child: const Text('Edit'),
-                    ),
-            ),
-        ],
       ),
       body: Form(
         key: _formKey,
@@ -218,17 +173,20 @@ class _StockItemFormPageState extends ConsumerState<StockItemFormPage> {
                   },
                 ),
               ),
-              if (isEditing)
-                Container(
-                  padding: EdgeInsets.symmetric(vertical: 10),
-                  child: _ActionRow(
-                    isWide: isWide,
-                    isSaving: _isSaving,
-                    isCreate: _mode == StockItemFormMode.create,
-                    onCancel: _handleCancel,
-                    onSave: _submit,
-                  ),
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                child: _ActionRow(
+                  isWide: isWide,
+                  mode: _mode,
+                  isSaving: _isSaving,
+                  isActive: _isActive,
+                  onCancel: _handleCancel,
+                  onSave: _submit,
+                  onEdit: () => setState(() => _mode = StockItemFormMode.edit),
+                  onArchive: _archiveItem,
+                  onRestore: _restoreItem,
                 ),
+              ),
             ];
 
             return ListView(
@@ -764,17 +722,25 @@ class _SectionSpacer extends StatelessWidget {
 class _ActionRow extends StatelessWidget {
   const _ActionRow({
     required this.isWide,
+    required this.mode,
     required this.isSaving,
-    required this.isCreate,
+    required this.isActive,
     required this.onCancel,
     required this.onSave,
+    required this.onEdit,
+    required this.onArchive,
+    required this.onRestore,
   });
 
   final bool isWide;
+  final StockItemFormMode mode;
   final bool isSaving;
-  final bool isCreate;
+  final bool isActive;
   final VoidCallback onCancel;
   final VoidCallback onSave;
+  final VoidCallback onEdit;
+  final VoidCallback onArchive;
+  final VoidCallback onRestore;
 
   @override
   Widget build(BuildContext context) {
@@ -783,13 +749,96 @@ class _ActionRow extends StatelessWidget {
       backgroundColor: Theme.of(context).colorScheme.primary,
       foregroundColor: Colors.white,
     );
+    final archiveStyle = OutlinedButton.styleFrom(
+      foregroundColor: AppTheme.editActionColor,
+      side: const BorderSide(color: AppTheme.editActionColor),
+      minimumSize: const Size.fromHeight(48),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    );
 
-    if (!isWide) {
+    if (mode == StockItemFormMode.view) {
+      if (!isActive) {
+        if (!isWide) {
+          return SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: isSaving ? null : onRestore,
+              icon: const Icon(Icons.restore_outlined, size: 18),
+              label: const Text('Restore'),
+            ),
+          );
+        }
+
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            SizedBox(
+              width: 160,
+              child: FilledButton.icon(
+                onPressed: isSaving ? null : onRestore,
+                icon: const Icon(Icons.restore_outlined, size: 18),
+                label: const Text('Restore'),
+              ),
+            ),
+          ],
+        );
+      }
+
+      if (!isWide) {
+        return Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                style: archiveStyle,
+                onPressed: isSaving ? null : onArchive,
+                icon: const Icon(Icons.archive_outlined, size: 18),
+                label: const Text('Archive'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: FilledButton.icon(
+                style: AppTheme.editActionButtonStyle,
+                onPressed: isSaving ? null : onEdit,
+                icon: const Icon(Icons.edit_outlined, size: 18),
+                label: const Text('Edit'),
+              ),
+            ),
+          ],
+        );
+      }
+
       return Row(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
           SizedBox(
+            width: 160,
+            child: OutlinedButton.icon(
+              style: archiveStyle,
+              onPressed: isSaving ? null : onArchive,
+              icon: const Icon(Icons.archive_outlined, size: 18),
+              label: const Text('Archive'),
+            ),
+          ),
+          const SizedBox(width: 12),
+          SizedBox(
             width: 140,
+            child: FilledButton.icon(
+              style: AppTheme.editActionButtonStyle,
+              onPressed: isSaving ? null : onEdit,
+              icon: const Icon(Icons.edit_outlined, size: 18),
+              label: const Text('Edit'),
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (!isWide) {
+      return Row(
+        children: [
+          Expanded(
             child: FilledButton(
               style: cancelStyle,
               onPressed: onCancel,
@@ -797,12 +846,13 @@ class _ActionRow extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 12),
-          SizedBox(
-            width: 160,
+          Expanded(
             child: FilledButton(
               style: saveStyle,
               onPressed: isSaving ? null : onSave,
-              child: Text(isCreate ? 'Save item' : 'Save'),
+              child: Text(
+                mode == StockItemFormMode.create ? 'Save item' : 'Save',
+              ),
             ),
           ),
         ],
@@ -826,7 +876,9 @@ class _ActionRow extends StatelessWidget {
           child: FilledButton(
             style: saveStyle,
             onPressed: isSaving ? null : onSave,
-            child: Text(isCreate ? 'Save item' : 'Save'),
+            child: Text(
+              mode == StockItemFormMode.create ? 'Save item' : 'Save',
+            ),
           ),
         ),
       ],

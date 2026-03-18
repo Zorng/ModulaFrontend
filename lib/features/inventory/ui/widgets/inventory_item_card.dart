@@ -93,11 +93,10 @@ class InventoryItemCard extends StatelessWidget {
                     ...onHandLines.map(
                       (line) => Text(
                         line,
-                        style: Theme.of(context).textTheme.titleSmall
-                            ?.copyWith(
-                              color: item.isLowStock ? colorScheme.error : null,
-                              fontWeight: FontWeight.w600,
-                            ),
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          color: item.isLowStock ? colorScheme.error : null,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                     ..._minLines(minText).map(
@@ -114,21 +113,21 @@ class InventoryItemCard extends StatelessWidget {
               const SizedBox(height: 22),
               Row(
                 children: [
-                  if (onAdjust != null)
-                    Expanded(
-                      child: FilledButton(
-                        onPressed: onAdjust,
-                        child: const Text('Adjust'),
-                      ),
-                    ),
-                  if (onAdjust != null && onViewHistory != null)
-                    const SizedBox(width: 12),
                   if (onViewHistory != null)
                     Expanded(
                       child: OutlinedButton(
                         style: viewHistoryButtonStyle,
                         onPressed: onViewHistory,
                         child: const Text('View history'),
+                      ),
+                    ),
+                  if (onAdjust != null && onViewHistory != null)
+                    const SizedBox(width: 12),
+                  if (onAdjust != null)
+                    Expanded(
+                      child: FilledButton(
+                        onPressed: onAdjust,
+                        child: const Text('Adjust'),
                       ),
                     ),
                 ],

@@ -642,7 +642,7 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
                                 );
                               },
                               separatorBuilder: (_, __) =>
-                                  const SizedBox(height: 12),
+                                  const SizedBox(height: 6),
                               itemCount:
                                   filtered.length +
                                   (inventoryState.hasNextInventoryPage ? 1 : 0),
@@ -949,16 +949,6 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
                                 child: Row(
                                   children: [
                                     Expanded(
-                                      child: FilledButton(
-                                        onPressed: () => _openAdjust(
-                                          item,
-                                          selectedBranchId: effectiveBranchId,
-                                        ),
-                                        child: const Text('Adjust'),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
                                       child: OutlinedButton(
                                         style: viewHistoryButtonStyle,
                                         onPressed: () => _openHistory(
@@ -966,6 +956,16 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
                                           selectedBranchId: effectiveBranchId,
                                         ),
                                         child: const Text('View history'),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: FilledButton(
+                                        onPressed: () => _openAdjust(
+                                          item,
+                                          selectedBranchId: effectiveBranchId,
+                                        ),
+                                        child: const Text('Adjust'),
                                       ),
                                     ),
                                   ],

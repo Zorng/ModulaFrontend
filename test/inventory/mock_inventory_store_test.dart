@@ -9,14 +9,16 @@ void main() {
     () {
       final store = MockInventoryStore.seeded();
 
-      final items = store.fetchInventoryStockItems(branchId: 'mock-branch-1');
-      final names = items.map((item) => item.name).toList(growable: false);
+      final result = store.fetchInventoryStockItems(branchId: 'mock-branch-1');
+      final names = result.items
+          .map((item) => item.name)
+          .toList(growable: false);
 
       expect(names, contains('Whole Milk'));
       expect(names, contains('Arabica Beans'));
       expect(names, isNot(contains('Paper Cups')));
       expect(
-        items.firstWhere((item) => item.name == 'Arabica Beans').onHand,
+        result.items.firstWhere((item) => item.name == 'Arabica Beans').onHand,
         0,
       );
     },
@@ -42,6 +44,7 @@ void main() {
     expect(
       store
           .fetchInventoryStockItems(branchId: 'mock-branch-1')
+          .items
           .where((item) => item.id == created.id),
       isEmpty,
     );
@@ -57,6 +60,7 @@ void main() {
     expect(
       store
           .fetchInventoryStockItems(branchId: 'mock-branch-1')
+          .items
           .firstWhere((item) => item.id == created.id)
           .onHand,
       600,
@@ -75,6 +79,7 @@ void main() {
     expect(
       store
           .fetchInventoryStockItems(branchId: 'mock-branch-1')
+          .items
           .firstWhere((item) => item.id == created.id)
           .onHand,
       0,

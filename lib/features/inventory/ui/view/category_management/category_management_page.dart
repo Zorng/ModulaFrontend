@@ -216,16 +216,6 @@ class _CategoryManagementPageState
                 ),
               ),
             ],
-            const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'Archiving a category moves linked stock items to Uncategorized.',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).hintColor,
-                ),
-              ),
-            ),
             const SizedBox(height: 16),
             Expanded(
               child: Card(
