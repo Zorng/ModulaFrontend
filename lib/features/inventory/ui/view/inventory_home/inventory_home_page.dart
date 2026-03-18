@@ -861,12 +861,8 @@ class _InventoryHomePageState extends ConsumerState<InventoryHomePage> {
                       dataRowColor: const WidgetStatePropertyAll(
                         AppTableTheme.background,
                       ),
-                      dividerThickness: 1,
-                      border: const TableBorder(
-                        horizontalInside: BorderSide(
-                          color: AppTableTheme.divider,
-                        ),
-                      ),
+                      dividerThickness: AppTableTheme.dataTableDividerThickness,
+                      border: AppTableTheme.dataTableBorder,
                       columns: const [
                         DataColumn(
                           label: Text('No.', style: AppTableTheme.headerText),

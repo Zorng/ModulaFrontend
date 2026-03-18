@@ -7,6 +7,11 @@ class AppTableTheme {
   // Header
   static const Color headerBackground = Color(0xFFF6F6F6);
   static const Color divider = Color(0xFFE7E7E7);
+  static const BorderSide dividerSide = BorderSide(color: divider, width: 1);
+  static const TableBorder dataTableBorder = TableBorder(
+    horizontalInside: dividerSide,
+  );
+  static const double dataTableDividerThickness = 0;
 
   // Text
   static const TextStyle headerText = TextStyle(
