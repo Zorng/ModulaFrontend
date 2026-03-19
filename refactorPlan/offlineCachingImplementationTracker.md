@@ -146,22 +146,29 @@ Sale dependency note:
 - This still does **not** make sale fully offline-ready:
   - item-detail modifier hydration still uses live `loadItemWithModifiers(...)`
   - current cart checkout still goes straight to finalization when online
-  - `placeOrder(...)` in [sale_repository.dart](/Users/mac/flutterProjects/modular/lib/features/sale/data/sale_repository.dart) is still unimplemented
-  - first shipped outage slice is now implemented for **offline cash capture**:
-    - durable sale outage store
-    - offline cash cart action intercept
-    - Orders projection for local outage orders
-    - locally captured cash outage orders can now be finalized online from order detail through an explicit recovery action
+  - standard live `placeOrder(...)` is now implemented in [sale_repository.dart](/Users/mac/flutterProjects/modular/lib/features/sale/data/sale_repository.dart) for the normal backend `/v0/orders` lane
+  - the current shipped outage cash slice is now **queue-backed through `sync/push`**:
+    - durable sale outage store still keeps the local projection
+    - offline cash cart action now enqueues `checkout.cash.finalize`
+    - queued cash outage rows show in the kitchen queue as paid direct-checkout work
+    - applied/duplicate queue results clear the local outage projection
+    - legacy pre-queue outage cash records still keep the manual settlement fallback from order detail
   - next outage slice is now implemented for **local manual-claim capture/review**:
     - offline QR cart action can capture a manual-claim outage order when policy allows
     - policy/cache stack now reads `saleAllowManualExternalPaymentClaim`
     - outage orders can record local KHQR claim metadata on order detail
+    - outage orders can now materialize a backend manual-claim order and submit the backend claim online from order detail
+    - manager/admin/owner can now approve or reject submitted manual KHQR claims from order detail on the same device/account flow
+    - approval now surfaces receipt availability and clears the local outage order
+    - rejection now reopens the local claim for correction/resubmission
     - Orders projection now distinguishes manual-claim outage state from ordinary unpaid tickets
-  - backend order materialization and claim submission/approve/reject are still not implemented in frontend
-  - sale outage reconnect materialization is still not implemented in frontend
+    - recorded manual-claim outage orders now auto-recover on hydration/reconnect through [sale_outage_recovery_controller.dart](/Users/mac/flutterProjects/modular/lib/features/sale/ui/viewmodels/sale_outage_recovery_controller.dart)
+  - offline cash replay is now the only supported sale lane on generic `sync/push`
+  - general sale/order mutation replay still does **not** exist beyond that narrow cash-checkout lane
   - KHQR remains strictly online-only
 - Follow-up planning artifact:
   - [saleOfflineOrderFirst.md](/Users/mac/flutterProjects/modular/refactorPlan/saleOfflineOrderFirst.md)
+  - [saleOfflineCashPushReplay.md](/Users/mac/flutterProjects/modular/refactorPlan/saleOfflineCashPushReplay.md)
 
 ### Attendance pilot
 - [attendance_cache_store.dart](/Users/mac/flutterProjects/modular/lib/features/staff_attendance/data/attendance_cache_store.dart)

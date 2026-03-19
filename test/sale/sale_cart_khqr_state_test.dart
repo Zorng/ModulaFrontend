@@ -109,7 +109,7 @@ void main() {
     await notifier.generateKhqrAttempt();
 
     final afterGenerate = container.read(saleCartProvider);
-    expect(afterGenerate.saleId, isNotEmpty);
+    expect(afterGenerate.saleId, isNull);
     expect(afterGenerate.khqrStatus, SaleKhqrUiStates.waitingForPayment);
     expect(afterGenerate.khqrMd5, isNotNull);
     expect(afterGenerate.khqrQrPayload, isNotNull);
@@ -133,12 +133,14 @@ void main() {
     await notifier.checkKhqrStatus();
     await notifier.checkKhqrStatus();
     final confirmed = container.read(saleCartProvider);
+    expect(confirmed.saleId, isNotEmpty);
     expect(confirmed.khqrStatus, SaleKhqrUiStates.paidConfirmed);
     expect(confirmed.khqrErrorCode, isNull);
 
     final result = await notifier.checkout();
     expect(result.summary.paymentMethod, 'qr');
     expect(result.summary.saleId, isNotEmpty);
+    expect(result.orderId, isNotEmpty);
     expect(result.receipt?.receiptId, isNotEmpty);
     expect(result.summary.cashReceivedUsd, 0);
     expect(result.summary.changeGivenUsd, 0);
@@ -206,7 +208,10 @@ void main() {
     expect(afterChange.khqrQrPayload, isNull);
     expect(afterChange.khqrPayloadType, isNull);
     expect(afterChange.khqrToAccountId, isNull);
-    expect(afterChange.khqrErrorMessage, 'Cart changed. Generate a new KHQR code.');
+    expect(
+      afterChange.khqrErrorMessage,
+      'Cart changed. Generate a new KHQR code.',
+    );
     expect(initialAttemptId, isNotNull);
     expect(initialMd5, isNotNull);
   });
@@ -277,89 +282,92 @@ void main() {
     },
   );
 
-  test('KHQR generation stores missing branch receiver denial deterministically', () async {
-    final repo = MockSaleRepository();
-    repo.configureContext(
-      activeBranchId: 'branch-1',
-      khqrReceiverConfigured: true,
-    );
+  test(
+    'KHQR generation stores missing branch receiver denial deterministically',
+    () async {
+      final repo = MockSaleRepository();
+      repo.configureContext(
+        activeBranchId: 'branch-1',
+        khqrReceiverConfigured: true,
+      );
 
-    final container = createTestContainer(
-      overrides: [
-        policyNotifierProvider.overrideWith(_StaticPolicyNotifier.new),
-        saleRepositoryProvider.overrideWithValue(repo),
-        branchControllerProvider.overrideWith(
-          () => _FixedBranchController(
-            const BranchState(
-              branches: [
-                BranchListItem(
+      final container = createTestContainer(
+        overrides: [
+          policyNotifierProvider.overrideWith(_StaticPolicyNotifier.new),
+          saleRepositoryProvider.overrideWithValue(repo),
+          branchControllerProvider.overrideWith(
+            () => _FixedBranchController(
+              const BranchState(
+                branches: [
+                  BranchListItem(
+                    branchId: 'branch-1',
+                    tenantId: 'tenant-1',
+                    branchName: 'Branch A',
+                    status: 'ACTIVE',
+                  ),
+                ],
+                currentBranchProfile: BranchListItem(
                   branchId: 'branch-1',
                   tenantId: 'tenant-1',
                   branchName: 'Branch A',
                   status: 'ACTIVE',
                 ),
-              ],
-              currentBranchProfile: BranchListItem(
-                branchId: 'branch-1',
-                tenantId: 'tenant-1',
-                branchName: 'Branch A',
-                status: 'ACTIVE',
               ),
             ),
           ),
-        ),
-        saleAccessGateProvider.overrideWithValue(
-          const SaleAccessGate(
-            branchId: 'branch-1',
-            contextLoading: false,
-            branchActive: true,
-            branchFrozen: false,
-            cashSessionOpen: true,
-            canMutateCart: true,
-            canCheckout: true,
-            canPlacePayLater: true,
+          saleAccessGateProvider.overrideWithValue(
+            const SaleAccessGate(
+              branchId: 'branch-1',
+              contextLoading: false,
+              branchActive: true,
+              branchFrozen: false,
+              cashSessionOpen: true,
+              canMutateCart: true,
+              canCheckout: true,
+              canPlacePayLater: true,
+            ),
           ),
-        ),
-      ],
-    );
+        ],
+      );
 
-    final notifier = container.read(saleCartProvider.notifier);
-    const item = MenuItem(
-      id: 'menu-1',
-      name: 'Milk Tea',
-      categoryId: 'tea',
-      price: 1.5,
-    );
-    const selection = SaleItemSelectionResult(
-      item: item,
-      quantity: 1,
-      selectedOptionIds: {},
-      selectedOptions: {},
-      addonTotalUsd: 0,
-      unitPriceUsd: 1.5,
-      lineTotalUsd: 1.5,
-    );
+      final notifier = container.read(saleCartProvider.notifier);
+      const item = MenuItem(
+        id: 'menu-1',
+        name: 'Milk Tea',
+        categoryId: 'tea',
+        price: 1.5,
+      );
+      const selection = SaleItemSelectionResult(
+        item: item,
+        quantity: 1,
+        selectedOptionIds: {},
+        selectedOptions: {},
+        addonTotalUsd: 0,
+        unitPriceUsd: 1.5,
+        lineTotalUsd: 1.5,
+      );
 
-    await notifier.addSelection(selection);
-    await notifier.setPaymentMethod('qr');
-    final readyState = container.read(saleCartProvider);
-    expect(readyState.khqrStatus, SaleKhqrUiStates.readyToGenerate);
+      await notifier.addSelection(selection);
+      await notifier.setPaymentMethod('qr');
+      final readyState = container.read(saleCartProvider);
+      expect(readyState.khqrStatus, SaleKhqrUiStates.readyToGenerate);
 
-    await expectLater(
-      notifier.generateKhqrAttempt(),
-      throwsA(isA<SaleCheckoutRepositoryException>()),
-    );
+      await expectLater(
+        notifier.generateKhqrAttempt(),
+        throwsA(isA<SaleCheckoutRepositoryException>()),
+      );
 
-    final failedState = container.read(saleCartProvider);
-    expect(
-      failedState.khqrErrorCode,
-      SaleCheckoutReasonCodes.khqrBranchReceiverNotConfigured,
-    );
-    expect(
-      failedState.khqrErrorMessage,
-      'Configure a Bakong receiver account for this branch before generating KHQR.',
-    );
-    expect(failedState.khqrStatus, SaleKhqrUiStates.readyToGenerate);
-    expect(failedState.khqrMd5, isNull);
-  });
+      final failedState = container.read(saleCartProvider);
+      expect(
+        failedState.khqrErrorCode,
+        SaleCheckoutReasonCodes.khqrBranchReceiverNotConfigured,
+      );
+      expect(
+        failedState.khqrErrorMessage,
+        'Configure a Bakong receiver account for this branch before generating KHQR.',
+      );
+      expect(failedState.khqrStatus, SaleKhqrUiStates.readyToGenerate);
+      expect(failedState.khqrMd5, isNull);
+    },
+  );
 }

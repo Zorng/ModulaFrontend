@@ -14,18 +14,21 @@ import 'package:modular_pos/core/sync/sync_push_trigger_controller.dart';
 import '../../test_utils/riverpod_test_utils.dart';
 
 void main() {
-  test('triggerBranchWorkspace skips when sync context is unavailable', () async {
-    final container = createTestContainer(
-      overrides: [syncPullContextProvider.overrideWith((ref) => null)],
-    );
+  test(
+    'triggerBranchWorkspace skips when sync context is unavailable',
+    () async {
+      final container = createTestContainer(
+        overrides: [syncPullContextProvider.overrideWith((ref) => null)],
+      );
 
-    final controller = container.read(syncPushTriggerControllerProvider);
-    final result = await controller.triggerBranchWorkspace(
-      trigger: SyncPushTrigger.reconnect,
-    );
+      final controller = container.read(syncPushTriggerControllerProvider);
+      final result = await controller.triggerBranchWorkspace(
+        trigger: SyncPushTrigger.reconnect,
+      );
 
-    expect(result.outcome, SyncPushTriggerOutcome.skippedNoContext);
-  });
+      expect(result.outcome, SyncPushTriggerOutcome.skippedNoContext);
+    },
+  );
 
   test('triggerBranchWorkspace skips when branch context is missing', () async {
     const context = SyncPullContext(
@@ -68,9 +71,7 @@ void main() {
         accountId: 'account-1',
       );
       final container = createTestContainer(
-        overrides: [
-          syncPushCoordinatorProvider.overrideWithValue(coordinator),
-        ],
+        overrides: [syncPushCoordinatorProvider.overrideWithValue(coordinator)],
       );
 
       final controller = container.read(syncPushTriggerControllerProvider);
@@ -98,52 +99,58 @@ void main() {
     },
   );
 
-  test('triggerForContext skips duplicate request during cooldown window', () async {
-    final coordinator = _FakeSyncPushCoordinator(
-      result: const SyncPushReplayResult(
-        outcome: SyncPushReplayOutcome.success,
-        totalCount: 1,
-        appliedCount: 1,
-      ),
-    );
-    const context = SyncPullContext(
-      deviceId: 'device-1',
-      tenantId: 'tenant-1',
-      branchId: 'branch-1',
-      accountId: 'account-1',
-    );
-    DateTime now = DateTime.utc(2026, 3, 17, 9);
-    final container = createTestContainer(
-      overrides: [
-        syncPushCoordinatorProvider.overrideWithValue(coordinator),
-        syncPushTriggerNowProvider.overrideWith((ref) => () => now),
-        syncPushTriggerCooldownProvider.overrideWith(
-          (ref) => const Duration(seconds: 5),
+  test(
+    'triggerForContext skips duplicate request during cooldown window',
+    () async {
+      final coordinator = _FakeSyncPushCoordinator(
+        result: const SyncPushReplayResult(
+          outcome: SyncPushReplayOutcome.success,
+          totalCount: 1,
+          appliedCount: 1,
         ),
-      ],
-    );
+      );
+      const context = SyncPullContext(
+        deviceId: 'device-1',
+        tenantId: 'tenant-1',
+        branchId: 'branch-1',
+        accountId: 'account-1',
+      );
+      DateTime now = DateTime.utc(2026, 3, 17, 9);
+      final container = createTestContainer(
+        overrides: [
+          syncPushCoordinatorProvider.overrideWithValue(coordinator),
+          syncPushTriggerNowProvider.overrideWith(
+            (ref) =>
+                () => now,
+          ),
+          syncPushTriggerCooldownProvider.overrideWith(
+            (ref) => const Duration(seconds: 5),
+          ),
+        ],
+      );
 
-    final controller = container.read(syncPushTriggerControllerProvider);
-    final first = await controller.triggerForContext(
-      trigger: SyncPushTrigger.reconnect,
-      context: context,
-    );
-    final second = await controller.triggerForContext(
-      trigger: SyncPushTrigger.reconnect,
-      context: context,
-    );
+      final controller = container.read(syncPushTriggerControllerProvider);
+      final first = await controller.triggerForContext(
+        trigger: SyncPushTrigger.reconnect,
+        context: context,
+      );
+      final second = await controller.triggerForContext(
+        trigger: SyncPushTrigger.reconnect,
+        context: context,
+      );
 
-    now = now.add(const Duration(seconds: 6));
-    final third = await controller.triggerForContext(
-      trigger: SyncPushTrigger.reconnect,
-      context: context,
-    );
+      now = now.add(const Duration(seconds: 6));
+      final third = await controller.triggerForContext(
+        trigger: SyncPushTrigger.reconnect,
+        context: context,
+      );
 
-    expect(first.outcome, SyncPushTriggerOutcome.success);
-    expect(second.outcome, SyncPushTriggerOutcome.skippedCooldown);
-    expect(third.outcome, SyncPushTriggerOutcome.success);
-    expect(coordinator.callCount, 2);
-  });
+      expect(first.outcome, SyncPushTriggerOutcome.success);
+      expect(second.outcome, SyncPushTriggerOutcome.skippedCooldown);
+      expect(third.outcome, SyncPushTriggerOutcome.success);
+      expect(coordinator.callCount, 2);
+    },
+  );
 
   test('manualFlushBranchWorkspace bypasses cooldown window', () async {
     final coordinator = _FakeSyncPushCoordinator(
@@ -257,6 +264,9 @@ class _NoopOfflineCommandQueueStore implements OfflineCommandQueueStore {
   Future<OfflineCommandRecord?> read(String clientOpId) async {
     return null;
   }
+
+  @override
+  Future<void> delete(String clientOpId) async {}
 
   @override
   Future<void> write(OfflineCommandRecord record) async {}

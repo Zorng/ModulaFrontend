@@ -24,6 +24,11 @@ import 'package:modular_pos/features/auth/domain/models/user.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/cash_session/ui/viewmodels/cash_session_viewmodel.dart';
 import 'package:modular_pos/features/policy/ui/viewmodels/policy_viewmodel.dart';
+import 'package:modular_pos/features/sale/data/sale_offline_cash_queue.dart';
+import 'package:modular_pos/features/sale/data/sale_outage_store.dart';
+import 'package:modular_pos/features/sale/domain/models/sale_outage_order.dart';
+import 'package:modular_pos/features/sale/ui/viewmodels/order_viewmodel.dart';
+import 'package:modular_pos/features/sale/ui/viewmodels/sale_outage_recovery_controller.dart';
 
 import '../../test_utils/riverpod_test_utils.dart';
 
@@ -181,6 +186,35 @@ class _TestSyncPushTriggerController extends SyncPushTriggerController {
   }
 }
 
+class _TestSaleOutageRecoveryController extends SaleOutageRecoveryController {
+  _TestSaleOutageRecoveryController()
+    : super(
+        readScope: () => null,
+        readConnectivity: () => AppConnectivityStatus.online,
+        loadOrders: ({DateTime? date}) async {},
+        readOrders: () => const <Order>[],
+        submitManualClaim: (_) async {},
+        now: DateTime.now,
+        cooldown: Duration.zero,
+      );
+
+  final calls = <(SaleOutageRecoveryTrigger trigger, SaleOutageScope? scope)>[];
+
+  @override
+  Future<SaleOutageRecoveryResult> recoverBranchWorkspace({
+    required SaleOutageRecoveryTrigger trigger,
+    SaleOutageScope? scopeOverride,
+    bool bypassCooldown = false,
+  }) async {
+    calls.add((trigger, scopeOverride));
+    return SaleOutageRecoveryResult(
+      trigger: trigger,
+      outcome: SaleOutageRecoveryOutcome.noPending,
+      scope: scopeOverride,
+    );
+  }
+}
+
 class _NoopSyncPullApi extends SyncPullApi {
   _NoopSyncPullApi() : super(Dio());
 
@@ -272,7 +306,37 @@ class _NoopOfflineCommandQueueStore implements OfflineCommandQueueStore {
   }
 
   @override
+  Future<void> delete(String clientOpId) async {}
+
+  @override
   Future<void> write(OfflineCommandRecord record) async {}
+}
+
+class _NoopSaleOutageStore implements SaleOutageStore {
+  @override
+  Future<void> clearScope(SaleOutageScope scope) async {}
+
+  @override
+  Future<void> deleteByLocalIntentId({
+    required SaleOutageScope scope,
+    required String localIntentId,
+  }) async {}
+
+  @override
+  Future<List<SaleOutageOrderRecord>> list(SaleOutageScope scope) async {
+    return const <SaleOutageOrderRecord>[];
+  }
+
+  @override
+  Future<SaleOutageOrderRecord?> readByLocalIntentId({
+    required SaleOutageScope scope,
+    required String localIntentId,
+  }) async {
+    return null;
+  }
+
+  @override
+  Future<void> write(SaleOutageOrderRecord record) async {}
 }
 
 class _NoopSyncPushApi extends SyncPushApi {
@@ -344,6 +408,7 @@ void main() {
     (tester) async {
       final runtimeResource = _TestContextScopedResource();
       final triggerController = _TestSyncPullTriggerController();
+      final saleOutageRecoveryController = _TestSaleOutageRecoveryController();
       final container = createTestContainer(
         overrides: [
           loginControllerProvider.overrideWith(_TestLoginController.new),
@@ -357,6 +422,9 @@ void main() {
           syncResolvedDeviceIdProvider.overrideWith((ref) async => 'device-1'),
           syncPullTriggerControllerProvider.overrideWithValue(
             triggerController,
+          ),
+          saleOutageRecoveryControllerProvider.overrideWithValue(
+            saleOutageRecoveryController,
           ),
         ],
       );
@@ -425,6 +493,14 @@ void main() {
       expect(triggerController.calls.first.$2?.tenantId, 'tenant-1');
       expect(triggerController.calls.first.$2?.branchId, 'branch-a');
       expect(triggerController.calls.first.$2?.accountId, 'user-1');
+      expect(saleOutageRecoveryController.calls, hasLength(1));
+      expect(
+        saleOutageRecoveryController.calls.first.$1,
+        SaleOutageRecoveryTrigger.contextChange,
+      );
+      expect(saleOutageRecoveryController.calls.first.$2?.tenantId, 'tenant-1');
+      expect(saleOutageRecoveryController.calls.first.$2?.branchId, 'branch-a');
+      expect(saleOutageRecoveryController.calls.first.$2?.accountId, 'user-1');
 
       container
           .read(authActiveBranchOverrideProvider.notifier)
@@ -450,6 +526,14 @@ void main() {
       expect(triggerController.calls.last.$2?.tenantId, 'tenant-1');
       expect(triggerController.calls.last.$2?.branchId, 'branch-b');
       expect(triggerController.calls.last.$2?.accountId, 'user-1');
+      expect(saleOutageRecoveryController.calls, hasLength(2));
+      expect(
+        saleOutageRecoveryController.calls.last.$1,
+        SaleOutageRecoveryTrigger.contextChange,
+      );
+      expect(saleOutageRecoveryController.calls.last.$2?.tenantId, 'tenant-1');
+      expect(saleOutageRecoveryController.calls.last.$2?.branchId, 'branch-b');
+      expect(saleOutageRecoveryController.calls.last.$2?.accountId, 'user-1');
 
       login.setSession(null);
       await tester.pump();
@@ -609,6 +693,7 @@ void main() {
   ) async {
     final triggerController = _TestSyncPullTriggerController();
     final pushTriggerController = _TestSyncPushTriggerController();
+    final saleOutageRecoveryController = _TestSaleOutageRecoveryController();
     final container = createTestContainer(
       overrides: [
         loginControllerProvider.overrideWith(_TestLoginController.new),
@@ -620,6 +705,15 @@ void main() {
         syncPullTriggerControllerProvider.overrideWithValue(triggerController),
         syncPushTriggerControllerProvider.overrideWithValue(
           pushTriggerController,
+        ),
+        saleOfflineCashQueueProvider.overrideWithValue(
+          SaleOfflineCashQueue(
+            queueStore: _NoopOfflineCommandQueueStore(),
+            outageStore: _NoopSaleOutageStore(),
+          ),
+        ),
+        saleOutageRecoveryControllerProvider.overrideWithValue(
+          saleOutageRecoveryController,
         ),
         appConnectivityStatusProvider.overrideWith(
           _TestConnectivityStatusNotifier.new,
@@ -676,6 +770,14 @@ void main() {
     expect(triggerController.calls.last.$2?.tenantId, 'tenant-1');
     expect(triggerController.calls.last.$2?.branchId, 'branch-a');
     expect(triggerController.calls.last.$2?.accountId, 'user-1');
+    expect(saleOutageRecoveryController.calls, hasLength(2));
+    expect(
+      saleOutageRecoveryController.calls.last.$1,
+      SaleOutageRecoveryTrigger.reconnect,
+    );
+    expect(saleOutageRecoveryController.calls.last.$2?.tenantId, 'tenant-1');
+    expect(saleOutageRecoveryController.calls.last.$2?.branchId, 'branch-a');
+    expect(saleOutageRecoveryController.calls.last.$2?.accountId, 'user-1');
   });
 
   testWidgets(
@@ -692,6 +794,7 @@ void main() {
             appliedCount: 1,
           ),
         );
+      final saleOutageRecoveryController = _TestSaleOutageRecoveryController();
       final container = createTestContainer(
         overrides: [
           loginControllerProvider.overrideWith(_TestLoginController.new),
@@ -705,6 +808,15 @@ void main() {
           ),
           syncPushTriggerControllerProvider.overrideWithValue(
             pushTriggerController,
+          ),
+          saleOfflineCashQueueProvider.overrideWithValue(
+            SaleOfflineCashQueue(
+              queueStore: _NoopOfflineCommandQueueStore(),
+              outageStore: _NoopSaleOutageStore(),
+            ),
+          ),
+          saleOutageRecoveryControllerProvider.overrideWithValue(
+            saleOutageRecoveryController,
           ),
           appConnectivityStatusProvider.overrideWith(
             _TestConnectivityStatusNotifier.new,
@@ -758,6 +870,11 @@ void main() {
           (call) => call.$1 == SyncPullTrigger.reconnect,
         ),
         isFalse,
+      );
+      expect(saleOutageRecoveryController.calls, hasLength(2));
+      expect(
+        saleOutageRecoveryController.calls.last.$1,
+        SaleOutageRecoveryTrigger.reconnect,
       );
     },
   );

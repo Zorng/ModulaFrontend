@@ -53,7 +53,6 @@ class CashSessionOfflineQueue {
       branchId: branchId,
       accountId: accountId,
       payload: payload,
-      clientOpPrefix: 'cash-session-open',
     );
   }
 
@@ -78,7 +77,6 @@ class CashSessionOfflineQueue {
       branchId: branchId,
       accountId: accountId,
       payload: payload,
-      clientOpPrefix: 'cash-session-close',
     );
   }
 
@@ -109,7 +107,6 @@ class CashSessionOfflineQueue {
       branchId: branchId,
       accountId: accountId,
       payload: payload,
-      clientOpPrefix: 'cash-session-movement',
     );
   }
 
@@ -119,11 +116,10 @@ class CashSessionOfflineQueue {
     required String branchId,
     required String accountId,
     required Map<String, dynamic> payload,
-    required String clientOpPrefix,
   }) async {
     final timestamp = _now().toUtc();
     final record = OfflineCommandRecord(
-      clientOpId: '$clientOpPrefix-${_uuid.v4()}',
+      clientOpId: _uuid.v4(),
       operationType: operationType,
       tenantId: tenantId.trim(),
       branchId: branchId.trim(),

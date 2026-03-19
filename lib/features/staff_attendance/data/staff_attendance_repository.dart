@@ -7,6 +7,7 @@ import 'package:modular_pos/features/staff_attendance/data/attendance_repository
 import 'package:modular_pos/features/staff_attendance/data/mock_attendance_repository.dart';
 import 'package:modular_pos/features/staff_attendance/domain/models/attendance_record.dart';
 import 'package:modular_pos/features/staff_attendance/domain/models/attendance_shift_schedule.dart';
+import 'package:uuid/uuid.dart';
 
 class UseMockAttendanceRepositoryNotifier extends Notifier<bool> {
   @override
@@ -42,6 +43,8 @@ final attendanceRequestTimeoutProvider = Provider<Duration>(
 );
 
 class StaffAttendanceRepository {
+  static const Uuid _uuid = Uuid();
+
   StaffAttendanceRepository(
     this._repository, {
     this.requestTimeout = const Duration(seconds: 12),
@@ -146,7 +149,7 @@ class StaffAttendanceRepository {
           deviceLat: _readCoordinate(location, 'lat'),
           deviceLng: _readCoordinate(location, 'lng'),
           deviceAccuracyM: null,
-          clientOpId: _buildClientOpId(prefix: 'legacy-check-in'),
+          clientOpId: _buildClientOpId(),
           clientTs: occurredAt,
         ),
       ),
@@ -165,7 +168,7 @@ class StaffAttendanceRepository {
           deviceLat: _readCoordinate(location, 'lat'),
           deviceLng: _readCoordinate(location, 'lng'),
           deviceAccuracyM: null,
-          clientOpId: _buildClientOpId(prefix: 'legacy-check-out'),
+          clientOpId: _buildClientOpId(),
           clientTs: occurredAt,
         ),
       ),
@@ -188,8 +191,7 @@ class StaffAttendanceRepository {
     return value.toDouble();
   }
 
-  String _buildClientOpId({required String prefix}) {
-    final micros = DateTime.now().microsecondsSinceEpoch;
-    return '$prefix-$micros';
+  String _buildClientOpId() {
+    return _uuid.v4();
   }
 }

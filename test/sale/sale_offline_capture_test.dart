@@ -2,6 +2,7 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:modular_pos/core/network/app_connectivity.dart';
 import 'package:modular_pos/core/network/app_connectivity_contract.dart';
+import 'package:modular_pos/core/sync/offline_command_queue_store.dart';
 import 'package:modular_pos/core/storage/app_database.dart';
 import 'package:modular_pos/features/menu/data/menu_repository.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
@@ -58,7 +59,7 @@ void main() {
   });
 
   test(
-    'captureOfflineCashOrder stores a durable outage order and clears cart',
+    'captureOfflineCashOrder stores a durable outage order, enqueues cash replay, and clears cart',
     () async {
       final database = AppDatabase(NativeDatabase.memory());
       addTearDown(database.close);
@@ -119,6 +120,14 @@ void main() {
               accountId: 'user-1',
             ),
           );
+      final queuedRecords = await container
+          .read(offlineCommandQueueStoreProvider)
+          .listReplayReadyForContext(
+            tenantId: 'tenant-1',
+            branchId: 'branch-1',
+            accountId: 'user-1',
+          );
+      final queued = queuedRecords.single;
 
       expect(result.localIntentId, isNotEmpty);
       expect(result.orderNumber, startsWith('LOCAL-'));
@@ -127,6 +136,22 @@ void main() {
       expect(records.first.orderNumber, result.orderNumber);
       expect(records.first.totalUsd, 2.5);
       expect(records.first.paymentMethodRequested, 'cash');
+      expect(records.first.state, SaleOutageOrderStates.awaitingSettlement);
+      expect(queued.operationType, OfflineOperationType.checkoutCashFinalize);
+      final payload = queued.decodePayload();
+      expect(payload['localIntentId'], result.localIntentId);
+      expect(queued.clientOpId, isNot(result.localIntentId));
+      expect(payload['orderId'], isNotEmpty);
+      expect(payload['saleId'], isNotEmpty);
+      expect(payload['cashReceivedTenderAmount'], 2.5);
+      expect(payload['tenderCurrency'], 'USD');
+      expect(payload['items'], isA<List<dynamic>>());
+      final items = payload['items'] as List<dynamic>;
+      expect(items, hasLength(1));
+      expect(items.single, containsPair('menuItemNameSnapshot', 'Latte'));
+      expect(items.single, containsPair('unitPrice', 2.5));
+      expect(items.single, containsPair('lineSubtotal', 2.5));
+      expect(items.single, containsPair('modifierSnapshot', <dynamic>[]));
     },
   );
 

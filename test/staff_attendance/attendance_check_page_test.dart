@@ -819,17 +819,19 @@ class _MemoryOfflineCommandQueueStore implements OfflineCommandQueueStore {
     Set<OfflineCommandQueueStatus>? statuses,
     int limit = 100,
   }) async {
-    final normalizedStatuses = statuses ?? OfflineCommandQueueStatus.values.toSet();
-    final filtered = _records.values
-        .where(
-          (record) =>
-              record.tenantId == tenantId &&
-              record.branchId == (branchId ?? '') &&
-              record.accountId == (accountId ?? '') &&
-              normalizedStatuses.contains(record.status),
-        )
-        .toList(growable: false)
-      ..sort((a, b) => a.occurredAt.compareTo(b.occurredAt));
+    final normalizedStatuses =
+        statuses ?? OfflineCommandQueueStatus.values.toSet();
+    final filtered =
+        _records.values
+            .where(
+              (record) =>
+                  record.tenantId == tenantId &&
+                  record.branchId == (branchId ?? '') &&
+                  record.accountId == (accountId ?? '') &&
+                  normalizedStatuses.contains(record.status),
+            )
+            .toList(growable: false)
+          ..sort((a, b) => a.occurredAt.compareTo(b.occurredAt));
     if (filtered.length <= limit) return filtered;
     return filtered.take(limit).toList(growable: false);
   }
@@ -856,6 +858,11 @@ class _MemoryOfflineCommandQueueStore implements OfflineCommandQueueStore {
   @override
   Future<OfflineCommandRecord?> read(String clientOpId) async {
     return _records[clientOpId];
+  }
+
+  @override
+  Future<void> delete(String clientOpId) async {
+    _records.remove(clientOpId);
   }
 
   @override

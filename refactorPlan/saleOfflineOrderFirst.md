@@ -46,19 +46,21 @@ Current sale flow is still finalize-first:
   - `checkout()` goes directly to `finalizeSale(...)`
 - [sale_repository.dart](/Users/mac/flutterProjects/modular/lib/features/sale/data/sale_repository.dart)
   - `finalizeSale(...)` is implemented
-  - `placeOrder(...)` is still `UnimplementedError`
+  - standard backend `placeOrder(...)` is now implemented
 - [order_viewmodel.dart](/Users/mac/flutterProjects/modular/lib/features/sale/ui/viewmodels/order_viewmodel.dart)
   - local `createOrder(...)` exists, but it is not the offline-first sale workflow yet
 
 So the frontend does **not** currently match the backend’s new outage contract.
 
 Additional frontend/backend mismatch now confirmed:
-- frontend has no branch-policy seam for `saleAllowManualExternalPaymentClaim`
-- frontend has no order creation seam for `sourceMode = MANUAL_EXTERNAL_PAYMENT_CLAIM`
-- frontend has no UI for:
+- frontend **now has** the branch-policy seam for `saleAllowManualExternalPaymentClaim`
+- frontend **now has** backend order creation for `sourceMode = MANUAL_EXTERNAL_PAYMENT_CLAIM`
+- frontend **now has** UI for:
   - claim proof submission
   - claim pending review state
   - manager approve / reject actions
+- frontend **now has** automatic reconnect/context recovery for recorded manual-claim outage orders
+- remaining gap is cash outage reconnect materialization, because the live open-ticket settlement lane is still not implemented in frontend
 
 ---
 

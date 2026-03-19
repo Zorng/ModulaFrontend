@@ -244,7 +244,7 @@ void main() {
   });
 
   testWidgets(
-    'offline cash flow uses Capture Order primary action without requiring tendered cash',
+    'offline cash flow uses Queue Cash Checkout primary action without requiring tendered cash',
     (tester) async {
       SharedPreferences.setMockInitialValues({});
       final prefs = await SharedPreferences.getInstance();
@@ -303,7 +303,10 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      final captureButton = find.widgetWithText(FilledButton, 'Capture Order');
+      final captureButton = find.widgetWithText(
+        FilledButton,
+        'Queue Cash Checkout',
+      );
       expect(captureButton, findsOneWidget);
       expect(tester.widget<FilledButton>(captureButton).onPressed, isNotNull);
       expect(find.widgetWithText(FilledButton, 'Checkout'), findsNothing);
@@ -546,6 +549,7 @@ void main() {
           () => _PrefilledCartNotifier(
             SaleCartState(
               lastFinalizedSaleId: 'sale-1',
+              lastFinalizedOrderId: 'order-1',
               lastReceiptId: 'receipt-1',
               lastReceipt: SaleImmediateReceiptDto(
                 receiptId: 'receipt-1',
@@ -581,6 +585,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Sale finalized successfully.'), findsOneWidget);
+    expect(find.text('Order #: order-1'), findsOneWidget);
     expect(find.text('Receipt #: receipt-1'), findsOneWidget);
     expect(find.text('Receipt status: ISSUED'), findsOneWidget);
     expect(find.widgetWithText(TextButton, 'Receipt'), findsOneWidget);

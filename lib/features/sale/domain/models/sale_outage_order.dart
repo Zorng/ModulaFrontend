@@ -23,6 +23,11 @@ class SaleOutageOrderStates {
   }
 }
 
+class SaleOutageErrorCodes {
+  static const manualExternalPaymentClaimRejected =
+      'ORDER_MANUAL_PAYMENT_CLAIM_REJECTED';
+}
+
 class SaleOutageSourceModes {
   static const standardOpenOrder = 'STANDARD_OPEN_ORDER';
   static const manualExternalPaymentClaim = 'MANUAL_EXTERNAL_PAYMENT_CLAIM';
@@ -76,11 +81,10 @@ class SaleOutageLineSnapshot {
       name: json['name'] as String? ?? '',
       quantity: (json['quantity'] as num?)?.toInt() ?? 0,
       selectedOptionIds:
-          (json['selectedOptionIds'] as Map<String, dynamic>?)
-              ?.map(
-                (key, value) =>
-                    MapEntry(key, List<String>.from((value as List<dynamic>))),
-              ) ??
+          (json['selectedOptionIds'] as Map<String, dynamic>?)?.map(
+            (key, value) =>
+                MapEntry(key, List<String>.from((value as List<dynamic>))),
+          ) ??
           const <String, List<String>>{},
       modifierLabels:
           (json['modifierLabels'] as List<dynamic>?)
@@ -94,6 +98,8 @@ class SaleOutageLineSnapshot {
 }
 
 class SaleOutageOrderRecord {
+  static const Object _unset = Object();
+
   const SaleOutageOrderRecord({
     required this.localIntentId,
     required this.orderNumber,
@@ -162,18 +168,18 @@ class SaleOutageOrderRecord {
 
   SaleOutageOrderRecord copyWith({
     String? state,
-    String? backendOrderId,
-    DateTime? materializedAt,
-    String? claimedPaymentMethod,
-    double? claimedTenderAmount,
-    String? proofImageUrl,
-    String? customerReference,
-    String? note,
-    DateTime? claimRecordedAt,
-    String? backendClaimId,
-    DateTime? claimSubmittedAt,
-    String? lastErrorCode,
-    String? lastErrorMessage,
+    Object? backendOrderId = _unset,
+    Object? materializedAt = _unset,
+    Object? claimedPaymentMethod = _unset,
+    Object? claimedTenderAmount = _unset,
+    Object? proofImageUrl = _unset,
+    Object? customerReference = _unset,
+    Object? note = _unset,
+    Object? claimRecordedAt = _unset,
+    Object? backendClaimId = _unset,
+    Object? claimSubmittedAt = _unset,
+    Object? lastErrorCode = _unset,
+    Object? lastErrorMessage = _unset,
     DateTime? updatedAt,
   }) {
     return SaleOutageOrderRecord(
@@ -190,23 +196,46 @@ class SaleOutageOrderRecord {
       totalUsd: totalUsd,
       totalKhr: totalKhr,
       lines: lines,
-      state: state == null ? this.state : SaleOutageOrderStates.normalize(state),
+      state: state == null
+          ? this.state
+          : SaleOutageOrderStates.normalize(state),
       sourceMode: sourceMode,
       createdAt: createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
-      backendOrderId: backendOrderId ?? this.backendOrderId,
-      materializedAt: materializedAt ?? this.materializedAt,
-      claimedPaymentMethod:
-          claimedPaymentMethod ?? this.claimedPaymentMethod,
-      claimedTenderAmount: claimedTenderAmount ?? this.claimedTenderAmount,
-      proofImageUrl: proofImageUrl ?? this.proofImageUrl,
-      customerReference: customerReference ?? this.customerReference,
-      note: note ?? this.note,
-      claimRecordedAt: claimRecordedAt ?? this.claimRecordedAt,
-      backendClaimId: backendClaimId ?? this.backendClaimId,
-      claimSubmittedAt: claimSubmittedAt ?? this.claimSubmittedAt,
-      lastErrorCode: lastErrorCode ?? this.lastErrorCode,
-      lastErrorMessage: lastErrorMessage ?? this.lastErrorMessage,
+      backendOrderId: identical(backendOrderId, _unset)
+          ? this.backendOrderId
+          : backendOrderId as String?,
+      materializedAt: identical(materializedAt, _unset)
+          ? this.materializedAt
+          : materializedAt as DateTime?,
+      claimedPaymentMethod: identical(claimedPaymentMethod, _unset)
+          ? this.claimedPaymentMethod
+          : claimedPaymentMethod as String?,
+      claimedTenderAmount: identical(claimedTenderAmount, _unset)
+          ? this.claimedTenderAmount
+          : claimedTenderAmount as double?,
+      proofImageUrl: identical(proofImageUrl, _unset)
+          ? this.proofImageUrl
+          : proofImageUrl as String?,
+      customerReference: identical(customerReference, _unset)
+          ? this.customerReference
+          : customerReference as String?,
+      note: identical(note, _unset) ? this.note : note as String?,
+      claimRecordedAt: identical(claimRecordedAt, _unset)
+          ? this.claimRecordedAt
+          : claimRecordedAt as DateTime?,
+      backendClaimId: identical(backendClaimId, _unset)
+          ? this.backendClaimId
+          : backendClaimId as String?,
+      claimSubmittedAt: identical(claimSubmittedAt, _unset)
+          ? this.claimSubmittedAt
+          : claimSubmittedAt as DateTime?,
+      lastErrorCode: identical(lastErrorCode, _unset)
+          ? this.lastErrorCode
+          : lastErrorCode as String?,
+      lastErrorMessage: identical(lastErrorMessage, _unset)
+          ? this.lastErrorMessage
+          : lastErrorMessage as String?,
     );
   }
 }

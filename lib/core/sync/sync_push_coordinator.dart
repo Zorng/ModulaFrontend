@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/core/network/api_contract.dart';
 import 'package:modular_pos/core/sync/offline_command_queue_store.dart';
@@ -5,6 +7,7 @@ import 'package:modular_pos/core/sync/sync_models.dart';
 import 'package:modular_pos/core/sync/sync_pull_orchestrator.dart';
 import 'package:modular_pos/core/sync/sync_pull_trigger_controller.dart';
 import 'package:modular_pos/core/sync/sync_push_api.dart';
+import 'package:uuid/uuid.dart';
 
 enum SyncPushReplayOutcome {
   noPending,
@@ -59,23 +62,29 @@ class SyncPushCoordinator {
   final SyncPushApi _api;
   final SyncPullOrchestrator _pullOrchestrator;
   final Set<SyncModuleScope> Function() _readBranchWorkspaceScopes;
+  static const Uuid _uuid = Uuid();
+  static final RegExp _uuidPattern = RegExp(
+    r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+  );
 
   Future<SyncPushReplayResult> replayPending({
     required SyncPullContext context,
     int limit = 50,
   }) async {
-    final queue = await _queueStore.listReplayReadyForContext(
+    final queuedRecords = await _queueStore.listReplayReadyForContext(
       tenantId: context.tenantId,
       branchId: context.branchId,
       accountId: context.accountId,
       limit: limit,
     );
-    if (queue.isEmpty) {
+    if (queuedRecords.isEmpty) {
       return const SyncPushReplayResult(
         outcome: SyncPushReplayOutcome.noPending,
         totalCount: 0,
       );
     }
+
+    final queue = await _repairLegacyClientOpIds(queuedRecords);
 
     final startedAt = DateTime.now();
     for (final record in queue) {
@@ -226,5 +235,95 @@ class SyncPushCoordinator {
     }
     final message = error.toString().trim();
     return message.isEmpty ? null : message;
+  }
+
+  Future<List<OfflineCommandRecord>> _repairLegacyClientOpIds(
+    List<OfflineCommandRecord> queue,
+  ) async {
+    if (queue.isEmpty) return queue;
+
+    final remappedIds = <String, String>{};
+    final repairedQueue = <OfflineCommandRecord>[...queue];
+
+    for (var index = 0; index < repairedQueue.length; index += 1) {
+      final record = repairedQueue[index];
+      final currentClientOpId = record.clientOpId.trim();
+      if (_uuidPattern.hasMatch(currentClientOpId)) continue;
+
+      final nextClientOpId = _uuid.v4();
+      remappedIds[currentClientOpId] = nextClientOpId;
+
+      final repairedRecord = record.copyWith(
+        clientOpId: nextClientOpId,
+        payloadJson: _repairPayloadJson(
+          record: record,
+          previousClientOpId: currentClientOpId,
+          nextClientOpId: nextClientOpId,
+        ),
+      );
+
+      await _queueStore.delete(currentClientOpId);
+      await _queueStore.write(repairedRecord);
+      repairedQueue[index] = repairedRecord;
+    }
+
+    if (remappedIds.isEmpty) return repairedQueue;
+
+    for (var index = 0; index < repairedQueue.length; index += 1) {
+      final record = repairedQueue[index];
+      final dependency = (record.dependsOnClientOpId ?? '').trim();
+      final remappedDependency = remappedIds[dependency];
+      if (remappedDependency == null || remappedDependency == dependency) {
+        continue;
+      }
+      final updatedRecord = record.copyWith(
+        dependsOnClientOpId: remappedDependency,
+      );
+      await _queueStore.write(updatedRecord);
+      repairedQueue[index] = updatedRecord;
+    }
+
+    return repairedQueue;
+  }
+
+  String _repairPayloadJson({
+    required OfflineCommandRecord record,
+    required String previousClientOpId,
+    required String nextClientOpId,
+  }) {
+    final payload = _decodePayloadJson(record.payloadJson);
+    if (payload == null) return record.payloadJson;
+
+    var changed = false;
+    final nestedClientOpId = (payload['clientOpId'] ?? '').toString().trim();
+    if (nestedClientOpId == previousClientOpId) {
+      payload['clientOpId'] = nextClientOpId;
+      changed = true;
+    }
+
+    if (record.operationType == OfflineOperationType.checkoutCashFinalize) {
+      final localIntentId = (payload['localIntentId'] ?? '').toString().trim();
+      if (localIntentId.isEmpty) {
+        payload['localIntentId'] = previousClientOpId;
+        changed = true;
+      }
+    }
+
+    return changed ? jsonEncode(payload) : record.payloadJson;
+  }
+
+  Map<String, dynamic>? _decodePayloadJson(String payloadJson) {
+    try {
+      final decoded = jsonDecode(payloadJson);
+      if (decoded is Map<String, dynamic>) {
+        return Map<String, dynamic>.from(decoded);
+      }
+      if (decoded is Map) {
+        return decoded.map((key, value) => MapEntry(key.toString(), value));
+      }
+    } catch (_) {
+      // Keep corrupt payloads intact; push will surface the real error.
+    }
+    return null;
   }
 }

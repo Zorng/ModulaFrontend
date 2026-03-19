@@ -17,6 +17,9 @@ import 'package:modular_pos/features/auth/domain/models/auth_session.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/cash_session/ui/viewmodels/cash_session_viewmodel.dart';
 import 'package:modular_pos/features/policy/ui/viewmodels/policy_viewmodel.dart';
+import 'package:modular_pos/features/sale/data/sale_offline_cash_queue.dart';
+import 'package:modular_pos/features/sale/data/sale_outage_store.dart';
+import 'package:modular_pos/features/sale/ui/viewmodels/sale_outage_recovery_controller.dart';
 
 /// Bridges authentication context changes (login/logout/tenant/branch) into
 /// cross-cutting feature hydration (policy, cash session, etc).
@@ -178,7 +181,7 @@ class _AppHydrationListenerState extends ConsumerState<AppHydrationListener> {
     unawaited(ref.read(policyNotifierProvider.notifier).load());
     unawaited(ref.read(cashSessionViewModelProvider.notifier).load());
     unawaited(
-      _triggerBranchWorkspaceSync(
+      _syncAndRecoverBranchWorkspace(
         trigger: trigger,
         tenantId: tenantId,
         branchId: branchId,
@@ -265,6 +268,31 @@ class _AppHydrationListenerState extends ConsumerState<AppHydrationListener> {
     }
   }
 
+  Future<void> _syncAndRecoverBranchWorkspace({
+    required SyncPullTrigger trigger,
+    required String tenantId,
+    required String branchId,
+    required String accountId,
+  }) async {
+    await _triggerBranchWorkspaceSync(
+      trigger: trigger,
+      tenantId: tenantId,
+      branchId: branchId,
+      accountId: accountId,
+    );
+    if (!mounted) return;
+    if (ref.read(appConnectivityStatusProvider) !=
+        AppConnectivityStatus.online) {
+      return;
+    }
+    await _recoverPendingSaleOutageClaims(
+      trigger: SaleOutageRecoveryTrigger.contextChange,
+      tenantId: tenantId,
+      branchId: branchId,
+      accountId: accountId,
+    );
+  }
+
   void _handleReconnect() {
     final session = ref.read(loginControllerProvider).session;
     if (session == null) return;
@@ -315,6 +343,15 @@ class _AppHydrationListenerState extends ConsumerState<AppHydrationListener> {
         branchId: branchId,
         accountId: accountId,
       );
+      await ref
+          .read(saleOfflineCashQueueProvider)
+          .repairQueuedCashReplayPayloads(
+            scope: SaleOutageScope(
+              tenantId: tenantId,
+              branchId: branchId,
+              accountId: accountId,
+            ),
+          );
       final pushResult = await ref
           .read(syncPushTriggerControllerProvider)
           .triggerBranchWorkspace(
@@ -330,6 +367,13 @@ class _AppHydrationListenerState extends ConsumerState<AppHydrationListener> {
               contextOverride: context,
             );
       }
+      if (!mounted) return;
+      await _recoverPendingSaleOutageClaims(
+        trigger: SaleOutageRecoveryTrigger.reconnect,
+        tenantId: tenantId,
+        branchId: branchId,
+        accountId: accountId,
+      );
     } catch (error, stackTrace) {
       AppLog.e(
         'Failed to trigger reconnect replay/sync from hydration listener',
@@ -337,6 +381,35 @@ class _AppHydrationListenerState extends ConsumerState<AppHydrationListener> {
         stackTrace: stackTrace,
       );
     }
+  }
+
+  Future<void> _recoverPendingSaleOutageClaims({
+    required SaleOutageRecoveryTrigger trigger,
+    required String tenantId,
+    required String branchId,
+    required String accountId,
+  }) async {
+    final currentTenantId = (ref.read(authTenantIdProvider) ?? '').trim();
+    final currentBranchId = (ref.read(activeBranchContextIdProvider) ?? '')
+        .trim();
+    final currentAccountId =
+        (ref.read(loginControllerProvider).session?.user.id ?? '').trim();
+    if (currentTenantId != tenantId ||
+        currentBranchId != branchId ||
+        currentAccountId != accountId) {
+      return;
+    }
+
+    await ref
+        .read(saleOutageRecoveryControllerProvider)
+        .recoverBranchWorkspace(
+          trigger: trigger,
+          scopeOverride: SaleOutageScope(
+            tenantId: tenantId,
+            branchId: branchId,
+            accountId: accountId,
+          ),
+        );
   }
 
   void _notifyContextClearedResources() {

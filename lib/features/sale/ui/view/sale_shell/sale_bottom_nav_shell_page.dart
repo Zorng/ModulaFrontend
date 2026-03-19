@@ -8,6 +8,7 @@ import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/sale/ui/view/sale_cart/widgets/sale_cart_panel.dart';
 import 'package:modular_pos/features/sale/ui/view/sale_shell/widgets/sale_printer_status_action.dart';
+import 'package:modular_pos/features/sale/ui/viewmodels/order_viewmodel.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_access_gate.dart';
 
 class SaleBottomNavShellPage extends ConsumerStatefulWidget {
@@ -26,8 +27,8 @@ class _SaleBottomNavShellPageState
   static const double _wideCartMaxWidth = 460;
   static const double _wideCartWidthFactor = 0.32;
 
-  static const _titles = <String>['Sale', 'Cart', 'Orders'];
-  static const _mobileTitles = <String>['Sale', 'Cart', 'Orders'];
+  static const _titles = <String>['Sale', 'Cart', 'Fulfillment'];
+  static const _mobileTitles = <String>['Sale', 'Cart', 'Fulfillment'];
 
   static const _items = <BottomNavigationBarItem>[
     BottomNavigationBarItem(
@@ -40,11 +41,12 @@ class _SaleBottomNavShellPageState
     ),
     BottomNavigationBarItem(
       icon: Icon(Icons.receipt_long_outlined),
-      label: 'Orders',
+      label: 'Fulfillment',
     ),
   ];
 
   bool _isPreparingBranchContext = false;
+  int _lastObservedShellIndex = -1;
 
   @override
   void initState() {
@@ -94,6 +96,24 @@ class _SaleBottomNavShellPageState
   @override
   Widget build(BuildContext context) {
     final index = widget.navigationShell.currentIndex;
+    if (_lastObservedShellIndex != index) {
+      final previousIndex = _lastObservedShellIndex;
+      _lastObservedShellIndex = index;
+      if (previousIndex != -1 && index == 2) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          final workspaceTab = ref.read(fulfillmentWorkspaceTabProvider);
+          switch (workspaceTab) {
+            case FulfillmentWorkspaceTab.kitchen:
+              ref.read(ordersProvider.notifier).load(date: DateTime.now());
+            case FulfillmentWorkspaceTab.externalClaims:
+              ref
+                  .read(ordersProvider.notifier)
+                  .load(date: DateTime.now(), status: 'open', view: null);
+          }
+        });
+      }
+    }
     ref.listen<String?>(saleAccessBranchIdProvider, (_, __) {
       _ensureSaleBranchContext();
     });
@@ -119,11 +139,8 @@ class _SaleBottomNavShellPageState
           final wideIndex = index == 2 ? 1 : 0;
 
           final showCartPanel = index == 0;
-          final cartPanelWidth =
-              (constraints.maxWidth * _wideCartWidthFactor).clamp(
-                _wideCartMinWidth,
-                _wideCartMaxWidth,
-              );
+          final cartPanelWidth = (constraints.maxWidth * _wideCartWidthFactor)
+              .clamp(_wideCartMinWidth, _wideCartMaxWidth);
           final appBarTitle = index == 2 ? _titles[2] : _titles[0];
           return Scaffold(
             appBar: AppBar(

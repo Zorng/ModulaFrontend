@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/core/storage/app_database.dart';
 
 enum OfflineOperationType {
+  checkoutCashFinalize('checkout.cash.finalize'),
   attendanceStartWork('attendance.startWork'),
   attendanceEndWork('attendance.endWork'),
   cashSessionOpen('cashSession.open'),
@@ -81,6 +82,9 @@ class OfflineCommandRecord {
   }
 
   OfflineCommandRecord copyWith({
+    String? clientOpId,
+    String? payloadJson,
+    Object? dependsOnClientOpId = _unset,
     OfflineCommandQueueStatus? status,
     int? retryCount,
     DateTime? updatedAt,
@@ -90,14 +94,16 @@ class OfflineCommandRecord {
     Object? lastErrorMessage = _unset,
   }) {
     return OfflineCommandRecord(
-      clientOpId: clientOpId,
+      clientOpId: clientOpId ?? this.clientOpId,
       operationType: operationType,
       tenantId: tenantId,
       branchId: branchId,
       accountId: accountId,
       occurredAt: occurredAt,
-      payloadJson: payloadJson,
-      dependsOnClientOpId: dependsOnClientOpId,
+      payloadJson: payloadJson ?? this.payloadJson,
+      dependsOnClientOpId: identical(dependsOnClientOpId, _unset)
+          ? this.dependsOnClientOpId
+          : dependsOnClientOpId as String?,
       status: status ?? this.status,
       retryCount: retryCount ?? this.retryCount,
       createdAt: createdAt,
@@ -124,6 +130,8 @@ abstract class OfflineCommandQueueStore {
   Future<void> write(OfflineCommandRecord record);
 
   Future<OfflineCommandRecord?> read(String clientOpId);
+
+  Future<void> delete(String clientOpId);
 
   Future<List<OfflineCommandRecord>> listForContext({
     required String tenantId,
@@ -187,6 +195,13 @@ class DriftOfflineCommandQueueStore implements OfflineCommandQueueStore {
             .getSingleOrNull();
     if (row == null) return null;
     return _mapRow(row);
+  }
+
+  @override
+  Future<void> delete(String clientOpId) {
+    return (_db.delete(
+      _db.offlineCommandQueueEntries,
+    )..where((tbl) => tbl.clientOpId.equals(clientOpId.trim()))).go();
   }
 
   @override

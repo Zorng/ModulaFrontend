@@ -16,6 +16,7 @@ import 'package:modular_pos/features/staff_attendance/ui/view/attendance_check/w
 import 'package:modular_pos/features/staff_attendance/ui/view/attendance_check/widgets/today_shift_card.dart';
 import 'package:modular_pos/features/staff_attendance/ui/view/attendance_shared/attendance_geolocation.dart';
 import 'package:modular_pos/features/staff_attendance/ui/view/attendance_shared/attendance_utils.dart';
+import 'package:uuid/uuid.dart';
 
 typedef AttendanceGeoCapture = Future<AttendanceGeoSnapshot> Function();
 
@@ -32,6 +33,8 @@ class AttendanceCheckPage extends ConsumerStatefulWidget {
 }
 
 class _AttendanceCheckPageState extends ConsumerState<AttendanceCheckPage> {
+  static const Uuid _uuid = Uuid();
+
   bool _shiftExpanded = false;
   bool _contextLoading = false;
   bool _scheduleLoading = false;
@@ -222,9 +225,7 @@ class _AttendanceCheckPageState extends ConsumerState<AttendanceCheckPage> {
 
     try {
       final position = await ref.read(attendanceGeoCaptureProvider)();
-      final clientOpId = _buildClientOpId(
-        hasOpenAttendance ? 'attendance-end' : 'attendance-start',
-      );
+      final clientOpId = _buildClientOpId();
       if (connectivityStatus == AppConnectivityStatus.offline) {
         if (cacheScope == null) {
           if (!mounted) return;
@@ -493,9 +494,8 @@ class _AttendanceCheckPageState extends ConsumerState<AttendanceCheckPage> {
     return '${entry.startTime ?? '--'} - ${entry.endTime ?? '--'}';
   }
 
-  String _buildClientOpId(String action) {
-    final micros = DateTime.now().microsecondsSinceEpoch;
-    return '$action-$micros';
+  String _buildClientOpId() {
+    return _uuid.v4();
   }
 
   List<AttendanceShiftScheduleEntry> _buildWeeklyScheduleEntries({

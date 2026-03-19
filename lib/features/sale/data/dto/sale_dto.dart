@@ -76,6 +76,7 @@ class SaleDto {
     required this.tenantId,
     required this.branchId,
     required this.employeeId,
+    this.orderId,
     required this.saleType,
     required this.state,
     required this.fxRateUsed,
@@ -100,6 +101,7 @@ class SaleDto {
   final String tenantId;
   final String branchId;
   final String employeeId;
+  final String? orderId;
   final String saleType;
   final String state;
   final double fxRateUsed;
@@ -137,6 +139,7 @@ class SaleDto {
             json['openedByAccountId'] ??
             json['checkedOutByAccountId'],
       ),
+      orderId: _readNullableString(json['orderId']),
       saleType: _readString(json['saleType']),
       state: _readString(json['state']).isEmpty
           ? _readString(json['status'])
@@ -456,17 +459,57 @@ class SaleReceiptReadModifierDto {
 }
 
 class SaleCashCheckoutResponseDto {
-  const SaleCashCheckoutResponseDto({required this.sale, this.receipt});
+  const SaleCashCheckoutResponseDto({
+    required this.sale,
+    this.orderId,
+    this.order,
+    this.receipt,
+  });
 
   final SaleDto sale;
+  final String? orderId;
+  final SaleCheckoutOrderAnchorDto? order;
   final SaleReceiptProjectionDto? receipt;
 
   factory SaleCashCheckoutResponseDto.fromJson(Map<String, dynamic> json) {
+    final salePayload = json['sale'] is Map<String, dynamic>
+        ? _asMap(json['sale'])
+        : json;
+    final orderPayload = _asMap(json['order']);
     return SaleCashCheckoutResponseDto(
-      sale: SaleDto.fromJson(_asMap(json['sale'])),
+      sale: SaleDto.fromJson(salePayload),
+      orderId: _readNullableString(
+        json['orderId'] ?? salePayload['orderId'] ?? orderPayload['id'],
+      ),
+      order: orderPayload.isEmpty
+          ? null
+          : SaleCheckoutOrderAnchorDto.fromJson(orderPayload),
       receipt: json['receipt'] == null
           ? null
           : SaleReceiptProjectionDto.fromJson(_asMap(json['receipt'])),
+    );
+  }
+}
+
+class SaleCheckoutOrderAnchorDto {
+  const SaleCheckoutOrderAnchorDto({
+    required this.id,
+    required this.status,
+    required this.sourceMode,
+    this.checkedOutAt,
+  });
+
+  final String id;
+  final String status;
+  final String sourceMode;
+  final DateTime? checkedOutAt;
+
+  factory SaleCheckoutOrderAnchorDto.fromJson(Map<String, dynamic> json) {
+    return SaleCheckoutOrderAnchorDto(
+      id: _readString(json['id']),
+      status: _readString(json['status']),
+      sourceMode: _readString(json['sourceMode']),
+      checkedOutAt: _readNullableDateTime(json['checkedOutAt']),
     );
   }
 }
@@ -688,6 +731,476 @@ class SaleFinalizeResponseDto {
   }
 }
 
+class SaleOrderPlacementResponseDto {
+  const SaleOrderPlacementResponseDto({
+    required this.orderId,
+    required this.saleId,
+    required this.status,
+    required this.batchId,
+  });
+
+  final String orderId;
+  final String saleId;
+  final String status;
+  final String batchId;
+
+  factory SaleOrderPlacementResponseDto.fromJson(Map<String, dynamic> json) {
+    final order = _asMap(json['order']);
+    final batch = _asMap(json['batch']);
+    final orderId = _readString(
+      json['orderId'] ?? json['openTicketId'] ?? json['id'] ?? order['id'],
+    );
+    return SaleOrderPlacementResponseDto(
+      orderId: orderId,
+      saleId: _readString(json['saleId'] ?? order['saleId']).isEmpty
+          ? orderId
+          : _readString(json['saleId'] ?? order['saleId']),
+      status: _readString(json['status'] ?? order['status']),
+      batchId: _readString(json['batchId'] ?? batch['id']).isEmpty
+          ? orderId
+          : _readString(json['batchId'] ?? batch['id']),
+    );
+  }
+}
+
+class SaleManualPaymentClaimResponseDto {
+  const SaleManualPaymentClaimResponseDto({
+    required this.claimId,
+    required this.orderId,
+    required this.status,
+  });
+
+  final String claimId;
+  final String orderId;
+  final String status;
+
+  factory SaleManualPaymentClaimResponseDto.fromJson(
+    Map<String, dynamic> json,
+  ) {
+    final claim = _asMap(json['claim']);
+    final claimId = _readString(json['claimId'] ?? json['id'] ?? claim['id']);
+    return SaleManualPaymentClaimResponseDto(
+      claimId: claimId,
+      orderId: _readString(json['orderId'] ?? claim['orderId']),
+      status: _readString(json['status'] ?? json['state'] ?? claim['status']),
+    );
+  }
+}
+
+class SaleApproveManualPaymentClaimResponseDto {
+  const SaleApproveManualPaymentClaimResponseDto({
+    required this.claimId,
+    required this.orderId,
+    required this.status,
+    this.saleId,
+    this.receipt,
+  });
+
+  final String claimId;
+  final String orderId;
+  final String status;
+  final String? saleId;
+  final SaleReceiptProjectionDto? receipt;
+
+  factory SaleApproveManualPaymentClaimResponseDto.fromJson(
+    Map<String, dynamic> json,
+  ) {
+    final claim = _asMap(json['claim']);
+    final receipt = json['receipt'] == null
+        ? null
+        : SaleReceiptProjectionDto.fromJson(_asMap(json['receipt']));
+    final saleId = _readString(
+      json['saleId'] ??
+          json['sale_id'] ??
+          claim['saleId'] ??
+          claim['sale_id'] ??
+          receipt?.saleId,
+    );
+    return SaleApproveManualPaymentClaimResponseDto(
+      claimId: _readString(json['claimId'] ?? json['id'] ?? claim['id']),
+      orderId: _readString(json['orderId'] ?? claim['orderId']),
+      status: _readString(
+        json['status'] ?? json['state'] ?? claim['status'] ?? claim['state'],
+      ),
+      saleId: saleId.isEmpty ? null : saleId,
+      receipt: receipt,
+    );
+  }
+}
+
+class SaleRejectManualPaymentClaimResponseDto {
+  const SaleRejectManualPaymentClaimResponseDto({
+    required this.claimId,
+    required this.orderId,
+    required this.status,
+  });
+
+  final String claimId;
+  final String orderId;
+  final String status;
+
+  factory SaleRejectManualPaymentClaimResponseDto.fromJson(
+    Map<String, dynamic> json,
+  ) {
+    final claim = _asMap(json['claim']);
+    return SaleRejectManualPaymentClaimResponseDto(
+      claimId: _readString(json['claimId'] ?? json['id'] ?? claim['id']),
+      orderId: _readString(json['orderId'] ?? claim['orderId']),
+      status: _readString(
+        json['status'] ?? json['state'] ?? claim['status'] ?? claim['state'],
+      ),
+    );
+  }
+}
+
+class SaleOrderListItemResponseDto {
+  const SaleOrderListItemResponseDto({
+    required this.orderId,
+    required this.status,
+    required this.sourceMode,
+    required this.fulfillmentStatus,
+    required this.totalUsdExact,
+    required this.linesPreview,
+    required this.createdAt,
+    required this.updatedAt,
+    this.checkedOutAt,
+    this.paymentMethod,
+    this.manualPaymentClaimId,
+    this.manualPaymentClaimStatus,
+  });
+
+  final String orderId;
+  final String status;
+  final String sourceMode;
+  final String? fulfillmentStatus;
+  final double totalUsdExact;
+  final List<SaleOrderListLinePreviewResponseDto> linesPreview;
+  final DateTime? checkedOutAt;
+  final String? paymentMethod;
+  final String? manualPaymentClaimId;
+  final String? manualPaymentClaimStatus;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  factory SaleOrderListItemResponseDto.fromJson(Map<String, dynamic> json) {
+    return SaleOrderListItemResponseDto(
+      orderId: _readString(json['orderId'] ?? json['id']),
+      status: _readString(json['status']),
+      sourceMode: _readString(json['sourceMode']),
+      fulfillmentStatus: _readNullableString(json['fulfillmentStatus']),
+      totalUsdExact: _readDouble(json['totalUsdExact']),
+      linesPreview: _readTypedList(
+        json['linesPreview'],
+        SaleOrderListLinePreviewResponseDto.fromJson,
+      ),
+      checkedOutAt: _readNullableDateTime(json['checkedOutAt']),
+      paymentMethod: _readNullableString(json['paymentMethod']),
+      manualPaymentClaimId: _readNullableString(json['manualPaymentClaimId']),
+      manualPaymentClaimStatus: _readNullableString(
+        json['manualPaymentClaimStatus'],
+      ),
+      createdAt: _readDateTime(json['createdAt']),
+      updatedAt: _readDateTime(json['updatedAt']),
+    );
+  }
+}
+
+class SaleOrderListLinePreviewResponseDto {
+  const SaleOrderListLinePreviewResponseDto({
+    required this.menuItemNameSnapshot,
+    required this.quantity,
+    required this.modifierLabels,
+  });
+
+  final String menuItemNameSnapshot;
+  final int quantity;
+  final List<String> modifierLabels;
+
+  factory SaleOrderListLinePreviewResponseDto.fromJson(
+    Map<String, dynamic> json,
+  ) {
+    final modifierLabels = <String>[];
+    final rawLabels = json['modifierLabels'];
+    if (rawLabels is List) {
+      for (final label in rawLabels) {
+        final value = label?.toString().trim() ?? '';
+        if (value.isNotEmpty) modifierLabels.add(value);
+      }
+    }
+
+    return SaleOrderListLinePreviewResponseDto(
+      menuItemNameSnapshot: _readString(json['menuItemNameSnapshot']),
+      quantity: _readInt(json['quantity']),
+      modifierLabels: modifierLabels,
+    );
+  }
+}
+
+class SaleOrdersListResponseDto {
+  const SaleOrdersListResponseDto({
+    required this.items,
+    required this.limit,
+    required this.offset,
+    required this.total,
+    required this.hasMore,
+  });
+
+  final List<SaleOrderListItemResponseDto> items;
+  final int limit;
+  final int offset;
+  final int total;
+  final bool hasMore;
+
+  factory SaleOrdersListResponseDto.fromJson(Map<String, dynamic> json) {
+    final items = <SaleOrderListItemResponseDto>[];
+    final rawItems = json['items'];
+    if (rawItems is List) {
+      for (final item in rawItems) {
+        if (item is Map<String, dynamic>) {
+          items.add(SaleOrderListItemResponseDto.fromJson(item));
+        } else if (item is Map) {
+          items.add(
+            SaleOrderListItemResponseDto.fromJson(
+              Map<String, dynamic>.from(item),
+            ),
+          );
+        }
+      }
+    }
+
+    return SaleOrdersListResponseDto(
+      items: items,
+      limit: _readInt(json['limit']),
+      offset: _readInt(json['offset']),
+      total: _readInt(json['total']),
+      hasMore: json['hasMore'] == true,
+    );
+  }
+}
+
+class SaleOrderLineReadDto {
+  const SaleOrderLineReadDto({
+    required this.id,
+    required this.orderId,
+    required this.menuItemId,
+    required this.menuItemNameSnapshot,
+    required this.unitPrice,
+    required this.quantity,
+    required this.lineSubtotal,
+    required this.note,
+  });
+
+  final String id;
+  final String orderId;
+  final String menuItemId;
+  final String menuItemNameSnapshot;
+  final double unitPrice;
+  final int quantity;
+  final double lineSubtotal;
+  final String? note;
+
+  factory SaleOrderLineReadDto.fromJson(Map<String, dynamic> json) {
+    return SaleOrderLineReadDto(
+      id: _readString(json['id']),
+      orderId: _readString(json['orderId']),
+      menuItemId: _readString(json['menuItemId']),
+      menuItemNameSnapshot: _readString(
+        json['menuItemNameSnapshot'] ?? json['menuItemName'],
+      ),
+      unitPrice: _readDouble(json['unitPrice']),
+      quantity: _readInt(json['quantity']),
+      lineSubtotal: _readDouble(json['lineSubtotal']),
+      note: _readNullableString(json['note']),
+    );
+  }
+}
+
+class SaleOrderFulfillmentBatchReadDto {
+  const SaleOrderFulfillmentBatchReadDto({
+    required this.id,
+    required this.orderId,
+    required this.status,
+    required this.createdByAccountId,
+    required this.createdAt,
+    required this.updatedAt,
+    this.note,
+    this.completedAt,
+  });
+
+  final String id;
+  final String orderId;
+  final String status;
+  final String createdByAccountId;
+  final String? note;
+  final DateTime? completedAt;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  factory SaleOrderFulfillmentBatchReadDto.fromJson(Map<String, dynamic> json) {
+    return SaleOrderFulfillmentBatchReadDto(
+      id: _readString(json['id']),
+      orderId: _readString(json['orderId']),
+      status: _readString(json['status']),
+      createdByAccountId: _readString(json['createdByAccountId']),
+      note: _readNullableString(json['note']),
+      completedAt: _readNullableDateTime(json['completedAt']),
+      createdAt: _readDateTime(json['createdAt']),
+      updatedAt: _readDateTime(json['updatedAt']),
+    );
+  }
+}
+
+class SaleManualPaymentClaimReadDto {
+  const SaleManualPaymentClaimReadDto({
+    required this.claimId,
+    required this.orderId,
+    required this.status,
+    this.claimedPaymentMethod,
+    this.tenderCurrency,
+    this.claimedTenderAmount,
+    this.proofImageUrl,
+    this.customerReference,
+    this.note,
+  });
+
+  final String claimId;
+  final String orderId;
+  final String status;
+  final String? claimedPaymentMethod;
+  final String? tenderCurrency;
+  final double? claimedTenderAmount;
+  final String? proofImageUrl;
+  final String? customerReference;
+  final String? note;
+
+  factory SaleManualPaymentClaimReadDto.fromJson(Map<String, dynamic> json) {
+    final claim = _asMap(json['claim']);
+    return SaleManualPaymentClaimReadDto(
+      claimId: _readString(json['claimId'] ?? json['id'] ?? claim['id']),
+      orderId: _readString(json['orderId'] ?? claim['orderId']),
+      status: _readString(json['status'] ?? claim['status']),
+      claimedPaymentMethod: _readNullableString(
+        json['claimedPaymentMethod'] ?? claim['claimedPaymentMethod'],
+      ),
+      tenderCurrency: _readNullableString(
+        json['tenderCurrency'] ?? claim['tenderCurrency'],
+      ),
+      claimedTenderAmount: _readNullableDouble(
+        json['claimedTenderAmount'] ?? claim['claimedTenderAmount'],
+      ),
+      proofImageUrl: _readNullableString(
+        json['proofImageUrl'] ?? claim['proofImageUrl'],
+      ),
+      customerReference: _readNullableString(
+        json['customerReference'] ?? claim['customerReference'],
+      ),
+      note: _readNullableString(json['note'] ?? claim['note']),
+    );
+  }
+}
+
+class SaleOrderDetailResponseDto {
+  const SaleOrderDetailResponseDto({
+    required this.orderId,
+    required this.tenantId,
+    required this.branchId,
+    required this.openedByAccountId,
+    required this.status,
+    required this.sourceMode,
+    required this.createdAt,
+    required this.updatedAt,
+    required this.lines,
+    required this.fulfillmentBatches,
+    required this.manualPaymentClaims,
+    this.checkedOutAt,
+    this.checkedOutByAccountId,
+    this.cancelledAt,
+    this.cancelledByAccountId,
+    this.cancelReason,
+  });
+
+  final String orderId;
+  final String tenantId;
+  final String branchId;
+  final String openedByAccountId;
+  final String status;
+  final String sourceMode;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final DateTime? checkedOutAt;
+  final String? checkedOutByAccountId;
+  final DateTime? cancelledAt;
+  final String? cancelledByAccountId;
+  final String? cancelReason;
+  final List<SaleOrderLineReadDto> lines;
+  final List<SaleOrderFulfillmentBatchReadDto> fulfillmentBatches;
+  final List<SaleManualPaymentClaimReadDto> manualPaymentClaims;
+
+  factory SaleOrderDetailResponseDto.fromJson(Map<String, dynamic> json) {
+    return SaleOrderDetailResponseDto(
+      orderId: _readString(json['orderId'] ?? json['id']),
+      tenantId: _readString(json['tenantId']),
+      branchId: _readString(json['branchId']),
+      openedByAccountId: _readString(json['openedByAccountId']),
+      status: _readString(json['status']),
+      sourceMode: _readString(json['sourceMode']),
+      createdAt: _readDateTime(json['createdAt']),
+      updatedAt: _readDateTime(json['updatedAt']),
+      checkedOutAt: _readNullableDateTime(json['checkedOutAt']),
+      checkedOutByAccountId: _readNullableString(json['checkedOutByAccountId']),
+      cancelledAt: _readNullableDateTime(json['cancelledAt']),
+      cancelledByAccountId: _readNullableString(json['cancelledByAccountId']),
+      cancelReason: _readNullableString(json['cancelReason']),
+      lines: _readTypedList(json['lines'], SaleOrderLineReadDto.fromJson),
+      fulfillmentBatches: _readTypedList(
+        json['fulfillmentBatches'],
+        SaleOrderFulfillmentBatchReadDto.fromJson,
+      ),
+      manualPaymentClaims: _readTypedList(
+        json['manualPaymentClaims'],
+        SaleManualPaymentClaimReadDto.fromJson,
+      ),
+    );
+  }
+}
+
+class SaleOrderFulfillmentUpdateResponseDto {
+  const SaleOrderFulfillmentUpdateResponseDto({
+    required this.id,
+    required this.orderId,
+    required this.status,
+    required this.createdByAccountId,
+    required this.createdAt,
+    required this.updatedAt,
+    this.note,
+    this.completedAt,
+  });
+
+  final String id;
+  final String orderId;
+  final String status;
+  final String createdByAccountId;
+  final String? note;
+  final DateTime? completedAt;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  factory SaleOrderFulfillmentUpdateResponseDto.fromJson(
+    Map<String, dynamic> json,
+  ) {
+    return SaleOrderFulfillmentUpdateResponseDto(
+      id: _readString(json['id']),
+      orderId: _readString(json['orderId']),
+      status: _readString(json['status']),
+      createdByAccountId: _readString(json['createdByAccountId']),
+      note: _readNullableString(json['note']),
+      completedAt: _readNullableDateTime(json['completedAt']),
+      createdAt: _readDateTime(json['createdAt']),
+      updatedAt: _readDateTime(json['updatedAt']),
+    );
+  }
+}
+
 class SaleVoidRequestDto {
   const SaleVoidRequestDto({
     required this.id,
@@ -726,6 +1239,22 @@ Map<String, dynamic> _asMap(dynamic value) {
     return value.map((key, val) => MapEntry(key.toString(), val));
   }
   return const <String, dynamic>{};
+}
+
+List<T> _readTypedList<T>(
+  dynamic raw,
+  T Function(Map<String, dynamic> json) parser,
+) {
+  final items = <T>[];
+  if (raw is! List) return items;
+  for (final item in raw) {
+    if (item is Map<String, dynamic>) {
+      items.add(parser(item));
+    } else if (item is Map) {
+      items.add(parser(Map<String, dynamic>.from(item)));
+    }
+  }
+  return items;
 }
 
 List<SaleItemDto> _readSaleItems(

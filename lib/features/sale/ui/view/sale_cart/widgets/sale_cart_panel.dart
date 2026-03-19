@@ -144,10 +144,10 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
 
   Future<void> _showOpenTicketDialog({
     required SaleCartNotifier cartNotifier,
-    required String saleId,
+    required String orderId,
   }) async {
     try {
-      final detail = await cartNotifier.getOpenTicketDetail(saleId: saleId);
+      final detail = await cartNotifier.getOpenTicketDetail(orderId: orderId);
       if (!mounted) return;
       await showDialog<void>(
         context: context,
@@ -163,7 +163,7 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
                 children: [
                   Text('Ticket #: ${detail.openTicketId}'),
                   const SizedBox(height: 4),
-                  Text('Sale ID: ${detail.saleId}'),
+                  Text('Order ID: ${detail.orderId}'),
                   const SizedBox(height: 4),
                   Text('Status: ${detail.status}'),
                   const SizedBox(height: 12),
@@ -177,7 +177,7 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
                   Text('\$${detail.payableUsdExact.toStringAsFixed(2)}'),
                   Text('KHR ${formatKhrAmount(detail.payableKhrExact)}'),
                   const SizedBox(height: 12),
-                  Text('Batches: ${detail.batches.length}'),
+                  Text('Lines: ${detail.lineCount}'),
                 ],
               ),
             ),
@@ -580,8 +580,7 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
     final isPayLaterMode = orderType == 'dine_in';
     final isOffline = connectivityStatus == AppConnectivityStatus.offline;
     final payLaterEnabled = branchPolicy.saleAllowPayLater;
-    final manualClaimEnabled =
-        branchPolicy.saleAllowManualExternalPaymentClaim;
+    final manualClaimEnabled = branchPolicy.saleAllowManualExternalPaymentClaim;
     final canCheckout =
         gate.canCheckout &&
         !cartState.isFinalizing &&
@@ -628,7 +627,7 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
         ? canKhqrAction
         : canCheckout;
     final primaryActionLabel = isOffline && paymentMethod == 'cash'
-        ? 'Capture Order'
+        ? 'Queue Cash Checkout'
         : isOffline && paymentMethod == 'qr'
         ? 'Capture Claim Order'
         : isPayLaterMode
@@ -726,6 +725,8 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text('Sale finalized successfully.'),
+                        if (cartState.lastFinalizedOrderId != null)
+                          Text('Order #: ${cartState.lastFinalizedOrderId}'),
                         if (cartState.lastReceiptId != null)
                           Text('Receipt #: ${cartState.lastReceiptId}'),
                         if (cartState.lastReceipt != null &&
@@ -787,7 +788,7 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
                       children: [
                         const Text('Open ticket placed successfully.'),
                         Text('Ticket #: ${cartState.lastPlacedOpenTicketId}'),
-                        if (cartState.lastPlacedSaleId != null)
+                        if (cartState.lastPlacedOpenTicketId != null)
                           Align(
                             alignment: Alignment.centerLeft,
                             child: TextButton(
@@ -795,7 +796,8 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
                                   ? null
                                   : () => _showOpenTicketDialog(
                                       cartNotifier: cartNotifier,
-                                      saleId: cartState.lastPlacedSaleId!,
+                                      orderId:
+                                          cartState.lastPlacedOpenTicketId!,
                                     ),
                               child: const Text('View Ticket'),
                             ),
@@ -948,7 +950,7 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text(
-                        'Order ${result.orderNumber} captured offline. Settle it when back online.',
+                        'Order ${result.orderNumber} queued offline. Keep the app online later so cash checkout can sync automatically.',
                       ),
                     ),
                   );
@@ -970,8 +972,8 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
 
               if (isOffline && paymentMethod == 'qr') {
                 try {
-                  final result =
-                      await cartNotifier.captureOfflineManualClaimOrder();
+                  final result = await cartNotifier
+                      .captureOfflineManualClaimOrder();
                   await ref
                       .read(ordersProvider.notifier)
                       .load(date: DateTime.now());

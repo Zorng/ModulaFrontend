@@ -16,24 +16,26 @@ void main() {
     branchId: 'branch-1',
     accountId: 'account-1',
   );
+  const op1 = '11111111-1111-4111-8111-111111111111';
+  const op2 = '22222222-2222-4222-8222-222222222222';
 
   test(
     'replayPending updates queue rows and triggers pull after success',
     () async {
       final queueStore = _MemoryOfflineCommandQueueStore([
-        _record('op-1'),
-        _record('op-2'),
+        _record(op1),
+        _record(op2),
       ]);
       final api = _FakeSyncPushApi(
         envelope: SyncPushEnvelope(
           pushedAt: DateTime.utc(2026, 3, 17, 10),
           results: const [
             SyncPushResult(
-              clientOpId: 'op-1',
+              clientOpId: op1,
               status: SyncPushResultStatus.applied,
             ),
             SyncPushResult(
-              clientOpId: 'op-2',
+              clientOpId: op2,
               status: SyncPushResultStatus.duplicate,
             ),
           ],
@@ -68,11 +70,11 @@ void main() {
       expect(result.appliedCount, 1);
       expect(result.duplicateCount, 1);
       expect(
-        (await queueStore.read('op-1'))?.status,
+        (await queueStore.read(op1))?.status,
         OfflineCommandQueueStatus.applied,
       );
       expect(
-        (await queueStore.read('op-2'))?.status,
+        (await queueStore.read(op2))?.status,
         OfflineCommandQueueStatus.duplicate,
       );
       expect(pullApi.wasCalled, isTrue);
@@ -82,7 +84,7 @@ void main() {
   test(
     'replayPending restores rows to pending on push transport failure',
     () async {
-      final queueStore = _MemoryOfflineCommandQueueStore([_record('op-1')]);
+      final queueStore = _MemoryOfflineCommandQueueStore([_record(op1)]);
       final coordinator = SyncPushCoordinator(
         queueStore: queueStore,
         api: _FakeSyncPushApi(
@@ -106,11 +108,89 @@ void main() {
 
       final result = await coordinator.replayPending(context: context);
 
-      final record = await queueStore.read('op-1');
+      final record = await queueStore.read(op1);
       expect(result.outcome, SyncPushReplayOutcome.pushFailed);
       expect(result.pushErrorCode, 'OFFLINE_UNREACHABLE');
       expect(record?.status, OfflineCommandQueueStatus.pending);
       expect(record?.lastErrorCode, 'OFFLINE_UNREACHABLE');
+    },
+  );
+
+  test(
+    'replayPending repairs legacy non-UUID client op ids before push',
+    () async {
+      const legacyClientOpId = 'sale-outage-local-1';
+      final queueStore = _MemoryOfflineCommandQueueStore([
+        OfflineCommandRecord(
+          clientOpId: legacyClientOpId,
+          operationType: OfflineOperationType.checkoutCashFinalize,
+          tenantId: 'tenant-1',
+          branchId: 'branch-1',
+          accountId: 'account-1',
+          occurredAt: DateTime.utc(2026, 3, 17, 9),
+          payloadJson: '{"orderId":"order-1","saleId":"sale-1"}',
+          status: OfflineCommandQueueStatus.pending,
+          retryCount: 0,
+          createdAt: DateTime.utc(2026, 3, 17, 9),
+          updatedAt: DateTime.utc(2026, 3, 17, 9),
+        ),
+      ]);
+      final api = _FakeSyncPushApi(
+        envelopeBuilder: (operations) => SyncPushEnvelope(
+          pushedAt: DateTime.utc(2026, 3, 17, 10),
+          results: operations
+              .map(
+                (record) => SyncPushResult(
+                  clientOpId: record.clientOpId,
+                  status: SyncPushResultStatus.applied,
+                ),
+              )
+              .toList(growable: false),
+          rawData: const {},
+        ),
+      );
+      final coordinator = SyncPushCoordinator(
+        queueStore: queueStore,
+        api: api,
+        pullOrchestrator: _FakeSyncPullOrchestrator(
+          api: _FakeSyncPullApi(
+            envelope: SyncPullEnvelope(
+              cursor: null,
+              pulledAt: DateTime.utc(2026, 3, 17, 10),
+              payloadByScope: const {},
+              rawData: const {},
+            ),
+          ),
+        ),
+        readBranchWorkspaceScopes: () => const {SyncModuleScope.policy},
+      );
+
+      final result = await coordinator.replayPending(context: context);
+      final repairedRecords = await queueStore.listForContext(
+        tenantId: 'tenant-1',
+        branchId: 'branch-1',
+        accountId: 'account-1',
+      );
+
+      expect(result.outcome, SyncPushReplayOutcome.success);
+      expect(await queueStore.read(legacyClientOpId), isNull);
+      expect(repairedRecords, hasLength(1));
+      expect(
+        repairedRecords.single.clientOpId,
+        matches(
+          RegExp(
+            r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+          ),
+        ),
+      );
+      expect(
+        repairedRecords.single.decodePayload()['localIntentId'],
+        legacyClientOpId,
+      );
+      expect(
+        api.lastOperations.single.clientOpId,
+        repairedRecords.single.clientOpId,
+      );
     },
   );
 }
@@ -204,24 +284,34 @@ class _MemoryOfflineCommandQueueStore implements OfflineCommandQueueStore {
   }
 
   @override
+  Future<void> delete(String clientOpId) async {
+    _records.remove(clientOpId);
+  }
+
+  @override
   Future<void> write(OfflineCommandRecord record) async {
     _records[record.clientOpId] = record;
   }
 }
 
 class _FakeSyncPushApi extends SyncPushApi {
-  _FakeSyncPushApi({this.envelope, this.error}) : super(Dio());
+  _FakeSyncPushApi({this.envelope, this.envelopeBuilder, this.error})
+    : super(Dio());
 
   final SyncPushEnvelope? envelope;
+  final SyncPushEnvelope Function(List<OfflineCommandRecord> operations)?
+  envelopeBuilder;
   final Object? error;
+  List<OfflineCommandRecord> lastOperations = const [];
 
   @override
   Future<SyncPushEnvelope> push({
     required SyncPullContext context,
     required List<OfflineCommandRecord> operations,
   }) async {
+    lastOperations = operations;
     if (error != null) throw error!;
-    return envelope!;
+    return envelopeBuilder?.call(operations) ?? envelope!;
   }
 }
 

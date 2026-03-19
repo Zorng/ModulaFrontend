@@ -9,11 +9,29 @@ class OrderCard extends StatelessWidget {
     required this.order,
     required this.onTap,
     this.onStatusTap,
+    this.statusLabelBuilder = _defaultStatusLabel,
+    this.statusColorBuilder = _defaultStatusColor,
+    this.statusTextColorBuilder = _defaultStatusTextColor,
   });
 
   final Order order;
   final VoidCallback onTap;
   final VoidCallback? onStatusTap;
+  final String Function(Order order) statusLabelBuilder;
+  final Color Function(Order order) statusColorBuilder;
+  final Color Function(Order order) statusTextColorBuilder;
+
+  static String _defaultStatusLabel(Order order) {
+    return orderFulfillmentStatusLabel(order.status);
+  }
+
+  static Color _defaultStatusColor(Order order) {
+    return orderStatusColor(order.status);
+  }
+
+  static Color _defaultStatusTextColor(Order order) {
+    return orderStatusTextColor(order.status);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -45,17 +63,15 @@ class OrderCard extends StatelessWidget {
                       vertical: 6,
                     ),
                     decoration: BoxDecoration(
-                      color: orderStatusColor(order.status),
+                      color: statusColorBuilder(order),
                       borderRadius: BorderRadius.circular(999),
                     ),
                     child: GestureDetector(
                       onTap: onStatusTap,
                       child: Text(
-                        orderStatusLabel(order.status),
+                        statusLabelBuilder(order),
                         style: Theme.of(context).textTheme.labelMedium
-                            ?.copyWith(
-                              color: orderStatusTextColor(order.status),
-                            ),
+                            ?.copyWith(color: statusTextColorBuilder(order)),
                       ),
                     ),
                   ),
@@ -64,18 +80,34 @@ class OrderCard extends StatelessWidget {
               if (order.isSettleableOpenTicket) ...[
                 const SizedBox(height: 6),
                 Text(
-                  'Unpaid open ticket. Settlement remains available even when new pay-later orders are disabled.',
+                  'Pay-later ticket still awaiting settlement. Fulfillment can continue while payment stays open.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ] else if (order.hasPendingRemoteManualPaymentClaim) ...[
+                const SizedBox(height: 6),
+                Text(
+                  'Manual payment claim submitted. Open detail to review the claim and continue manager approval.',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ] else if (order.isLocalOutageOrder) ...[
                 const SizedBox(height: 6),
                 Text(
-                  order.hasManualExternalPaymentClaimRecorded
-                      ? 'Manual KHQR payment claimed. Awaiting manager review.'
+                  order.hasRejectedManualExternalPaymentClaim
+                      ? 'Manual KHQR claim was rejected. Review and resubmit if needed.'
+                      : order.hasSubmittedManualExternalPaymentClaim
+                      ? 'Manual KHQR claim submitted. Awaiting manager review.'
+                      : order.hasManualExternalPaymentClaimRecorded
+                      ? 'Manual KHQR payment claimed locally. Submit online to continue review.'
                       : order.isManualClaimOutageOrder
                       ? 'Offline-captured order awaiting manual KHQR proof.'
+                      : order.hasOfflineCashReplayFailure
+                      ? 'Offline cash checkout could not sync automatically. Review the sync error before retrying.'
+                      : order.isOfflineCashReplayInProgress
+                      ? 'Offline cash checkout is syncing now.'
+                      : order.isQueueBackedOfflineCashOrder
+                      ? 'Offline cash checkout is queued for sync and will materialize when replay succeeds.'
                       : order.isAwaitingOutageSettlement
-                      ? 'Offline-captured order awaiting online settlement.'
+                      ? 'Offline-captured order awaiting legacy online settlement.'
                       : 'Offline outage order in recovery.',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),

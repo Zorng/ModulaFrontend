@@ -519,6 +519,7 @@ class SaleFinalizeSaleCommand {
     required this.tenderCurrency,
     required this.clientOpId,
     this.cashReceived,
+    this.khqrIntentId,
     this.khqrMd5,
     this.saleType,
     this.cartLines = const [],
@@ -529,6 +530,7 @@ class SaleFinalizeSaleCommand {
   final String tenderCurrency;
   final String clientOpId;
   final SaleCashReceivedInputDto? cashReceived;
+  final String? khqrIntentId;
   final String? khqrMd5;
   final String? saleType;
   final List<SaleCartLineInputDto> cartLines;
@@ -540,6 +542,7 @@ class SaleFinalizeSaleCommand {
       'tender_currency': tenderCurrency,
       'client_op_id': clientOpId,
       if (cashReceived != null) 'cash_received': cashReceived!.toJson(),
+      if (khqrIntentId != null) 'khqr_intent_id': khqrIntentId,
       if (khqrMd5 != null) 'khqr_md5': khqrMd5,
       if (saleType != null) 'sale_type': saleType,
       'cart_lines': cartLines.map((item) => item.toJson()).toList(),
@@ -602,6 +605,7 @@ class SalePlaceOrderCommand {
     required this.saleType,
     required this.clientOpId,
     required this.cartLines,
+    this.sourceMode,
   });
 
   final String saleId;
@@ -609,6 +613,7 @@ class SalePlaceOrderCommand {
   final String saleType;
   final String clientOpId;
   final List<SaleCartLineInputDto> cartLines;
+  final String? sourceMode;
 
   Map<String, dynamic> toJson() {
     return {
@@ -617,6 +622,7 @@ class SalePlaceOrderCommand {
       'sale_type': saleType,
       'client_op_id': clientOpId,
       'cart_lines': cartLines.map((item) => item.toJson()).toList(),
+      if (sourceMode != null) 'source_mode': sourceMode,
     };
   }
 }
@@ -636,6 +642,150 @@ class SalePlaceOrderResultDto {
   final String saleId;
   final String status;
   final String batchId;
+  final bool idempotentReplay;
+  final String? reasonCode;
+  final String? reasonMessage;
+}
+
+class SaleCreateManualPaymentClaimCommand {
+  const SaleCreateManualPaymentClaimCommand({
+    required this.orderId,
+    required this.claimedPaymentMethod,
+    required this.saleType,
+    required this.tenderCurrency,
+    required this.claimedTenderAmount,
+    required this.proofImageUrl,
+    required this.clientOpId,
+    this.customerReference,
+    this.note,
+  });
+
+  final String orderId;
+  final String claimedPaymentMethod;
+  final String saleType;
+  final String tenderCurrency;
+  final double claimedTenderAmount;
+  final String proofImageUrl;
+  final String clientOpId;
+  final String? customerReference;
+  final String? note;
+
+  Map<String, dynamic> toJson() {
+    return {
+      'order_id': orderId,
+      'claimed_payment_method': claimedPaymentMethod,
+      'sale_type': saleType,
+      'tender_currency': tenderCurrency,
+      'claimed_tender_amount': claimedTenderAmount,
+      'proof_image_url': proofImageUrl,
+      'client_op_id': clientOpId,
+      if (customerReference != null) 'customer_reference': customerReference,
+      if (note != null) 'note': note,
+    };
+  }
+}
+
+class SaleCreateManualPaymentClaimResultDto {
+  const SaleCreateManualPaymentClaimResultDto({
+    required this.claimId,
+    required this.orderId,
+    required this.status,
+    required this.idempotentReplay,
+    this.reasonCode,
+    this.reasonMessage,
+  });
+
+  final String claimId;
+  final String orderId;
+  final String status;
+  final bool idempotentReplay;
+  final String? reasonCode;
+  final String? reasonMessage;
+}
+
+class SaleApproveManualPaymentClaimCommand {
+  const SaleApproveManualPaymentClaimCommand({
+    required this.orderId,
+    required this.claimId,
+    required this.clientOpId,
+    this.note,
+  });
+
+  final String orderId;
+  final String claimId;
+  final String clientOpId;
+  final String? note;
+
+  Map<String, dynamic> toJson() {
+    return {
+      'order_id': orderId,
+      'claim_id': claimId,
+      'client_op_id': clientOpId,
+      if (note != null) 'note': note,
+    };
+  }
+}
+
+class SaleApproveManualPaymentClaimResultDto {
+  const SaleApproveManualPaymentClaimResultDto({
+    required this.claimId,
+    required this.orderId,
+    required this.status,
+    required this.idempotentReplay,
+    this.saleId,
+    this.receiptId,
+    this.receipt,
+    this.reasonCode,
+    this.reasonMessage,
+  });
+
+  final String claimId;
+  final String orderId;
+  final String status;
+  final bool idempotentReplay;
+  final String? saleId;
+  final String? receiptId;
+  final SaleImmediateReceiptDto? receipt;
+  final String? reasonCode;
+  final String? reasonMessage;
+}
+
+class SaleRejectManualPaymentClaimCommand {
+  const SaleRejectManualPaymentClaimCommand({
+    required this.orderId,
+    required this.claimId,
+    required this.clientOpId,
+    this.note,
+  });
+
+  final String orderId;
+  final String claimId;
+  final String clientOpId;
+  final String? note;
+
+  Map<String, dynamic> toJson() {
+    return {
+      'order_id': orderId,
+      'claim_id': claimId,
+      'client_op_id': clientOpId,
+      if (note != null) 'note': note,
+    };
+  }
+}
+
+class SaleRejectManualPaymentClaimResultDto {
+  const SaleRejectManualPaymentClaimResultDto({
+    required this.claimId,
+    required this.orderId,
+    required this.status,
+    required this.idempotentReplay,
+    this.reasonCode,
+    this.reasonMessage,
+  });
+
+  final String claimId;
+  final String orderId;
+  final String status;
   final bool idempotentReplay;
   final String? reasonCode;
   final String? reasonMessage;
@@ -767,6 +917,7 @@ class SaleCancelOpenTicketResultDto {
 class SaleOrdersQueryDto {
   const SaleOrdersQueryDto({
     this.status,
+    this.view,
     this.from,
     this.to,
     this.page = 1,
@@ -774,6 +925,7 @@ class SaleOrdersQueryDto {
   });
 
   final String? status;
+  final String? view;
   final DateTime? from;
   final DateTime? to;
   final int page;
@@ -782,6 +934,7 @@ class SaleOrdersQueryDto {
   Map<String, dynamic> toJson() {
     return {
       if (status != null && status!.isNotEmpty) 'status': status,
+      if (view != null && view!.isNotEmpty) 'view': view,
       if (from != null) 'from': from!.toUtc().toIso8601String(),
       if (to != null) 'to': to!.toUtc().toIso8601String(),
       'page': page,
@@ -794,20 +947,44 @@ class SaleOrderSummaryDto {
   const SaleOrderSummaryDto({
     required this.saleId,
     required this.orderId,
+    required this.sourceMode,
     required this.ticketStatus,
     required this.fulfillmentStatus,
     required this.totalUsdExact,
     required this.totalKhrExact,
     required this.placedAt,
+    this.linesPreview = const <SaleOrderLinePreviewDto>[],
+    this.checkedOutAt,
+    this.paymentMethod,
+    this.manualPaymentClaimId,
+    this.manualPaymentClaimStatus,
   });
 
   final String saleId;
   final String orderId;
+  final String sourceMode;
   final String ticketStatus;
   final String fulfillmentStatus;
   final double totalUsdExact;
   final double totalKhrExact;
   final DateTime placedAt;
+  final List<SaleOrderLinePreviewDto> linesPreview;
+  final DateTime? checkedOutAt;
+  final String? paymentMethod;
+  final String? manualPaymentClaimId;
+  final String? manualPaymentClaimStatus;
+}
+
+class SaleOrderLinePreviewDto {
+  const SaleOrderLinePreviewDto({
+    required this.name,
+    required this.quantity,
+    this.modifierLabels = const <String>[],
+  });
+
+  final String name;
+  final int quantity;
+  final List<String> modifierLabels;
 }
 
 class SaleOrdersPageDto {
@@ -841,17 +1018,19 @@ class SaleOpenTicketBatchDto {
 class SaleOpenTicketDetailDto {
   const SaleOpenTicketDetailDto({
     required this.openTicketId,
-    required this.saleId,
+    required this.orderId,
     required this.status,
     required this.batches,
+    required this.lineCount,
     required this.payableUsdExact,
     required this.payableKhrExact,
   });
 
   final String openTicketId;
-  final String saleId;
+  final String orderId;
   final String status;
   final List<SaleOpenTicketBatchDto> batches;
+  final int lineCount;
   final double payableUsdExact;
   final double payableKhrExact;
 }
@@ -943,7 +1122,21 @@ abstract class SaleCartRepository {
 
   Future<SalePlaceOrderResultDto> placeOrder(SalePlaceOrderCommand command);
 
-  Future<SaleOpenTicketDetailDto> getOpenTicketDetail({required String saleId});
+  Future<SaleCreateManualPaymentClaimResultDto> createManualPaymentClaim(
+    SaleCreateManualPaymentClaimCommand command,
+  );
+
+  Future<SaleApproveManualPaymentClaimResultDto> approveManualPaymentClaim(
+    SaleApproveManualPaymentClaimCommand command,
+  );
+
+  Future<SaleRejectManualPaymentClaimResultDto> rejectManualPaymentClaim(
+    SaleRejectManualPaymentClaimCommand command,
+  );
+
+  Future<SaleOpenTicketDetailDto> getOpenTicketDetail({
+    required String orderId,
+  });
 
   Future<SaleReceiptDto> getReceipt({required String saleId});
 }
@@ -959,8 +1152,9 @@ abstract class SaleCheckoutRepository implements SaleCartRepository {
   Future<SaleCheckoutSummary> finalize(String saleId);
 
   Future<void> updateFulfillmentStatus({
-    required String saleId,
+    required String orderId,
     required String status,
+    String? note,
   });
 
   Future<List<Sale>> listSales({
