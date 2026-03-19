@@ -35,6 +35,7 @@ class TenantSelectionPage extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.white,
+        scrolledUnderElevation: 0,
         titleSpacing: 12,
         title: Row(
           children: [
@@ -87,8 +88,9 @@ class TenantSelectionPage extends ConsumerWidget {
               : 24.0;
           final vPadding = isSmall ? 16.0 : 48.0;
 
-          return Padding(
-            padding: EdgeInsets.fromLTRB(hPadding, vPadding, hPadding, 0),
+          return SingleChildScrollView(
+            child: Padding(
+            padding: EdgeInsets.fromLTRB(hPadding, vPadding, hPadding, 24),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -160,73 +162,64 @@ class TenantSelectionPage extends ConsumerWidget {
                       ),
                     ),
                   ),
-                Expanded(
-                  child: !hasMemberships
-                      ? const Center(
-                          child: Text(
-                            'No tenant memberships found. Create a tenant to continue.',
-                            textAlign: TextAlign.center,
-                          ),
-                        )
-                      : !hasVisibleMemberships
-                      ? const Center(
-                          child: Text(
-                            'No tenant matches your search.',
-                            textAlign: TextAlign.center,
-                          ),
-                        )
-                      : LayoutBuilder(
-                          builder: (context, constraints) {
-                            final columns = AppBreakpoints.isSmall(
-                              constraints.maxWidth,
-                            )
-                                ? 1
-                                : 3;
-                            return GridView.builder(
-                              padding: const EdgeInsets.only(bottom: 24),
-                              gridDelegate:
-                                  SliverGridDelegateWithFixedCrossAxisCount(
-                                    crossAxisCount: columns,
-                                    crossAxisSpacing: 8,
-                                    mainAxisSpacing: 8,
-                                    mainAxisExtent: 120,
-                                  ),
-                              itemCount: tenantState.visibleMemberships.length,
-                              itemBuilder: (context, index) {
-                                final membership =
-                                    tenantState.visibleMemberships[index];
-                                return TenantSelectionTile(
-                                  membership: membership,
-                                  enabled: !loginState.isLoading,
-                                  onTap: () async {
-                                    final success =
-                                        await loginController.selectTenant(
-                                          membership.tenantId,
-                                        );
-                                    if (!success) return;
-                                    if (!context.mounted) return;
-                                    final nextState =
-                                        ref.read(loginControllerProvider);
-                                    final nextSession = nextState.session;
-                                    final nextRole = resolveSessionAuthRole(
-                                      nextSession,
-                                    );
-                                    final route =
-                                        nextState.requiresBranchSelection
-                                            ? AppRoute.branchSelection.path
-                                            : (nextRole == AuthRole.admin ||
-                                                  nextRole == AuthRole.owner)
-                                            ? AppRoute.portal.path
-                                            : AppRoute.cashSession.path;
-                                    context.go(route);
-                                  },
-                                );
-                              },
-                            );
-                          },
-                        ),
-                ),
+                if (!hasMemberships)
+                  const Center(
+                    child: Text(
+                      'No tenant memberships found. Create a tenant to continue.',
+                      textAlign: TextAlign.center,
+                    ),
+                  )
+                else if (!hasVisibleMemberships)
+                  const Center(
+                    child: Text(
+                      'No tenant matches your search.',
+                      textAlign: TextAlign.center,
+                    ),
+                  )
+                else
+                  GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: isSmall ? 1 : 3,
+                      crossAxisSpacing: 8,
+                      mainAxisSpacing: 8,
+                      mainAxisExtent: 120,
+                    ),
+                    itemCount: tenantState.visibleMemberships.length,
+                    itemBuilder: (context, index) {
+                      final membership =
+                          tenantState.visibleMemberships[index];
+                      return TenantSelectionTile(
+                        membership: membership,
+                        enabled: !loginState.isLoading,
+                        onTap: () async {
+                          final success =
+                              await loginController.selectTenant(
+                                membership.tenantId,
+                              );
+                          if (!success) return;
+                          if (!context.mounted) return;
+                          final nextState =
+                              ref.read(loginControllerProvider);
+                          final nextSession = nextState.session;
+                          final nextRole = resolveSessionAuthRole(
+                            nextSession,
+                          );
+                          final route =
+                              nextState.requiresBranchSelection
+                                  ? AppRoute.branchSelection.path
+                                  : (nextRole == AuthRole.admin ||
+                                        nextRole == AuthRole.owner)
+                                  ? AppRoute.portal.path
+                                  : AppRoute.cashSession.path;
+                          context.go(route);
+                        },
+                      );
+                    },
+                  ),
               ],
+            ),
             ),
           );
         },
