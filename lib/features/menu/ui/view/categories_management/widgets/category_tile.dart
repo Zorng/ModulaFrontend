@@ -19,6 +19,8 @@ class CategoryTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    final isMobile = MediaQuery.of(context).size.width < 1024;
     return Card(
       elevation: 3,
       color: Colors.white,
@@ -31,16 +33,16 @@ class CategoryTile extends ConsumerWidget {
           children: [
             Text(
               category.name,
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+              style: textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
             ),
             const SizedBox(height: 2),
             Text(
               '$itemCount item${itemCount == 1 ? '' : 's'}',
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+              style: textTheme.bodySmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
             ),
             if (category.description.isNotEmpty) const SizedBox(height: 6),
             if (category.description.isNotEmpty)
@@ -48,17 +50,49 @@ class CategoryTile extends ConsumerWidget {
                 category.description,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+                style: textTheme.bodySmall?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                ),
               ),
           ],
         ),
-        trailing: MenuCategoryActionMenu(
-          category: category,
-          compact: true,
-          onArchived: onArchived,
-        ),
+        trailing: isMobile
+            ? Icon(
+                Icons.chevron_right_rounded,
+                color: scheme.onSurfaceVariant,
+              )
+            : SizedBox(
+                width: category.isActive ? 176 : 88,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    if (category.isActive) ...[
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () =>
+                              MenuCategoryActionMenu.archiveCategoryWithConfirm(
+                                context,
+                                category,
+                                onCompleted: onArchived,
+                              ),
+                          child: const Text('Archive'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                    Expanded(
+                      child: FilledButton(
+                        onPressed: () => MenuCategoryActionMenu.openView(
+                          context,
+                          category,
+                          onArchived: onArchived,
+                        ),
+                        child: const Text('Edit'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
         onTap: () => MenuCategoryActionMenu.openView(
           context,
           category,

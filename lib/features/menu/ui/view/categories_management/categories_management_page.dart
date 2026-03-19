@@ -7,7 +7,6 @@ import 'package:modular_pos/core/theme/app_table_theme.dart';
 import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/core/widgets/forms/app_search_add_bar.dart';
 import 'package:modular_pos/features/inventory/ui/widgets/inventory_dropdown.dart';
-import 'package:modular_pos/features/menu/domain/models/menu_category.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/features/menu/ui/view/add_category/add_category_page.dart';
 import 'package:modular_pos/features/menu/ui/view/categories_management/widgets/category_tile.dart';
@@ -311,10 +310,18 @@ class _CategoriesManagementPageState
       context: context,
       builder: (dialogContext) => Dialog(
         insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        surfaceTintColor: Theme.of(context).scaffoldBackgroundColor,
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 520),
           child: AddCategoryDialogBody(
             showHeader: true,
+            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+            useThemeCancelButtonStyle: true,
             onClose: () => Navigator.of(dialogContext).pop(),
           ),
         ),

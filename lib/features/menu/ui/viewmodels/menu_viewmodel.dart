@@ -118,6 +118,9 @@ class MenuViewModel extends Notifier<MenuState> {
         status: selectedStatus,
         branchIdFilter: branchIdFilter,
       );
+      final categories = selectedStatus == 'archived' && state.categories.isNotEmpty
+          ? state.categories
+          : bundle.categories;
       final branches = userBranches.isNotEmpty ? userBranches : bundle.branches;
       final selectedBranch = branchIdFilter ?? 'all';
       final selectedCategoryId = state.selectedCategoryId;
@@ -153,7 +156,7 @@ class MenuViewModel extends Notifier<MenuState> {
         isLoading: false,
         allItems: mergedItems,
         filteredItems: filteredItems,
-        categories: bundle.categories,
+        categories: categories,
         modifierGroups: mergedGroups,
         branches: branches,
         hydratedItems: state.hydratedItems,
@@ -483,12 +486,19 @@ class MenuViewModel extends Notifier<MenuState> {
 
   Future<void> restoreCategory(MenuCategory category) async {
     _clearOperationError();
-    final branchId = state.selectedBranchId == 'all'
-        ? null
-        : state.selectedBranchId;
     try {
       await _menuRepository.restoreCategory(category.id);
-      await loadMenu(branchId: branchId);
+      final categories = [
+        for (final existing in state.categories)
+          if (existing.id == category.id)
+            existing.copyWith(status: 'ACTIVE')
+          else
+            existing,
+        if (state.categories.every((existing) => existing.id != category.id))
+          category.copyWith(status: 'ACTIVE'),
+      ];
+      state = state.copyWith(categories: categories);
+      await refreshCategories(status: 'active');
     } catch (e) {
       _setOperationError(e);
       rethrow;
@@ -561,6 +571,20 @@ class MenuViewModel extends Notifier<MenuState> {
         allItems: items,
         filteredItems: _applyFilters(items: items),
       );
+      await loadMenu(branchId: branchId);
+    } catch (e) {
+      _setOperationError(e);
+      rethrow;
+    }
+  }
+
+  Future<void> restoreModifierGroup(String groupId) async {
+    _clearOperationError();
+    final branchId = state.selectedBranchId == 'all'
+        ? null
+        : state.selectedBranchId;
+    try {
+      await _menuRepository.restoreModifierGroup(groupId);
       await loadMenu(branchId: branchId);
     } catch (e) {
       _setOperationError(e);

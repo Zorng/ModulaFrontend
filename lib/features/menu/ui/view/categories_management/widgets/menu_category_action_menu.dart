@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:modular_pos/core/theme/app_theme.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_category.dart';
 import 'package:modular_pos/features/menu/ui/view/categories_management/widgets/menu_category_form_body.dart';
@@ -52,12 +53,38 @@ class MenuCategoryActionMenu extends ConsumerWidget {
                 onArchived: onArchived,
                 onStatusActionRequested: (target) async {
                   Navigator.of(dialogContext).pop();
-                  if (!target.isActive) return;
-                  await _archiveCategoryWithConfirm(
+                  if (target.isActive) {
+                    await archiveCategoryWithConfirm(
+                      context,
+                      target,
+                      onCompleted: onArchived,
+                    );
+                    return;
+                  }
+                  final container = ProviderScope.containerOf(
                     context,
-                    target,
-                    onCompleted: onArchived,
+                    listen: false,
                   );
+                  try {
+                    await container
+                        .read(menuViewModelProvider.notifier)
+                        .restoreCategory(target);
+                    if (!context.mounted) return;
+                    onArchived?.call();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('"${target.name}" restored')),
+                    );
+                  } catch (_) {
+                    if (!context.mounted) return;
+                    final state = container.read(menuViewModelProvider);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          state.error ?? 'Failed to restore category.',
+                        ),
+                      ),
+                    );
+                  }
                 },
                 onClose: () => Navigator.of(dialogContext).pop(),
               ),
@@ -85,7 +112,7 @@ class MenuCategoryActionMenu extends ConsumerWidget {
             );
             break;
           case _MenuCategoryAction.archive:
-            _archiveCategoryWithConfirm(
+            archiveCategoryWithConfirm(
               context,
               category,
               onCompleted: onArchived,
@@ -108,29 +135,47 @@ class MenuCategoryActionMenu extends ConsumerWidget {
     );
   }
 
-  static Future<void> _archiveCategoryWithConfirm(
+  static Future<void> archiveCategoryWithConfirm(
     BuildContext context,
     MenuCategory category,
     {VoidCallback? onCompleted}
   ) async {
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Archive category?'),
-        content: Text(
-          '"${category.name}" will be archived and removed from active menu categories.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+      builder: (context) {
+        final background = Theme.of(context).scaffoldBackgroundColor;
+        return AlertDialog(
+          backgroundColor: background,
+          surfaceTintColor: background,
+          title: const Text('Archive category?'),
+          content: Text(
+            '"${category.name}" will be archived and removed from active menu categories.',
           ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Archive'),
-          ),
-        ],
-      ),
+          actions: [
+            SizedBox(
+              width: double.infinity,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: FilledButton(
+                      style: AppTheme.cancelActionButtonStyle,
+                      onPressed: () => Navigator.of(context).pop(false),
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: () => Navigator.of(context).pop(true),
+                      child: const Text('Archive'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
     );
     if (confirm != true) return;
 

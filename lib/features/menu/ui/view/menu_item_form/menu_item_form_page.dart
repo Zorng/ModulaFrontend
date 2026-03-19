@@ -7,6 +7,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:modular_pos/core/theme/app_theme.dart';
 import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/core/widgets/media/product_image_picker.dart';
+import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_controller.dart';
+import 'package:modular_pos/features/menu/domain/models/menu_composition.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_branch.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_category.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
@@ -14,6 +16,7 @@ import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 import 'package:modular_pos/features/menu/ui/components/menu_form_field_label.dart';
 import 'package:modular_pos/features/menu/ui/view/menu_item_form/menu_item_form_error_mapper.dart';
 import 'package:modular_pos/features/menu/ui/view/menu_item_form/menu_item_form_utils.dart';
+import 'package:modular_pos/features/menu/ui/view/menu_item_form/widgets/menu_item_composition_section.dart';
 import 'package:modular_pos/features/menu/ui/view/menu_item_form/widgets/selection_chips_field.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
 
@@ -46,6 +49,8 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
 
   bool _isSaving = false;
   bool _isActive = true;
+  final List<MenuItemCompositionDraft> _compositionRows = [];
+  bool _didInitializeComposition = false;
 
   bool get isCreate => _mode == _MenuItemFormMode.create;
   bool get isView => _mode == _MenuItemFormMode.view;
@@ -65,6 +70,8 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
         : _MenuItemFormMode.view;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(menuViewModelProvider.notifier).loadMenu();
+      ref.read(stockInventoryControllerProvider.notifier).loadStockItems();
+      _bootstrapCompositionState();
     });
 
     _nameController = TextEditingController(
@@ -85,18 +92,33 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
   }
 
   @override
-  void dispose() {
-    _nameController.dispose();
-    _priceController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     final state = ref.watch(menuViewModelProvider);
+    final inventoryState = ref.watch(stockInventoryControllerProvider);
     final categories = state.categories;
     final modifierGroups = state.modifierGroups;
     final branches = state.branches;
+    final stockItems = inventoryState.stockItems
+        .where((item) => item.isActive)
+        .toList(growable: false)
+      ..sort((a, b) => a.name.compareTo(b.name));
+    final compositionItemId = widget.initialItem?.id;
+    final compositionLoading =
+        compositionItemId != null &&
+        state.compositionLoadingByItem[compositionItemId] == true;
+    final compositionError = compositionItemId == null
+        ? null
+        : state.compositionErrors[compositionItemId];
+
+    if (!_didInitializeComposition &&
+        compositionItemId != null &&
+        state.compositionLoadedByItem[compositionItemId] == true) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _didInitializeComposition) return;
+        _replaceCompositionRows(state.compositionByItem[compositionItemId] ?? const []);
+        setState(() => _didInitializeComposition = true);
+      });
+    }
     if (!_hasInitializedBranchSelection &&
         _selectedBranchIds.isEmpty &&
         branches.isNotEmpty) {
@@ -273,22 +295,40 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
                 ],
               ),
             ),
-            if (!isCreate)
-              _SectionSpacer(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: _MenuActionRow(
-                    isView: isView,
-                    isActive: _isActive,
-                    isSaving: _isSaving,
-                    isCreate: isCreate,
-                    onCancel: _handleCancel,
-                    onSave: _save,
-                    onEdit: () => setState(() => _mode = _MenuItemFormMode.edit),
-                    onToggleActive: _toggleActiveState,
-                  ),
+            _SectionSpacer(
+              child: MenuItemCompositionSection(
+                rows: _compositionRows,
+                stockItems: stockItems,
+                isEditing: isEditing && !isCreate,
+                isLoading: compositionLoading,
+                errorText: compositionError,
+                helperText: isCreate
+                    ? 'Save the item first, then open it again to configure base components.'
+                    : 'Base components stay with the menu item and modifier options can adjust them later.',
+                emptyText: isCreate
+                    ? 'Composition becomes available after the item is created.'
+                    : 'No base components configured yet.',
+                onAddRow: isCreate ? null : _addCompositionRow,
+                onRemoveRow: isCreate ? null : _removeCompositionRow,
+                onStockItemChanged: isCreate ? null : _updateCompositionStockItem,
+                onTrackingModeChanged: isCreate ? null : _updateCompositionTrackingMode,
+              ),
+            ),
+            _SectionSpacer(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: _MenuActionRow(
+                  isView: isView,
+                  isActive: _isActive,
+                  isSaving: _isSaving,
+                  isCreate: isCreate,
+                  onCancel: _handleCancel,
+                  onSave: _save,
+                  onEdit: () => setState(() => _mode = _MenuItemFormMode.edit),
+                  onToggleActive: _toggleActiveState,
                 ),
               ),
+            ),
           ],
         ),
       ),
@@ -360,35 +400,49 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
     );
     final categoryField = LayoutBuilder(
       builder: (context, constraints) {
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const MenuFormFieldLabel(text: 'Category', isOptional: true),
-            DropdownMenu<String>(
-              width: constraints.maxWidth,
-              initialSelection: _selectedCategoryId ?? '',
-              enabled: isEditing,
-              onSelected: isEditing
-                  ? (value) {
-                      setState(() {
-                        _selectedCategoryId = value;
-                      });
-                    }
-                  : null,
-              dropdownMenuEntries: [
-                const DropdownMenuEntry<String>(
-                  value: '',
-                  label: 'Uncategorized',
-                ),
-                ...categories.map<DropdownMenuEntry<String>>(
-                  (category) => DropdownMenuEntry<String>(
-                    value: category.id,
-                    label: category.name,
-                  ),
-                ),
-              ],
+        return DropdownMenuTheme(
+          data: DropdownMenuThemeData(
+            menuStyle: MenuStyle(
+              backgroundColor: const WidgetStatePropertyAll(Colors.white),
+              fixedSize: WidgetStatePropertyAll(
+                Size(constraints.maxWidth, double.nan),
+              ),
             ),
-          ],
+            inputDecorationTheme: const InputDecorationTheme(
+              filled: true,
+              fillColor: Colors.white,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const MenuFormFieldLabel(text: 'Category', isOptional: true),
+              DropdownMenu<String>(
+                width: constraints.maxWidth,
+                initialSelection: _selectedCategoryId ?? '',
+                enabled: isEditing,
+                onSelected: isEditing
+                    ? (value) {
+                        setState(() {
+                          _selectedCategoryId = value;
+                        });
+                      }
+                    : null,
+                dropdownMenuEntries: [
+                  const DropdownMenuEntry<String>(
+                    value: '',
+                    label: 'Uncategorized',
+                  ),
+                  ...categories.map<DropdownMenuEntry<String>>(
+                    (category) => DropdownMenuEntry<String>(
+                      value: category.id,
+                      label: category.name,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         );
       },
     );
@@ -411,7 +465,6 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
       categoryField,
     ];
   }
-
   Future<void> _save() async {
     final valid = _formKey.currentState?.validate() ?? false;
     if (!valid) return;
@@ -467,11 +520,21 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
         );
       }
 
+      if (!isCreate) {
+        await notifier.upsertItemComposition(
+          menuItemId: saved.id,
+          baseComponents: _buildCompositionPayload(),
+        );
+      }
+
       await notifier.loadItemWithModifiers(saved.id);
       if (mounted) context.pop(saved);
     } catch (e) {
       if (!mounted) return;
-      final message = mapMenuItemSaveErrorMessage(e);
+      final compositionMessage = widget.initialItem == null
+          ? null
+          : ref.read(menuViewModelProvider).compositionErrors[widget.initialItem!.id];
+      final message = compositionMessage ?? mapMenuItemSaveErrorMessage(e);
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(message)));
@@ -527,6 +590,7 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
       ..addAll(widget.initialItem?.branchIds ?? const []);
     _existingImageUrl = widget.initialItem?.imageUrl;
     _isActive = widget.initialItem?.isActive ?? true;
+    _restoreCompositionDrafts();
   }
 
   Future<void> _toggleActiveState() async {
@@ -582,19 +646,25 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
         ),
         actions: [
           SizedBox(
-            width: 120,
-            child: FilledButton(
-              style: cancelStyle,
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Cancel'),
-            ),
-          ),
-          SizedBox(
-            width: 120,
-            child: FilledButton(
-              style: archiveStyle,
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Archive'),
+            width: double.infinity,
+            child: Row(
+              children: [
+                Expanded(
+                  child: FilledButton(
+                    style: cancelStyle,
+                    onPressed: () => Navigator.of(context).pop(false),
+                    child: const Text('Cancel'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton(
+                    style: archiveStyle,
+                    onPressed: () => Navigator.of(context).pop(true),
+                    child: const Text('Archive'),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -604,6 +674,9 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
   }
 
   Future<void> _showModifierSelection(List<ModifierGroup> groups) async {
+    final useDialog = AppBreakpoints.isLarge(
+      MediaQuery.of(context).size.width,
+    );
     await showCheckboxSelectionSheet<ModifierGroup>(
       context: context,
       title: 'Select modifier groups',
@@ -613,6 +686,7 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
       titleBuilder: (group) => group.name,
       subtitleBuilder: (group) =>
           '${group.options.length} options - ${group.selectionType == 'single' ? 'Single' : 'Multiple'}',
+      useDialog: useDialog,
       onApply: (selection) {
         setState(() {
           _selectedModifierGroupIds
@@ -645,6 +719,127 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
         });
       },
     );
+  }
+
+  Future<void> _bootstrapCompositionState() async {
+    final item = widget.initialItem;
+    if (item == null || item.id.trim().isEmpty) {
+      if (mounted) setState(() => _didInitializeComposition = true);
+      return;
+    }
+
+    final cached = ref.read(menuViewModelProvider).compositionByItem[item.id];
+    if (cached != null) {
+      _replaceCompositionRows(cached);
+      if (mounted) setState(() => _didInitializeComposition = true);
+      return;
+    }
+
+    try {
+      await ref.read(menuViewModelProvider.notifier).loadItemComposition(item.id);
+    } catch (_) {
+      // Error state is already stored in the viewmodel for the section UI.
+    }
+
+    if (!mounted) return;
+    final nextComponents =
+        ref.read(menuViewModelProvider).compositionByItem[item.id] ?? const <MenuComponent>[];
+    _replaceCompositionRows(nextComponents);
+    setState(() => _didInitializeComposition = true);
+  }
+
+  void _restoreCompositionDrafts() {
+    final itemId = widget.initialItem?.id;
+    if (itemId == null || itemId.trim().isEmpty) {
+      _replaceCompositionRows(const []);
+      return;
+    }
+    final cached = ref.read(menuViewModelProvider).compositionByItem[itemId] ?? const <MenuComponent>[];
+    _replaceCompositionRows(cached);
+  }
+
+  void _replaceCompositionRows(List<MenuComponent> components) {
+    for (final row in _compositionRows) {
+      row.dispose();
+    }
+    _compositionRows
+      ..clear()
+      ..addAll(
+        components.map(
+          (component) => MenuItemCompositionDraft(
+            stockItemId: component.stockItemId,
+            quantity: component.quantityInBaseUnit.toString(),
+            trackingMode: component.trackingMode.isEmpty
+                ? 'TRACKED'
+                : component.trackingMode,
+          ),
+        ),
+      );
+  }
+
+  void _addCompositionRow() {
+    setState(() {
+      _compositionRows.add(MenuItemCompositionDraft());
+    });
+  }
+
+  void _removeCompositionRow(String rowId) {
+    setState(() {
+      final index = _compositionRows.indexWhere((row) => row.id == rowId);
+      if (index == -1) return;
+      _compositionRows[index].dispose();
+      _compositionRows.removeAt(index);
+    });
+  }
+
+  void _updateCompositionStockItem(String rowId, String? stockItemId) {
+    setState(() {
+      for (final row in _compositionRows) {
+        if (row.id == rowId) {
+          row.selectedStockItemId = stockItemId;
+          return;
+        }
+      }
+    });
+  }
+
+  void _updateCompositionTrackingMode(String rowId, String trackingMode) {
+    setState(() {
+      for (final row in _compositionRows) {
+        if (row.id == rowId) {
+          row.trackingMode = trackingMode;
+          return;
+        }
+      }
+    });
+  }
+
+  List<MenuComponent> _buildCompositionPayload() {
+    return _compositionRows
+        .map((row) {
+          final stockItemId = (row.selectedStockItemId ?? '').trim();
+          final quantity = double.tryParse(row.quantityController.text.trim());
+          if (stockItemId.isEmpty || quantity == null || quantity <= 0) {
+            return null;
+          }
+          return MenuComponent(
+            stockItemId: stockItemId,
+            quantityInBaseUnit: quantity,
+            trackingMode: row.trackingMode,
+          );
+        })
+        .whereType<MenuComponent>()
+        .toList(growable: false);
+  }
+
+  @override
+  void dispose() {
+    for (final row in _compositionRows) {
+      row.dispose();
+    }
+    _nameController.dispose();
+    _priceController.dispose();
+    super.dispose();
   }
 }
 
@@ -737,14 +932,10 @@ class _MenuActionRow extends StatelessWidget {
         children: [
           SizedBox(
             width: 160,
-            child: FilledButton.icon(
+            child: FilledButton(
               style: whiteActionStyle,
               onPressed: isSaving ? null : onToggleActive,
-              icon: Icon(
-                isActive ? Icons.archive_outlined : Icons.restore,
-                size: 18,
-              ),
-              label: Text(isActive ? 'Archive' : 'Restore'),
+              child: Text(isActive ? 'Archive' : 'Restore'),
             ),
           ),
           const SizedBox(width: 12),

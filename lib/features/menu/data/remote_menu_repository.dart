@@ -40,7 +40,7 @@ class RemoteMenuRepository extends MenuRepository {
 
     // Fetch pieces separately to avoid snapshot staleness.
     final categoriesFuture = Future.wait([
-      _api.fetchCategories(status: 'active'),
+      _api.fetchCategories(status: normalizedStatus),
     ]);
     final modifiersFuture = _api.fetchModifierGroups(status: normalizedStatus);
     final itemsFuture = _api.fetchMenuItems(
@@ -71,6 +71,7 @@ class RemoteMenuRepository extends MenuRepository {
         .map(MenuMappers.toItem)
         .toList(growable: false);
     final categories = categoriesRaw
+        .where((dto) => _matchesRequestedStatus(dto.status, normalizedStatus))
         .map(MenuMappers.toCategory)
         .fold<Map<String, MenuCategory>>({}, (acc, category) {
           acc.putIfAbsent(category.id, () => category);
@@ -220,6 +221,7 @@ class RemoteMenuRepository extends MenuRepository {
       'minSelections': group.minSelections,
       'maxSelections': group.maxSelections,
       'isRequired': group.isRequired ?? false,
+      'defaultOptionId': group.defaultOptionId,
     };
     final dto = await _api.createModifierGroup(payload);
     var createdGroup = MenuMappers.toGroup(dto);
@@ -235,6 +237,7 @@ class RemoteMenuRepository extends MenuRepository {
         'groupId': createdGroup.id,
         'label': option.name,
         'priceDelta': option.priceDelta,
+        'isDefault': option.isDefault,
         'componentDeltas': option.componentDeltas
             .map((entry) => entry.toJson())
             .toList(growable: false),
@@ -269,6 +272,7 @@ class RemoteMenuRepository extends MenuRepository {
       'minSelections': group.minSelections,
       'maxSelections': group.maxSelections,
       'isRequired': group.isRequired ?? false,
+      'defaultOptionId': group.defaultOptionId,
     };
     final dto = await _api.updateModifierGroup(payload);
     final baseGroup = MenuMappers.toGroup(dto);
@@ -290,6 +294,7 @@ class RemoteMenuRepository extends MenuRepository {
           await _api.updateModifierOption(option.id, {
             'label': option.name,
             'priceDelta': option.priceDelta,
+            'isDefault': option.isDefault,
             'componentDeltas': option.componentDeltas
                 .map((entry) => entry.toJson())
                 .toList(growable: false),
@@ -306,6 +311,7 @@ class RemoteMenuRepository extends MenuRepository {
             'groupId': group.id,
             'label': option.name,
             'priceDelta': option.priceDelta,
+            'isDefault': option.isDefault,
             'componentDeltas': option.componentDeltas
                 .map((entry) => entry.toJson())
                 .toList(growable: false),
@@ -343,6 +349,11 @@ class RemoteMenuRepository extends MenuRepository {
   @override
   Future<void> archiveModifierGroup(String groupId) async {
     await _api.deleteModifierGroup(groupId);
+  }
+
+  @override
+  Future<void> restoreModifierGroup(String groupId) async {
+    await _api.restoreModifierGroup(groupId);
   }
 
   @override

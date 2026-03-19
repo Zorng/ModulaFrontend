@@ -9,16 +9,21 @@ class AddCategoryPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final pageBackground = Theme.of(context).scaffoldBackgroundColor;
     return Scaffold(
+      backgroundColor: pageBackground,
       appBar: AppBar(
         backgroundColor: Colors.white,
+        surfaceTintColor: pageBackground,
         title: const Text('Add category'),
         centerTitle: false,
       ),
       body: ColoredBox(
-        color: Colors.white,
+        color: pageBackground,
         child: SingleChildScrollView(
           child: AddCategoryDialogBody(
+            backgroundColor: pageBackground,
+            useThemeCancelButtonStyle: true,
             onClose: () => context.pop(),
           ),
         ),
@@ -31,10 +36,14 @@ class AddCategoryDialogBody extends StatelessWidget {
   const AddCategoryDialogBody({
     super.key,
     this.showHeader = false,
+    this.backgroundColor = Colors.white,
+    this.useThemeCancelButtonStyle = false,
     this.onClose,
   });
 
   final bool showHeader;
+  final Color backgroundColor;
+  final bool useThemeCancelButtonStyle;
   final VoidCallback? onClose;
 
   @override
@@ -42,7 +51,8 @@ class AddCategoryDialogBody extends StatelessWidget {
     return MenuCategoryFormBody(
       mode: MenuCategoryFormMode.create,
       showHeader: showHeader,
-      backgroundColor: Colors.white,
+      backgroundColor: backgroundColor,
+      useThemeCancelButtonStyle: useThemeCancelButtonStyle,
       onClose: onClose ?? () => context.pop(),
     );
   }

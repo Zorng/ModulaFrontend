@@ -12,18 +12,26 @@ class EditCategoryPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final pageBackground = Theme.of(context).scaffoldBackgroundColor;
     return Scaffold(
-      appBar: AppBar(centerTitle: false, title: const Text('Category details')),
+      backgroundColor: pageBackground,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        surfaceTintColor: pageBackground,
+        centerTitle: false,
+        title: const Text('Category details'),
+      ),
       body: ColoredBox(
-        color: Colors.white,
+        color: pageBackground,
         child: SingleChildScrollView(
           child: MenuCategoryFormBody(
-          mode: MenuCategoryFormMode.view,
-          category: category,
-          showHeader: false,
-          allowArchiveInViewMode: false,
-          backgroundColor: Colors.white,
-        ),
+            mode: MenuCategoryFormMode.view,
+            category: category,
+            showHeader: false,
+            allowArchiveInViewMode: true,
+            backgroundColor: pageBackground,
+            useThemeCancelButtonStyle: true,
+          ),
         ),
       ),
     );

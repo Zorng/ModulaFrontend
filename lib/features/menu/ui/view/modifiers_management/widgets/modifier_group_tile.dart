@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
-import 'package:modular_pos/core/widgets/navigation/responsive_detail_modal.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
-import 'package:modular_pos/features/menu/ui/view/view_modifier_group/view_modifier_group_page.dart';
 
 class ModifierGroupTile extends StatelessWidget {
   const ModifierGroupTile({
@@ -15,15 +13,13 @@ class ModifierGroupTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 1024;
+    final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     return InkWell(
       onTap: () {
-        showResponsiveDetailModal<void>(
-          context: context,
-          builder: (modalContext) => ViewModifierGroupPage(
-            group: group,
-            showBack: false,
-          ),
-        );
+        context.push(AppRoute.adminMenuViewModifierGroup.path, extra: group);
       },
       child: Card(
         color: Colors.white,
@@ -31,25 +27,43 @@ class ModifierGroupTile extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(group.name, style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${group.options.length} options • ${group.selectionType == 'single' ? 'Single' : 'Multiple'} select',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      group.name,
+                      style: textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${group.options.length} options - ${group.selectionType == 'single' ? 'Single' : 'Multiple'} select',
+                      style: textTheme.bodySmall?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              IconButton(
-                icon: const Icon(Icons.edit_outlined),
-                onPressed: () {
-                  context.push(AppRoute.adminMenuEditModifierGroup.path, extra: group);
-                },
-              ),
+              if (isMobile)
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: scheme.onSurfaceVariant,
+                )
+              else
+                IconButton(
+                  icon: const Icon(Icons.edit_outlined),
+                  onPressed: () {
+                    context.push(
+                      AppRoute.adminMenuEditModifierGroup.path,
+                      extra: group,
+                    );
+                  },
+                ),
             ],
           ),
         ),

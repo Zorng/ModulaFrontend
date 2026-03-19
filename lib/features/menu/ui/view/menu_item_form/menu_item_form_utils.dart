@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 Future<void> showCheckboxSelectionSheet<T>({
   required BuildContext context,
   required String title,
@@ -15,14 +16,23 @@ Future<void> showCheckboxSelectionSheet<T>({
 }) async {
   const dialogBorderRadius = BorderRadius.all(Radius.circular(16));
   const sheetBorderRadius = BorderRadius.vertical(top: Radius.circular(16));
+  const maxVisibleItems = 5;
   final itemIds = items.map(idBuilder).toList();
   final selections = List<bool>.generate(
     itemIds.length,
     (index) => selectedValues.contains(itemIds[index]),
   );
 
-  Widget buildSelectionContent(BuildContext context, void Function(void Function()) setState) {
+  Widget buildSelectionContent(
+    BuildContext context,
+    void Function(void Function()) setState,
+  ) {
     final allSelected = selections.isNotEmpty && selections.every((selected) => selected);
+    final hasSubtitles = subtitleBuilder != null;
+    final tileHeight = hasSubtitles ? 72.0 : 56.0;
+    final listMaxHeight =
+        (items.length < maxVisibleItems ? items.length : maxVisibleItems) *
+        tileHeight;
     return Material(
       color: Theme.of(context).scaffoldBackgroundColor,
       borderRadius: useDialog ? dialogBorderRadius : sheetBorderRadius,
@@ -58,7 +68,8 @@ Future<void> showCheckboxSelectionSheet<T>({
               ),
             ],
             const SizedBox(height: 8),
-            Flexible(
+            ConstrainedBox(
+              constraints: BoxConstraints(maxHeight: listMaxHeight),
               child: ListView.builder(
                 shrinkWrap: true,
                 itemCount: items.length,

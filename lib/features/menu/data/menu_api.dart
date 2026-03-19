@@ -514,6 +514,21 @@ class MenuApi {
     }
   }
 
+  Future<void> restoreModifierGroup(String groupId) async {
+    final dio = _requireDio();
+    try {
+      await dio.post<void>(
+        '$_menuPrefix/modifier-groups/$groupId/restore',
+        options: _writeOptions(
+          actionKey: 'menu.modifierGroups.restore',
+          payload: {'groupId': groupId},
+        ),
+      );
+    } on DioError catch (error) {
+      throw MenuApiException.fromDio(error);
+    }
+  }
+
   Future<void> setItemVisibility({
     required String menuItemId,
     required List<String> visibleBranchIds,
@@ -648,6 +663,8 @@ class MenuApi {
       'minSelections': minSelections,
       'maxSelections': maxSelections,
       'isRequired': _asBool(body['isRequired']),
+      if (body['defaultOptionId'] != null)
+        'defaultOptionId': body['defaultOptionId'],
     };
   }
 
@@ -665,6 +682,7 @@ class MenuApi {
       'priceDelta': _asDouble(
         body['priceDelta'] ?? body['priceAdjustmentUsd'] ?? body['price'],
       ),
+      if (body['isDefault'] != null) 'isDefault': _asBool(body['isDefault']),
       'componentDeltas': _asComponentDeltas(body['componentDeltas']),
     };
   }

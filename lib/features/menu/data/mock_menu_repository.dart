@@ -106,6 +106,9 @@ class MockMenuRepository extends MenuRepository {
   Future<void> archiveModifierGroup(String groupId) async {}
 
   @override
+  Future<void> restoreModifierGroup(String groupId) async {}
+
+  @override
   Future<MenuItem> createMenuItem(
     MenuItem item, {
     String? imagePath,

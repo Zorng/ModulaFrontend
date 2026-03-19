@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:modular_pos/core/theme/app_theme.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_category.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
 
@@ -14,6 +15,7 @@ class MenuCategoryFormBody extends ConsumerStatefulWidget {
     this.showHeader = true,
     this.allowArchiveInViewMode = false,
     this.backgroundColor = Colors.white,
+    this.useThemeCancelButtonStyle = false,
     this.onArchived,
     this.onStatusActionRequested,
     this.onClose,
@@ -27,6 +29,7 @@ class MenuCategoryFormBody extends ConsumerStatefulWidget {
   final bool showHeader;
   final bool allowArchiveInViewMode;
   final Color backgroundColor;
+  final bool useThemeCancelButtonStyle;
   final VoidCallback? onArchived;
   final Future<void> Function(MenuCategory category)? onStatusActionRequested;
   final VoidCallback? onClose;
@@ -63,13 +66,9 @@ class _MenuCategoryFormBodyState extends ConsumerState<MenuCategoryFormBody> {
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(menuViewModelProvider);
     final isView = _mode == MenuCategoryFormMode.view;
-    final archiveButtonStyle = OutlinedButton.styleFrom(
-      foregroundColor: Theme.of(context).colorScheme.primary,
-      side: BorderSide(color: Theme.of(context).colorScheme.primary),
-      minimumSize: const Size.fromHeight(48),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-    );
+    final archiveButtonStyle = AppTheme.cancelActionButtonStyle;
 
     return Padding(
       padding: EdgeInsets.zero,
@@ -141,11 +140,11 @@ class _MenuCategoryFormBodyState extends ConsumerState<MenuCategoryFormBody> {
     BuildContext context, {
     required ButtonStyle archiveButtonStyle,
   }) {
+    final category = _currentCategory();
+    final isArchived =
+        category != null && category.status.trim().toUpperCase() == 'ARCHIVED';
     if (_mode == MenuCategoryFormMode.view) {
-      final showStatusAction =
-          widget.allowArchiveInViewMode &&
-          widget.category != null &&
-          widget.category!.isActive;
+      final showStatusAction = widget.allowArchiveInViewMode && category != null;
       if (!showStatusAction) {
         return SizedBox(
           width: double.infinity,
@@ -159,13 +158,14 @@ class _MenuCategoryFormBodyState extends ConsumerState<MenuCategoryFormBody> {
       return Row(
         children: [
           Expanded(
-            child: OutlinedButton.icon(
+            child: FilledButton(
               style: archiveButtonStyle,
               onPressed: widget.onStatusActionRequested != null
-                  ? () => widget.onStatusActionRequested!(widget.category!)
+                  ? () => widget.onStatusActionRequested!(category)
+                  : isArchived
+                  ? _restoreCategory
                   : _archiveCategory,
-              icon: const Icon(Icons.archive_outlined, size: 18),
-              label: const Text('Archive'),
+              child: Text(isArchived ? 'Restore' : 'Archive'),
             ),
           ),
           const SizedBox(width: 12),
@@ -183,10 +183,13 @@ class _MenuCategoryFormBodyState extends ConsumerState<MenuCategoryFormBody> {
       children: [
         Expanded(
           child: FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Colors.white,
-              foregroundColor: Theme.of(context).textTheme.bodyLarge?.color,
-            ),
+            style: widget.useThemeCancelButtonStyle
+                ? AppTheme.cancelActionButtonStyle
+                : FilledButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor:
+                        Theme.of(context).textTheme.bodyLarge?.color,
+                  ),
             onPressed: widget.onClose ?? _cancelEdit,
             child: const Text('Cancel'),
           ),
@@ -234,7 +237,7 @@ class _MenuCategoryFormBodyState extends ConsumerState<MenuCategoryFormBody> {
         );
       } else {
         await ref.read(menuViewModelProvider.notifier).updateCategory(
-          widget.category!.copyWith(
+          _currentCategory()!.copyWith(
             name: name,
             description: descriptionValue,
           ),
@@ -279,35 +282,55 @@ class _MenuCategoryFormBodyState extends ConsumerState<MenuCategoryFormBody> {
   }
 
   Future<void> _archiveCategory() async {
+    final category = _currentCategory();
+    if (category == null) return;
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Archive category?'),
-        content: Text(
-          '"${widget.category!.name}" will be archived and removed from active menu categories.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+      builder: (context) {
+        final background = Theme.of(context).scaffoldBackgroundColor;
+        return AlertDialog(
+          backgroundColor: background,
+          surfaceTintColor: background,
+          title: const Text('Archive category?'),
+          content: Text(
+            '"${category.name}" will be archived and removed from active menu categories.',
           ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Archive'),
-          ),
-        ],
-      ),
+          actions: [
+            SizedBox(
+              width: double.infinity,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: FilledButton(
+                      style: AppTheme.cancelActionButtonStyle,
+                      onPressed: () => Navigator.of(context).pop(false),
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: () => Navigator.of(context).pop(true),
+                      child: const Text('Archive'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
     );
     if (confirm != true) return;
 
     try {
       await ref
           .read(menuViewModelProvider.notifier)
-          .deleteCategory(widget.category!.id);
+          .deleteCategory(category.id);
       if (!mounted) return;
       widget.onArchived?.call();
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('"${widget.category!.name}" archived')),
+        SnackBar(content: Text('"${category.name}" archived')),
       );
       (widget.onClose ?? () => Navigator.of(context).pop())();
     } catch (_) {
@@ -319,6 +342,41 @@ class _MenuCategoryFormBodyState extends ConsumerState<MenuCategoryFormBody> {
         ),
       );
     }
+  }
+
+  Future<void> _restoreCategory() async {
+    final category = _currentCategory();
+    if (category == null) return;
+
+    try {
+      await ref.read(menuViewModelProvider.notifier).restoreCategory(category);
+      if (!mounted) return;
+      widget.onArchived?.call();
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('"${category.name}" restored')));
+      (widget.onClose ?? () => Navigator.of(context).pop())();
+    } catch (_) {
+      if (!mounted) return;
+      final state = ref.read(menuViewModelProvider);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(state.error ?? 'Failed to restore category.'),
+        ),
+      );
+    }
+  }
+
+  MenuCategory? _currentCategory() {
+    final original = widget.category;
+    if (original == null) return null;
+    final categories = ref.read(menuViewModelProvider).categories;
+    for (final category in categories) {
+      if (category.id == original.id) {
+        return category;
+      }
+    }
+    return original;
   }
 
 }
