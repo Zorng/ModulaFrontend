@@ -93,8 +93,11 @@ class _LoginPageState extends ConsumerState<LoginPage> {
               decoration: const BoxDecoration(
                 gradient: AppGradients.backgroundGradient,
               ),
-              child: Center(
-                child: Padding(
+              child: SingleChildScrollView(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                  child: Center(
+                    child: Padding(
                   padding: const EdgeInsets.all(18),
                   child: _MobileLoginForm(
                     state: state,
@@ -107,6 +110,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                         _obscurePassword = !_obscurePassword;
                       });
                     },
+                  ),
+                    ),
                   ),
                 ),
               ),
@@ -222,7 +227,8 @@ class _DesktopLoginForm extends StatelessWidget {
         Expanded(
           child: ColoredBox(
             color: const Color(0xFFF5F5F5),
-            child: Padding(
+            child: SingleChildScrollView(
+              child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 72, vertical: 48),
               child: Align(
                 alignment: Alignment.center,
@@ -238,6 +244,7 @@ class _DesktopLoginForm extends StatelessWidget {
                   ),
                 ),
               ),
+            ),
             ),
           ),
         ),
