@@ -41,6 +41,8 @@ class BranchState {
     this.createFlowStatus = BranchCreateFlowStatus.idle,
     this.activationDraft,
     this.activationResult,
+    this.pendingBranchAddress,
+    this.pendingContactNumber,
     this.selectedContextTokens,
     this.selectedBranchId,
     this.navigationIntent = BranchNavigationIntent.none,
@@ -65,6 +67,8 @@ class BranchState {
   final BranchCreateFlowStatus createFlowStatus;
   final BranchActivationDraft? activationDraft;
   final BranchActivationResult? activationResult;
+  final String? pendingBranchAddress;
+  final String? pendingContactNumber;
 
   final BranchContextTokens? selectedContextTokens;
   final String? selectedBranchId;
@@ -105,6 +109,8 @@ class BranchState {
     BranchCreateFlowStatus? createFlowStatus,
     Object? activationDraft = _unset,
     Object? activationResult = _unset,
+    Object? pendingBranchAddress = _unset,
+    Object? pendingContactNumber = _unset,
     Object? selectedContextTokens = _unset,
     Object? selectedBranchId = _unset,
     BranchNavigationIntent? navigationIntent,
@@ -141,6 +147,12 @@ class BranchState {
       activationResult: identical(activationResult, _unset)
           ? this.activationResult
           : activationResult as BranchActivationResult?,
+      pendingBranchAddress: identical(pendingBranchAddress, _unset)
+          ? this.pendingBranchAddress
+          : pendingBranchAddress as String?,
+      pendingContactNumber: identical(pendingContactNumber, _unset)
+          ? this.pendingContactNumber
+          : pendingContactNumber as String?,
       selectedContextTokens: identical(selectedContextTokens, _unset)
           ? this.selectedContextTokens
           : selectedContextTokens as BranchContextTokens?,

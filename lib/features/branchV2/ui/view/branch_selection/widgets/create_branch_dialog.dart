@@ -30,10 +30,14 @@ class CreateBranchDialogBody extends ConsumerStatefulWidget {
 
 class _CreateBranchDialogBodyState extends ConsumerState<CreateBranchDialogBody> {
   final _nameController = TextEditingController();
+  final _addressController = TextEditingController();
+  final _contactController = TextEditingController();
 
   @override
   void dispose() {
     _nameController.dispose();
+    _addressController.dispose();
+    _contactController.dispose();
     super.dispose();
   }
 
@@ -82,8 +86,7 @@ class _CreateBranchDialogBodyState extends ConsumerState<CreateBranchDialogBody>
               TextField(
                 controller: _nameController,
                 enabled: !isSubmitting,
-                textInputAction: TextInputAction.done,
-                onSubmitted: (_) => _onCreate(controller),
+                textInputAction: TextInputAction.next,
                 decoration: InputDecoration(
                   labelText: 'Branch name',
                   hintText: 'Enter branch name',
@@ -92,6 +95,26 @@ class _CreateBranchDialogBodyState extends ConsumerState<CreateBranchDialogBody>
                       alpha: 0.4,
                     ),
                   ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _addressController,
+                enabled: !isSubmitting,
+                textInputAction: TextInputAction.next,
+                decoration: const InputDecoration(
+                  labelText: 'Address (optional)',
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _contactController,
+                enabled: !isSubmitting,
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => _onCreate(controller),
+                keyboardType: TextInputType.phone,
+                decoration: const InputDecoration(
+                  labelText: 'Contact number (optional)',
                 ),
               ),
             ] else if (canConfirmPayment) ...[
@@ -164,6 +187,10 @@ class _CreateBranchDialogBodyState extends ConsumerState<CreateBranchDialogBody>
   }
 
   void _onCreate(BranchController controller) {
-    controller.initiateCreateBranch(branchName: _nameController.text);
+    controller.initiateCreateBranch(
+      branchName: _nameController.text,
+      branchAddress: _addressController.text,
+      contactNumber: _contactController.text,
+    );
   }
 }

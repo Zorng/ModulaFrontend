@@ -10,6 +10,13 @@ abstract class BranchRepository {
 
   Future<BranchListItem> getCurrentBranchProfile({String? accessTokenOverride});
 
+  Future<BranchListItem> updateCurrentBranchProfile({
+    required String branchName,
+    required String? branchAddress,
+    required String? contactNumber,
+    String? accessTokenOverride,
+  });
+
   Future<BranchListItem> updateCurrentBranchKhqrReceiver({
     required String khqrReceiverAccountId,
     required String khqrReceiverName,

@@ -95,6 +95,126 @@ class _BranchManagementPageState extends ConsumerState<BranchManagementPage> {
     }
   }
 
+  Future<void> _showProfileEditDialog() async {
+    final branch = _branch;
+    if (branch == null) return;
+
+    final nameController = TextEditingController(text: branch.branchName);
+    final addressController = TextEditingController(
+      text: branch.branchAddress ?? '',
+    );
+    final contactController = TextEditingController(
+      text: branch.contactNumber ?? '',
+    );
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        titlePadding: const EdgeInsets.fromLTRB(20, 16, 8, 0),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Edit Branch Profile',
+                style: Theme.of(dialogContext).textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.bold),
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.close),
+              tooltip: 'Cancel',
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+            ),
+          ],
+        ),
+        contentPadding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+        content: SizedBox(
+          width: 420,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListenableBuilder(
+                  listenable: nameController,
+                  builder: (context, _) => TextField(
+                    controller: nameController,
+                    decoration: InputDecoration(
+                      labelText: 'Branch name',
+                      errorText: nameController.text.trim().isEmpty
+                          ? 'Branch name is required'
+                          : null,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: addressController,
+                  decoration: const InputDecoration(
+                    labelText: 'Address (optional)',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: contactController,
+                  decoration: const InputDecoration(
+                    labelText: 'Contact number (optional)',
+                  ),
+                  keyboardType: TextInputType.phone,
+                ),
+                const SizedBox(height: 16),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          ListenableBuilder(
+            listenable: nameController,
+            builder: (context, _) => FilledButton(
+              onPressed: nameController.text.trim().isEmpty
+                  ? null
+                  : () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Save'),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) {
+      nameController.dispose();
+      addressController.dispose();
+      contactController.dispose();
+      return;
+    }
+
+    await _runSave(() async {
+      final accessToken =
+          ref.read(loginControllerProvider).session?.accessToken ?? '';
+      final updated = await ref
+          .read(branchRepositoryProvider)
+          .updateCurrentBranchProfile(
+            branchName: nameController.text.trim(),
+            branchAddress: addressController.text.trim().isEmpty
+                ? null
+                : addressController.text.trim(),
+            contactNumber: contactController.text.trim().isEmpty
+                ? null
+                : contactController.text.trim(),
+            accessTokenOverride: accessToken,
+          );
+      if (!mounted) return;
+      setState(() => _branch = updated);
+      ref.read(branchControllerProvider.notifier).patchBranchInList(updated);
+      _showMessage('Branch profile updated.');
+    });
+
+    nameController.dispose();
+    addressController.dispose();
+    contactController.dispose();
+  }
+
   Future<void> _showKhqrDialog() async {
     final branch = _branch;
     if (branch == null) return;
@@ -109,28 +229,47 @@ class _BranchManagementPageState extends ConsumerState<BranchManagementPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Update KHQR Receiver'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        titlePadding: const EdgeInsets.fromLTRB(20, 16, 8, 0),
+        title: Row(
           children: [
-            TextField(
-              controller: accountController,
-              decoration: const InputDecoration(
-                labelText: 'Receiver account ID',
+            Expanded(
+              child: Text(
+                'Update KHQR Receiver',
+                style: Theme.of(dialogContext).textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.bold),
               ),
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: nameController,
-              decoration: const InputDecoration(labelText: 'Receiver name'),
+            IconButton(
+              icon: const Icon(Icons.close),
+              tooltip: 'Cancel',
+              onPressed: () => Navigator.of(dialogContext).pop(false),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
+        contentPadding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+        content: SizedBox(
+          width: 420,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: accountController,
+                decoration: const InputDecoration(
+                  labelText: 'Receiver account ID',
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: nameController,
+                decoration: const InputDecoration(labelText: 'Receiver name'),
+              ),
+              const SizedBox(height: 16),
+            ],
           ),
+        ),
+        actions: [
           FilledButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
             child: const Text('Save'),
@@ -157,6 +296,7 @@ class _BranchManagementPageState extends ConsumerState<BranchManagementPage> {
           );
       if (!mounted) return;
       setState(() => _branch = updated);
+      ref.read(branchControllerProvider.notifier).patchBranchInList(updated);
       _showMessage('KHQR receiver updated.');
     });
 
@@ -419,10 +559,6 @@ class _BranchManagementPageState extends ConsumerState<BranchManagementPage> {
           ),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
-          ),
           ValueListenableBuilder<LatLng?>(
             valueListenable: pickedLocation,
             builder: (context, picked, _) => ListenableBuilder(
@@ -473,6 +609,7 @@ class _BranchManagementPageState extends ConsumerState<BranchManagementPage> {
           );
       if (!mounted) return;
       setState(() => _branch = updated);
+      ref.read(branchControllerProvider.notifier).patchBranchInList(updated);
       _showMessage('Attendance location updated.');
     });
 
@@ -576,8 +713,8 @@ class _BranchManagementPageState extends ConsumerState<BranchManagementPage> {
                 ],
                 _SectionCard(
                   title: branch.branchName,
-                  actionLabel: 'Read only',
-                  onAction: null,
+                  actionLabel: _saving ? 'Saving...' : 'Edit',
+                  onAction: _saving ? null : _showProfileEditDialog,
                   rows: [
                     _SummaryRow(label: 'Status', value: branch.status),
                     _SummaryRow(label: 'Branch ID', value: branch.branchId),
@@ -590,8 +727,6 @@ class _BranchManagementPageState extends ConsumerState<BranchManagementPage> {
                       value: _display(branch.contactNumber),
                     ),
                   ],
-                  footer:
-                      'Branch profile editing is not available yet because the current backend contract does not expose a branch profile update endpoint.',
                 ),
                 const SizedBox(height: 16),
                 _SectionCard(
@@ -644,14 +779,12 @@ class _SectionCard extends StatelessWidget {
     required this.rows,
     this.actionLabel,
     this.onAction,
-    this.footer,
   });
 
   final String title;
   final List<_SummaryRow> rows;
   final String? actionLabel;
   final VoidCallback? onAction;
-  final String? footer;
 
   @override
   Widget build(BuildContext context) {
@@ -679,15 +812,6 @@ class _SectionCard extends StatelessWidget {
             for (var index = 0; index < rows.length; index++) ...[
               rows[index],
               if (index < rows.length - 1) const SizedBox(height: 12),
-            ],
-            if (footer != null) ...[
-              const SizedBox(height: 12),
-              Text(
-                footer!,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ),
             ],
           ],
         ),

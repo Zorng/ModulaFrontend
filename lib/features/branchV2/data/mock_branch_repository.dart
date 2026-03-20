@@ -43,6 +43,32 @@ class MockBranchRepository implements BranchRepository {
   }
 
   @override
+  Future<BranchListItem> updateCurrentBranchProfile({
+    required String branchName,
+    required String? branchAddress,
+    required String? contactNumber,
+    String? accessTokenOverride,
+  }) async {
+    await Future<void>.delayed(const Duration(milliseconds: 120));
+    final current = _branches.first;
+    final updated = BranchListItem(
+      branchId: current.branchId,
+      tenantId: current.tenantId,
+      branchName: branchName.trim(),
+      status: current.status,
+      branchAddress: branchAddress,
+      contactNumber: contactNumber,
+      khqrReceiverAccountId: current.khqrReceiverAccountId,
+      khqrReceiverName: current.khqrReceiverName,
+      attendanceLocationVerificationMode:
+          current.attendanceLocationVerificationMode,
+      workplaceLocation: current.workplaceLocation,
+    );
+    _branches[0] = updated;
+    return updated;
+  }
+
+  @override
   Future<BranchListItem> updateCurrentBranchKhqrReceiver({
     required String khqrReceiverAccountId,
     required String khqrReceiverName,
