@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:modular_pos/core/theme/app_theme.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_category.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/category_controller.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/inventory_error_mapper.dart';
@@ -16,6 +17,7 @@ class CategoryFormBody extends ConsumerStatefulWidget {
     this.allowArchiveInViewMode = false,
     this.backgroundColor = Colors.white,
     this.onArchived,
+    this.onArchiveRequested,
     this.onClose,
   }) : assert(
          mode == CategoryFormMode.create || category != null,
@@ -28,6 +30,7 @@ class CategoryFormBody extends ConsumerStatefulWidget {
   final bool allowArchiveInViewMode;
   final Color backgroundColor;
   final VoidCallback? onArchived;
+  final Future<void> Function()? onArchiveRequested;
   final VoidCallback? onClose;
 
   @override
@@ -62,12 +65,7 @@ class _CategoryFormBodyState extends ConsumerState<CategoryFormBody> {
   @override
   Widget build(BuildContext context) {
     final isView = _mode == CategoryFormMode.view;
-    final archiveButtonStyle = OutlinedButton.styleFrom(
-      foregroundColor: Theme.of(context).colorScheme.primary,
-      side: BorderSide(color: Theme.of(context).colorScheme.primary),
-      minimumSize: const Size.fromHeight(48),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-    );
+    final archiveButtonStyle = AppTheme.cancelActionButtonStyle;
     return Padding(
       padding: EdgeInsets.zero,
       child: Container(
@@ -144,9 +142,10 @@ class _CategoryFormBodyState extends ConsumerState<CategoryFormBody> {
       if (!canArchive) {
         return SizedBox(
           width: double.infinity,
-          child: FilledButton(
+          child: FilledButton.icon(
             onPressed: () => setState(() => _mode = CategoryFormMode.edit),
-            child: const Text('Edit'),
+            icon: const Icon(Icons.edit_outlined, size: 18),
+            label: const Text('Edit'),
           ),
         );
       }
@@ -154,18 +153,21 @@ class _CategoryFormBodyState extends ConsumerState<CategoryFormBody> {
       return Row(
         children: [
           Expanded(
-            child: OutlinedButton.icon(
+            child: FilledButton.icon(
               style: archiveButtonStyle,
-              onPressed: _archiveCategory,
+              onPressed: widget.onArchiveRequested != null
+                  ? () => widget.onArchiveRequested!.call()
+                  : _archiveCategory,
               icon: const Icon(Icons.archive_outlined, size: 18),
               label: const Text('Archive'),
             ),
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: FilledButton(
+            child: FilledButton.icon(
               onPressed: () => setState(() => _mode = CategoryFormMode.edit),
-              child: const Text('Edit'),
+              icon: const Icon(Icons.edit_outlined, size: 18),
+              label: const Text('Edit'),
             ),
           ),
         ],
@@ -271,23 +273,55 @@ class _CategoryFormBodyState extends ConsumerState<CategoryFormBody> {
     final current = widget.category;
     if (current == null || !current.isActive) return;
 
+    final cancelButtonStyle = AppTheme.cancelActionButtonStyle;
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Archive category?'),
-        content: Text(
-          '"${current.name}" will be archived and detached from stock items.',
+      builder: (context) => Dialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        surfaceTintColor: Theme.of(context).scaffoldBackgroundColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        clipBehavior: Clip.antiAlias,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 520),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Archive category?',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  '"${current.name}" will be archived and detached from stock items.',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(
+                      child: FilledButton(
+                        style: cancelButtonStyle,
+                        onPressed: () => Navigator.of(context).pop(false),
+                        child: const Text('Cancel'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: FilledButton(
+                        onPressed: () => Navigator.of(context).pop(true),
+                        child: const Text('Archive'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Archive'),
-          ),
-        ],
       ),
     );
     if (confirm != true) return;

@@ -25,7 +25,7 @@ class CategoryManagementPage extends ConsumerStatefulWidget {
 class _CategoryManagementPageState
     extends ConsumerState<CategoryManagementPage> {
   final _searchController = TextEditingController();
-  _CategoryStatusFilter _statusFilter = _CategoryStatusFilter.all;
+  _CategoryStatusFilter _statusFilter = _CategoryStatusFilter.active;
 
   @override
   void initState() {
@@ -61,6 +61,11 @@ class _CategoryManagementPageState
     );
     final query = _searchController.text.trim().toLowerCase();
     final categories = state.categories.where((category) {
+      final matchesStatus = switch (_statusFilter) {
+        _CategoryStatusFilter.active => category.isActive,
+        _CategoryStatusFilter.archived => !category.isActive,
+      };
+      if (!matchesStatus) return false;
       if (query.isEmpty) return true;
       return category.name.toLowerCase().contains(query);
     }).toList()..sort((a, b) => a.name.compareTo(b.name));
@@ -92,10 +97,6 @@ class _CategoryManagementPageState
                     label: const Text('Status'),
                     entries: const [
                       DropdownMenuEntry(
-                        value: _CategoryStatusFilter.all,
-                        label: 'All statuses',
-                      ),
-                      DropdownMenuEntry(
                         value: _CategoryStatusFilter.active,
                         label: 'Active',
                       ),
@@ -105,7 +106,7 @@ class _CategoryManagementPageState
                       ),
                     ],
                     onSelected: (value) {
-                      final selected = value ?? _CategoryStatusFilter.all;
+                      final selected = value ?? _CategoryStatusFilter.active;
                       setState(() => _statusFilter = selected);
                       ref
                           .read(categoryControllerProvider.notifier)
@@ -115,16 +116,6 @@ class _CategoryManagementPageState
                   onAddPressed: () =>
                       _openCreateCategory(context, useDialog: true),
                   addButtonLabel: 'Add new',
-                ),
-                const SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'Archiving a category moves linked stock items to Uncategorized.',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).hintColor,
-                    ),
-                  ),
                 ),
                 const SizedBox(height: 16),
                 _buildDesktopCategoryBody(
@@ -157,10 +148,6 @@ class _CategoryManagementPageState
                       label: const Text('Status'),
                       entries: const [
                         DropdownMenuEntry(
-                          value: _CategoryStatusFilter.all,
-                          label: 'All statuses',
-                        ),
-                        DropdownMenuEntry(
                           value: _CategoryStatusFilter.active,
                           label: 'Active',
                         ),
@@ -170,7 +157,7 @@ class _CategoryManagementPageState
                         ),
                       ],
                       onSelected: (value) {
-                        final selected = value ?? _CategoryStatusFilter.all;
+                        final selected = value ?? _CategoryStatusFilter.active;
                         setState(() => _statusFilter = selected);
                         ref
                             .read(categoryControllerProvider.notifier)
@@ -193,10 +180,6 @@ class _CategoryManagementPageState
                     label: const Text('Status'),
                     entries: const [
                       DropdownMenuEntry(
-                        value: _CategoryStatusFilter.all,
-                        label: 'All statuses',
-                      ),
-                      DropdownMenuEntry(
                         value: _CategoryStatusFilter.active,
                         label: 'Active',
                       ),
@@ -206,7 +189,7 @@ class _CategoryManagementPageState
                       ),
                     ],
                     onSelected: (value) {
-                      final selected = value ?? _CategoryStatusFilter.all;
+                      final selected = value ?? _CategoryStatusFilter.active;
                       setState(() => _statusFilter = selected);
                       ref
                           .read(categoryControllerProvider.notifier)
@@ -253,7 +236,7 @@ class _CategoryManagementPageState
                             MediaQuery.of(context).size.width,
                           );
                           if (!hasNavigationRail) {
-                            return ListView.builder(
+                            return ListView.separated(
                               padding: EdgeInsets.zero,
                               itemCount: categories.length,
                               itemBuilder: (context, index) {
@@ -266,6 +249,8 @@ class _CategoryManagementPageState
                                   onArchived: _reloadCurrentFilter,
                                 );
                               },
+                              separatorBuilder: (_, __) =>
+                                  const SizedBox(height: 6),
                             );
                           }
 
@@ -400,6 +385,7 @@ class _CategoryManagementPageState
                                                     onPressed: () =>
                                                         InventoryCategoryActionMenu.openView(
                                                           context,
+                                                          ref,
                                                           category,
                                                           useDialog: true,
                                                           onArchived:
@@ -460,7 +446,6 @@ class _CategoryManagementPageState
 
   String _statusApiValue(_CategoryStatusFilter filter) {
     return switch (filter) {
-      _CategoryStatusFilter.all => 'all',
       _CategoryStatusFilter.active => 'active',
       _CategoryStatusFilter.archived => 'archived',
     };
@@ -615,6 +600,7 @@ class _CategoryManagementPageState
                               onPressed: () =>
                                   InventoryCategoryActionMenu.openView(
                                     context,
+                                    ref,
                                     category,
                                     useDialog: true,
                                     onArchived: _reloadCurrentFilter,
@@ -636,4 +622,4 @@ class _CategoryManagementPageState
   }
 }
 
-enum _CategoryStatusFilter { all, active, archived }
+enum _CategoryStatusFilter { active, archived }
