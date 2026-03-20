@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/core/theme/app_table_theme.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
 import 'package:modular_pos/features/inventory/domain/utils/stock_quantity_formatter.dart';
 import 'package:modular_pos/features/inventory/ui/view/inventory_stock_items/widgets/stock_item_image.dart';
+import 'package:modular_pos/features/inventory/ui/widgets/inventory_stock_status_chip.dart';
 
 class InventoryItemCard extends StatelessWidget {
   const InventoryItemCard({
@@ -21,6 +23,9 @@ class InventoryItemCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final isSmallScreen = AppBreakpoints.isSmall(
+      MediaQuery.sizeOf(context).width,
+    );
     final buttonTextStyle = Theme.of(
       context,
     ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600);
@@ -90,11 +95,12 @@ class InventoryItemCard extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.start,
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
+                    InventoryStockStatusChip(item: item),
+                    const SizedBox(height: 8),
                     ...onHandLines.map(
                       (line) => Text(
                         line,
                         style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          color: item.isLowStock ? colorScheme.error : null,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -111,27 +117,56 @@ class InventoryItemCard extends StatelessWidget {
             ),
             if (onAdjust != null || onViewHistory != null) ...[
               const SizedBox(height: 22),
-              Row(
-                children: [
-                  if (onViewHistory != null)
-                    Expanded(
-                      child: OutlinedButton(
-                        style: viewHistoryButtonStyle,
-                        onPressed: onViewHistory,
-                        child: const Text('View history'),
+              if (isSmallScreen)
+                Row(
+                  children: [
+                    if (onViewHistory != null)
+                      Expanded(
+                        child: OutlinedButton(
+                          style: viewHistoryButtonStyle,
+                          onPressed: onViewHistory,
+                          child: const Text('View history'),
+                        ),
                       ),
-                    ),
-                  if (onAdjust != null && onViewHistory != null)
-                    const SizedBox(width: 12),
-                  if (onAdjust != null)
-                    Expanded(
-                      child: FilledButton(
-                        onPressed: onAdjust,
-                        child: const Text('Adjust'),
+                    if (onAdjust != null && onViewHistory != null)
+                      const SizedBox(width: 12),
+                    if (onAdjust != null)
+                      Expanded(
+                        child: FilledButton(
+                          onPressed: onAdjust,
+                          child: const Text('Adjust'),
+                        ),
                       ),
-                    ),
-                ],
-              ),
+                  ],
+                )
+              else
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    alignment: WrapAlignment.end,
+                    children: [
+                      if (onViewHistory != null)
+                        SizedBox(
+                          width: 148,
+                          child: OutlinedButton(
+                            style: viewHistoryButtonStyle,
+                            onPressed: onViewHistory,
+                            child: const Text('View history'),
+                          ),
+                        ),
+                      if (onAdjust != null)
+                        SizedBox(
+                          width: 148,
+                          child: FilledButton(
+                            onPressed: onAdjust,
+                            child: const Text('Adjust'),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
             ],
           ],
         ),

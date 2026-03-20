@@ -36,6 +36,9 @@ class MockBranchStockRepository extends BranchStockRepository {
   Future<InventoryPaginatedResult<StockItem>> fetchStockItems({
     String? branchId,
     String status = 'all',
+    String? search,
+    String? categoryId,
+    String stockLevel = 'all',
     int pageSize = 50,
     int offset = 0,
   }) async {
@@ -46,6 +49,9 @@ class MockBranchStockRepository extends BranchStockRepository {
     return _store.fetchInventoryStockItems(
       branchId: targetBranch,
       status: status,
+      search: search,
+      categoryId: categoryId,
+      stockLevel: stockLevel,
       pageSize: pageSize,
       offset: offset,
     );

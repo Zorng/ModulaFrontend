@@ -49,6 +49,9 @@ class _SpyStockInventoryController extends StockInventoryController {
   Future<void> loadInventoryItems({
     String? branchId,
     String status = 'all',
+    String? search,
+    String? categoryId,
+    String stockLevel = 'all',
     int limit = 10,
     int page = 1,
     bool pageTransition = false,
@@ -196,6 +199,9 @@ void main() {
         () => branchStockRepo.fetchStockItems(
           branchId: any(named: 'branchId'),
           status: any(named: 'status'),
+          search: any(named: 'search'),
+          categoryId: any(named: 'categoryId'),
+          stockLevel: any(named: 'stockLevel'),
           pageSize: any(named: 'pageSize'),
           offset: any(named: 'offset'),
         ),
@@ -271,6 +277,9 @@ void main() {
         () => branchStockRepo.fetchStockItems(
           branchId: 'branch-1',
           status: 'all',
+          search: null,
+          categoryId: null,
+          stockLevel: 'all',
           pageSize: 10,
           offset: 10,
         ),
@@ -337,6 +346,9 @@ void main() {
         () => branchStockRepo.fetchStockItems(
           branchId: 'branch-1',
           status: 'all',
+          search: null,
+          categoryId: null,
+          stockLevel: 'all',
           pageSize: 1,
           offset: 0,
         ),
@@ -366,6 +378,9 @@ void main() {
         () => branchStockRepo.fetchStockItems(
           branchId: 'branch-1',
           status: 'all',
+          search: null,
+          categoryId: null,
+          stockLevel: 'all',
           pageSize: 1,
           offset: 1,
         ),
@@ -431,6 +446,9 @@ void main() {
         () => branchStockRepo.fetchStockItems(
           branchId: any(named: 'branchId'),
           status: any(named: 'status'),
+          search: any(named: 'search'),
+          categoryId: any(named: 'categoryId'),
+          stockLevel: any(named: 'stockLevel'),
           pageSize: any(named: 'pageSize'),
           offset: any(named: 'offset'),
         ),
@@ -1321,6 +1339,9 @@ void main() {
         () => branchStockRepo.fetchStockItems(
           branchId: 'branch-1',
           status: any(named: 'status'),
+          search: any(named: 'search'),
+          categoryId: any(named: 'categoryId'),
+          stockLevel: any(named: 'stockLevel'),
           pageSize: any(named: 'pageSize'),
           offset: any(named: 'offset'),
         ),
@@ -1481,6 +1502,9 @@ void main() {
         () => branchStockRepo.fetchStockItems(
           branchId: 'branch-1',
           status: 'all',
+          search: any(named: 'search'),
+          categoryId: any(named: 'categoryId'),
+          stockLevel: any(named: 'stockLevel'),
           pageSize: any(named: 'pageSize'),
           offset: any(named: 'offset'),
         ),
@@ -1587,6 +1611,9 @@ void main() {
         () => branchStockRepo.fetchStockItems(
           branchId: 'branch-1',
           status: 'all',
+          search: any(named: 'search'),
+          categoryId: any(named: 'categoryId'),
+          stockLevel: any(named: 'stockLevel'),
           pageSize: any(named: 'pageSize'),
           offset: any(named: 'offset'),
         ),
@@ -1696,6 +1723,9 @@ void main() {
         () => branchStockRepo.fetchStockItems(
           branchId: 'branch-1',
           status: 'all',
+          search: any(named: 'search'),
+          categoryId: any(named: 'categoryId'),
+          stockLevel: any(named: 'stockLevel'),
           pageSize: any(named: 'pageSize'),
           offset: any(named: 'offset'),
         ),

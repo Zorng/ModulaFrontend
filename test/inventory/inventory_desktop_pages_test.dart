@@ -39,6 +39,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Item Name'), findsOneWidget);
+    expect(find.text('Status'), findsOneWidget);
     expect(find.text('Current On Hand'), findsOneWidget);
     expect(find.text('Iced Coffee'), findsOneWidget);
   });

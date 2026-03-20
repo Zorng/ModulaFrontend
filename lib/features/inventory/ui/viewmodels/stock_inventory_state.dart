@@ -21,6 +21,10 @@ class StockInventoryState extends Equatable {
     this.inventoryCurrentPage = 1,
     this.inventoryOffset = 0,
     this.inventoryTotal = 0,
+    this.inventoryStatus = 'all',
+    this.inventorySearch = '',
+    this.inventoryCategoryId = '',
+    this.inventoryStockLevel = 'all',
     this.stockItemsPageSize = 10,
     this.stockItemsCurrentPage = 1,
     this.stockItemsOffset = 0,
@@ -55,6 +59,10 @@ class StockInventoryState extends Equatable {
   final int inventoryCurrentPage;
   final int inventoryOffset;
   final int inventoryTotal;
+  final String inventoryStatus;
+  final String inventorySearch;
+  final String inventoryCategoryId;
+  final String inventoryStockLevel;
   final int stockItemsPageSize;
   final int stockItemsCurrentPage;
   final int stockItemsOffset;
@@ -136,6 +144,10 @@ class StockInventoryState extends Equatable {
     int? inventoryCurrentPage,
     int? inventoryOffset,
     int? inventoryTotal,
+    String? inventoryStatus,
+    String? inventorySearch,
+    String? inventoryCategoryId,
+    String? inventoryStockLevel,
     int? stockItemsPageSize,
     int? stockItemsCurrentPage,
     int? stockItemsOffset,
@@ -177,6 +189,10 @@ class StockInventoryState extends Equatable {
       inventoryCurrentPage: inventoryCurrentPage ?? this.inventoryCurrentPage,
       inventoryOffset: inventoryOffset ?? this.inventoryOffset,
       inventoryTotal: inventoryTotal ?? this.inventoryTotal,
+      inventoryStatus: inventoryStatus ?? this.inventoryStatus,
+      inventorySearch: inventorySearch ?? this.inventorySearch,
+      inventoryCategoryId: inventoryCategoryId ?? this.inventoryCategoryId,
+      inventoryStockLevel: inventoryStockLevel ?? this.inventoryStockLevel,
       stockItemsPageSize: stockItemsPageSize ?? this.stockItemsPageSize,
       stockItemsCurrentPage:
           stockItemsCurrentPage ?? this.stockItemsCurrentPage,
@@ -217,6 +233,10 @@ class StockInventoryState extends Equatable {
     inventoryCurrentPage,
     inventoryOffset,
     inventoryTotal,
+    inventoryStatus,
+    inventorySearch,
+    inventoryCategoryId,
+    inventoryStockLevel,
     stockItemsPageSize,
     stockItemsCurrentPage,
     stockItemsOffset,

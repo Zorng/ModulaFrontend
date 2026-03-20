@@ -230,6 +230,9 @@ class FakeStockInventoryController extends StockInventoryController {
   Future<void> loadInventoryItems({
     String? branchId,
     String status = 'all',
+    String? search,
+    String? categoryId,
+    String stockLevel = 'all',
     int limit = 10,
     int page = 1,
     bool pageTransition = false,
@@ -523,9 +526,15 @@ class FakeBranchStockRepository extends BranchStockRepository {
   Future<InventoryPaginatedResult<StockItem>> fetchStockItems({
     String? branchId,
     String status = 'all',
+    String? search,
+    String? categoryId,
+    String stockLevel = 'all',
     int pageSize = 50,
     int offset = 0,
   }) async {
+    final normalizedSearch = search?.trim().toLowerCase() ?? '';
+    final normalizedCategoryId = categoryId?.trim() ?? '';
+    final normalizedStockLevel = stockLevel.trim().toLowerCase();
     final filteredByStatus = _items
         .where((item) {
           switch (status.trim().toLowerCase()) {
@@ -544,15 +553,33 @@ class FakeBranchStockRepository extends BranchStockRepository {
         : filteredByStatus
               .where((item) => item.branchId == branchId)
               .toList(growable: false);
+    final filtered = scoped
+        .where((item) {
+          final matchesSearch =
+              normalizedSearch.isEmpty ||
+              item.name.toLowerCase().contains(normalizedSearch) ||
+              item.baseUnit.toLowerCase().contains(normalizedSearch);
+          final matchesCategory =
+              normalizedCategoryId.isEmpty ||
+              (item.categoryId?.trim() ?? '') == normalizedCategoryId;
+          final matchesStockLevel = switch (normalizedStockLevel) {
+            'in_stock' => item.onHand > item.minThreshold,
+            'low_stock' => item.onHand > 0 && item.onHand <= item.minThreshold,
+            'out_of_stock' => item.onHand <= 0,
+            _ => true,
+          };
+          return matchesSearch && matchesCategory && matchesStockLevel;
+        })
+        .toList(growable: false);
     final safePageSize = pageSize <= 0 ? 50 : pageSize;
-    final safeOffset = offset.clamp(0, scoped.length).toInt();
-    final end = (safeOffset + safePageSize).clamp(0, scoped.length).toInt();
+    final safeOffset = offset.clamp(0, filtered.length).toInt();
+    final end = (safeOffset + safePageSize).clamp(0, filtered.length).toInt();
     return InventoryPaginatedResult<StockItem>(
-      items: scoped.sublist(safeOffset, end),
+      items: filtered.sublist(safeOffset, end),
       limit: safePageSize,
       offset: safeOffset,
-      total: scoped.length,
-      hasMore: end < scoped.length,
+      total: filtered.length,
+      hasMore: end < filtered.length,
     );
   }
 

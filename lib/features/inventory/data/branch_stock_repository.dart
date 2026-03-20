@@ -26,6 +26,9 @@ abstract class BranchStockRepository {
   Future<InventoryPaginatedResult<StockItem>> fetchStockItems({
     String? branchId,
     String status = 'all',
+    String? search,
+    String? categoryId,
+    String stockLevel = 'all',
     int pageSize = 50,
     int offset = 0,
   });

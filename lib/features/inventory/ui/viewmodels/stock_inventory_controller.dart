@@ -31,12 +31,19 @@ class StockInventoryController extends Notifier<StockInventoryState> {
   Future<void> loadInventoryItems({
     String? branchId,
     String status = 'all',
+    String? search,
+    String? categoryId,
+    String stockLevel = 'all',
     int limit = 10,
     int page = 1,
     bool pageTransition = false,
     bool accumulatePages = false,
   }) async {
     final targetBranchId = _normalizeBranchId(branchId);
+    final normalizedStatus = _normalizeListStatus(status);
+    final normalizedSearch = search?.trim() ?? '';
+    final normalizedCategoryId = categoryId?.trim() ?? '';
+    final normalizedStockLevel = _normalizeInventoryStockLevel(stockLevel);
     final safeLimit = limit <= 0 ? 10 : limit;
     final safePage = page <= 0 ? 1 : page;
     final safeOffset = (safePage - 1) * safeLimit;
@@ -50,17 +57,24 @@ class StockInventoryController extends Notifier<StockInventoryState> {
         errorCode: null,
         selectedInventoryBranchId: targetBranchId ?? 'all',
         inventoryPageSize: safeLimit,
+        inventoryStatus: normalizedStatus,
+        inventorySearch: normalizedSearch,
+        inventoryCategoryId: normalizedCategoryId,
+        inventoryStockLevel: normalizedStockLevel,
       );
       final fetched = await _branchStockRepository.fetchStockItems(
         branchId: targetBranchId,
-        status: status,
+        status: normalizedStatus,
+        search: normalizedSearch.isEmpty ? null : normalizedSearch,
+        categoryId: normalizedCategoryId.isEmpty ? null : normalizedCategoryId,
+        stockLevel: normalizedStockLevel,
         pageSize: safeLimit,
         offset: safeOffset,
       );
       final branchLookup = _branchLookup();
       final onHandData = await _fetchOnHand(
         branchId: targetBranchId,
-        status: status,
+        status: normalizedStatus,
       );
       final mapped = _applyOnHand(
         fetched.items
@@ -107,6 +121,10 @@ class StockInventoryController extends Notifier<StockInventoryState> {
       branchId: state.selectedInventoryBranchId == 'all'
           ? null
           : state.selectedInventoryBranchId,
+      status: state.inventoryStatus,
+      search: state.inventorySearch,
+      categoryId: state.inventoryCategoryId,
+      stockLevel: state.inventoryStockLevel,
       limit: state.inventoryPageSize,
       page: state.inventoryCurrentPage + 1,
       pageTransition: true,
@@ -120,6 +138,10 @@ class StockInventoryController extends Notifier<StockInventoryState> {
       branchId: state.selectedInventoryBranchId == 'all'
           ? null
           : state.selectedInventoryBranchId,
+      status: state.inventoryStatus,
+      search: state.inventorySearch,
+      categoryId: state.inventoryCategoryId,
+      stockLevel: state.inventoryStockLevel,
       limit: state.inventoryPageSize,
       page: state.inventoryCurrentPage - 1,
       pageTransition: true,
@@ -137,6 +159,10 @@ class StockInventoryController extends Notifier<StockInventoryState> {
       branchId: state.selectedInventoryBranchId == 'all'
           ? null
           : state.selectedInventoryBranchId,
+      status: state.inventoryStatus,
+      search: state.inventorySearch,
+      categoryId: state.inventoryCategoryId,
+      stockLevel: state.inventoryStockLevel,
       limit: state.inventoryPageSize,
       page: page,
       pageTransition: true,
@@ -154,6 +180,10 @@ class StockInventoryController extends Notifier<StockInventoryState> {
       branchId: state.selectedInventoryBranchId == 'all'
           ? null
           : state.selectedInventoryBranchId,
+      status: state.inventoryStatus,
+      search: state.inventorySearch,
+      categoryId: state.inventoryCategoryId,
+      stockLevel: state.inventoryStockLevel,
       limit: state.inventoryPageSize,
       page: state.inventoryCurrentPage + 1,
       pageTransition: true,
@@ -1034,6 +1064,18 @@ class StockInventoryController extends Notifier<StockInventoryState> {
     }
   }
 
+  String _normalizeInventoryStockLevel(String value) {
+    switch (value.trim().toLowerCase()) {
+      case 'all':
+      case 'in_stock':
+      case 'low_stock':
+      case 'out_of_stock':
+        return value.trim().toLowerCase();
+      default:
+        return 'all';
+    }
+  }
+
   String? _normalizeBranchId(String? branchId) {
     if (branchId == null) return null;
     final trimmed = branchId.trim();
@@ -1090,7 +1132,10 @@ class StockInventoryController extends Notifier<StockInventoryState> {
   Future<void> _reloadCurrentInventoryLane() async {
     await loadInventoryItems(
       branchId: state.selectedInventoryBranchId,
-      status: 'all',
+      status: state.inventoryStatus,
+      search: state.inventorySearch,
+      categoryId: state.inventoryCategoryId,
+      stockLevel: state.inventoryStockLevel,
     );
   }
 

@@ -290,11 +290,17 @@ class MockInventoryStore {
   InventoryPaginatedResult<StockItem> fetchInventoryStockItems({
     String? branchId,
     String status = 'all',
+    String? search,
+    String? categoryId,
+    String stockLevel = 'all',
     int pageSize = 50,
     int offset = 0,
   }) {
     final normalizedStatus = _normalizeStatus(status);
     final targetBranch = _normalizeBranch(branchId);
+    final normalizedSearch = search?.trim().toLowerCase() ?? '';
+    final normalizedCategoryId = categoryId?.trim() ?? '';
+    final normalizedStockLevel = _normalizeInventoryStockLevel(stockLevel);
     final filtered = targetBranch != null
         ? () {
             _ensureValidBranch(targetBranch);
@@ -303,6 +309,14 @@ class MockInventoryStore {
                 .map((position) => _toInventoryItem(position, targetBranch))
                 .where(
                   (item) => _matchesStatus(item.isActive, normalizedStatus),
+                )
+                .where(
+                  (item) => _matchesInventoryQuery(
+                    item,
+                    search: normalizedSearch,
+                    categoryId: normalizedCategoryId,
+                    stockLevel: normalizedStockLevel,
+                  ),
                 )
                 .toList(growable: false);
           }()
@@ -326,6 +340,14 @@ class MockInventoryStore {
                 .whereType<StockItem>()
                 .where(
                   (item) => _matchesStatus(item.isActive, normalizedStatus),
+                )
+                .where(
+                  (item) => _matchesInventoryQuery(
+                    item,
+                    search: normalizedSearch,
+                    categoryId: normalizedCategoryId,
+                    stockLevel: normalizedStockLevel,
+                  ),
                 )
                 .toList(growable: false);
           }();
@@ -972,6 +994,18 @@ class MockInventoryStore {
     }
   }
 
+  String _normalizeInventoryStockLevel(String level) {
+    switch (level.trim().toLowerCase()) {
+      case 'all':
+      case 'in_stock':
+      case 'low_stock':
+      case 'out_of_stock':
+        return level.trim().toLowerCase();
+      default:
+        return 'all';
+    }
+  }
+
   bool _matchesStatus(bool isActive, String status) {
     switch (status) {
       case 'active':
@@ -982,6 +1016,29 @@ class MockInventoryStore {
       default:
         return true;
     }
+  }
+
+  bool _matchesInventoryQuery(
+    StockItem item, {
+    required String search,
+    required String categoryId,
+    required String stockLevel,
+  }) {
+    final matchesSearch =
+        search.isEmpty ||
+        item.name.toLowerCase().contains(search) ||
+        item.baseUnit.toLowerCase().contains(search);
+    final matchesCategory =
+        categoryId.isEmpty ||
+        categoryId == 'all' ||
+        (item.categoryId?.trim() ?? '') == categoryId;
+    final matchesStockLevel = switch (stockLevel) {
+      'in_stock' => item.onHand > item.minThreshold,
+      'low_stock' => item.onHand > 0 && item.onHand <= item.minThreshold,
+      'out_of_stock' => item.onHand <= 0,
+      _ => true,
+    };
+    return matchesSearch && matchesCategory && matchesStockLevel;
   }
 
   String? _normalizeBranch(String? branchId) {
