@@ -451,6 +451,27 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
     return UserErrorMessage.build(context: context, error: error);
   }
 
+  Future<void> _handleOfflineManualClaimCapture({
+    required SaleCartNotifier cartNotifier,
+    required OrdersNotifier ordersNotifier,
+  }) async {
+    final result = await cartNotifier.captureOfflineManualClaimOrder();
+    await ordersNotifier.load(date: DateTime.now());
+
+    ref
+        .read(fulfillmentWorkspaceTabProvider.notifier)
+        .setTab(FulfillmentWorkspaceTab.externalClaims);
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Order ${result.orderNumber} captured for external KHQR claim. Add proof and submit it from Fulfillment > External Claims when back online.',
+        ),
+      ),
+    );
+  }
+
   double _roundKhr(
     double amount, {
     required bool enabled,
@@ -580,7 +601,6 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
     final isPayLaterMode = orderType == 'dine_in';
     final isOffline = connectivityStatus == AppConnectivityStatus.offline;
     final payLaterEnabled = branchPolicy.saleAllowPayLater;
-    final manualClaimEnabled = branchPolicy.saleAllowManualExternalPaymentClaim;
     final canCheckout =
         gate.canCheckout &&
         !cartState.isFinalizing &&
@@ -600,13 +620,12 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
         khqrReceiverConfigured != false &&
         !isOffline;
     final canOfflineCashCapture =
-        gate.canCheckout &&
+        gate.canCreateDraftSale &&
         !cartState.isFinalizing &&
         items.isNotEmpty &&
         paymentMethod == 'cash';
     final canOfflineManualClaimCapture =
-        gate.canCheckout &&
-        manualClaimEnabled &&
+        gate.canCreateDraftSale &&
         !cartState.isFinalizing &&
         items.isNotEmpty &&
         paymentMethod == 'qr';
@@ -629,7 +648,7 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
     final primaryActionLabel = isOffline && paymentMethod == 'cash'
         ? 'Queue Cash Checkout'
         : isOffline && paymentMethod == 'qr'
-        ? 'Capture Claim Order'
+        ? 'Checkout'
         : isPayLaterMode
         ? 'Place Order'
         : paymentMethod == 'qr'
@@ -638,9 +657,8 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
     final payLaterDisabledMessage = !payLaterEnabled && isPayLaterMode
         ? 'Pay-later is disabled by branch policy. Switch order type to continue.'
         : null;
-    final manualClaimDisabledMessage =
-        isOffline && paymentMethod == 'qr' && !manualClaimEnabled
-        ? 'Manual external-payment claim fallback is disabled by branch policy.'
+    final offlineKhqrClaimMessage = isOffline && paymentMethod == 'qr'
+        ? 'Offline KHQR gateway is unavailable. Checkout will capture the order first. Add proof and submit the external-payment claim when back online.'
         : null;
     final checkoutBannerMessage = SaleCheckoutErrorMessage.build(
       reasonCode: cartState.checkoutErrorCode,
@@ -873,10 +891,10 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
                     ),
                   ),
                 ],
-                if (manualClaimDisabledMessage != null) ...[
+                if (offlineKhqrClaimMessage != null) ...[
                   const SizedBox(height: 8),
                   Text(
-                    manualClaimDisabledMessage,
+                    offlineKhqrClaimMessage,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
@@ -972,18 +990,9 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
 
               if (isOffline && paymentMethod == 'qr') {
                 try {
-                  final result = await cartNotifier
-                      .captureOfflineManualClaimOrder();
-                  await ref
-                      .read(ordersProvider.notifier)
-                      .load(date: DateTime.now());
-                  if (!context.mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        'Order ${result.orderNumber} captured offline for manual KHQR claim. Add proof on the order detail when back online.',
-                      ),
-                    ),
+                  await _handleOfflineManualClaimCapture(
+                    cartNotifier: cartNotifier,
+                    ordersNotifier: ref.read(ordersProvider.notifier),
                   );
                 } catch (e) {
                   if (!context.mounted) return;
@@ -991,7 +1000,7 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
                     SnackBar(
                       content: Text(
                         _actionErrorMessage(
-                          context: 'Manual claim capture failed',
+                          context: 'External claim checkout failed',
                           error: e,
                         ),
                       ),

@@ -12,6 +12,7 @@ final ordersProvider = NotifierProvider<OrdersNotifier, List<Order>>(
 );
 
 const orderFulfillmentActiveView = 'FULFILLMENT_ACTIVE';
+const orderManualClaimReviewView = 'MANUAL_CLAIM_REVIEW';
 
 enum FulfillmentWorkspaceTab { kitchen, externalClaims }
 
@@ -32,6 +33,7 @@ class FulfillmentWorkspaceTabNotifier
 
 class OrdersNotifier extends Notifier<List<Order>> {
   static const fulfillmentActiveView = orderFulfillmentActiveView;
+  static const manualClaimReviewView = orderManualClaimReviewView;
 
   late final SaleCheckoutRepository _repo = ref.read(saleRepositoryProvider);
 
@@ -143,7 +145,14 @@ class OrdersNotifier extends Notifier<List<Order>> {
     final isManualClaim =
         SaleOutageSourceModes.normalize(record.sourceMode) ==
         SaleOutageSourceModes.manualExternalPaymentClaim;
-    if (isManualClaim) return record;
+    if (isManualClaim) {
+      return _reconcileLocalManualClaimCaptureRecord(
+        scope: scope,
+        outageStore: outageStore,
+        queueStore: queueStore,
+        record: record,
+      );
+    }
 
     final queueRecord =
         await queueStore.read(record.localIntentId) ??
@@ -189,6 +198,55 @@ class OrdersNotifier extends Notifier<List<Order>> {
     }
   }
 
+  Future<SaleOutageOrderRecord> _reconcileLocalManualClaimCaptureRecord({
+    required SaleOutageScope scope,
+    required SaleOutageStore outageStore,
+    required OfflineCommandQueueStore queueStore,
+    required SaleOutageOrderRecord record,
+  }) async {
+    final queueRecord = await _findManualClaimCaptureReplayRecord(
+      scope: scope,
+      queueStore: queueStore,
+      localIntentId: record.localIntentId,
+    );
+    if (queueRecord == null ||
+        queueRecord.operationType !=
+            OfflineOperationType.orderManualExternalPaymentClaimCapture) {
+      return record;
+    }
+
+    final payload = queueRecord.decodePayload();
+    final resultRefId = (payload['resultRefId'] ?? '').toString().trim();
+    switch (queueRecord.status) {
+      case OfflineCommandQueueStatus.applied:
+      case OfflineCommandQueueStatus.duplicate:
+        if (resultRefId.isEmpty) return record;
+        return _syncManualClaimCaptureMaterialization(
+          outageStore: outageStore,
+          record: record,
+          backendOrderId: resultRefId,
+          materializedAt: queueRecord.lastSyncedAt ?? DateTime.now().toUtc(),
+        );
+      case OfflineCommandQueueStatus.pending:
+      case OfflineCommandQueueStatus.syncing:
+        return _syncOutageReplayState(
+          outageStore: outageStore,
+          record: record,
+          state: record.state,
+          lastErrorCode: null,
+          lastErrorMessage: null,
+        );
+      case OfflineCommandQueueStatus.failed:
+        return _syncOutageReplayState(
+          outageStore: outageStore,
+          record: record,
+          state: record.state,
+          lastErrorCode: queueRecord.lastErrorCode,
+          lastErrorMessage: queueRecord.lastErrorMessage,
+        );
+    }
+  }
+
   Future<OfflineCommandRecord?> _findCheckoutCashReplayRecord({
     required SaleOutageScope scope,
     required OfflineCommandQueueStore queueStore,
@@ -210,6 +268,36 @@ class OrdersNotifier extends Notifier<List<Order>> {
 
     for (final record in queue) {
       if (record.operationType != OfflineOperationType.checkoutCashFinalize) {
+        continue;
+      }
+      final payloadLocalIntentId =
+          (record.decodePayload()['localIntentId'] ?? '').toString().trim();
+      if (payloadLocalIntentId == localIntentId) return record;
+    }
+    return null;
+  }
+
+  Future<OfflineCommandRecord?> _findManualClaimCaptureReplayRecord({
+    required SaleOutageScope scope,
+    required OfflineCommandQueueStore queueStore,
+    required String localIntentId,
+  }) async {
+    final queue = await queueStore.listForContext(
+      tenantId: scope.tenantId,
+      branchId: scope.branchId,
+      statuses: const {
+        OfflineCommandQueueStatus.pending,
+        OfflineCommandQueueStatus.syncing,
+        OfflineCommandQueueStatus.applied,
+        OfflineCommandQueueStatus.duplicate,
+        OfflineCommandQueueStatus.failed,
+      },
+      limit: 200,
+    );
+
+    for (final record in queue) {
+      if (record.operationType !=
+          OfflineOperationType.orderManualExternalPaymentClaimCapture) {
         continue;
       }
       final payloadLocalIntentId =
@@ -249,25 +337,137 @@ class OrdersNotifier extends Notifier<List<Order>> {
     return updated;
   }
 
+  Future<SaleOutageOrderRecord> _syncManualClaimCaptureMaterialization({
+    required SaleOutageStore outageStore,
+    required SaleOutageOrderRecord record,
+    required String backendOrderId,
+    required DateTime materializedAt,
+  }) async {
+    final normalizedBackendOrderId = backendOrderId.trim();
+    final shouldWrite =
+        (record.backendOrderId ?? '').trim() != normalizedBackendOrderId ||
+        record.materializedAt != materializedAt ||
+        (record.lastErrorCode ?? '').isNotEmpty ||
+        (record.lastErrorMessage ?? '').isNotEmpty;
+    if (!shouldWrite) return record;
+
+    final updated = record.copyWith(
+      backendOrderId: normalizedBackendOrderId,
+      materializedAt: materializedAt,
+      lastErrorCode: null,
+      lastErrorMessage: null,
+      updatedAt: DateTime.now().toUtc(),
+    );
+    await outageStore.write(updated);
+    return updated;
+  }
+
   List<Order> _mergeOrders({
     required List<Order> remoteOrders,
     required List<Order> localOutageOrders,
   }) {
     if (localOutageOrders.isEmpty) return remoteOrders;
 
+    final remoteByKey = <String, Order>{};
+    for (final order in remoteOrders) {
+      for (final key in _identityKeys(order)) {
+        remoteByKey.putIfAbsent(key, () => order);
+      }
+    }
     final localKeys = <String>{
       for (final order in localOutageOrders) ..._identityKeys(order),
     };
-    final merged = <Order>[...localOutageOrders, ...remoteOrders]
-        .where((order) {
-          if (order.isLocalOutageOrder) return true;
+    final mergedLocalOrders = localOutageOrders
+        .map((order) {
           for (final key in _identityKeys(order)) {
-            if (localKeys.contains(key)) return false;
+            final remoteOrder = remoteByKey[key];
+            if (remoteOrder != null) {
+              return _mergeLocalOutageOrderWithRemoteSummary(
+                localOrder: order,
+                remoteOrder: remoteOrder,
+              );
+            }
           }
-          return true;
+          return order;
         })
         .toList(growable: false);
+    final merged = <Order>[
+      ...mergedLocalOrders,
+      ...remoteOrders.where((order) {
+        for (final key in _identityKeys(order)) {
+          if (localKeys.contains(key)) return false;
+        }
+        return true;
+      }),
+    ].toList(growable: false);
     return merged;
+  }
+
+  Order _mergeLocalOutageOrderWithRemoteSummary({
+    required Order localOrder,
+    required Order remoteOrder,
+  }) {
+    final localPaymentMethod = localOrder.paymentMethod.trim().toLowerCase();
+    final remotePaymentMethod = remoteOrder.paymentMethod.trim();
+    return Order(
+      id: localOrder.id,
+      saleId: localOrder.saleId.isNotEmpty
+          ? localOrder.saleId
+          : remoteOrder.saleId,
+      number: localOrder.number,
+      status: remoteOrder.status,
+      ticketStatus: remoteOrder.ticketStatus,
+      placedAt: localOrder.placedAt,
+      orderType: localOrder.orderType,
+      paymentMethod:
+          localPaymentMethod == 'unpaid' && remotePaymentMethod.isNotEmpty
+          ? remoteOrder.paymentMethod
+          : localOrder.paymentMethod,
+      totalUsd: localOrder.totalUsd,
+      totalKhr: localOrder.totalKhr,
+      tenderCurrency: localOrder.tenderCurrency,
+      tenderAmount: localOrder.tenderAmount,
+      changeAmount: localOrder.changeAmount,
+      lines: localOrder.lines.isNotEmpty ? localOrder.lines : remoteOrder.lines,
+      sourceMode: localOrder.sourceMode ?? remoteOrder.sourceMode,
+      openTicketId: localOrder.openTicketId ?? remoteOrder.openTicketId,
+      isLocalOutageOrder: true,
+      localOutageState: localOrder.localOutageState,
+      localOutageIntentId: localOrder.localOutageIntentId,
+      localOutageSourceMode: localOrder.localOutageSourceMode,
+      localOutageMaterializedOrderId: localOrder.localOutageMaterializedOrderId,
+      localOutageClaimedPaymentMethod:
+          localOrder.localOutageClaimedPaymentMethod,
+      localOutageClaimedTenderAmount: localOrder.localOutageClaimedTenderAmount,
+      localOutageProofImageUrl: localOrder.localOutageProofImageUrl,
+      localOutageCustomerReference: localOrder.localOutageCustomerReference,
+      localOutageNote: localOrder.localOutageNote,
+      localOutageClaimRecordedAt: localOrder.localOutageClaimRecordedAt,
+      localOutageBackendClaimId: localOrder.localOutageBackendClaimId,
+      localOutageClaimSubmittedAt: localOrder.localOutageClaimSubmittedAt,
+      localOutageLastErrorCode: localOrder.localOutageLastErrorCode,
+      localOutageLastErrorMessage: localOrder.localOutageLastErrorMessage,
+      checkedOutAt: localOrder.checkedOutAt ?? remoteOrder.checkedOutAt,
+      remoteManualPaymentClaimId:
+          localOrder.remoteManualPaymentClaimId ??
+          remoteOrder.remoteManualPaymentClaimId,
+      remoteManualPaymentClaimStatus:
+          localOrder.remoteManualPaymentClaimStatus ??
+          remoteOrder.remoteManualPaymentClaimStatus,
+      openedByAccountId:
+          localOrder.openedByAccountId ?? remoteOrder.openedByAccountId,
+      openedByDisplayName:
+          localOrder.openedByDisplayName ?? remoteOrder.openedByDisplayName,
+      manualPaymentClaimRequestedByAccountId:
+          localOrder.manualPaymentClaimRequestedByAccountId ??
+          remoteOrder.manualPaymentClaimRequestedByAccountId,
+      manualPaymentClaimRequestedByDisplayName:
+          localOrder.manualPaymentClaimRequestedByDisplayName ??
+          remoteOrder.manualPaymentClaimRequestedByDisplayName,
+      manualPaymentClaimRequestedAt:
+          localOrder.manualPaymentClaimRequestedAt ??
+          remoteOrder.manualPaymentClaimRequestedAt,
+    );
   }
 
   Iterable<String> _identityKeys(Order order) sync* {
@@ -372,6 +572,13 @@ class OrdersNotifier extends Notifier<List<Order>> {
             remoteManualPaymentClaimId: order.remoteManualPaymentClaimId,
             remoteManualPaymentClaimStatus:
                 order.remoteManualPaymentClaimStatus,
+            openedByAccountId: order.openedByAccountId,
+            openedByDisplayName: order.openedByDisplayName,
+            manualPaymentClaimRequestedByAccountId:
+                order.manualPaymentClaimRequestedByAccountId,
+            manualPaymentClaimRequestedByDisplayName:
+                order.manualPaymentClaimRequestedByDisplayName,
+            manualPaymentClaimRequestedAt: order.manualPaymentClaimRequestedAt,
           )
         else
           order,
@@ -541,7 +748,7 @@ class OrdersNotifier extends Notifier<List<Order>> {
     if (normalizedProofUrl.isEmpty) {
       throw const SaleCheckoutRepositoryException(
         reasonCode: SaleCheckoutReasonCodes.invalidRequest,
-        message: 'Proof image URL is required for a manual payment claim.',
+        message: 'Proof image is required for a manual payment claim.',
       );
     }
 
@@ -565,6 +772,32 @@ class OrdersNotifier extends Notifier<List<Order>> {
     );
 
     await load(date: order.placedAt);
+  }
+
+  Future<void> recordLocalManualExternalPaymentClaimWithUpload(
+    Order order, {
+    required double claimedTenderAmount,
+    required List<int> proofImageBytes,
+    String? customerReference,
+    String? note,
+  }) async {
+    if (proofImageBytes.isEmpty) {
+      throw const SaleCheckoutRepositoryException(
+        reasonCode: SaleCheckoutReasonCodes.invalidRequest,
+        message: 'Proof image is required for a manual payment claim.',
+      );
+    }
+
+    final proofImageUrl = await _repo.uploadManualPaymentProofImage(
+      imageBytes: proofImageBytes,
+    );
+    await recordLocalManualExternalPaymentClaim(
+      order,
+      claimedTenderAmount: claimedTenderAmount,
+      proofImageUrl: proofImageUrl,
+      customerReference: customerReference,
+      note: note,
+    );
   }
 
   Future<SaleCreateManualPaymentClaimResultDto>
@@ -973,6 +1206,11 @@ class Order {
     this.checkedOutAt,
     this.remoteManualPaymentClaimId,
     this.remoteManualPaymentClaimStatus,
+    this.openedByAccountId,
+    this.openedByDisplayName,
+    this.manualPaymentClaimRequestedByAccountId,
+    this.manualPaymentClaimRequestedByDisplayName,
+    this.manualPaymentClaimRequestedAt,
   });
 
   final String id;
@@ -1009,6 +1247,11 @@ class Order {
   final DateTime? checkedOutAt;
   final String? remoteManualPaymentClaimId;
   final String? remoteManualPaymentClaimStatus;
+  final String? openedByAccountId;
+  final String? openedByDisplayName;
+  final String? manualPaymentClaimRequestedByAccountId;
+  final String? manualPaymentClaimRequestedByDisplayName;
+  final DateTime? manualPaymentClaimRequestedAt;
 
   String get orderId => id.trim();
 
@@ -1200,6 +1443,14 @@ class Order {
           : SaleMappers.toUiPaymentMethod(summary.paymentMethod!),
       remoteManualPaymentClaimId: summary.manualPaymentClaimId,
       remoteManualPaymentClaimStatus: summary.manualPaymentClaimStatus,
+      openedByAccountId: summary.openedByAccountId,
+      openedByDisplayName: summary.openedByDisplayName,
+      manualPaymentClaimRequestedByAccountId:
+          summary.manualPaymentClaimRequestedByAccountId,
+      manualPaymentClaimRequestedByDisplayName:
+          summary.manualPaymentClaimRequestedByDisplayName,
+      manualPaymentClaimRequestedAt: summary.manualPaymentClaimRequestedAt
+          ?.toLocal(),
     );
   }
 
@@ -1266,6 +1517,7 @@ class Order {
       localOutageClaimSubmittedAt: record.claimSubmittedAt?.toLocal(),
       localOutageLastErrorCode: record.lastErrorCode,
       localOutageLastErrorMessage: record.lastErrorMessage,
+      openedByAccountId: record.accountId,
     );
   }
 }

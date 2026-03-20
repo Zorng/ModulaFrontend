@@ -61,7 +61,7 @@ class DriftSaleOutageStore implements SaleOutageStore {
         await (_db.select(_db.saleOutageOrderEntries)
               ..where((tbl) => tbl.tenantId.equals(scope.tenantId))
               ..where((tbl) => tbl.branchId.equals(scope.branchId))
-              ..where((tbl) => tbl.accountId.equals(scope.accountId))
+              ..where((tbl) => _visibleToScope(tbl, scope))
               ..orderBy([(tbl) => OrderingTerm.desc(tbl.createdAt)]))
             .get();
     return rows.map(_mapRow).toList(growable: false);
@@ -76,7 +76,7 @@ class DriftSaleOutageStore implements SaleOutageStore {
         await (_db.select(_db.saleOutageOrderEntries)
               ..where((tbl) => tbl.tenantId.equals(scope.tenantId))
               ..where((tbl) => tbl.branchId.equals(scope.branchId))
-              ..where((tbl) => tbl.accountId.equals(scope.accountId))
+              ..where((tbl) => _visibleToScope(tbl, scope))
               ..where((tbl) => tbl.localIntentId.equals(localIntentId)))
             .getSingleOrNull();
     return row == null ? null : _mapRow(row);
@@ -131,7 +131,7 @@ class DriftSaleOutageStore implements SaleOutageStore {
     await (_db.delete(_db.saleOutageOrderEntries)
           ..where((tbl) => tbl.tenantId.equals(scope.tenantId))
           ..where((tbl) => tbl.branchId.equals(scope.branchId))
-          ..where((tbl) => tbl.accountId.equals(scope.accountId))
+          ..where((tbl) => _visibleToScope(tbl, scope))
           ..where((tbl) => tbl.localIntentId.equals(localIntentId)))
         .go();
   }
@@ -143,6 +143,16 @@ class DriftSaleOutageStore implements SaleOutageStore {
           ..where((tbl) => tbl.branchId.equals(scope.branchId))
           ..where((tbl) => tbl.accountId.equals(scope.accountId)))
         .go();
+  }
+
+  Expression<bool> _visibleToScope(
+    $SaleOutageOrderEntriesTable tbl,
+    SaleOutageScope scope,
+  ) {
+    return tbl.accountId.equals(scope.accountId) |
+        tbl.sourceMode.equals(
+          SaleOutageSourceModes.manualExternalPaymentClaim,
+        );
   }
 
   SaleOutageOrderRecord _mapRow(SaleOutageOrderEntry row) {

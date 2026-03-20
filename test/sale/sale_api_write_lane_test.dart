@@ -14,6 +14,52 @@ void main() {
   });
 
   group('SaleApi write idempotency', () {
+    test('uploadManualPaymentProofImage sends area payment-proof', () async {
+      final dio = _MockDio();
+      when(
+        () => dio.post<dynamic>(
+          any(),
+          data: any(named: 'data'),
+        ),
+      ).thenAnswer(
+        (_) async => Response<dynamic>(
+          requestOptions: RequestOptions(path: '/v0/media/images/upload'),
+          data: {
+            'success': true,
+            'data': {
+              'imageUrl': 'https://cdn.example.com/payment-proof/proof-1.jpg',
+            },
+          },
+        ),
+      );
+
+      final api = SaleApi(dio);
+      final imageUrl = await api.uploadManualPaymentProofImage(
+        imageBytes: const [0xFF, 0xD8, 0xFF, 0x00],
+      );
+
+      expect(imageUrl, 'https://cdn.example.com/payment-proof/proof-1.jpg');
+
+      final captured =
+          verify(
+                () => dio.post<dynamic>(
+                  '/v0/media/images/upload',
+                  data: captureAny(named: 'data'),
+                ),
+              ).captured.single
+              as FormData;
+      expect(
+        captured.fields,
+        contains(
+          isA<MapEntry<String, String>>()
+              .having((entry) => entry.key, 'key', 'area')
+              .having((entry) => entry.value, 'value', 'payment-proof'),
+        ),
+      );
+      expect(captured.files, hasLength(1));
+      expect(captured.files.single.key, 'image');
+    });
+
     test('finalizeCashCheckout includes idempotency metadata', () async {
       final dio = _MockDio();
       final payload = {

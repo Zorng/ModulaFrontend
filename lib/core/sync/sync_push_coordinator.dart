@@ -124,6 +124,10 @@ class SyncPushCoordinator {
             appliedCount += 1;
             await _queueStore.write(
               record.copyWith(
+                payloadJson: _payloadJsonWithResultRefId(
+                  record: record,
+                  resultRefId: result.resultRefId,
+                ),
                 status: OfflineCommandQueueStatus.applied,
                 updatedAt: envelope.pushedAt,
                 lastSyncedAt: envelope.pushedAt,
@@ -136,6 +140,10 @@ class SyncPushCoordinator {
             duplicateCount += 1;
             await _queueStore.write(
               record.copyWith(
+                payloadJson: _payloadJsonWithResultRefId(
+                  record: record,
+                  resultRefId: result.resultRefId,
+                ),
                 status: OfflineCommandQueueStatus.duplicate,
                 updatedAt: envelope.pushedAt,
                 lastSyncedAt: envelope.pushedAt,
@@ -309,7 +317,32 @@ class SyncPushCoordinator {
       }
     }
 
+    if (record.operationType ==
+        OfflineOperationType.orderManualExternalPaymentClaimCapture) {
+      final localIntentId = (payload['localIntentId'] ?? '').toString().trim();
+      if (localIntentId.isEmpty) {
+        payload['localIntentId'] = previousClientOpId;
+        changed = true;
+      }
+    }
+
     return changed ? jsonEncode(payload) : record.payloadJson;
+  }
+
+  String _payloadJsonWithResultRefId({
+    required OfflineCommandRecord record,
+    required String? resultRefId,
+  }) {
+    final normalizedResultRefId = (resultRefId ?? '').trim();
+    if (normalizedResultRefId.isEmpty) return record.payloadJson;
+    final payload =
+        _decodePayloadJson(record.payloadJson) ?? <String, dynamic>{};
+    if ((payload['resultRefId'] ?? '').toString().trim() ==
+        normalizedResultRefId) {
+      return record.payloadJson;
+    }
+    payload['resultRefId'] = normalizedResultRefId;
+    return jsonEncode(payload);
   }
 
   Map<String, dynamic>? _decodePayloadJson(String payloadJson) {

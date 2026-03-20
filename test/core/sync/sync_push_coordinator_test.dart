@@ -193,6 +193,64 @@ void main() {
       );
     },
   );
+
+  test(
+    'replayPending persists resultRefId into applied operation payloads',
+    () async {
+      const clientOpId = '33333333-3333-4333-8333-333333333333';
+      final queueStore = _MemoryOfflineCommandQueueStore([
+        OfflineCommandRecord(
+          clientOpId: clientOpId,
+          operationType:
+              OfflineOperationType.orderManualExternalPaymentClaimCapture,
+          tenantId: 'tenant-1',
+          branchId: 'branch-1',
+          accountId: 'account-1',
+          occurredAt: DateTime.utc(2026, 3, 20, 9),
+          payloadJson:
+              '{"localIntentId":"local-claim-1","orderId":"client-order-1","items":[]}',
+          status: OfflineCommandQueueStatus.pending,
+          retryCount: 0,
+          createdAt: DateTime.utc(2026, 3, 20, 9),
+          updatedAt: DateTime.utc(2026, 3, 20, 9),
+        ),
+      ]);
+      final api = _FakeSyncPushApi(
+        envelope: SyncPushEnvelope(
+          pushedAt: DateTime.utc(2026, 3, 20, 10),
+          results: const [
+            SyncPushResult(
+              clientOpId: clientOpId,
+              status: SyncPushResultStatus.applied,
+              resultRefId: 'order-materialized-1',
+            ),
+          ],
+          rawData: const {},
+        ),
+      );
+      final coordinator = SyncPushCoordinator(
+        queueStore: queueStore,
+        api: api,
+        pullOrchestrator: _FakeSyncPullOrchestrator(
+          api: _FakeSyncPullApi(
+            envelope: SyncPullEnvelope(
+              cursor: null,
+              pulledAt: DateTime.utc(2026, 3, 20, 10),
+              payloadByScope: const {},
+              rawData: const {},
+            ),
+          ),
+        ),
+        readBranchWorkspaceScopes: () => const {SyncModuleScope.policy},
+      );
+
+      await coordinator.replayPending(context: context);
+
+      final persisted = await queueStore.read(clientOpId);
+      expect(persisted?.status, OfflineCommandQueueStatus.applied);
+      expect(persisted?.decodePayload()['resultRefId'], 'order-materialized-1');
+    },
+  );
 }
 
 OfflineCommandRecord _record(String clientOpId) {

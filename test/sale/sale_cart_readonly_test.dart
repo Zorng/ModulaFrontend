@@ -54,6 +54,20 @@ class _VatPolicyNotifier extends PolicyNotifier {
   }
 }
 
+class _ManualClaimDisabledPolicyNotifier extends PolicyNotifier {
+  @override
+  PolicyState build() {
+    return const PolicyState(
+      isLoading: false,
+      branchPolicy: BranchPolicy(
+        saleFxRateKhrPerUsd: 4000,
+        saleAllowPayLater: true,
+        saleAllowManualExternalPaymentClaim: false,
+      ),
+    );
+  }
+}
+
 class _StaticMenuViewModel extends MenuViewModel {
   _StaticMenuViewModel(this._state);
 
@@ -265,7 +279,9 @@ void main() {
           appConnectivityStatusProvider.overrideWith(
             _OfflineConnectivityNotifier.new,
           ),
-          policyNotifierProvider.overrideWith(_StaticPolicyNotifier.new),
+          policyNotifierProvider.overrideWith(
+            _ManualClaimDisabledPolicyNotifier.new,
+          ),
           menuViewModelProvider.overrideWith(
             () => _StaticMenuViewModel(const MenuState(isLoading: false)),
           ),
@@ -285,10 +301,11 @@ void main() {
               contextLoading: false,
               branchActive: true,
               branchFrozen: false,
-              cashSessionOpen: true,
-              canMutateCart: true,
-              canCheckout: true,
-              canPlacePayLater: true,
+              cashSessionOpen: false,
+              canMutateCart: false,
+              canCheckout: false,
+              canPlacePayLater: false,
+              reasonCode: SaleCheckoutReasonCodes.cashSessionRequired,
             ),
           ),
         ],
@@ -314,7 +331,7 @@ void main() {
   );
 
   testWidgets(
-    'offline QR flow uses Capture Claim Order when manual-claim fallback is enabled',
+    'offline QR flow keeps checkout action and explains later external-claim handling',
     (tester) async {
       SharedPreferences.setMockInitialValues({});
       final prefs = await SharedPreferences.getInstance();
@@ -356,10 +373,11 @@ void main() {
               contextLoading: false,
               branchActive: true,
               branchFrozen: false,
-              cashSessionOpen: true,
-              canMutateCart: true,
-              canCheckout: true,
-              canPlacePayLater: true,
+              cashSessionOpen: false,
+              canMutateCart: false,
+              canCheckout: false,
+              canPlacePayLater: false,
+              reasonCode: SaleCheckoutReasonCodes.cashSessionRequired,
             ),
           ),
         ],
@@ -374,13 +392,17 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      final captureButton = find.widgetWithText(
-        FilledButton,
-        'Capture Claim Order',
-      );
+      final captureButton = find.widgetWithText(FilledButton, 'Checkout');
       expect(captureButton, findsOneWidget);
       expect(tester.widget<FilledButton>(captureButton).onPressed, isNotNull);
       expect(find.widgetWithText(FilledButton, 'Generate Code'), findsNothing);
+      expect(
+        find.text(
+          'Offline KHQR gateway is unavailable. Checkout will capture the order first. Add proof and submit the external-payment claim when back online.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Capture KHQR Claim'), findsNothing);
     },
   );
 

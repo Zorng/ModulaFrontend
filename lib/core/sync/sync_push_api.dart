@@ -13,12 +13,14 @@ class SyncPushResult {
   const SyncPushResult({
     required this.clientOpId,
     required this.status,
+    this.resultRefId,
     this.errorCode,
     this.errorMessage,
   });
 
   final String clientOpId;
   final SyncPushResultStatus status;
+  final String? resultRefId;
   final String? errorCode;
   final String? errorMessage;
 }
@@ -127,6 +129,7 @@ class SyncPushApi {
     return SyncPushResult(
       clientOpId: clientOpId,
       status: _readStatus(map),
+      resultRefId: _readResultRefId(map),
       errorCode: _readErrorCode(map),
       errorMessage: _readErrorMessage(map),
     );
@@ -167,6 +170,15 @@ class SyncPushApi {
       details['reasonCode'],
       details['reason_code'],
     ];
+    for (final candidate in candidates) {
+      final value = candidate?.toString().trim() ?? '';
+      if (value.isNotEmpty) return value;
+    }
+    return null;
+  }
+
+  String? _readResultRefId(Map<String, dynamic> map) {
+    final candidates = <dynamic>[map['resultRefId'], map['result_ref_id']];
     for (final candidate in candidates) {
       final value = candidate?.toString().trim() ?? '';
       if (value.isNotEmpty) return value;

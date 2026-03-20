@@ -109,7 +109,7 @@ class _SaleBottomNavShellPageState
             case FulfillmentWorkspaceTab.externalClaims:
               ref
                   .read(ordersProvider.notifier)
-                  .load(date: DateTime.now(), status: 'open', view: null);
+                  .load(date: DateTime.now(), view: orderManualClaimReviewView);
           }
         });
       }

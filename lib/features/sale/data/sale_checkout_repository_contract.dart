@@ -7,6 +7,7 @@ class SaleCheckoutReasonCodes {
   static const cashSessionRequired = 'CASH_SESSION_REQUIRED';
   static const payLaterDisabled = 'PAY_LATER_DISABLED';
   static const khqrNotConfirmed = 'KHQR_NOT_CONFIRMED';
+  static const khqrFinalizationPending = 'KHQR_FINALIZATION_PENDING';
   static const khqrBranchReceiverNotConfigured =
       'KHQR_BRANCH_RECEIVER_NOT_CONFIGURED';
   static const duplicateOperation = 'DUPLICATE_OPERATION';
@@ -27,6 +28,7 @@ class SaleCheckoutReasonCodes {
       case cashSessionRequired:
       case payLaterDisabled:
       case khqrNotConfirmed:
+      case khqrFinalizationPending:
       case khqrBranchReceiverNotConfigured:
       case duplicateOperation:
       case idempotencyConflict:
@@ -948,31 +950,41 @@ class SaleOrderSummaryDto {
     required this.saleId,
     required this.orderId,
     required this.sourceMode,
+    required this.openedByAccountId,
     required this.ticketStatus,
     required this.fulfillmentStatus,
     required this.totalUsdExact,
     required this.totalKhrExact,
     required this.placedAt,
     this.linesPreview = const <SaleOrderLinePreviewDto>[],
+    this.openedByDisplayName,
     this.checkedOutAt,
     this.paymentMethod,
     this.manualPaymentClaimId,
     this.manualPaymentClaimStatus,
+    this.manualPaymentClaimRequestedByAccountId,
+    this.manualPaymentClaimRequestedByDisplayName,
+    this.manualPaymentClaimRequestedAt,
   });
 
   final String saleId;
   final String orderId;
   final String sourceMode;
+  final String openedByAccountId;
   final String ticketStatus;
   final String fulfillmentStatus;
   final double totalUsdExact;
   final double totalKhrExact;
   final DateTime placedAt;
   final List<SaleOrderLinePreviewDto> linesPreview;
+  final String? openedByDisplayName;
   final DateTime? checkedOutAt;
   final String? paymentMethod;
   final String? manualPaymentClaimId;
   final String? manualPaymentClaimStatus;
+  final String? manualPaymentClaimRequestedByAccountId;
+  final String? manualPaymentClaimRequestedByDisplayName;
+  final DateTime? manualPaymentClaimRequestedAt;
 }
 
 class SaleOrderLinePreviewDto {
@@ -1121,6 +1133,8 @@ abstract class SaleCartRepository {
   );
 
   Future<SalePlaceOrderResultDto> placeOrder(SalePlaceOrderCommand command);
+
+  Future<String> uploadManualPaymentProofImage({required List<int> imageBytes});
 
   Future<SaleCreateManualPaymentClaimResultDto> createManualPaymentClaim(
     SaleCreateManualPaymentClaimCommand command,

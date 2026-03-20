@@ -296,6 +296,8 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
         return 'Configure a Bakong receiver account for this branch before generating KHQR.';
       case SaleCheckoutReasonCodes.khqrNotConfirmed:
         return 'KHQR payment is not confirmed yet.';
+      case SaleCheckoutReasonCodes.khqrFinalizationPending:
+        return 'KHQR payment is confirmed, but backend finalization is still pending.';
       case SaleCheckoutReasonCodes.idempotencyConflict:
       case SaleCheckoutReasonCodes.duplicateOperation:
         return 'This checkout is already processing. Please wait before retrying.';
@@ -961,6 +963,7 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
     required String offlineOnlyMessage,
     required String invalidMethodMessage,
     bool enqueueCashReplay = false,
+    bool enqueueManualClaimCapture = false,
   }) async {
     if (state.isFinalizing) {
       throw Exception('Offline order capture already in progress.');
@@ -987,7 +990,7 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
     }
 
     final gate = ref.read(saleAccessGateProvider);
-    if (!gate.canCheckout) {
+    if (!gate.canCreateDraftSale) {
       final error = _saleAccessException(
         gate,
         fallbackCode: SaleCheckoutReasonCodes.unknownError,
@@ -1065,7 +1068,7 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
     final cashReceivedTenderAmount = normalizedTenderCurrency == 'KHR'
         ? cashReceivedKhr
         : cashReceivedUsd;
-    final replayItems = enqueueCashReplay
+    final replayItems = (enqueueCashReplay || enqueueManualClaimCapture)
         ? _buildOfflineCashReplayItems(currentState.lines, groupLookup)
         : const <Map<String, dynamic>>[];
 
@@ -1093,36 +1096,50 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
 
     final outageStore = ref.read(saleOutageStoreProvider);
     await outageStore.write(record);
-    if (enqueueCashReplay) {
-      final replayPayload = <String, dynamic>{
-        'orderId': _uuid.v4(),
-        'saleId': _uuid.v4(),
-        'items': replayItems,
-        'saleType': _normalizeCheckoutSaleType(currentState.saleType),
-        'tenderCurrency': normalizedTenderCurrency,
-        'cashReceivedTenderAmount': cashReceivedTenderAmount,
-        'pricingSnapshot': <String, dynamic>{
-          'subtotalUsd': subtotalUsd,
-          'subtotalKhr': subtotalKhr,
-          'vatUsd': taxUsd,
-          'vatKhr': taxKhr,
-          'grandTotalUsd': totalUsd,
-          'grandTotalKhr': totalKhr,
-          'saleFxRateKhrPerUsd': branchPolicy.saleFxRateKhrPerUsd,
-          'saleKhrRoundingEnabled': branchPolicy.saleKhrRoundingEnabled,
-          'saleKhrRoundingMode': branchPolicy.saleKhrRoundingMode,
-          'saleKhrRoundingGranularity': branchPolicy.saleKhrRoundingGranularity,
-        },
-      };
+    if (enqueueCashReplay || enqueueManualClaimCapture) {
       try {
-        await ref
-            .read(saleOfflineCashQueueProvider)
-            .enqueueCheckoutCashFinalize(
-              scope: scope,
-              localIntentId: localIntentId,
-              occurredAt: timestamp,
-              payload: replayPayload,
-            );
+        final replayQueue = ref.read(saleOfflineCashQueueProvider);
+        if (enqueueCashReplay) {
+          final replayPayload = <String, dynamic>{
+            'orderId': _uuid.v4(),
+            'saleId': _uuid.v4(),
+            'items': replayItems,
+            'saleType': _normalizeCheckoutSaleType(currentState.saleType),
+            'tenderCurrency': normalizedTenderCurrency,
+            'cashReceivedTenderAmount': cashReceivedTenderAmount,
+            'pricingSnapshot': <String, dynamic>{
+              'subtotalUsd': subtotalUsd,
+              'subtotalKhr': subtotalKhr,
+              'vatUsd': taxUsd,
+              'vatKhr': taxKhr,
+              'grandTotalUsd': totalUsd,
+              'grandTotalKhr': totalKhr,
+              'saleFxRateKhrPerUsd': branchPolicy.saleFxRateKhrPerUsd,
+              'saleKhrRoundingEnabled': branchPolicy.saleKhrRoundingEnabled,
+              'saleKhrRoundingMode': branchPolicy.saleKhrRoundingMode,
+              'saleKhrRoundingGranularity':
+                  branchPolicy.saleKhrRoundingGranularity,
+            },
+          };
+          await replayQueue.enqueueCheckoutCashFinalize(
+            scope: scope,
+            localIntentId: localIntentId,
+            occurredAt: timestamp,
+            payload: replayPayload,
+          );
+        }
+        if (enqueueManualClaimCapture) {
+          final replayPayload = <String, dynamic>{
+            'orderId': _uuid.v4(),
+            'items': replayItems,
+          };
+          await replayQueue.enqueueManualExternalPaymentClaimCapture(
+            scope: scope,
+            localIntentId: localIntentId,
+            occurredAt: timestamp,
+            payload: replayPayload,
+          );
+        }
       } catch (_) {
         await outageStore.deleteByLocalIntentId(
           scope: scope,
@@ -1152,20 +1169,6 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
   }
 
   Future<SaleOfflineCaptureResult> captureOfflineManualClaimOrder() async {
-    final branchPolicy = ref.read(policyNotifierProvider).branchPolicy;
-    if (!branchPolicy.saleAllowManualExternalPaymentClaim) {
-      final error = const SaleCheckoutRepositoryException(
-        reasonCode: SaleCheckoutReasonCodes.invalidRequest,
-        message:
-            'Manual external-payment claim fallback is disabled for this branch.',
-      );
-      state = _applyCheckoutFailure(
-        state,
-        reasonCode: error.reasonCode,
-        message: error.message,
-      );
-      throw error;
-    }
     return _captureOfflineOutageOrder(
       requiredPaymentMethod: 'qr',
       sourceMode: SaleOutageSourceModes.manualExternalPaymentClaim,
@@ -1173,6 +1176,7 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
           'Manual claim capture is only available while offline.',
       invalidMethodMessage:
           'Manual external-payment claim capture requires QR payment selection.',
+      enqueueManualClaimCapture: true,
     );
   }
 

@@ -173,6 +173,66 @@ void main() {
   );
 
   testWidgets(
+    'OrderDetailPage shows inline proof form for unprepared manual claim outage order when online',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1280, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      final order = Order(
+        id: '',
+        saleId: '',
+        number: '001',
+        status: 'pending',
+        ticketStatus: 'UNPAID',
+        placedAt: DateTime(2026, 3, 17, 9),
+        orderType: 'take_away',
+        paymentMethod: 'qr',
+        totalUsd: 3.5,
+        totalKhr: 14350,
+        tenderCurrency: 'usd',
+        tenderAmount: 3.5,
+        changeAmount: 0,
+        lines: const [OrderLine(name: 'Latte', modifiers: [], quantity: 1)],
+        isLocalOutageOrder: true,
+        localOutageState: SaleOutageOrderStates.localOpenOrderCaptured,
+        localOutageIntentId: 'claim-1',
+        localOutageSourceMode: SaleOutageSourceModes.manualExternalPaymentClaim,
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            ordersProvider.overrideWith(() => _StaticOrdersNotifier([order])),
+            policyNotifierProvider.overrideWith(_StaticPolicyNotifier.new),
+            appConnectivityStatusProvider.overrideWith(
+              _OnlineConnectivityNotifier.new,
+            ),
+            loginControllerProvider.overrideWith(
+              () => _StaticLoginController(_sessionForRole('cashier')),
+            ),
+          ],
+          child: const MaterialApp(
+            home: OrderDetailPage(orderIdentityKey: 'local:claim-1'),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      expect(find.text('Save Proof'), findsOneWidget);
+      expect(find.text('Submit Claim Online'), findsOneWidget);
+      expect(find.text('Payment'), findsNothing);
+      expect(find.text('Order Items'), findsOneWidget);
+      expect(find.text('Grand Total'), findsOneWidget);
+      expect(find.text('Customer reference (optional)'), findsOneWidget);
+      expect(find.text('Select proof image'), findsOneWidget);
+      expect(find.text('Record Manual Claim'), findsNothing);
+      expect(find.text('Proof image URL'), findsNothing);
+      expect(find.text('Add Claim Proof'), findsNothing);
+    },
+  );
+
+  testWidgets(
     'OrderDetailPage shows manual claim online submit action for recorded outage claim',
     (tester) async {
       final order = Order(
@@ -198,6 +258,7 @@ void main() {
         localOutageClaimedPaymentMethod: 'KHQR',
         localOutageClaimedTenderAmount: 3.5,
         localOutageProofImageUrl: 'https://example.com/proof.jpg',
+        openedByDisplayName: 'Staff One',
       );
 
       await tester.pumpWidget(
@@ -220,8 +281,10 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      expect(find.text('Manual KHQR Claim'), findsOneWidget);
+      expect(find.text('External Payment Claim'), findsOneWidget);
       expect(find.text('Submit Claim Online'), findsOneWidget);
+      expect(find.text('Captured by'), findsOneWidget);
+      expect(find.text('Staff One'), findsOneWidget);
     },
   );
 
@@ -254,6 +317,9 @@ void main() {
         localOutageProofImageUrl: 'https://example.com/proof.jpg',
         localOutageBackendClaimId: 'claim-1',
         localOutageClaimSubmittedAt: DateTime(2026, 3, 17, 9, 10),
+        openedByDisplayName: 'Staff One',
+        manualPaymentClaimRequestedByDisplayName: 'Staff Two',
+        manualPaymentClaimRequestedAt: DateTime(2026, 3, 17, 9, 10),
       );
 
       await tester.pumpWidget(
@@ -278,6 +344,11 @@ void main() {
 
       expect(find.text('Approve Claim'), findsOneWidget);
       expect(find.text('Reject Claim'), findsOneWidget);
+      expect(find.text('Captured by'), findsOneWidget);
+      expect(find.text('Staff One'), findsOneWidget);
+      expect(find.text('Submitted by'), findsOneWidget);
+      expect(find.text('Staff Two'), findsOneWidget);
+      expect(find.text('Submitted at'), findsOneWidget);
     },
   );
 }

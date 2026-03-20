@@ -45,7 +45,10 @@ class _OrderPageState extends ConsumerState<OrderPage> {
       case FulfillmentWorkspaceTab.kitchen:
         return notifier.load(date: _selectedDate);
       case FulfillmentWorkspaceTab.externalClaims:
-        return notifier.load(date: _selectedDate, status: 'open', view: null);
+        return notifier.load(
+          date: _selectedDate,
+          view: orderManualClaimReviewView,
+        );
     }
   }
 

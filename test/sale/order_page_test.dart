@@ -241,8 +241,8 @@ void main() {
     await tester.tap(find.text('External Claims'));
     await tester.pumpAndSettle();
 
-    expect(notifier.lastRequestedStatus, 'open');
-    expect(notifier.lastRequestedView, isNull);
+    expect(notifier.lastRequestedStatus, isNull);
+    expect(notifier.lastRequestedView, orderManualClaimReviewView);
     expect(find.text('Order No. CLAIM-001'), findsOneWidget);
     expect(find.text('Order No. ORDER-001'), findsNothing);
     expect(find.text('Claim Recorded'), findsOneWidget);

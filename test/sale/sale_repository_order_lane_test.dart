@@ -42,6 +42,8 @@ void main() {
               orderId: 'order-open',
               status: 'OPEN',
               sourceMode: 'STANDARD',
+              openedByAccountId: 'staff-1',
+              openedByDisplayName: 'Staff One',
               fulfillmentStatus: null,
               totalUsdExact: 3.5,
               linesPreview: const [
@@ -55,6 +57,9 @@ void main() {
               paymentMethod: null,
               manualPaymentClaimId: null,
               manualPaymentClaimStatus: null,
+              manualPaymentClaimRequestedByAccountId: null,
+              manualPaymentClaimRequestedByDisplayName: null,
+              manualPaymentClaimRequestedAt: null,
               createdAt: DateTime.utc(2026, 3, 18, 9, 0),
               updatedAt: DateTime.utc(2026, 3, 18, 9, 1),
             ),
@@ -62,6 +67,8 @@ void main() {
               orderId: 'order-paid',
               status: 'CHECKED_OUT',
               sourceMode: 'STANDARD',
+              openedByAccountId: 'staff-2',
+              openedByDisplayName: 'Staff Two',
               fulfillmentStatus: 'PREPARING',
               totalUsdExact: 5,
               linesPreview: const [
@@ -73,8 +80,11 @@ void main() {
               ],
               checkedOutAt: DateTime.utc(2026, 3, 18, 9, 7),
               paymentMethod: 'CASH',
-              manualPaymentClaimId: null,
-              manualPaymentClaimStatus: null,
+              manualPaymentClaimId: 'claim-1',
+              manualPaymentClaimStatus: 'PENDING',
+              manualPaymentClaimRequestedByAccountId: 'staff-3',
+              manualPaymentClaimRequestedByDisplayName: 'Staff Three',
+              manualPaymentClaimRequestedAt: DateTime.utc(2026, 3, 18, 9, 8),
               createdAt: DateTime.utc(2026, 3, 18, 9, 5),
               updatedAt: DateTime.utc(2026, 3, 18, 9, 6),
             ),
@@ -102,6 +112,7 @@ void main() {
       expect(open.totalUsdExact, 3.5);
       expect(open.totalKhrExact, 14400);
       expect(open.linesPreview.single.name, 'Iced Latte');
+      expect(open.openedByDisplayName, 'Staff One');
 
       final paid = result.items.firstWhere(
         (item) => item.orderId == 'order-paid',
@@ -111,6 +122,12 @@ void main() {
       expect(paid.fulfillmentStatus, 'in_prep');
       expect(paid.totalUsdExact, 5);
       expect(paid.paymentMethod, 'CASH');
+      expect(paid.openedByDisplayName, 'Staff Two');
+      expect(paid.manualPaymentClaimRequestedByDisplayName, 'Staff Three');
+      expect(
+        paid.manualPaymentClaimRequestedAt,
+        DateTime.utc(2026, 3, 18, 9, 8),
+      );
 
       verify(
         () => api.listOrders(
@@ -148,6 +165,8 @@ void main() {
               orderId: 'order-direct-checkout',
               status: 'CHECKED_OUT',
               sourceMode: 'DIRECT_CHECKOUT',
+              openedByAccountId: 'staff-1',
+              openedByDisplayName: 'Staff One',
               fulfillmentStatus: null,
               totalUsdExact: 5,
               linesPreview: const [
@@ -203,6 +222,8 @@ void main() {
               orderId: 'order-direct-open',
               status: 'OPEN',
               sourceMode: 'DIRECT_CHECKOUT',
+              openedByAccountId: 'staff-2',
+              openedByDisplayName: 'Staff Two',
               fulfillmentStatus: 'PENDING',
               totalUsdExact: 5,
               linesPreview: const [
@@ -362,6 +383,8 @@ void main() {
               orderId: 'order-open',
               status: 'OPEN',
               sourceMode: 'STANDARD',
+              openedByAccountId: 'staff-3',
+              openedByDisplayName: 'Staff Three',
               fulfillmentStatus: 'PREPARING',
               totalUsdExact: 5,
               linesPreview: const [

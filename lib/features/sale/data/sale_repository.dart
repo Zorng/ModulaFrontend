@@ -398,13 +398,44 @@ class SaleRepository implements SaleCheckoutRepository {
       if (normalizedIntentId.isNotEmpty) {
         final intentState = await _api.getKhqrIntentStatus(normalizedIntentId);
         final finalizedSaleId = _readString(intentState.saleId);
-        if (finalizedSaleId.isEmpty) {
+        if (finalizedSaleId.isNotEmpty) {
+          return _buildMaterializedKhqrFinalizeResult(finalizedSaleId);
+        }
+        final normalizedStatus = intentState.status.trim().toUpperCase();
+        if (normalizedStatus == 'PAID_CONFIRMED') {
+          final normalizedMd5 = _readString(command.khqrMd5);
+          if (normalizedMd5.isEmpty) {
+            throw const SaleCheckoutRepositoryException(
+              reasonCode: SaleCheckoutReasonCodes.khqrFinalizationPending,
+              message:
+                  'KHQR payment is confirmed, but finalize fallback cannot continue because the payment reference is missing.',
+            );
+          }
+          final confirm = await _api.confirmKhqrPayment(
+            normalizedMd5,
+            idempotency: IdempotencyRequest(
+              actionKey: 'payment.khqr.confirm',
+              intentId: 'checkout-khqr-confirm-$normalizedIntentId',
+              payload: {
+                'md5': normalizedMd5,
+                'paymentIntentId': normalizedIntentId,
+              },
+            ),
+          );
+          final confirmedSaleId = _readString(confirm.sale?.saleId);
+          if (confirm.saleFinalized && confirmedSaleId.isNotEmpty) {
+            return _buildMaterializedKhqrFinalizeResult(confirmedSaleId);
+          }
           throw const SaleCheckoutRepositoryException(
-            reasonCode: SaleCheckoutReasonCodes.khqrNotConfirmed,
-            message: 'KHQR payment is not confirmed yet.',
+            reasonCode: SaleCheckoutReasonCodes.khqrFinalizationPending,
+            message:
+                'KHQR payment is confirmed, but backend finalization is still pending. Please wait a moment and try again.',
           );
         }
-        return _buildMaterializedKhqrFinalizeResult(finalizedSaleId);
+        throw const SaleCheckoutRepositoryException(
+          reasonCode: SaleCheckoutReasonCodes.khqrNotConfirmed,
+          message: 'KHQR payment is not confirmed yet.',
+        );
       }
       if (normalizedSaleId.isNotEmpty) {
         return _buildMaterializedKhqrFinalizeResult(normalizedSaleId);
@@ -463,15 +494,7 @@ class SaleRepository implements SaleCheckoutRepository {
     final normalizedSourceMode = _readString(command.sourceMode).toUpperCase();
     final isManualClaimOrder =
         normalizedSourceMode == 'MANUAL_EXTERNAL_PAYMENT_CLAIM';
-    if (isManualClaimOrder) {
-      if (!_policyAllowsManualExternalPaymentClaim(command.branchId)) {
-        throw const SaleCheckoutRepositoryException(
-          reasonCode: SaleCheckoutReasonCodes.invalidRequest,
-          message:
-              'Manual external-payment claim fallback is disabled for this branch.',
-        );
-      }
-    } else if (!_policyAllowsPayLater(command.branchId)) {
+    if (!isManualClaimOrder && !_policyAllowsPayLater(command.branchId)) {
       throw const SaleCheckoutRepositoryException(
         reasonCode: SaleCheckoutReasonCodes.payLaterDisabled,
         message: 'Pay-later order placement is disabled for this branch.',
@@ -516,6 +539,17 @@ class SaleRepository implements SaleCheckoutRepository {
   }
 
   @override
+  Future<String> uploadManualPaymentProofImage({
+    required List<int> imageBytes,
+  }) async {
+    try {
+      return await _api.uploadManualPaymentProofImage(imageBytes: imageBytes);
+    } on ApiClientException catch (error) {
+      throw _toSaleRepoException(error);
+    }
+  }
+
+  @override
   Future<SaleCreateManualPaymentClaimResultDto> createManualPaymentClaim(
     SaleCreateManualPaymentClaimCommand command,
   ) async {
@@ -531,7 +565,7 @@ class SaleRepository implements SaleCheckoutRepository {
     if (normalizedProofUrl.isEmpty) {
       throw const SaleCheckoutRepositoryException(
         reasonCode: SaleCheckoutReasonCodes.invalidRequest,
-        message: 'Proof image URL is required before creating a manual claim.',
+        message: 'Proof image is required before creating a manual claim.',
       );
     }
 
@@ -770,6 +804,7 @@ class SaleRepository implements SaleCheckoutRepository {
             saleId: '',
             orderId: item.orderId,
             sourceMode: item.sourceMode,
+            openedByAccountId: item.openedByAccountId,
             ticketStatus: _mapOrderTicketStatus(
               orderStatus: item.status,
               isCheckedOutLike: isCheckedOutLike,
@@ -793,10 +828,16 @@ class SaleRepository implements SaleCheckoutRepository {
                   ),
                 )
                 .toList(growable: false),
+            openedByDisplayName: item.openedByDisplayName,
             checkedOutAt: item.checkedOutAt,
             paymentMethod: item.paymentMethod,
             manualPaymentClaimId: item.manualPaymentClaimId,
             manualPaymentClaimStatus: item.manualPaymentClaimStatus,
+            manualPaymentClaimRequestedByAccountId:
+                item.manualPaymentClaimRequestedByAccountId,
+            manualPaymentClaimRequestedByDisplayName:
+                item.manualPaymentClaimRequestedByDisplayName,
+            manualPaymentClaimRequestedAt: item.manualPaymentClaimRequestedAt,
           );
         })
         .toList(growable: false);
@@ -936,12 +977,12 @@ class SaleRepository implements SaleCheckoutRepository {
   }
 
   Map<String, dynamic> _toCheckoutItemPayload(SaleCartLineInputDto line) {
-    final modifiers = _normalizeModifierSelections(line.modifiers);
+    final modifierSelections = _normalizeModifierSelections(line.modifiers);
     return {
       'menuItemId': line.menuItemId,
       'quantity': line.quantity,
-      // Live checkout implementation still consumes `modifiers` here.
-      if (modifiers.isNotEmpty) 'modifiers': modifiers,
+      if (modifierSelections.isNotEmpty)
+        'modifierSelections': modifierSelections,
     };
   }
 
@@ -1059,13 +1100,6 @@ class SaleRepository implements SaleCheckoutRepository {
     if (policy.branchId.trim().isEmpty) return false;
     if (policy.branchId.trim() != branchId) return false;
     return policy.saleAllowPayLater;
-  }
-
-  bool _policyAllowsManualExternalPaymentClaim(String branchId) {
-    final policy = _policyStateReader().branchPolicy;
-    if (policy.branchId.trim().isEmpty) return false;
-    if (policy.branchId.trim() != branchId) return false;
-    return policy.saleAllowManualExternalPaymentClaim;
   }
 
   String? _mapOrderListStatusQuery(String? status) {

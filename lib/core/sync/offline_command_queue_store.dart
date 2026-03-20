@@ -6,6 +6,9 @@ import 'package:modular_pos/core/storage/app_database.dart';
 
 enum OfflineOperationType {
   checkoutCashFinalize('checkout.cash.finalize'),
+  orderManualExternalPaymentClaimCapture(
+    'order.manualExternalPaymentClaim.capture',
+  ),
   attendanceStartWork('attendance.startWork'),
   attendanceEndWork('attendance.endWork'),
   cashSessionOpen('cashSession.open'),
@@ -282,10 +285,15 @@ class DriftOfflineCommandQueueStore implements OfflineCommandQueueStore {
   }) {
     final normalizedBranchId = (branchId ?? '').trim();
     final normalizedAccountId = (accountId ?? '').trim();
-    return _db.select(_db.offlineCommandQueueEntries)
-      ..where((tbl) => tbl.tenantId.equals(tenantId.trim()))
-      ..where((tbl) => tbl.branchId.equals(normalizedBranchId))
-      ..where((tbl) => tbl.accountId.equals(normalizedAccountId));
+    final query = _db.select(_db.offlineCommandQueueEntries)
+      ..where((tbl) => tbl.tenantId.equals(tenantId.trim()));
+    if (normalizedBranchId.isNotEmpty) {
+      query.where((tbl) => tbl.branchId.equals(normalizedBranchId));
+    }
+    if (normalizedAccountId.isNotEmpty) {
+      query.where((tbl) => tbl.accountId.equals(normalizedAccountId));
+    }
+    return query;
   }
 
   OfflineCommandRecord _mapRow(OfflineCommandQueueEntry row) {

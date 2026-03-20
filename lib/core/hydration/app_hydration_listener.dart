@@ -343,15 +343,16 @@ class _AppHydrationListenerState extends ConsumerState<AppHydrationListener> {
         branchId: branchId,
         accountId: accountId,
       );
-      await ref
-          .read(saleOfflineCashQueueProvider)
-          .repairQueuedCashReplayPayloads(
-            scope: SaleOutageScope(
-              tenantId: tenantId,
-              branchId: branchId,
-              accountId: accountId,
-            ),
-          );
+      final outageScope = SaleOutageScope(
+        tenantId: tenantId,
+        branchId: branchId,
+        accountId: accountId,
+      );
+      final saleReplayQueue = ref.read(saleOfflineCashQueueProvider);
+      await saleReplayQueue.repairQueuedCashReplayPayloads(scope: outageScope);
+      await saleReplayQueue.backfillManualClaimCaptureOperations(
+        scope: outageScope,
+      );
       final pushResult = await ref
           .read(syncPushTriggerControllerProvider)
           .triggerBranchWorkspace(

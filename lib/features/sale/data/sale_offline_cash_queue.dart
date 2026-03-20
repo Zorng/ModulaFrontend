@@ -55,6 +55,36 @@ class SaleOfflineCashQueue {
     return record;
   }
 
+  Future<OfflineCommandRecord> enqueueManualExternalPaymentClaimCapture({
+    required SaleOutageScope scope,
+    required String localIntentId,
+    required DateTime occurredAt,
+    required Map<String, dynamic> payload,
+  }) async {
+    final timestamp = DateTime.now().toUtc();
+    final normalizedPayload = Map<String, dynamic>.from(payload);
+    final normalizedLocalIntentId = localIntentId.trim();
+    if ((normalizedPayload['localIntentId'] ?? '').toString().trim().isEmpty) {
+      normalizedPayload['localIntentId'] = normalizedLocalIntentId;
+    }
+    final record = OfflineCommandRecord(
+      clientOpId: _uuid.v4(),
+      operationType:
+          OfflineOperationType.orderManualExternalPaymentClaimCapture,
+      tenantId: scope.tenantId,
+      branchId: scope.branchId,
+      accountId: scope.accountId,
+      occurredAt: occurredAt.toUtc(),
+      payloadJson: jsonEncode(normalizedPayload),
+      status: OfflineCommandQueueStatus.pending,
+      retryCount: 0,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    );
+    await _queueStore.write(record);
+    return record;
+  }
+
   Future<int> repairQueuedCashReplayPayloads({
     required SaleOutageScope scope,
     int limit = 200,
@@ -121,10 +151,67 @@ class SaleOfflineCashQueue {
     return repairedCount;
   }
 
+  Future<int> backfillManualClaimCaptureOperations({
+    required SaleOutageScope scope,
+    int limit = 200,
+  }) async {
+    final outageRecords = await _outageStore.list(scope);
+    if (outageRecords.isEmpty) return 0;
+
+    final candidateOutages = outageRecords
+        .where((record) {
+          return _isManualClaimOutage(record) &&
+              (record.backendOrderId ?? '').trim().isEmpty;
+        })
+        .toList(growable: false);
+    if (candidateOutages.isEmpty) return 0;
+
+    final queueRecords = await _queueStore.listForContext(
+      tenantId: scope.tenantId,
+      branchId: scope.branchId,
+      statuses: const {
+        OfflineCommandQueueStatus.pending,
+        OfflineCommandQueueStatus.syncing,
+        OfflineCommandQueueStatus.applied,
+        OfflineCommandQueueStatus.duplicate,
+        OfflineCommandQueueStatus.failed,
+      },
+      limit: limit,
+    );
+    final queuedLocalIntentIds = <String>{
+      for (final record in queueRecords)
+        if (record.operationType ==
+            OfflineOperationType.orderManualExternalPaymentClaimCapture)
+          _resolveLocalIntentId(record, record.decodePayload()),
+    };
+
+    var enqueuedCount = 0;
+    for (final outageRecord in candidateOutages) {
+      if (queuedLocalIntentIds.contains(outageRecord.localIntentId)) {
+        continue;
+      }
+      await enqueueManualExternalPaymentClaimCapture(
+        scope: scope,
+        localIntentId: outageRecord.localIntentId,
+        occurredAt: outageRecord.createdAt,
+        payload: _buildManualClaimCapturePayloadFromRecord(outageRecord),
+      );
+      queuedLocalIntentIds.add(outageRecord.localIntentId);
+      enqueuedCount += 1;
+    }
+    return enqueuedCount;
+  }
+
   bool _isStandardCashOutage(SaleOutageOrderRecord record) {
     return SaleOutageSourceModes.normalize(record.sourceMode) ==
             SaleOutageSourceModes.standardOpenOrder &&
         record.paymentMethodRequested.trim().toLowerCase() == 'cash';
+  }
+
+  bool _isManualClaimOutage(SaleOutageOrderRecord record) {
+    return SaleOutageSourceModes.normalize(record.sourceMode) ==
+            SaleOutageSourceModes.manualExternalPaymentClaim &&
+        record.paymentMethodRequested.trim().toLowerCase() == 'qr';
   }
 
   String _resolveLocalIntentId(
@@ -198,6 +285,36 @@ class SaleOfflineCashQueue {
 
     repaired['items'] = repairedItems;
     return repaired;
+  }
+
+  Map<String, dynamic> _buildManualClaimCapturePayloadFromRecord(
+    SaleOutageOrderRecord record,
+  ) {
+    return <String, dynamic>{
+      'localIntentId': record.localIntentId,
+      'orderId': _uuid.v4(),
+      'items': record.lines
+          .map(
+            (line) => <String, dynamic>{
+              'menuItemId': line.menuItemId,
+              'menuItemNameSnapshot': line.name,
+              'unitPrice': line.unitPriceUsd,
+              'quantity': line.quantity,
+              'lineSubtotal': line.lineTotalUsdExact,
+              'modifierSnapshot': line.modifierLabels
+                  .map(
+                    (label) => <String, dynamic>{
+                      'label': label,
+                      'priceAdjustmentUsd': 0,
+                    },
+                  )
+                  .toList(growable: false),
+              if (line.selectedOptionIds.isNotEmpty)
+                'modifierSelections': _buildModifierSelections(line),
+            },
+          )
+          .toList(growable: false),
+    };
   }
 
   Map<String, dynamic> _asMutableMap(dynamic value) {

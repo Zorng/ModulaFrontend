@@ -123,4 +123,76 @@ void main() {
       );
     },
   );
+
+  test(
+    'backfillManualClaimCaptureOperations enqueues branch-visible claim capture replay for local outage claims',
+    () async {
+      final timestamp = DateTime.utc(2026, 3, 20, 9);
+      await outageStore.write(
+        SaleOutageOrderRecord(
+          localIntentId: 'local-claim-1',
+          orderNumber: 'LOCAL-CLAIM-1',
+          tenantId: scope.tenantId,
+          branchId: scope.branchId,
+          accountId: 'staff-1',
+          saleType: 'take_away',
+          paymentMethodRequested: 'qr',
+          tenderCurrency: 'USD',
+          cashReceivedUsd: 0,
+          cashReceivedKhr: 0,
+          totalUsd: 4.25,
+          totalKhr: 17425,
+          lines: const [
+            SaleOutageLineSnapshot(
+              menuItemId: 'menu-2',
+              name: 'Mocha',
+              quantity: 1,
+              selectedOptionIds: {
+                'group-1': ['option-1'],
+              },
+              modifierLabels: ['Extra shot'],
+              unitPriceUsd: 4.25,
+              lineTotalUsdExact: 4.25,
+            ),
+          ],
+          state: SaleOutageOrderStates.localOpenOrderCaptured,
+          sourceMode: SaleOutageSourceModes.manualExternalPaymentClaim,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        ),
+      );
+
+      final count = await queue.backfillManualClaimCaptureOperations(
+        scope: scope,
+      );
+      final queued = await queueStore.listForContext(
+        tenantId: scope.tenantId,
+        branchId: scope.branchId,
+        accountId: scope.accountId,
+      );
+
+      expect(count, 1);
+      expect(queued, hasLength(1));
+      expect(
+        queued.single.operationType,
+        OfflineOperationType.orderManualExternalPaymentClaimCapture,
+      );
+      final payload = queued.single.decodePayload();
+      expect(payload['localIntentId'], 'local-claim-1');
+      expect(payload['orderId'], isNotEmpty);
+      final items = payload['items'] as List<dynamic>;
+      expect(items.single, containsPair('menuItemNameSnapshot', 'Mocha'));
+      expect(items.single, containsPair('unitPrice', 4.25));
+      expect(items.single, containsPair('lineSubtotal', 4.25));
+      expect(
+        items.single,
+        containsPair('modifierSelections', [
+          {
+            'groupId': 'group-1',
+            'optionIds': ['option-1'],
+          },
+        ]),
+      );
+    },
+  );
 }

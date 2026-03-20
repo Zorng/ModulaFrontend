@@ -49,7 +49,6 @@ class MockSaleRepository implements SaleCheckoutRepository {
   bool _branchFrozen = false;
   bool _cashSessionOpen = true;
   bool _payLaterEnabled = true;
-  bool _manualExternalPaymentClaimEnabled = true;
   bool _khqrReceiverConfigured = true;
   bool _online = true;
   bool _authorized = true;
@@ -64,7 +63,6 @@ class MockSaleRepository implements SaleCheckoutRepository {
     bool? branchFrozen,
     bool? cashSessionOpen,
     bool? payLaterEnabled,
-    bool? manualExternalPaymentClaimEnabled,
     bool? khqrReceiverConfigured,
     bool? online,
     bool? authorized,
@@ -76,9 +74,6 @@ class MockSaleRepository implements SaleCheckoutRepository {
     if (branchFrozen != null) _branchFrozen = branchFrozen;
     if (cashSessionOpen != null) _cashSessionOpen = cashSessionOpen;
     if (payLaterEnabled != null) _payLaterEnabled = payLaterEnabled;
-    if (manualExternalPaymentClaimEnabled != null) {
-      _manualExternalPaymentClaimEnabled = manualExternalPaymentClaimEnabled;
-    }
     if (khqrReceiverConfigured != null) {
       _khqrReceiverConfigured = khqrReceiverConfigured;
     }
@@ -101,7 +96,6 @@ class MockSaleRepository implements SaleCheckoutRepository {
     _cartFingerprintBySaleId.clear();
     _idempotencyRecords.clear();
     _idCounter = 1;
-    _manualExternalPaymentClaimEnabled = true;
   }
 
   @override
@@ -737,13 +731,6 @@ class MockSaleRepository implements SaleCheckoutRepository {
       requiresPayLaterEnabled: !isManualClaimOrder,
       requiresOnline: true,
     );
-    if (isManualClaimOrder && !_manualExternalPaymentClaimEnabled) {
-      throw const SaleCheckoutRepositoryException(
-        reasonCode: SaleCheckoutReasonCodes.invalidRequest,
-        message:
-            'Manual external-payment claim fallback is disabled for this branch.',
-      );
-    }
 
     return _runIdempotent(
       action: 'ticket.place',
@@ -810,6 +797,24 @@ class MockSaleRepository implements SaleCheckoutRepository {
   }
 
   @override
+  Future<String> uploadManualPaymentProofImage({
+    required List<int> imageBytes,
+  }) async {
+    _ensureWriteAllowed(
+      branchId: _activeBranchId,
+      requiresPayLaterEnabled: false,
+      requiresOnline: true,
+    );
+    if (imageBytes.isEmpty) {
+      throw const SaleCheckoutRepositoryException(
+        reasonCode: SaleCheckoutReasonCodes.invalidRequest,
+        message: 'Proof image is required before creating a manual claim.',
+      );
+    }
+    return 'https://example.com/payment-proof/${_nextId('proof')}.jpg';
+  }
+
+  @override
   Future<SaleCreateManualPaymentClaimResultDto> createManualPaymentClaim(
     SaleCreateManualPaymentClaimCommand command,
   ) async {
@@ -818,13 +823,6 @@ class MockSaleRepository implements SaleCheckoutRepository {
       requiresPayLaterEnabled: false,
       requiresOnline: true,
     );
-    if (!_manualExternalPaymentClaimEnabled) {
-      throw const SaleCheckoutRepositoryException(
-        reasonCode: SaleCheckoutReasonCodes.invalidRequest,
-        message:
-            'Manual external-payment claim fallback is disabled for this branch.',
-      );
-    }
 
     return _runIdempotent(
       action: 'ticket.manual_claim.create',
@@ -843,8 +841,7 @@ class MockSaleRepository implements SaleCheckoutRepository {
         if (command.proofImageUrl.trim().isEmpty) {
           throw const SaleCheckoutRepositoryException(
             reasonCode: SaleCheckoutReasonCodes.invalidRequest,
-            message:
-                'Proof image URL is required before creating a manual claim.',
+            message: 'Proof image is required before creating a manual claim.',
           );
         }
 
@@ -1247,6 +1244,7 @@ class MockSaleRepository implements SaleCheckoutRepository {
           saleId: ticket.saleId,
           orderId: ticket.openTicketId,
           sourceMode: 'STANDARD',
+          openedByAccountId: 'mock-account-1',
           ticketStatus: ticket.status,
           fulfillmentStatus: ticket.status == 'PAID' ? 'in_prep' : 'pending',
           totalUsdExact: ticket.payableUsdExact,
@@ -1262,6 +1260,7 @@ class MockSaleRepository implements SaleCheckoutRepository {
           saleId: finalized.saleId,
           orderId: finalized.saleId,
           sourceMode: 'DIRECT_CHECKOUT',
+          openedByAccountId: 'mock-account-1',
           ticketStatus: 'PAID',
           fulfillmentStatus: finalized.fulfillmentStatus,
           totalUsdExact: finalized.totalUsdExact,

@@ -142,6 +142,7 @@ class SaleCartState {
       case SaleCheckoutReasonCodes.cashSessionRequired:
       case SaleCheckoutReasonCodes.payLaterDisabled:
       case SaleCheckoutReasonCodes.khqrNotConfirmed:
+      case SaleCheckoutReasonCodes.khqrFinalizationPending:
       case SaleCheckoutReasonCodes.invalidRequest:
         return true;
       default:

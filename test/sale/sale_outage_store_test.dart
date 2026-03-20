@@ -124,4 +124,122 @@ void main() {
     final loaded = await store.list(scope);
     expect(loaded, isEmpty);
   });
+
+  test(
+    'manual-claim outage orders are visible across staff accounts on the same branch',
+    () async {
+      const creatorScope = SaleOutageScope(
+        tenantId: 'tenant-1',
+        branchId: 'branch-1',
+        accountId: 'staff-1',
+      );
+      const otherStaffScope = SaleOutageScope(
+        tenantId: 'tenant-1',
+        branchId: 'branch-1',
+        accountId: 'staff-2',
+      );
+
+      await store.write(
+        SaleOutageOrderRecord(
+          localIntentId: 'local-claim-1',
+          orderNumber: 'LOCAL-CLM',
+          tenantId: creatorScope.tenantId,
+          branchId: creatorScope.branchId,
+          accountId: creatorScope.accountId,
+          saleType: 'take_away',
+          paymentMethodRequested: 'qr',
+          tenderCurrency: 'USD',
+          cashReceivedUsd: 0,
+          cashReceivedKhr: 0,
+          totalUsd: 3.5,
+          totalKhr: 14350,
+          lines: const [
+            SaleOutageLineSnapshot(
+              menuItemId: 'menu-1',
+              name: 'Iced Latte',
+              quantity: 1,
+              selectedOptionIds: {},
+              modifierLabels: [],
+              unitPriceUsd: 3.5,
+              lineTotalUsdExact: 3.5,
+            ),
+          ],
+          state: SaleOutageOrderStates.manualExternalPaymentClaimRecorded,
+          sourceMode: SaleOutageSourceModes.manualExternalPaymentClaim,
+          proofImageUrl: 'https://example.com/proof.jpg',
+          claimedPaymentMethod: 'KHQR',
+          claimedTenderAmount: 3.5,
+          createdAt: DateTime.utc(2026, 3, 17, 9),
+          updatedAt: DateTime.utc(2026, 3, 17, 9),
+        ),
+      );
+
+      final loaded = await store.list(otherStaffScope);
+      final read = await store.readByLocalIntentId(
+        scope: otherStaffScope,
+        localIntentId: 'local-claim-1',
+      );
+
+      expect(loaded, hasLength(1));
+      expect(loaded.single.accountId, creatorScope.accountId);
+      expect(read?.localIntentId, 'local-claim-1');
+    },
+  );
+
+  test(
+    'standard outage orders stay account-scoped for other staff on the same branch',
+    () async {
+      const creatorScope = SaleOutageScope(
+        tenantId: 'tenant-1',
+        branchId: 'branch-1',
+        accountId: 'staff-1',
+      );
+      const otherStaffScope = SaleOutageScope(
+        tenantId: 'tenant-1',
+        branchId: 'branch-1',
+        accountId: 'staff-2',
+      );
+
+      await store.write(
+        SaleOutageOrderRecord(
+          localIntentId: 'local-cash-1',
+          orderNumber: 'LOCAL-CASH',
+          tenantId: creatorScope.tenantId,
+          branchId: creatorScope.branchId,
+          accountId: creatorScope.accountId,
+          saleType: 'take_away',
+          paymentMethodRequested: 'cash',
+          tenderCurrency: 'USD',
+          cashReceivedUsd: 5,
+          cashReceivedKhr: 0,
+          totalUsd: 3.5,
+          totalKhr: 14350,
+          lines: const [
+            SaleOutageLineSnapshot(
+              menuItemId: 'menu-1',
+              name: 'Iced Latte',
+              quantity: 1,
+              selectedOptionIds: {},
+              modifierLabels: [],
+              unitPriceUsd: 3.5,
+              lineTotalUsdExact: 3.5,
+            ),
+          ],
+          state: SaleOutageOrderStates.awaitingSettlement,
+          sourceMode: SaleOutageSourceModes.standardOpenOrder,
+          createdAt: DateTime.utc(2026, 3, 17, 9),
+          updatedAt: DateTime.utc(2026, 3, 17, 9),
+        ),
+      );
+
+      final loaded = await store.list(otherStaffScope);
+      final read = await store.readByLocalIntentId(
+        scope: otherStaffScope,
+        localIntentId: 'local-cash-1',
+      );
+
+      expect(loaded, isEmpty);
+      expect(read, isNull);
+    },
+  );
 }

@@ -1,8 +1,12 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:modular_pos/core/network/app_connectivity.dart';
 import 'package:modular_pos/core/network/app_connectivity_contract.dart';
 import 'package:modular_pos/core/feedback/user_error_message.dart';
+import 'package:modular_pos/core/widgets/media/product_image_picker.dart';
 import 'package:modular_pos/features/auth/domain/auth_role.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/policy/ui/viewmodels/policy_viewmodel.dart';
@@ -47,8 +51,6 @@ class OrderDetailPage extends ConsumerWidget {
         lines: const [],
       ),
     );
-    final manualClaimPolicyEnabled =
-        policyState.branchPolicy.saleAllowManualExternalPaymentClaim;
     final showManualClaimSection =
         order.isLocalOutageOrder && order.isManualClaimOutageOrder;
     final showOfflineCashReplaySection = order.isQueueBackedOfflineCashOrder;
@@ -57,12 +59,6 @@ class OrderDetailPage extends ConsumerWidget {
     final canRecordLocalManualClaim =
         showManualClaimSection &&
         !order.hasManualExternalPaymentClaimRecorded &&
-        manualClaimPolicyEnabled;
-    final canSubmitManualClaimOnline =
-        showManualClaimSection &&
-        order.hasManualExternalPaymentClaimRecorded &&
-        !order.hasSubmittedManualExternalPaymentClaim &&
-        manualClaimPolicyEnabled &&
         connectivityStatus != AppConnectivityStatus.offline;
     final canReviewSubmittedManualClaim =
         showManualClaimSection &&
@@ -74,6 +70,21 @@ class OrderDetailPage extends ConsumerWidget {
     final canFinalizeLocalCashOrder =
         showLegacyOfflineCashSettlementSection &&
         connectivityStatus != AppConnectivityStatus.offline;
+    final capturedByDisplayName = (order.openedByDisplayName ?? '').trim();
+    final submittedByDisplayName =
+        (order.manualPaymentClaimRequestedByDisplayName ?? '').trim();
+    final showManualClaimBottomSubmitAction =
+        showManualClaimSection && !order.hasSubmittedManualExternalPaymentClaim;
+    final canSubmitManualClaimFromBottom =
+        order.hasManualExternalPaymentClaimRecorded &&
+        connectivityStatus != AppConnectivityStatus.offline;
+    final manualClaimBottomHint = !showManualClaimBottomSubmitAction
+        ? null
+        : connectivityStatus == AppConnectivityStatus.offline
+        ? 'Reconnect first, then submit the claim online.'
+        : order.hasManualExternalPaymentClaimRecorded
+        ? 'Proof is saved locally. Submit the external payment claim when ready.'
+        : 'Save claim proof first before submitting online.';
 
     return Scaffold(
       appBar: AppBar(
@@ -87,8 +98,56 @@ class OrderDetailPage extends ConsumerWidget {
         title: Text('Order No. ${order.number}'),
         centerTitle: false,
       ),
+      bottomNavigationBar: showManualClaimBottomSubmitAction
+          ? SafeArea(
+              top: false,
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  border: Border(
+                    top: BorderSide(
+                      color: Theme.of(context).colorScheme.outlineVariant,
+                    ),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.04),
+                      blurRadius: 8,
+                      offset: const Offset(0, -2),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (manualClaimBottomHint != null) ...[
+                      Text(
+                        manualClaimBottomHint,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                    FilledButton.icon(
+                      onPressed: canSubmitManualClaimFromBottom
+                          ? () => _submitManualClaimOnline(context, ref, order)
+                          : null,
+                      icon: const Icon(Icons.cloud_upload_outlined),
+                      label: const Text('Submit Claim Online'),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          : null,
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.fromLTRB(
+          16,
+          16,
+          16,
+          showManualClaimBottomSubmitAction ? 24 : 16,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -151,10 +210,130 @@ class OrderDetailPage extends ConsumerWidget {
                       label: 'Ticket Status',
                       value: order.ticketStatus,
                     ),
+                    const Divider(),
+                    OrderDetailSummaryRow(
+                      label: 'Grand Total',
+                      value: '\$${order.totalUsd.toStringAsFixed(2)}',
+                      subValue: 'KHR ${order.totalKhr.toStringAsFixed(0)}',
+                    ),
+                    if (order.hasManualExternalPaymentClaimRecorded) ...[
+                      const Divider(),
+                      OrderDetailSummaryRow(
+                        label: 'Claimed amount',
+                        value: _formatTenderAmount(
+                          amount:
+                              order.localOutageClaimedTenderAmount ??
+                              order.tenderAmount,
+                          tenderCurrency: order.tenderCurrency,
+                        ),
+                      ),
+                    ] else if (!order.isExternalPaymentClaimOrder) ...[
+                      const Divider(),
+                      OrderDetailSummaryRow(
+                        label: 'Received amount',
+                        value: _formatTenderAmount(
+                          amount: order.tenderAmount,
+                          tenderCurrency: order.tenderCurrency,
+                        ),
+                      ),
+                      const Divider(),
+                      OrderDetailSummaryRow(
+                        label: 'Change',
+                        value: _formatTenderAmount(
+                          amount: order.changeAmount,
+                          tenderCurrency: order.tenderCurrency,
+                        ),
+                      ),
+                    ],
+                    if (order.isExternalPaymentClaimOrder &&
+                        capturedByDisplayName.isNotEmpty) ...[
+                      const Divider(),
+                      OrderDetailSummaryRow(
+                        label: 'Captured by',
+                        value: capturedByDisplayName,
+                      ),
+                    ],
+                    if (order.isExternalPaymentClaimOrder &&
+                        submittedByDisplayName.isNotEmpty) ...[
+                      const Divider(),
+                      OrderDetailSummaryRow(
+                        label: 'Submitted by',
+                        value: submittedByDisplayName,
+                      ),
+                    ],
+                    if (order.isExternalPaymentClaimOrder &&
+                        order.manualPaymentClaimRequestedAt != null) ...[
+                      const Divider(),
+                      OrderDetailSummaryRow(
+                        label: 'Submitted at',
+                        value: orderDetailFormatTime(
+                          order.manualPaymentClaimRequestedAt!,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
             ),
+            const SizedBox(height: 16),
+            Text('Order Items', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            Card(
+              color: Colors.white,
+              elevation: 2,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(10),
+                itemCount: order.lines.length,
+                separatorBuilder: (_, __) => const Divider(height: 12),
+                itemBuilder: (context, index) {
+                  final line = order.lines[index];
+                  final modifierText = line.modifiers.isEmpty
+                      ? 'No modifiers'
+                      : line.modifiers.join(', ');
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${line.quantity}x',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              line.name,
+                              style: Theme.of(context).textTheme.bodyLarge,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              modifierText,
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+            if (order.lines.isEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  order.isOpenTicket
+                      ? 'Line-level ticket details are not available in this view yet. Settlement is still supported.'
+                      : 'No item lines available.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
             if (order.isLocalOutageOrder) ...[
               const SizedBox(height: 16),
               Card(
@@ -187,7 +366,7 @@ class OrderDetailPage extends ConsumerWidget {
             if (showManualClaimSection) ...[
               const SizedBox(height: 16),
               Text(
-                'Manual KHQR Claim',
+                'External Payment Claim',
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               const SizedBox(height: 8),
@@ -204,16 +383,17 @@ class OrderDetailPage extends ConsumerWidget {
                     children: [
                       Text(
                         order.hasRejectedManualExternalPaymentClaim
-                            ? 'The last manual KHQR claim was rejected. Review the note below, update the proof if needed, and resubmit online.'
+                            ? 'The last external payment claim was rejected. Review the note below, update the proof if needed, and resubmit online.'
                             : order.hasSubmittedManualExternalPaymentClaim
                             ? canReviewSubmittedManualClaim
-                                  ? 'This manual KHQR claim is submitted online and ready for review. Approve or reject it here.'
-                                  : 'Manual KHQR claim is submitted online. This order is now waiting for manager review.'
+                                  ? 'This external payment claim is submitted online and ready for review. Approve or reject it here.'
+                                  : 'External payment claim is submitted online. This order is now waiting for manager review.'
                             : order.hasManualExternalPaymentClaimRecorded
-                            ? 'Manual KHQR claim details are stored locally. Submit them online when connectivity is available.'
-                            : manualClaimPolicyEnabled
-                            ? 'Use this fallback when the customer already paid through KHQR during outage, but the backend could not verify it live.'
-                            : 'Manual external-payment claim fallback is disabled for this branch.',
+                            ? 'Claim proof is saved locally. Submit it online explicitly when connectivity is available.'
+                            : connectivityStatus ==
+                                  AppConnectivityStatus.offline
+                            ? 'This outage order is captured. Reconnect first, then add the customer proof and submit the external payment claim.'
+                            : 'Add the customer payment proof here. Saving proof only stores it locally. Finalization still waits for explicit online claim submission and later review.',
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                       if (order.hasManualExternalPaymentClaimRecorded) ...[
@@ -244,9 +424,18 @@ class OrderDetailPage extends ConsumerWidget {
                         if ((order.localOutageProofImageUrl ?? '')
                             .isNotEmpty) ...[
                           const Divider(),
-                          OrderDetailSummaryRow(
-                            label: 'Proof image URL',
-                            value: order.localOutageProofImageUrl!,
+                          Text(
+                            'Proof image',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                          const SizedBox(height: 8),
+                          ProductImagePicker(
+                            onPickImage: () async {},
+                            imageUrl: order.localOutageProofImageUrl,
+                            readOnly: true,
+                            size: const Size(220, 180),
+                            placeholderLabel: 'Proof image',
+                            showTapToChangeHint: false,
                           ),
                         ],
                         if ((order.localOutageNote ?? '').isNotEmpty) ...[
@@ -328,23 +517,10 @@ class OrderDetailPage extends ConsumerWidget {
                               style: Theme.of(context).textTheme.bodySmall,
                             ),
                           ],
-                        ] else if (canSubmitManualClaimOnline) ...[
-                          const SizedBox(height: 12),
-                          FilledButton.icon(
-                            onPressed: () =>
-                                _submitManualClaimOnline(context, ref, order),
-                            icon: const Icon(Icons.cloud_upload_outlined),
-                            label: const Text('Submit Claim Online'),
-                          ),
                         ],
                       ] else if (canRecordLocalManualClaim) ...[
                         const SizedBox(height: 12),
-                        FilledButton.icon(
-                          onPressed: () =>
-                              _recordManualClaim(context, ref, order),
-                          icon: const Icon(Icons.receipt_long_outlined),
-                          label: const Text('Record Manual Claim'),
-                        ),
+                        _ManualClaimProofForm(order: order),
                       ],
                     ],
                   ),
@@ -516,119 +692,6 @@ class OrderDetailPage extends ConsumerWidget {
                 ),
               ),
             ],
-            const SizedBox(height: 16),
-            Text('Order Items', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            Card(
-              color: Colors.white,
-              elevation: 2,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: ListView.separated(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(10),
-                itemCount: order.lines.length,
-                separatorBuilder: (_, __) => const Divider(height: 12),
-                itemBuilder: (context, index) {
-                  final line = order.lines[index];
-                  final modifierText = line.modifiers.isEmpty
-                      ? 'No modifiers'
-                      : line.modifiers.join(', ');
-                  return Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '${line.quantity}x',
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              line.name,
-                              style: Theme.of(context).textTheme.bodyLarge,
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              modifierText,
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ),
-            if (order.lines.isEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(
-                  order.isOpenTicket
-                      ? 'Line-level ticket details are not available in this view yet. Settlement is still supported.'
-                      : 'No item lines available.',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ),
-            const SizedBox(height: 16),
-            Text('Payment', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            Card(
-              color: Colors.white,
-              elevation: 2,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                child: Column(
-                  children: [
-                    OrderDetailSummaryRow(
-                      label: 'Grand Total',
-                      value: '\$${order.totalUsd.toStringAsFixed(2)}',
-                      subValue: 'KHR ${order.totalKhr.toStringAsFixed(0)}',
-                    ),
-                    if (order.hasManualExternalPaymentClaimRecorded) ...[
-                      const Divider(),
-                      OrderDetailSummaryRow(
-                        label: 'Claimed amount',
-                        value: _formatTenderAmount(
-                          amount:
-                              order.localOutageClaimedTenderAmount ??
-                              order.tenderAmount,
-                          tenderCurrency: order.tenderCurrency,
-                        ),
-                      ),
-                    ] else if (!order.isManualClaimOutageOrder) ...[
-                      const Divider(),
-                      OrderDetailSummaryRow(
-                        label: 'Received amount',
-                        value: _formatTenderAmount(
-                          amount: order.tenderAmount,
-                          tenderCurrency: order.tenderCurrency,
-                        ),
-                      ),
-                      const Divider(),
-                      OrderDetailSummaryRow(
-                        label: 'Change',
-                        value: _formatTenderAmount(
-                          amount: order.changeAmount,
-                          tenderCurrency: order.tenderCurrency,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
           ],
         ),
       ),
@@ -637,19 +700,19 @@ class OrderDetailPage extends ConsumerWidget {
 
   String _paymentMethodLabel(Order order) {
     if (order.hasRejectedManualExternalPaymentClaim) {
-      return 'Manual KHQR claim rejected';
+      return 'External payment claim rejected';
     }
     if (order.hasSubmittedManualExternalPaymentClaim) {
-      return 'Manual KHQR claim pending review';
+      return 'External payment claim pending review';
     }
     if (order.hasPendingRemoteManualPaymentClaim) {
       return 'Manual payment claim pending review';
     }
     if (order.hasManualExternalPaymentClaimRecorded) {
-      return 'Manual KHQR claim recorded locally';
+      return 'External payment claim proof attached';
     }
     if (order.isManualClaimOutageOrder) {
-      return 'Manual KHQR claim (offline capture)';
+      return 'External payment claim (offline capture)';
     }
     if (order.isQueueBackedOfflineCashOrder) {
       return 'Cash (queued offline replay)';
@@ -666,20 +729,20 @@ class OrderDetailPage extends ConsumerWidget {
     if (order.hasRejectedManualExternalPaymentClaim) {
       final reviewNote = (order.localOutageLastErrorMessage ?? '').trim();
       if (reviewNote.isNotEmpty) {
-        return 'The last manual KHQR claim was rejected: $reviewNote';
+        return 'The last external payment claim was rejected: $reviewNote';
       }
-      return 'The last manual KHQR claim was rejected. Review the proof and resubmit if needed.';
+      return 'The last external payment claim was rejected. Review the proof and resubmit if needed.';
     }
     if (order.hasSubmittedManualExternalPaymentClaim) {
-      return 'A manual KHQR payment claim is submitted online. This order is now locked and awaiting manager review.';
+      return 'An external payment claim is submitted online. This order is now locked and awaiting manager review.';
     }
     if (order.hasManualExternalPaymentClaimRecorded) {
-      return 'A manual KHQR payment claim is recorded locally. Submit it online to continue the manager review flow.';
+      return 'Claim proof is attached locally. Submit it online to continue the manager review flow.';
     }
     if (order.isManualClaimOutageOrder) {
       return order.localOutageMaterializedOrderId == null
-          ? 'This order was captured offline for the manual KHQR fallback. Record proof details here, then continue review when the backend order exists.'
-          : 'This manual-claim outage order is materialized online. Submit the claim when the proof details are ready.';
+          ? 'This order was captured offline for the external-payment fallback. Reconnect first, then add the proof and continue the claim flow.'
+          : 'This external-claim outage order is materialized online. Submit the claim when the proof details are ready.';
     }
     if (order.hasOfflineCashReplayFailure) {
       final replayNote = (order.localOutageLastErrorMessage ?? '').trim();
@@ -707,157 +770,6 @@ class OrderDetailPage extends ConsumerWidget {
       return 'KHR ${amount.toStringAsFixed(0)}';
     }
     return '\$${amount.toStringAsFixed(2)}';
-  }
-
-  Future<void> _recordManualClaim(
-    BuildContext context,
-    WidgetRef ref,
-    Order order,
-  ) async {
-    final initialAmount = order.tenderCurrency.toLowerCase() == 'khr'
-        ? order.totalKhr.toStringAsFixed(0)
-        : order.totalUsd.toStringAsFixed(2);
-    final amountController = TextEditingController(text: initialAmount);
-    final proofUrlController = TextEditingController();
-    final referenceController = TextEditingController();
-    final noteController = TextEditingController();
-
-    try {
-      final draft = await showDialog<_ManualClaimDraft>(
-        context: context,
-        builder: (dialogContext) {
-          String? validationMessage;
-          return StatefulBuilder(
-            builder: (dialogContext, setModalState) {
-              return AlertDialog(
-                title: const Text('Record Manual KHQR Claim'),
-                content: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'This stores the manual KHQR claim locally on the outage order. Final approval still happens later when the order is reviewed online.',
-                        style: Theme.of(dialogContext).textTheme.bodyMedium,
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: amountController,
-                        keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true,
-                        ),
-                        decoration: InputDecoration(
-                          labelText:
-                              'Claimed amount (${order.tenderCurrency.toUpperCase()})',
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: proofUrlController,
-                        decoration: const InputDecoration(
-                          labelText: 'Proof image URL',
-                          hintText: 'https://...',
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: referenceController,
-                        decoration: const InputDecoration(
-                          labelText: 'Customer reference (optional)',
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: noteController,
-                        maxLines: 3,
-                        decoration: const InputDecoration(
-                          labelText: 'Note (optional)',
-                        ),
-                      ),
-                      if (validationMessage != null) ...[
-                        const SizedBox(height: 12),
-                        Text(
-                          validationMessage!,
-                          style: TextStyle(
-                            color: Theme.of(dialogContext).colorScheme.error,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.of(dialogContext).pop(),
-                    child: const Text('Cancel'),
-                  ),
-                  FilledButton(
-                    onPressed: () {
-                      final amount = double.tryParse(
-                        amountController.text.trim(),
-                      );
-                      if (amount == null || amount <= 0) {
-                        setModalState(() {
-                          validationMessage =
-                              'Enter a valid claimed amount before saving.';
-                        });
-                        return;
-                      }
-                      if (proofUrlController.text.trim().isEmpty) {
-                        setModalState(() {
-                          validationMessage =
-                              'Proof image URL is required before saving.';
-                        });
-                        return;
-                      }
-                      Navigator.of(dialogContext).pop(
-                        _ManualClaimDraft(
-                          claimedTenderAmount: amount,
-                          proofImageUrl: proofUrlController.text.trim(),
-                          customerReference: referenceController.text.trim(),
-                          note: noteController.text.trim(),
-                        ),
-                      );
-                    },
-                    child: const Text('Save Claim'),
-                  ),
-                ],
-              );
-            },
-          );
-        },
-      );
-
-      if (draft == null) return;
-
-      await ref
-          .read(ordersProvider.notifier)
-          .recordLocalManualExternalPaymentClaim(
-            order,
-            claimedTenderAmount: draft.claimedTenderAmount,
-            proofImageUrl: draft.proofImageUrl,
-            customerReference: draft.customerReference,
-            note: draft.note,
-          );
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Manual KHQR claim recorded on the outage order.'),
-        ),
-      );
-    } catch (e) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            UserErrorMessage.build(
-              context: 'Failed to record manual claim',
-              error: e,
-            ),
-          ),
-        ),
-      );
-    }
   }
 
   Future<void> _finalizeLocalOutageCashOrder(
@@ -907,7 +819,7 @@ class OrderDetailPage extends ConsumerWidget {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Manual KHQR claim submitted online and is awaiting manager review.',
+            'External payment claim submitted online and is awaiting manager review.',
           ),
         ),
       );
@@ -1017,8 +929,8 @@ class OrderDetailPage extends ConsumerWidget {
           return AlertDialog(
             title: Text(
               approve
-                  ? 'Approve Manual KHQR Claim'
-                  : 'Reject Manual KHQR Claim',
+                  ? 'Approve External Payment Claim'
+                  : 'Reject External Payment Claim',
             ),
             content: Column(
               mainAxisSize: MainAxisSize.min,
@@ -1026,8 +938,8 @@ class OrderDetailPage extends ConsumerWidget {
               children: [
                 Text(
                   approve
-                      ? 'Add an optional review note before finalizing this claimed KHQR payment.'
-                      : 'Add a review note so staff knows why this KHQR claim was rejected.',
+                      ? 'Add an optional review note before finalizing this claimed external payment.'
+                      : 'Add a review note so staff knows why this external payment claim was rejected.',
                   style: Theme.of(dialogContext).textTheme.bodyMedium,
                 ),
                 const SizedBox(height: 12),
@@ -1194,18 +1106,202 @@ class OrderDetailPage extends ConsumerWidget {
   }
 }
 
-class _ManualClaimDraft {
-  const _ManualClaimDraft({
-    required this.claimedTenderAmount,
-    required this.proofImageUrl,
-    required this.customerReference,
-    required this.note,
-  });
+class _ManualClaimProofForm extends ConsumerStatefulWidget {
+  const _ManualClaimProofForm({required this.order});
 
-  final double claimedTenderAmount;
-  final String proofImageUrl;
-  final String customerReference;
-  final String note;
+  final Order order;
+
+  @override
+  ConsumerState<_ManualClaimProofForm> createState() =>
+      _ManualClaimProofFormState();
+}
+
+class _ManualClaimProofFormState extends ConsumerState<_ManualClaimProofForm> {
+  late final TextEditingController _amountController;
+  late final TextEditingController _customerReferenceController;
+  late final TextEditingController _noteController;
+  final ImagePicker _picker = ImagePicker();
+
+  Uint8List? _selectedImageBytes;
+  String? _validationMessage;
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final initialAmount = widget.order.tenderCurrency.toLowerCase() == 'khr'
+        ? widget.order.totalKhr
+        : widget.order.totalUsd;
+    _amountController = TextEditingController(
+      text: widget.order.tenderCurrency.toLowerCase() == 'khr'
+          ? initialAmount.toStringAsFixed(0)
+          : initialAmount.toStringAsFixed(2),
+    );
+    _customerReferenceController = TextEditingController();
+    _noteController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _amountController.dispose();
+    _customerReferenceController.dispose();
+    _noteController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Save proof first. Submission stays a separate online step after this.',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _amountController,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: InputDecoration(
+            labelText:
+                'Claimed amount (${widget.order.tenderCurrency.toUpperCase()})',
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text('Payment proof', style: Theme.of(context).textTheme.titleSmall),
+        const SizedBox(height: 8),
+        ProductImagePicker(
+          onPickImage: _pickProofImage,
+          imageBytes: _selectedImageBytes,
+          onClearLocalSelection: _selectedImageBytes == null
+              ? null
+              : () {
+                  setState(() {
+                    _selectedImageBytes = null;
+                  });
+                },
+          placeholderLabel: 'Select proof image',
+          placeholderIcon: Icons.add_photo_alternate_outlined,
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _customerReferenceController,
+          decoration: const InputDecoration(
+            labelText: 'Customer reference (optional)',
+          ),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _noteController,
+          maxLines: 3,
+          decoration: const InputDecoration(labelText: 'Note (optional)'),
+        ),
+        if (_validationMessage != null) ...[
+          const SizedBox(height: 12),
+          Text(
+            _validationMessage!,
+            style: TextStyle(color: Theme.of(context).colorScheme.error),
+          ),
+        ],
+        const SizedBox(height: 12),
+        FilledButton.icon(
+          onPressed: _isSaving ? null : _saveProof,
+          icon: _isSaving
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.save_outlined),
+          label: Text(_isSaving ? 'Saving...' : 'Save Proof'),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _pickProofImage() async {
+    try {
+      final picked = await _picker.pickImage(source: ImageSource.gallery);
+      if (picked == null) return;
+      final bytes = await picked.readAsBytes();
+      if (bytes.isEmpty) {
+        setState(() {
+          _validationMessage =
+              'Selected proof image is empty. Please pick another image.';
+        });
+        return;
+      }
+      setState(() {
+        _selectedImageBytes = bytes;
+        _validationMessage = null;
+      });
+    } catch (_) {
+      setState(() {
+        _validationMessage =
+            'Image picker is not available right now. Restart the app after flutter pub get if needed.';
+      });
+    }
+  }
+
+  Future<void> _saveProof() async {
+    final claimedTenderAmount = double.tryParse(_amountController.text.trim());
+    if (claimedTenderAmount == null || claimedTenderAmount <= 0) {
+      setState(() {
+        _validationMessage = 'Enter a valid claimed amount before saving.';
+      });
+      return;
+    }
+    if (_selectedImageBytes == null || _selectedImageBytes!.isEmpty) {
+      setState(() {
+        _validationMessage =
+            'Select the customer payment proof image before saving.';
+      });
+      return;
+    }
+
+    setState(() {
+      _isSaving = true;
+      _validationMessage = null;
+    });
+
+    try {
+      await ref
+          .read(ordersProvider.notifier)
+          .recordLocalManualExternalPaymentClaimWithUpload(
+            widget.order,
+            claimedTenderAmount: claimedTenderAmount,
+            proofImageBytes: _selectedImageBytes!,
+            customerReference: _customerReferenceController.text.trim(),
+            note: _noteController.text.trim(),
+          );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'External payment claim proof saved locally. Submit it online when ready.',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            UserErrorMessage.build(
+              context: 'Failed to save claim proof',
+              error: e,
+            ),
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
+      }
+    }
+  }
 }
 
 class _CashSettlementDraft {

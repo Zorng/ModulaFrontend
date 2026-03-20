@@ -161,6 +161,105 @@ void main() {
   );
 
   test(
+    'SaleOutageRecoveryController can recover a recorded manual claim created by another staff account on the same branch',
+    () async {
+      final database = AppDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
+      final store = DriftSaleOutageStore(database);
+      await store.write(
+        SaleOutageOrderRecord(
+          localIntentId: 'local-shared-1',
+          orderNumber: 'LOCAL-SHARED-1',
+          tenantId: 'tenant-1',
+          branchId: 'branch-1',
+          accountId: 'staff-1',
+          saleType: 'take_away',
+          paymentMethodRequested: 'qr',
+          tenderCurrency: 'USD',
+          cashReceivedUsd: 0,
+          cashReceivedKhr: 0,
+          totalUsd: 3.5,
+          totalKhr: 14350,
+          lines: const [
+            SaleOutageLineSnapshot(
+              menuItemId: 'menu-1',
+              name: 'Iced Latte',
+              quantity: 1,
+              selectedOptionIds: {},
+              modifierLabels: [],
+              unitPriceUsd: 3.5,
+              lineTotalUsdExact: 3.5,
+            ),
+          ],
+          state: SaleOutageOrderStates.manualExternalPaymentClaimRecorded,
+          sourceMode: SaleOutageSourceModes.manualExternalPaymentClaim,
+          claimedPaymentMethod: 'KHQR',
+          claimedTenderAmount: 3.5,
+          proofImageUrl: 'https://example.com/proof.jpg',
+          claimRecordedAt: DateTime.utc(2026, 3, 17, 9, 5),
+          createdAt: DateTime.utc(2026, 3, 17, 9),
+          updatedAt: DateTime.utc(2026, 3, 17, 9, 5),
+        ),
+      );
+
+      final repo = _MockSaleCheckoutRepository();
+      when(() => repo.getOrders(any())).thenAnswer(
+        (_) async =>
+            SaleOrdersPageDto(items: const [], page: 1, limit: 100, total: 0),
+      );
+      when(() => repo.placeOrder(any())).thenAnswer(
+        (_) async => const SalePlaceOrderResultDto(
+          openTicketId: 'order-shared-1',
+          saleId: 'sale-shared-1',
+          status: 'UNPAID',
+          batchId: 'batch-shared-1',
+          idempotentReplay: false,
+        ),
+      );
+      when(() => repo.createManualPaymentClaim(any())).thenAnswer(
+        (_) async => const SaleCreateManualPaymentClaimResultDto(
+          claimId: 'claim-shared-1',
+          orderId: 'order-shared-1',
+          status: 'PENDING_REVIEW',
+          idempotentReplay: false,
+        ),
+      );
+
+      const currentStaffScope = SaleOutageScope(
+        tenantId: 'tenant-1',
+        branchId: 'branch-1',
+        accountId: 'staff-2',
+      );
+
+      final container = createTestContainer(
+        overrides: [
+          saleRepositoryProvider.overrideWithValue(repo),
+          saleOutageStoreProvider.overrideWithValue(store),
+          saleOutageScopeProvider.overrideWithValue(currentStaffScope),
+          appConnectivityStatusProvider.overrideWith(
+            _TestConnectivityStatusNotifier.new,
+          ),
+        ],
+      );
+
+      final result = await container
+          .read(saleOutageRecoveryControllerProvider)
+          .recoverBranchWorkspace(trigger: SaleOutageRecoveryTrigger.reconnect);
+
+      expect(result.outcome, SaleOutageRecoveryOutcome.success);
+      expect(result.recoveredCount, 1);
+
+      final persisted = await store.readByLocalIntentId(
+        scope: currentStaffScope,
+        localIntentId: 'local-shared-1',
+      );
+      expect(persisted?.accountId, 'staff-1');
+      expect(persisted?.backendOrderId, 'order-shared-1');
+      expect(persisted?.backendClaimId, 'claim-shared-1');
+    },
+  );
+
+  test(
     'SaleOutageRecoveryController skips recorded cash outage orders for now',
     () async {
       final database = AppDatabase(NativeDatabase.memory());

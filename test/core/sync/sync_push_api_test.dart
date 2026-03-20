@@ -80,7 +80,11 @@ void main() {
             'data': {
               'operationResults': [
                 {'client_op_id': 'op-1', 'status': 'APPLIED'},
-                {'clientOpId': 'op-2', 'status': 'DUPLICATE'},
+                {
+                  'clientOpId': 'op-2',
+                  'status': 'DUPLICATE',
+                  'resultRefId': 'order-2',
+                },
                 {
                   'clientOpId': 'op-3',
                   'status': 'FAILED',
@@ -105,6 +109,7 @@ void main() {
       expect(envelope.results, hasLength(3));
       expect(envelope.results[0].status, SyncPushResultStatus.applied);
       expect(envelope.results[1].status, SyncPushResultStatus.duplicate);
+      expect(envelope.results[1].resultRefId, 'order-2');
       expect(envelope.results[2].status, SyncPushResultStatus.failed);
       expect(
         envelope.results[2].errorCode,

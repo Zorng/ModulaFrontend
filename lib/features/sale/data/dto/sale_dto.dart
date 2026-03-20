@@ -858,6 +858,8 @@ class SaleOrderListItemResponseDto {
     required this.orderId,
     required this.status,
     required this.sourceMode,
+    required this.openedByAccountId,
+    required this.openedByDisplayName,
     required this.fulfillmentStatus,
     required this.totalUsdExact,
     required this.linesPreview,
@@ -867,11 +869,16 @@ class SaleOrderListItemResponseDto {
     this.paymentMethod,
     this.manualPaymentClaimId,
     this.manualPaymentClaimStatus,
+    this.manualPaymentClaimRequestedByAccountId,
+    this.manualPaymentClaimRequestedByDisplayName,
+    this.manualPaymentClaimRequestedAt,
   });
 
   final String orderId;
   final String status;
   final String sourceMode;
+  final String openedByAccountId;
+  final String? openedByDisplayName;
   final String? fulfillmentStatus;
   final double totalUsdExact;
   final List<SaleOrderListLinePreviewResponseDto> linesPreview;
@@ -879,6 +886,9 @@ class SaleOrderListItemResponseDto {
   final String? paymentMethod;
   final String? manualPaymentClaimId;
   final String? manualPaymentClaimStatus;
+  final String? manualPaymentClaimRequestedByAccountId;
+  final String? manualPaymentClaimRequestedByDisplayName;
+  final DateTime? manualPaymentClaimRequestedAt;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -887,6 +897,8 @@ class SaleOrderListItemResponseDto {
       orderId: _readString(json['orderId'] ?? json['id']),
       status: _readString(json['status']),
       sourceMode: _readString(json['sourceMode']),
+      openedByAccountId: _readString(json['openedByAccountId']),
+      openedByDisplayName: _readNullableString(json['openedByDisplayName']),
       fulfillmentStatus: _readNullableString(json['fulfillmentStatus']),
       totalUsdExact: _readDouble(json['totalUsdExact']),
       linesPreview: _readTypedList(
@@ -898,6 +910,15 @@ class SaleOrderListItemResponseDto {
       manualPaymentClaimId: _readNullableString(json['manualPaymentClaimId']),
       manualPaymentClaimStatus: _readNullableString(
         json['manualPaymentClaimStatus'],
+      ),
+      manualPaymentClaimRequestedByAccountId: _readNullableString(
+        json['manualPaymentClaimRequestedByAccountId'],
+      ),
+      manualPaymentClaimRequestedByDisplayName: _readNullableString(
+        json['manualPaymentClaimRequestedByDisplayName'],
+      ),
+      manualPaymentClaimRequestedAt: _readNullableDateTime(
+        json['manualPaymentClaimRequestedAt'],
       ),
       createdAt: _readDateTime(json['createdAt']),
       updatedAt: _readDateTime(json['updatedAt']),

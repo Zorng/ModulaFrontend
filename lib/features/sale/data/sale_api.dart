@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:http_parser/http_parser.dart';
 import 'package:modular_pos/core/config/app_env.dart';
 import 'package:modular_pos/core/network/api_contract.dart';
 import 'package:modular_pos/core/network/dio_client.dart';
@@ -210,6 +211,44 @@ class SaleApi {
     }
   }
 
+  Future<String> uploadManualPaymentProofImage({
+    required List<int> imageBytes,
+  }) async {
+    if (imageBytes.isEmpty) {
+      throw const ApiClientException(
+        message: 'Proof image is required before creating a manual claim.',
+        code: 'UPLOAD_FILE_REQUIRED',
+      );
+    }
+    try {
+      final response = await _dio.post<dynamic>(
+        '/v0/media/images/upload',
+        data: FormData.fromMap({
+          'image': MultipartFile.fromBytes(
+            imageBytes,
+            filename: _paymentProofFilename(imageBytes),
+            contentType: _paymentProofContentType(imageBytes),
+          ),
+          'area': 'payment-proof',
+        }),
+      );
+      final raw = _unwrap(response.data);
+      final imageUrl = raw['imageUrl']?.toString().trim() ?? '';
+      if (imageUrl.isEmpty) {
+        throw const ApiClientException(
+          message: 'Image upload failed: imageUrl is missing.',
+          code: 'IMAGE_UPLOAD_FAILED',
+        );
+      }
+      return imageUrl;
+    } on DioError catch (error) {
+      throw _mapSaleDioError(
+        error,
+        fallbackMessage: 'Failed to upload payment proof image.',
+      );
+    }
+  }
+
   Future<SaleManualPaymentClaimResponseDto> createManualPaymentClaim(
     String orderId,
     Map<String, dynamic> body, {
@@ -413,6 +452,57 @@ class SaleApi {
       fallbackMessage: 'Sale request failed.',
     );
   }
+}
+
+MediaType? _paymentProofContentType(List<int> imageBytes) {
+  final subtype = _paymentProofSubtype(imageBytes);
+  if (subtype == null) return null;
+  return MediaType('image', subtype);
+}
+
+String _paymentProofFilename(List<int> imageBytes) {
+  final subtype = _paymentProofSubtype(imageBytes);
+  switch (subtype) {
+    case 'png':
+      return 'payment-proof.png';
+    case 'webp':
+      return 'payment-proof.webp';
+    case 'jpeg':
+    default:
+      return 'payment-proof.jpg';
+  }
+}
+
+String? _paymentProofSubtype(List<int> imageBytes) {
+  if (imageBytes.length >= 3 &&
+      imageBytes[0] == 0xFF &&
+      imageBytes[1] == 0xD8 &&
+      imageBytes[2] == 0xFF) {
+    return 'jpeg';
+  }
+  if (imageBytes.length >= 8 &&
+      imageBytes[0] == 0x89 &&
+      imageBytes[1] == 0x50 &&
+      imageBytes[2] == 0x4E &&
+      imageBytes[3] == 0x47 &&
+      imageBytes[4] == 0x0D &&
+      imageBytes[5] == 0x0A &&
+      imageBytes[6] == 0x1A &&
+      imageBytes[7] == 0x0A) {
+    return 'png';
+  }
+  if (imageBytes.length >= 12 &&
+      imageBytes[0] == 0x52 &&
+      imageBytes[1] == 0x49 &&
+      imageBytes[2] == 0x46 &&
+      imageBytes[3] == 0x46 &&
+      imageBytes[8] == 0x57 &&
+      imageBytes[9] == 0x45 &&
+      imageBytes[10] == 0x42 &&
+      imageBytes[11] == 0x50) {
+    return 'webp';
+  }
+  return null;
 }
 
 ApiClientException _mapSaleDioError(

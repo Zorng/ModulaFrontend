@@ -446,11 +446,16 @@ void main() {
               saleId: '',
               orderId: 'order-1',
               sourceMode: 'MANUAL_EXTERNAL_PAYMENT_CLAIM',
+              openedByAccountId: 'staff-1',
               ticketStatus: 'UNPAID',
               fulfillmentStatus: 'pending',
               totalUsdExact: 3.5,
               totalKhrExact: 14350,
               placedAt: DateTime.utc(2026, 3, 17, 9),
+              openedByDisplayName: 'Staff One',
+              manualPaymentClaimRequestedByAccountId: 'admin-1',
+              manualPaymentClaimRequestedByDisplayName: 'Admin One',
+              manualPaymentClaimRequestedAt: DateTime.utc(2026, 3, 17, 9, 15),
             ),
           ],
           page: 1,
@@ -481,6 +486,112 @@ void main() {
       expect(orders.single.isLocalOutageOrder, isTrue);
       expect(orders.single.localOutageMaterializedOrderId, 'order-1');
       expect(orders.single.hasManualExternalPaymentClaimRecorded, isTrue);
+      expect(orders.single.openedByDisplayName, 'Staff One');
+      expect(
+        orders.single.manualPaymentClaimRequestedByDisplayName,
+        'Admin One',
+      );
+      expect(
+        orders.single.manualPaymentClaimRequestedAt,
+        DateTime.utc(2026, 3, 17, 9, 15).toLocal(),
+      );
+    },
+  );
+
+  test(
+    'OrdersNotifier binds local manual-claim outage orders to backend order ids from push replay results',
+    () async {
+      final database = AppDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
+      final store = DriftSaleOutageStore(database);
+      final queueStore = DriftOfflineCommandQueueStore(database);
+      final createdAt = DateTime.utc(2026, 3, 20, 9);
+      await store.write(
+        SaleOutageOrderRecord(
+          localIntentId: 'local-claim-sync-1',
+          orderNumber: 'LOCAL-CLAIM-SYNC-1',
+          tenantId: 'tenant-1',
+          branchId: 'branch-1',
+          accountId: 'staff-1',
+          saleType: 'take_away',
+          paymentMethodRequested: 'qr',
+          tenderCurrency: 'USD',
+          cashReceivedUsd: 0,
+          cashReceivedKhr: 0,
+          totalUsd: 4.25,
+          totalKhr: 17425,
+          lines: const [
+            SaleOutageLineSnapshot(
+              menuItemId: 'menu-2',
+              name: 'Mocha',
+              quantity: 1,
+              selectedOptionIds: {},
+              modifierLabels: [],
+              unitPriceUsd: 4.25,
+              lineTotalUsdExact: 4.25,
+            ),
+          ],
+          state: SaleOutageOrderStates.localOpenOrderCaptured,
+          sourceMode: SaleOutageSourceModes.manualExternalPaymentClaim,
+          createdAt: createdAt,
+          updatedAt: createdAt,
+        ),
+      );
+      await queueStore.write(
+        OfflineCommandRecord(
+          clientOpId: '33333333-3333-4333-8333-333333333333',
+          operationType:
+              OfflineOperationType.orderManualExternalPaymentClaimCapture,
+          tenantId: 'tenant-1',
+          branchId: 'branch-1',
+          accountId: 'staff-1',
+          occurredAt: createdAt,
+          payloadJson:
+              '{"localIntentId":"local-claim-sync-1","orderId":"client-order-1","resultRefId":"order-materialized-1","items":[]}',
+          status: OfflineCommandQueueStatus.applied,
+          retryCount: 1,
+          createdAt: createdAt,
+          updatedAt: createdAt,
+          lastSyncedAt: createdAt.add(const Duration(minutes: 5)),
+        ),
+      );
+
+      final repo = _MockSaleCheckoutRepository();
+      when(() => repo.getOrders(any())).thenThrow(Exception('offline'));
+
+      final container = createTestContainer(
+        overrides: [
+          appDatabaseProvider.overrideWithValue(database),
+          saleRepositoryProvider.overrideWithValue(repo),
+          saleOutageStoreProvider.overrideWithValue(store),
+          saleOutageScopeProvider.overrideWithValue(
+            const SaleOutageScope(
+              tenantId: 'tenant-1',
+              branchId: 'branch-1',
+              accountId: 'staff-2',
+            ),
+          ),
+        ],
+      );
+
+      final notifier = container.read(ordersProvider.notifier);
+      await notifier.load(date: DateTime.utc(2026, 3, 20));
+
+      final order = container.read(ordersProvider).single;
+      expect(order.isExternalPaymentClaimOrder, isTrue);
+      expect(order.orderId, 'order-materialized-1');
+      expect(order.localOutageMaterializedOrderId, 'order-materialized-1');
+
+      final persisted = await store.readByLocalIntentId(
+        scope: const SaleOutageScope(
+          tenantId: 'tenant-1',
+          branchId: 'branch-1',
+          accountId: 'staff-2',
+        ),
+        localIntentId: 'local-claim-sync-1',
+      );
+      expect(persisted?.backendOrderId, 'order-materialized-1');
+      expect(persisted?.materializedAt, isNotNull);
     },
   );
 
@@ -495,6 +606,7 @@ void main() {
               saleId: '',
               orderId: 'order-1',
               sourceMode: 'DIRECT_CHECKOUT',
+              openedByAccountId: 'staff-1',
               ticketStatus: 'PAID',
               fulfillmentStatus: 'in_prep',
               totalUsdExact: 5,
@@ -602,6 +714,173 @@ void main() {
       expect(updated.localOutageProofImageUrl, 'https://example.com/proof.jpg');
       expect(updated.localOutageCustomerReference, 'ABA-REF-001');
       expect(updated.isSettleableOpenTicket, isFalse);
+    },
+  );
+
+  test(
+    'OrdersNotifier lets another staff account on the same branch record manual claim details',
+    () async {
+      final database = AppDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
+      final store = DriftSaleOutageStore(database);
+      await store.write(
+        SaleOutageOrderRecord(
+          localIntentId: 'local-shared-claim',
+          orderNumber: 'LOCAL-SHARED',
+          tenantId: 'tenant-1',
+          branchId: 'branch-1',
+          accountId: 'staff-1',
+          saleType: 'take_away',
+          paymentMethodRequested: 'qr',
+          tenderCurrency: 'USD',
+          cashReceivedUsd: 0,
+          cashReceivedKhr: 0,
+          totalUsd: 3.5,
+          totalKhr: 14350,
+          lines: const [
+            SaleOutageLineSnapshot(
+              menuItemId: 'menu-1',
+              name: 'Iced Latte',
+              quantity: 1,
+              selectedOptionIds: {},
+              modifierLabels: [],
+              unitPriceUsd: 3.5,
+              lineTotalUsdExact: 3.5,
+            ),
+          ],
+          state: SaleOutageOrderStates.localOpenOrderCaptured,
+          sourceMode: SaleOutageSourceModes.manualExternalPaymentClaim,
+          createdAt: DateTime.utc(2026, 3, 17, 9),
+          updatedAt: DateTime.utc(2026, 3, 17, 9),
+        ),
+      );
+
+      final repo = _MockSaleCheckoutRepository();
+      when(() => repo.getOrders(any())).thenThrow(Exception('offline'));
+
+      const currentStaffScope = SaleOutageScope(
+        tenantId: 'tenant-1',
+        branchId: 'branch-1',
+        accountId: 'staff-2',
+      );
+
+      final container = createTestContainer(
+        overrides: [
+          saleRepositoryProvider.overrideWithValue(repo),
+          saleOutageStoreProvider.overrideWithValue(store),
+          saleOutageScopeProvider.overrideWithValue(currentStaffScope),
+        ],
+      );
+
+      final notifier = container.read(ordersProvider.notifier);
+      await notifier.load(date: DateTime.utc(2026, 3, 17));
+
+      final order = container.read(ordersProvider).single;
+      expect(order.isManualClaimOutageOrder, isTrue);
+      await notifier.recordLocalManualExternalPaymentClaim(
+        order,
+        claimedTenderAmount: 3.5,
+        proofImageUrl: 'https://example.com/shared-proof.jpg',
+        customerReference: 'ABA-REF-STAFF',
+      );
+
+      final persisted = await store.readByLocalIntentId(
+        scope: currentStaffScope,
+        localIntentId: 'local-shared-claim',
+      );
+      expect(persisted?.accountId, 'staff-1');
+      expect(persisted?.proofImageUrl, 'https://example.com/shared-proof.jpg');
+      expect(persisted?.customerReference, 'ABA-REF-STAFF');
+      expect(
+        persisted?.state,
+        SaleOutageOrderStates.manualExternalPaymentClaimRecorded,
+      );
+    },
+  );
+
+  test(
+    'OrdersNotifier uploads proof image before recording manual claim details',
+    () async {
+      final database = AppDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
+      final store = DriftSaleOutageStore(database);
+      await store.write(
+        SaleOutageOrderRecord(
+          localIntentId: 'local-upload-1',
+          orderNumber: 'LOCAL-UPL',
+          tenantId: 'tenant-1',
+          branchId: 'branch-1',
+          accountId: 'user-1',
+          saleType: 'take_away',
+          paymentMethodRequested: 'qr',
+          tenderCurrency: 'USD',
+          cashReceivedUsd: 0,
+          cashReceivedKhr: 0,
+          totalUsd: 3.5,
+          totalKhr: 14350,
+          lines: const [
+            SaleOutageLineSnapshot(
+              menuItemId: 'menu-1',
+              name: 'Iced Latte',
+              quantity: 1,
+              selectedOptionIds: {},
+              modifierLabels: [],
+              unitPriceUsd: 3.5,
+              lineTotalUsdExact: 3.5,
+            ),
+          ],
+          state: SaleOutageOrderStates.localOpenOrderCaptured,
+          sourceMode: SaleOutageSourceModes.manualExternalPaymentClaim,
+          createdAt: DateTime.utc(2026, 3, 17, 9),
+          updatedAt: DateTime.utc(2026, 3, 17, 9),
+        ),
+      );
+
+      final repo = _MockSaleCheckoutRepository();
+      when(() => repo.getOrders(any())).thenThrow(Exception('offline'));
+      when(
+        () => repo.uploadManualPaymentProofImage(
+          imageBytes: any(named: 'imageBytes'),
+        ),
+      ).thenAnswer((_) async => 'https://example.com/proof-uploaded.jpg');
+
+      final container = createTestContainer(
+        overrides: [
+          saleRepositoryProvider.overrideWithValue(repo),
+          saleOutageStoreProvider.overrideWithValue(store),
+          saleOutageScopeProvider.overrideWithValue(
+            const SaleOutageScope(
+              tenantId: 'tenant-1',
+              branchId: 'branch-1',
+              accountId: 'user-1',
+            ),
+          ),
+        ],
+      );
+
+      final notifier = container.read(ordersProvider.notifier);
+      await notifier.load(date: DateTime.utc(2026, 3, 17));
+
+      final order = container.read(ordersProvider).single;
+      await notifier.recordLocalManualExternalPaymentClaimWithUpload(
+        order,
+        claimedTenderAmount: 3.5,
+        proofImageBytes: const [0xFF, 0xD8, 0xFF, 0x00],
+        customerReference: 'ABA-REF-002',
+      );
+
+      final uploadedBytes =
+          verify(
+                () => repo.uploadManualPaymentProofImage(
+                  imageBytes: captureAny(named: 'imageBytes'),
+                ),
+              ).captured.single
+              as List<int>;
+      expect(uploadedBytes, const [0xFF, 0xD8, 0xFF, 0x00]);
+      expect(
+        container.read(ordersProvider).single.localOutageProofImageUrl,
+        'https://example.com/proof-uploaded.jpg',
+      );
     },
   );
 
@@ -833,6 +1112,103 @@ void main() {
       expect(claimCommand.orderId, 'order-1');
       expect(claimCommand.proofImageUrl, 'https://example.com/proof.jpg');
       expect(claimCommand.customerReference, 'ABA-REF-001');
+    },
+  );
+
+  test(
+    'OrdersNotifier lets another staff account on the same branch submit a recorded manual outage claim',
+    () async {
+      final database = AppDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
+      final store = DriftSaleOutageStore(database);
+      await store.write(
+        SaleOutageOrderRecord(
+          localIntentId: 'local-shared-submit',
+          orderNumber: 'LOCAL-SUBMIT',
+          tenantId: 'tenant-1',
+          branchId: 'branch-1',
+          accountId: 'staff-1',
+          saleType: 'take_away',
+          paymentMethodRequested: 'qr',
+          tenderCurrency: 'USD',
+          cashReceivedUsd: 0,
+          cashReceivedKhr: 0,
+          totalUsd: 3.5,
+          totalKhr: 14350,
+          lines: const [
+            SaleOutageLineSnapshot(
+              menuItemId: 'menu-1',
+              name: 'Iced Latte',
+              quantity: 1,
+              selectedOptionIds: {},
+              modifierLabels: [],
+              unitPriceUsd: 3.5,
+              lineTotalUsdExact: 3.5,
+            ),
+          ],
+          state: SaleOutageOrderStates.manualExternalPaymentClaimRecorded,
+          sourceMode: SaleOutageSourceModes.manualExternalPaymentClaim,
+          claimedPaymentMethod: 'KHQR',
+          claimedTenderAmount: 3.5,
+          proofImageUrl: 'https://example.com/proof.jpg',
+          customerReference: 'ABA-REF-SHARED',
+          claimRecordedAt: DateTime.utc(2026, 3, 17, 9, 5),
+          createdAt: DateTime.utc(2026, 3, 17, 9),
+          updatedAt: DateTime.utc(2026, 3, 17, 9, 5),
+        ),
+      );
+
+      final repo = _MockSaleCheckoutRepository();
+      when(() => repo.getOrders(any())).thenAnswer(
+        (_) async =>
+            SaleOrdersPageDto(items: const [], page: 1, limit: 100, total: 0),
+      );
+      when(() => repo.placeOrder(any())).thenAnswer(
+        (_) async => const SalePlaceOrderResultDto(
+          openTicketId: 'order-branch-1',
+          saleId: 'sale-branch-1',
+          status: 'UNPAID',
+          batchId: 'batch-branch-1',
+          idempotentReplay: false,
+        ),
+      );
+      when(() => repo.createManualPaymentClaim(any())).thenAnswer(
+        (_) async => const SaleCreateManualPaymentClaimResultDto(
+          claimId: 'claim-branch-1',
+          orderId: 'order-branch-1',
+          status: 'PENDING_REVIEW',
+          idempotentReplay: false,
+        ),
+      );
+
+      const currentStaffScope = SaleOutageScope(
+        tenantId: 'tenant-1',
+        branchId: 'branch-1',
+        accountId: 'staff-2',
+      );
+
+      final container = createTestContainer(
+        overrides: [
+          saleRepositoryProvider.overrideWithValue(repo),
+          saleOutageStoreProvider.overrideWithValue(store),
+          saleOutageScopeProvider.overrideWithValue(currentStaffScope),
+        ],
+      );
+
+      final notifier = container.read(ordersProvider.notifier);
+      await notifier.load(date: DateTime.utc(2026, 3, 17));
+
+      final order = container.read(ordersProvider).single;
+      await notifier.submitManualExternalPaymentClaim(order);
+
+      final persisted = await store.readByLocalIntentId(
+        scope: currentStaffScope,
+        localIntentId: 'local-shared-submit',
+      );
+      expect(persisted?.accountId, 'staff-1');
+      expect(persisted?.backendOrderId, 'order-branch-1');
+      expect(persisted?.backendClaimId, 'claim-branch-1');
+      expect(persisted?.claimSubmittedAt, isNotNull);
     },
   );
 
