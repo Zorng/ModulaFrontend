@@ -82,8 +82,6 @@ class _SignupPageState extends ConsumerState<SignupPage> {
     if (state.error != null) return;
 
     await controller.sendRegistrationOtp(phone: phone);
-    state = ref.read(loginControllerProvider);
-    if (state.error != null) return;
 
     if (!mounted) return;
     context.go(

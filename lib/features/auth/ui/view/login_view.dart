@@ -70,6 +70,14 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         message.contains('NOT VERIFIED');
   }
 
+  void _goToOtpVerification() {
+    final phone = _phoneCtrl.text.trim();
+    final route = phone.isEmpty
+        ? AppRoute.otpVerification.path
+        : '${AppRoute.otpVerification.path}?phone=${Uri.encodeQueryComponent(phone)}';
+    context.go(route);
+  }
+
   @override
   void dispose() {
     _loginSub?.close();
@@ -98,19 +106,20 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   constraints: BoxConstraints(minHeight: constraints.maxHeight),
                   child: Center(
                     child: Padding(
-                  padding: const EdgeInsets.all(18),
-                  child: _MobileLoginForm(
-                    state: state,
-                    controller: controller,
-                    phoneCtrl: _phoneCtrl,
-                    passwordCtrl: _passwordCtrl,
-                    obscurePassword: _obscurePassword,
-                    toggleObscure: () {
-                      setState(() {
-                        _obscurePassword = !_obscurePassword;
-                      });
-                    },
-                  ),
+                      padding: const EdgeInsets.all(18),
+                      child: _MobileLoginForm(
+                        state: state,
+                        controller: controller,
+                        phoneCtrl: _phoneCtrl,
+                        passwordCtrl: _passwordCtrl,
+                        obscurePassword: _obscurePassword,
+                        onVerifyPhone: _goToOtpVerification,
+                        toggleObscure: () {
+                          setState(() {
+                            _obscurePassword = !_obscurePassword;
+                          });
+                        },
+                      ),
                     ),
                   ),
                 ),
@@ -124,6 +133,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             phoneCtrl: _phoneCtrl,
             passwordCtrl: _passwordCtrl,
             obscurePassword: _obscurePassword,
+            onVerifyPhone: _goToOtpVerification,
             toggleObscure: () {
               setState(() {
                 _obscurePassword = !_obscurePassword;
@@ -144,6 +154,7 @@ class _MobileLoginForm extends StatelessWidget {
     required this.passwordCtrl,
     required this.obscurePassword,
     required this.toggleObscure,
+    required this.onVerifyPhone,
   });
 
   final LoginState state;
@@ -152,6 +163,7 @@ class _MobileLoginForm extends StatelessWidget {
   final TextEditingController passwordCtrl;
   final bool obscurePassword;
   final VoidCallback toggleObscure;
+  final VoidCallback onVerifyPhone;
 
   @override
   Widget build(BuildContext context) {
@@ -190,6 +202,7 @@ class _MobileLoginForm extends StatelessWidget {
           onSignup: () {
             context.go(AppRoute.signup.path);
           },
+          onVerifyPhone: onVerifyPhone,
           useFramedInputs: true,
           phoneHintText: 'your phone number',
           passwordHintText: 'your password',
@@ -210,6 +223,7 @@ class _DesktopLoginForm extends StatelessWidget {
     required this.passwordCtrl,
     required this.obscurePassword,
     required this.toggleObscure,
+    required this.onVerifyPhone,
   });
 
   final LoginState state;
@@ -218,6 +232,7 @@ class _DesktopLoginForm extends StatelessWidget {
   final TextEditingController passwordCtrl;
   final bool obscurePassword;
   final VoidCallback toggleObscure;
+  final VoidCallback onVerifyPhone;
 
   @override
   Widget build(BuildContext context) {
@@ -229,22 +244,26 @@ class _DesktopLoginForm extends StatelessWidget {
             color: const Color(0xFFF5F5F5),
             child: SingleChildScrollView(
               child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 72, vertical: 48),
-              child: Align(
-                alignment: Alignment.center,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 480),
-                  child: _DesktopFormPanel(
-                    state: state,
-                    controller: controller,
-                    phoneCtrl: phoneCtrl,
-                    passwordCtrl: passwordCtrl,
-                    obscurePassword: obscurePassword,
-                    toggleObscure: toggleObscure,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 72,
+                  vertical: 48,
+                ),
+                child: Align(
+                  alignment: Alignment.center,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 480),
+                    child: _DesktopFormPanel(
+                      state: state,
+                      controller: controller,
+                      phoneCtrl: phoneCtrl,
+                      passwordCtrl: passwordCtrl,
+                      obscurePassword: obscurePassword,
+                      onVerifyPhone: onVerifyPhone,
+                      toggleObscure: toggleObscure,
+                    ),
                   ),
                 ),
               ),
-            ),
             ),
           ),
         ),
@@ -294,6 +313,7 @@ class _DesktopFormPanel extends StatelessWidget {
     required this.passwordCtrl,
     required this.obscurePassword,
     required this.toggleObscure,
+    required this.onVerifyPhone,
   });
 
   final LoginState state;
@@ -302,6 +322,7 @@ class _DesktopFormPanel extends StatelessWidget {
   final TextEditingController passwordCtrl;
   final bool obscurePassword;
   final VoidCallback toggleObscure;
+  final VoidCallback onVerifyPhone;
 
   @override
   Widget build(BuildContext context) {
@@ -329,6 +350,7 @@ class _DesktopFormPanel extends StatelessWidget {
           onSignup: () {
             context.go(AppRoute.signup.path);
           },
+          onVerifyPhone: onVerifyPhone,
           showDesktopFieldLabels: true,
           phoneHintText: 'your phone number',
           passwordHintText: 'your password',

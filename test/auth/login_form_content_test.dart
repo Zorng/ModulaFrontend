@@ -10,6 +10,7 @@ void main() {
   testWidgets('triggers login and signup actions when enabled', (tester) async {
     var loginTapped = 0;
     var signupTapped = 0;
+    var verifyTapped = 0;
 
     await tester.pumpWidget(
       MaterialApp(
@@ -22,6 +23,7 @@ void main() {
             onToggleObscure: () {},
             onLogin: () => loginTapped += 1,
             onSignup: () => signupTapped += 1,
+            onVerifyPhone: () => verifyTapped += 1,
             footerText: 'login to continue',
           ),
         ),
@@ -32,9 +34,12 @@ void main() {
     await tester.pump();
     await tester.tap(find.text('Create account'));
     await tester.pump();
+    await tester.tap(find.text('Verify phone / resend OTP'));
+    await tester.pump();
 
     expect(loginTapped, 1);
     expect(signupTapped, 1);
+    expect(verifyTapped, 1);
     expect(find.text('login to continue'), findsOneWidget);
   });
 
@@ -58,11 +63,14 @@ void main() {
     );
 
     final filledButton = tester.widget<FilledButton>(find.byType(FilledButton));
-    final textButton = tester.widget<TextButton>(find.byType(TextButton));
+    final textButtons = tester.widgetList<TextButton>(find.byType(TextButton));
 
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
     expect(filledButton.onPressed, isNull);
-    expect(textButton.onPressed, isNull);
+    expect(textButtons, isNotEmpty);
+    for (final button in textButtons) {
+      expect(button.onPressed, isNull);
+    }
   });
 
   testWidgets('wide login renders desktop split layout', (tester) async {
@@ -82,6 +90,7 @@ void main() {
     expect(find.text('Modula'), findsOneWidget);
     expect(find.byType(SvgPicture), findsOneWidget);
     expect(find.text('Sign up'), findsOneWidget);
+    expect(find.text('Verify phone / resend OTP'), findsOneWidget);
     expect(find.text('Forgot password?'), findsOneWidget);
   });
 
@@ -101,6 +110,7 @@ void main() {
     expect(find.text('Login to Modula'), findsOneWidget);
     expect(find.text('Sign up'), findsOneWidget);
     expect(find.text('Don’t have an account ?'), findsOneWidget);
+    expect(find.text('Verify phone / resend OTP'), findsOneWidget);
     expect(find.text('Forgot password?'), findsNothing);
     expect(find.byType(SvgPicture), findsOneWidget);
     expect(find.widgetWithText(FilledButton, 'Log in'), findsOneWidget);
