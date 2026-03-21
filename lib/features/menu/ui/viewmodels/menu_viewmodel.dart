@@ -117,11 +117,16 @@ class MenuViewModel extends Notifier<MenuState> {
 
   Future<void> loadMenu({
     String? branchId,
+    String? status,
     MenuReadLane readLane = MenuReadLane.management,
   }) async {
+    final selectedStatus = _normalizeStatusFilter(
+      status ?? state.selectedStatus,
+    );
     final requestedScope = _resolveCacheScope(
       branchId: branchId,
       readLane: readLane,
+      status: selectedStatus,
     );
     try {
       state = state.copyWith(isLoading: true, error: null, errorCode: null);
@@ -131,26 +136,41 @@ class MenuViewModel extends Notifier<MenuState> {
           requestedBranchFilter.isEmpty || requestedBranchFilter == 'all'
           ? null
           : requestedBranchFilter;
+      final selectedBranch = branchIdFilter ?? 'all';
+      final selectedCategoryId = selectedStatus == 'archived'
+          ? 'all'
+          : state.selectedCategoryId;
+      final searchQuery = state.searchQuery;
       if (requestedScope != null) {
         final cached = await _cache.read(requestedScope);
         if (_sameScope(
               requestedScope,
-              _resolveCacheScope(branchId: branchId, readLane: readLane),
+              _resolveCacheScope(
+                branchId: branchId,
+                readLane: readLane,
+                status: selectedStatus,
+              ),
             ) &&
             _hasMenuBundle(cached)) {
-          final selectedBranch = branchIdFilter ?? 'all';
           final branches = userBranches.isNotEmpty
               ? userBranches
               : cached!.branches;
           state = state.copyWith(
             isLoading: true,
             allItems: cached!.items,
-            filteredItems: _applyFilters(items: cached.items),
+            filteredItems: _applyFilters(
+              items: cached.items,
+              categoryId: selectedCategoryId,
+              branchId: selectedBranch,
+              query: searchQuery,
+            ),
             categories: cached.categories,
             modifierGroups: cached.modifierGroups,
             branches: branches,
-            selectedCategoryId: 'all',
+            selectedCategoryId: selectedCategoryId,
             selectedBranchId: selectedBranch,
+            selectedStatus: selectedStatus,
+            searchQuery: searchQuery,
             error: null,
             errorCode: null,
           );
@@ -159,21 +179,28 @@ class MenuViewModel extends Notifier<MenuState> {
       final bundle = await _withTimeout(
         _menuRepository.fetchMenuData(
           readLane: readLane,
-          status: 'active',
+          status: selectedStatus,
           branchIdFilter: branchIdFilter,
         ),
       );
       if (!_sameScope(
         requestedScope,
-        _resolveCacheScope(branchId: branchId, readLane: readLane),
+        _resolveCacheScope(
+          branchId: branchId,
+          readLane: readLane,
+          status: selectedStatus,
+        ),
       )) {
         return;
       }
       if (requestedScope != null) {
         await _cache.write(scope: requestedScope, bundle: bundle);
       }
+      final categories =
+          selectedStatus == 'archived' && state.categories.isNotEmpty
+          ? state.categories
+          : bundle.categories;
       final branches = userBranches.isNotEmpty ? userBranches : bundle.branches;
-      final selectedBranch = branchIdFilter ?? 'all';
 
       // Preserve modifier attachments if bulk fetch doesn't carry them.
       final previousItems = state.allItems;
@@ -194,23 +221,35 @@ class MenuViewModel extends Notifier<MenuState> {
         for (final g in bundle.modifierGroups) g.id: g,
       };
       final mergedGroups = groupMap.values.toList();
+      final filteredItems = _applyFilters(
+        items: mergedItems,
+        categoryId: selectedCategoryId,
+        branchId: selectedBranch,
+        query: searchQuery,
+      );
 
       state = state.copyWith(
         isLoading: false,
         allItems: mergedItems,
-        filteredItems: _applyFilters(items: mergedItems),
-        categories: bundle.categories,
+        filteredItems: filteredItems,
+        categories: categories,
         modifierGroups: mergedGroups,
         branches: branches,
         hydratedItems: state.hydratedItems,
         hydratedModifierGroups: state.hydratedModifierGroups,
-        selectedCategoryId: 'all',
+        selectedCategoryId: selectedCategoryId,
         selectedBranchId: selectedBranch,
+        selectedStatus: selectedStatus,
+        searchQuery: searchQuery,
       );
     } catch (e) {
       if (!_sameScope(
         requestedScope,
-        _resolveCacheScope(branchId: branchId, readLane: readLane),
+        _resolveCacheScope(
+          branchId: branchId,
+          readLane: readLane,
+          status: selectedStatus,
+        ),
       )) {
         return;
       }
@@ -448,6 +487,15 @@ class MenuViewModel extends Notifier<MenuState> {
     await loadMenu(branchId: branchId);
   }
 
+  Future<void> filterByStatus(String status) async {
+    final normalizedStatus = _normalizeStatusFilter(status);
+    final selectedCategoryId = normalizedStatus == 'archived'
+        ? 'all'
+        : state.selectedCategoryId;
+    state = state.copyWith(selectedCategoryId: selectedCategoryId);
+    await loadMenu(status: normalizedStatus);
+  }
+
   Future<void> addCategory({
     required String name,
     String description = '',
@@ -522,6 +570,27 @@ class MenuViewModel extends Notifier<MenuState> {
     return archiveCategory(categoryId);
   }
 
+  Future<void> restoreCategory(MenuCategory category) async {
+    _clearOperationError();
+    try {
+      await _menuRepository.restoreCategory(category.id);
+      final categories = [
+        for (final existing in state.categories)
+          if (existing.id == category.id)
+            existing.copyWith(status: 'ACTIVE')
+          else
+            existing,
+        if (state.categories.every((existing) => existing.id != category.id))
+          category.copyWith(status: 'ACTIVE'),
+      ];
+      state = state.copyWith(categories: categories);
+      await refreshCategories(status: 'active');
+    } catch (e) {
+      _setOperationError(e);
+      rethrow;
+    }
+  }
+
   Future<void> addModifierGroup(ModifierGroup group) async {
     _clearOperationError();
     final branchId = state.selectedBranchId == 'all'
@@ -588,6 +657,20 @@ class MenuViewModel extends Notifier<MenuState> {
         allItems: items,
         filteredItems: _applyFilters(items: items),
       );
+      await loadMenu(branchId: branchId);
+    } catch (e) {
+      _setOperationError(e);
+      rethrow;
+    }
+  }
+
+  Future<void> restoreModifierGroup(String groupId) async {
+    _clearOperationError();
+    final branchId = state.selectedBranchId == 'all'
+        ? null
+        : state.selectedBranchId;
+    try {
+      await _menuRepository.restoreModifierGroup(groupId);
       await loadMenu(branchId: branchId);
     } catch (e) {
       _setOperationError(e);
@@ -668,8 +751,22 @@ class MenuViewModel extends Notifier<MenuState> {
     final branchId = state.selectedBranchId == 'all'
         ? null
         : state.selectedBranchId;
+    final currentItem =
+        state.hydratedItems[menuItemId] ??
+        state.allItems.firstWhere(
+          (item) => item.id == menuItemId,
+          orElse: () =>
+              const MenuItem(id: '', name: '', categoryId: '', price: 0),
+        );
     try {
-      await _menuRepository.archiveMenuItem(menuItemId);
+      try {
+        await _menuRepository.archiveMenuItem(menuItemId);
+      } catch (_) {
+        if (currentItem.id.isEmpty) rethrow;
+        await _menuRepository.updateMenuItem(
+          currentItem.copyWith(status: 'ARCHIVED', isActive: false),
+        );
+      }
       final items = state.allItems
           .where((item) => item.id != menuItemId)
           .toList();
@@ -689,8 +786,22 @@ class MenuViewModel extends Notifier<MenuState> {
     final branchId = state.selectedBranchId == 'all'
         ? null
         : state.selectedBranchId;
+    final currentItem =
+        state.hydratedItems[menuItemId] ??
+        state.allItems.firstWhere(
+          (item) => item.id == menuItemId,
+          orElse: () =>
+              const MenuItem(id: '', name: '', categoryId: '', price: 0),
+        );
     try {
-      await _menuRepository.restoreMenuItem(menuItemId);
+      try {
+        await _menuRepository.restoreMenuItem(menuItemId);
+      } catch (_) {
+        if (currentItem.id.isEmpty) rethrow;
+        await _menuRepository.updateMenuItem(
+          currentItem.copyWith(status: 'ACTIVE', isActive: true),
+        );
+      }
       await loadMenu(branchId: branchId);
     } catch (e) {
       _setOperationError(e);
@@ -758,6 +869,18 @@ class MenuViewModel extends Notifier<MenuState> {
     }).toList();
   }
 
+  String _normalizeStatusFilter(String value) {
+    switch (value.trim().toLowerCase()) {
+      case 'archived':
+      case 'archive':
+      case 'achieve':
+        return 'archived';
+      case 'active':
+      default:
+        return 'active';
+    }
+  }
+
   List<MenuBranch> _resolveUserBranches() {
     final loginState = ref.read(loginControllerProvider);
     final assignments = loginState.session?.user.branches ?? const [];
@@ -775,6 +898,7 @@ class MenuViewModel extends Notifier<MenuState> {
   MenuCacheQuery? _resolveCacheScope({
     String? branchId,
     required MenuReadLane readLane,
+    required String status,
   }) {
     final tenantId =
         (ref.read(authTenantIdProvider) ??
@@ -794,11 +918,11 @@ class MenuViewModel extends Notifier<MenuState> {
       tenantId: tenantId,
       scopeKey: buildMenuCacheScopeKey(
         readLane: readLane,
-        status: 'active',
+        status: status,
         branchIdFilter: branchIdFilter,
       ),
       readLane: readLane,
-      status: 'active',
+      status: status,
       branchIdFilter: branchIdFilter,
     );
   }

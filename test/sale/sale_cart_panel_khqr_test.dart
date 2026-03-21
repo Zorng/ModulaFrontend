@@ -41,6 +41,7 @@ class _StaticMenuViewModel extends MenuViewModel {
   @override
   Future<void> loadMenu({
     String? branchId,
+    String? status,
     MenuReadLane readLane = MenuReadLane.management,
   }) async {}
 }

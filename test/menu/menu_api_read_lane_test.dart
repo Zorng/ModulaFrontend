@@ -65,7 +65,7 @@ void main() {
               ).captured.single
               as Map<String, dynamic>;
 
-      expect(captured['status'], 'active');
+      expect(captured['status'], 'ACTIVE');
       expect(captured['categoryId'], 'cat-1');
       expect(captured['search'], 'latte');
       expect(captured['limit'], 50);

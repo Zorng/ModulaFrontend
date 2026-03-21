@@ -242,6 +242,68 @@ void main() {
     );
 
     test(
+      'filterByStatus reloads archived items and preserves branch/search filters',
+      () async {
+        final repo = _MockMenuRepository();
+        when(
+          () => repo.fetchMenuData(
+            readLane: MenuReadLane.management,
+            status: 'archived',
+            branchIdFilter: 'branch-1',
+          ),
+        ).thenAnswer(
+          (_) async => const MenuDataBundle(
+            items: [
+              MenuItem(
+                id: 'item-archived',
+                name: 'Old Latte',
+                categoryId: 'cat-1',
+                price: 2.5,
+                basePrice: 2.5,
+                status: 'ARCHIVED',
+                visibleBranchIds: ['branch-1'],
+                branchIds: ['branch-1'],
+                isActive: false,
+              ),
+            ],
+            categories: [],
+            modifierGroups: [],
+            branches: [],
+          ),
+        );
+
+        final container = createTestContainer(
+          overrides: [menuRepositoryProvider.overrideWithValue(repo)],
+        );
+        final notifier = container.read(menuViewModelProvider.notifier);
+
+        notifier.state = const MenuState(
+          isLoading: false,
+          selectedBranchId: 'branch-1',
+          selectedStatus: 'active',
+          searchQuery: 'old',
+        );
+
+        await notifier.filterByStatus('archived');
+
+        final state = container.read(menuViewModelProvider);
+        expect(state.selectedStatus, 'archived');
+        expect(state.selectedBranchId, 'branch-1');
+        expect(state.searchQuery, 'old');
+        expect(state.filteredItems, hasLength(1));
+        expect(state.filteredItems.first.id, 'item-archived');
+
+        verify(
+          () => repo.fetchMenuData(
+            readLane: MenuReadLane.management,
+            status: 'archived',
+            branchIdFilter: 'branch-1',
+          ),
+        ).called(1);
+      },
+    );
+
+    test(
       'setMenuItemVisibility updates item branches, reloads menu, and clears operation error',
       () async {
         final repo = _MockMenuRepository();
@@ -296,6 +358,7 @@ void main() {
           allItems: [seededItem],
           filteredItems: [seededItem],
           selectedBranchId: 'all',
+          selectedStatus: 'active',
           error: 'old-error',
           errorCode: 'OLD_CODE',
         );

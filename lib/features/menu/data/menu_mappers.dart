@@ -153,7 +153,12 @@ class MenuMappers {
     required bool fallbackIsActive,
   }) {
     final normalized = (value ?? '').trim().toUpperCase();
-    if (normalized == 'ACTIVE' || normalized == 'ARCHIVED') return normalized;
+    if (normalized == 'ACTIVE') return normalized;
+    if (normalized == 'ARCHIVED' ||
+        normalized == 'ARCHIVE' ||
+        normalized == 'INACTIVE') {
+      return 'ARCHIVED';
+    }
     return fallbackIsActive ? 'ACTIVE' : 'ARCHIVED';
   }
 }

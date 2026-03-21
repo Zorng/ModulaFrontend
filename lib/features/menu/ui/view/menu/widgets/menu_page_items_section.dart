@@ -18,6 +18,7 @@ class MenuPageItemsSection extends StatelessWidget {
     required this.items,
     required this.categories,
     required this.branches,
+    required this.emptyMessage,
     required this.onItemTap,
   });
 
@@ -26,6 +27,7 @@ class MenuPageItemsSection extends StatelessWidget {
   final List<MenuItem> items;
   final List<MenuCategory> categories;
   final List<MenuBranch> branches;
+  final String emptyMessage;
   final ValueChanged<MenuItem> onItemTap;
 
   @override
@@ -45,7 +47,7 @@ class MenuPageItemsSection extends StatelessWidget {
     if (items.isEmpty) {
       return Center(
         child: Text(
-          'No menu items match your filters.',
+          emptyMessage,
           style: Theme.of(context).textTheme.bodyMedium,
         ),
       );
@@ -129,12 +131,6 @@ class MenuPageItemsSection extends StatelessWidget {
                         ),
                         DataColumn(
                           label: Text(
-                            'Status',
-                            style: AppTableTheme.headerText,
-                          ),
-                        ),
-                        DataColumn(
-                          label: Text(
                             'Action',
                             style: AppTableTheme.headerText,
                           ),
@@ -197,7 +193,7 @@ class MenuPageItemsSection extends StatelessWidget {
                             ),
                             DataCell(
                               Text(
-                                '\$${item.price.toStringAsFixed(2)}',
+                                '\$ ${item.price.toStringAsFixed(2)}',
                                 style: AppTableTheme.cellText,
                               ),
                             ),
@@ -205,23 +201,6 @@ class MenuPageItemsSection extends StatelessWidget {
                               Text(
                                 assignedBranches,
                                 style: AppTableTheme.cellText,
-                              ),
-                            ),
-                            DataCell(
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 6,
-                                ),
-                                decoration: item.isActive
-                                    ? AppTableTheme.healthyDecoration
-                                    : AppTableTheme.dangerDecoration,
-                                child: Text(
-                                  item.isActive ? 'Active' : 'Inactive',
-                                  style: item.isActive
-                                      ? AppTableTheme.healthyText
-                                      : AppTableTheme.dangerText,
-                                ),
                               ),
                             ),
                             DataCell(
