@@ -4,7 +4,6 @@
 
 [build.environment]
   FLUTTER_CHANNEL = "stable"
-  FLUTTER_VERSION = "3.41.4"
 
 [[redirects]]
   from = "/*"
