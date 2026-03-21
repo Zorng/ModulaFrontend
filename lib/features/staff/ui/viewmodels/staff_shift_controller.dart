@@ -1,6 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:modular_pos/core/network/api_contract.dart';
+import 'package:modular_pos/features/auth/domain/auth_tenant_provider.dart';
+import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/branchV2/domain/models/branch_models.dart';
+import 'package:modular_pos/features/staff/data/staff_shift_cache_store.dart';
 import 'package:modular_pos/features/staff/data/repository/staff_shift_repository.dart';
 import 'package:modular_pos/features/staff/domain/models/staff_membership_models.dart';
 import 'package:modular_pos/features/staff/domain/models/staff_shift_models.dart';
@@ -66,9 +72,24 @@ final staffShiftControllerProvider =
       StaffShiftController.new,
     );
 
+final staffShiftRequestTimeoutProvider = Provider<Duration>(
+  (ref) => const Duration(seconds: 12),
+);
+
+final staffShiftTenantIdProvider = Provider<String>((ref) {
+  return (ref.watch(authTenantIdProvider) ??
+          ref.watch(loginControllerProvider).session?.activeTenantId ??
+          ref.watch(loginControllerProvider).session?.user.tenantId ??
+          '')
+      .trim();
+});
+
 class StaffShiftController extends AsyncNotifier<StaffShiftState> {
   StaffShiftRepository get _repository =>
       ref.read(staffShiftRepositoryProvider);
+  StaffShiftCacheStore get _cache => ref.read(staffShiftCacheStoreProvider);
+  Duration get _requestTimeout => ref.read(staffShiftRequestTimeoutProvider);
+  String get _tenantId => ref.read(staffShiftTenantIdProvider);
 
   StaffShiftState? get _currentState {
     final current = state;
@@ -77,30 +98,28 @@ class StaffShiftController extends AsyncNotifier<StaffShiftState> {
 
   @override
   Future<StaffShiftState> build() async {
-    final branches = await ref.read(staffTenantBranchesProvider.future);
-    final memberships = await ref.read(staffMembershipOptionsProvider.future);
-    final now = DateTime.now();
-    final start = DateTime(now.year, now.month, now.day);
-    final end = start.add(const Duration(days: 6));
-    final selectedBranchId = branches.isNotEmpty
-        ? branches.first.branchId
-        : null;
-    final schedule = selectedBranchId == null
-        ? const StaffShiftSchedule(patterns: [], instances: [])
-        : await _repository.fetchSchedule(
-            branchId: selectedBranchId,
-            from: _formatDate(start),
-            to: _formatDate(end),
-          );
-
-    return StaffShiftState(
-      branches: branches,
-      memberships: memberships,
-      selectedBranchId: selectedBranchId,
-      selectedMembershipId: null,
-      dateRange: DateTimeRange(start: start, end: end),
-      schedule: schedule,
-    );
+    final dateRange = _defaultDateRange();
+    final tenantId = _tenantId;
+    if (tenantId.isNotEmpty) {
+      final cached = await _loadCachedInitialState(
+        tenantId: tenantId,
+        dateRange: dateRange,
+      );
+      if (cached != null) {
+        unawaited(
+          Future<void>.microtask(
+            () => _refreshCachedBootstrap(
+              tenantId: tenantId,
+              expectedBranchId: cached.selectedBranchId,
+              expectedMembershipId: cached.selectedMembershipId,
+              dateRange: dateRange,
+            ),
+          ),
+        );
+        return cached;
+      }
+    }
+    return _loadRemoteInitialState(dateRange: dateRange);
   }
 
   Future<void> setBranchId(String? value) async {
@@ -255,7 +274,7 @@ class StaffShiftController extends AsyncNotifier<StaffShiftState> {
     if (current == null) return;
     state = AsyncData(current.copyWith(isSaving: true, clearInlineError: true));
     try {
-      await action();
+      await _withTimeout(action());
       final refreshed = await _fetchState(
         branches: current.branches,
         memberships: current.memberships,
@@ -266,7 +285,7 @@ class StaffShiftController extends AsyncNotifier<StaffShiftState> {
       state = AsyncData(refreshed);
     } catch (error) {
       state = AsyncData(
-        current.copyWith(isSaving: false, inlineError: error.toString()),
+        current.copyWith(isSaving: false, inlineError: _formatError(error)),
       );
     }
   }
@@ -282,9 +301,39 @@ class StaffShiftController extends AsyncNotifier<StaffShiftState> {
       state = await AsyncValue.guard(build);
       return;
     }
-    state = AsyncData(
-      current.copyWith(isRefreshing: true, clearInlineError: true),
+    final requestedState = current.copyWith(
+      selectedBranchId: selectedBranchId,
+      clearSelectedBranchId: selectedBranchId == null,
+      selectedMembershipId: selectedMembershipId,
+      clearSelectedMembershipId: selectedMembershipId == null,
+      dateRange: dateRange,
+      schedule: const StaffShiftSchedule(patterns: [], instances: []),
+      isRefreshing: true,
+      clearInlineError: true,
     );
+
+    var baseState = requestedState;
+    final requestedScope = _resolveCacheScope(
+      tenantId: _tenantId,
+      selectedBranchId: selectedBranchId,
+      selectedMembershipId: selectedMembershipId,
+      dateRange: dateRange,
+    );
+    if (requestedScope != null) {
+      final cached = await _cache.read(
+        tenantId: requestedScope.tenantId,
+        scope: requestedScope,
+      );
+      if (_sameSelection(
+        baseState,
+        selectedBranchId: selectedBranchId,
+        selectedMembershipId: selectedMembershipId,
+        dateRange: dateRange,
+      )) {
+        baseState = requestedState.copyWith(schedule: cached.schedule);
+      }
+    }
+    state = AsyncData(baseState);
     try {
       final next = await _fetchState(
         branches: current.branches,
@@ -296,7 +345,10 @@ class StaffShiftController extends AsyncNotifier<StaffShiftState> {
       state = AsyncData(next);
     } catch (error) {
       state = AsyncData(
-        current.copyWith(isRefreshing: false, inlineError: error.toString()),
+        baseState.copyWith(
+          isRefreshing: false,
+          inlineError: _formatError(error),
+        ),
       );
     }
   }
@@ -313,11 +365,29 @@ class StaffShiftController extends AsyncNotifier<StaffShiftState> {
       instances: [],
     );
     if ((selectedBranchId ?? '').trim().isNotEmpty) {
-      schedule = await _repository.fetchSchedule(
-        branchId: selectedBranchId!.trim(),
-        from: _formatDate(dateRange.start),
-        to: _formatDate(dateRange.end),
-        membershipId: selectedMembershipId,
+      final scope = _resolveCacheScope(
+        tenantId: _tenantId,
+        selectedBranchId: selectedBranchId,
+        selectedMembershipId: selectedMembershipId,
+        dateRange: dateRange,
+      );
+      schedule = await _withTimeout(
+        _repository.fetchSchedule(
+          branchId: selectedBranchId!.trim(),
+          from: _formatDate(dateRange.start),
+          to: _formatDate(dateRange.end),
+          membershipId: selectedMembershipId,
+        ),
+      );
+      if (scope != null) {
+        await _cache.writeSchedule(scope: scope, schedule: schedule);
+      }
+    }
+    if (_tenantId.isNotEmpty) {
+      await _cache.writeOptions(
+        tenantId: _tenantId,
+        branches: branches,
+        memberships: memberships,
       );
     }
     return StaffShiftState(
@@ -333,5 +403,161 @@ class StaffShiftController extends AsyncNotifier<StaffShiftState> {
   String _formatDate(DateTime date) {
     final localDate = DateTime(date.year, date.month, date.day);
     return localDate.toIso8601String().split('T').first;
+  }
+
+  DateTimeRange _defaultDateRange() {
+    final now = DateTime.now();
+    final start = DateTime(now.year, now.month, now.day);
+    return DateTimeRange(start: start, end: start.add(const Duration(days: 6)));
+  }
+
+  Future<StaffShiftState?> _loadCachedInitialState({
+    required String tenantId,
+    required DateTimeRange dateRange,
+  }) async {
+    final bootstrap = await _cache.read(tenantId: tenantId);
+    if (!bootstrap.hasAnyData) {
+      return null;
+    }
+
+    final selectedBranchId = bootstrap.branches.isNotEmpty
+        ? bootstrap.branches.first.branchId
+        : null;
+    if ((selectedBranchId ?? '').trim().isEmpty) {
+      return StaffShiftState(
+        branches: bootstrap.branches,
+        memberships: bootstrap.memberships,
+        selectedBranchId: null,
+        selectedMembershipId: null,
+        dateRange: dateRange,
+        schedule: const StaffShiftSchedule(patterns: [], instances: []),
+      );
+    }
+
+    final scoped = await _cache.read(
+      tenantId: tenantId,
+      scope: StaffShiftCacheScope(
+        tenantId: tenantId,
+        branchId: selectedBranchId!.trim(),
+        fromDate: _formatDate(dateRange.start),
+        toDate: _formatDate(dateRange.end),
+      ),
+    );
+    return StaffShiftState(
+      branches: bootstrap.branches,
+      memberships: bootstrap.memberships,
+      selectedBranchId: selectedBranchId,
+      selectedMembershipId: null,
+      dateRange: dateRange,
+      schedule: scoped.schedule,
+    );
+  }
+
+  Future<StaffShiftState> _loadRemoteInitialState({
+    required DateTimeRange dateRange,
+  }) async {
+    final (branches, memberships) = await _loadRemoteOptions();
+    final selectedBranchId = branches.isNotEmpty
+        ? branches.first.branchId
+        : null;
+    return _fetchState(
+      branches: branches,
+      memberships: memberships,
+      selectedBranchId: selectedBranchId,
+      selectedMembershipId: null,
+      dateRange: dateRange,
+    );
+  }
+
+  Future<void> _refreshCachedBootstrap({
+    required String tenantId,
+    required String? expectedBranchId,
+    required String? expectedMembershipId,
+    required DateTimeRange dateRange,
+  }) async {
+    try {
+      final next = await _loadRemoteInitialState(dateRange: dateRange);
+      if (_sameSelection(
+        next,
+        selectedBranchId: expectedBranchId,
+        selectedMembershipId: expectedMembershipId,
+        dateRange: dateRange,
+      )) {
+        state = AsyncData(next);
+      }
+    } catch (error) {
+      final current = _currentState;
+      if (current == null) return;
+      if (_tenantId != tenantId) return;
+      if (!_sameSelection(
+        current,
+        selectedBranchId: expectedBranchId,
+        selectedMembershipId: expectedMembershipId,
+        dateRange: dateRange,
+      )) {
+        return;
+      }
+      state = AsyncData(
+        current.copyWith(isRefreshing: false, inlineError: _formatError(error)),
+      );
+    }
+  }
+
+  Future<(List<BranchListItem>, List<StaffMembershipSummary>)>
+  _loadRemoteOptions() async {
+    final branches = await _withTimeout(
+      ref.read(staffTenantBranchesProvider.future),
+    );
+    final memberships = await _withTimeout(
+      ref.read(staffMembershipOptionsProvider.future),
+    );
+    return (branches, memberships);
+  }
+
+  StaffShiftCacheScope? _resolveCacheScope({
+    required String tenantId,
+    required String? selectedBranchId,
+    required String? selectedMembershipId,
+    required DateTimeRange dateRange,
+  }) {
+    final normalizedTenantId = tenantId.trim();
+    final normalizedBranchId = (selectedBranchId ?? '').trim();
+    if (normalizedTenantId.isEmpty || normalizedBranchId.isEmpty) return null;
+    final normalizedMembershipId = (selectedMembershipId ?? '').trim();
+    return StaffShiftCacheScope(
+      tenantId: normalizedTenantId,
+      branchId: normalizedBranchId,
+      membershipId: normalizedMembershipId.isEmpty
+          ? null
+          : normalizedMembershipId,
+      fromDate: _formatDate(dateRange.start),
+      toDate: _formatDate(dateRange.end),
+    );
+  }
+
+  bool _sameSelection(
+    StaffShiftState state, {
+    required String? selectedBranchId,
+    required String? selectedMembershipId,
+    required DateTimeRange dateRange,
+  }) {
+    return (state.selectedBranchId ?? '') == (selectedBranchId ?? '') &&
+        (state.selectedMembershipId ?? '') == (selectedMembershipId ?? '') &&
+        state.dateRange.start == dateRange.start &&
+        state.dateRange.end == dateRange.end;
+  }
+
+  Future<T> _withTimeout<T>(Future<T> future) {
+    return future.timeout(_requestTimeout);
+  }
+
+  String _formatError(Object error) {
+    if (error is TimeoutException) {
+      return 'Shift request timed out. Check your connection and try again.';
+    }
+    if (error is ApiClientException) {
+      return error.message;
+    }
+    return error.toString();
   }
 }

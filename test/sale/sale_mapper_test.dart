@@ -112,27 +112,29 @@ void main() {
   test('maps cash checkout response to finalize result', () {
     final result = SaleMappers.toFinalizeResultFromCashCheckout(
       SaleCashCheckoutResponseDto.fromJson({
-        'sale': {
-          'id': 'sale-1',
-          'clientUuid': 'client-1',
-          'tenantId': 'tenant-1',
-          'branchId': 'branch-1',
-          'employeeId': 'user-1',
-          'saleType': 'take_away',
-          'state': 'FINALIZED',
-          'fxRateUsed': 4100,
-          'tenderCurrency': 'USD',
-          'paymentMethod': 'cash',
-          'fulfillmentStatus': 'in_prep',
-          'subtotalUsdExact': 5,
-          'subtotalKhrExact': 20500,
-          'totalUsdExact': 5,
-          'totalKhrExact': 20500,
-          'cashReceivedTenderAmount': 10,
-          'cashChangeTenderAmount': 5,
-          'createdAt': '2026-03-07T10:00:00.000Z',
-          'updatedAt': '2026-03-07T10:05:00.000Z',
-          'items': const [],
+        'id': 'sale-1',
+        'orderId': 'order-1',
+        'saleType': 'take_away',
+        'status': 'FINALIZED',
+        'saleFxRateKhrPerUsd': 4100,
+        'tenderCurrency': 'USD',
+        'paymentMethod': 'cash',
+        'fulfillmentStatus': 'in_prep',
+        'subtotalUsd': 5,
+        'subtotalKhr': 20500,
+        'grandTotalUsd': 5,
+        'grandTotalKhr': 20500,
+        'cashReceivedTenderAmount': 10,
+        'cashChangeTenderAmount': 5,
+        'finalizedAt': '2026-03-07T10:05:00.000Z',
+        'createdAt': '2026-03-07T10:00:00.000Z',
+        'updatedAt': '2026-03-07T10:05:00.000Z',
+        'lines': const [],
+        'order': {
+          'id': 'order-1',
+          'status': 'CHECKED_OUT',
+          'sourceMode': 'DIRECT_CHECKOUT',
+          'checkedOutAt': '2026-03-07T10:05:00.000Z',
         },
         'receipt': {
           'receiptId': 'receipt-1',
@@ -144,6 +146,7 @@ void main() {
     );
 
     expect(result.saleId, 'sale-1');
+    expect(result.orderId, 'order-1');
     expect(result.status, 'FINALIZED');
     expect(result.receiptId, 'receipt-1');
     expect(result.cashReceivedUsd, 10);

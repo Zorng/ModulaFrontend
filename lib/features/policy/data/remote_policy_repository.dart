@@ -1,4 +1,4 @@
-import 'package:modular_pos/features/policy/data/dto/policy_dto.dart';
+import 'package:modular_pos/features/policy/data/policy_mapper.dart';
 import 'package:modular_pos/features/policy/data/policy_api.dart';
 import 'package:modular_pos/features/policy/data/policy_repository.dart';
 import 'package:modular_pos/features/policy/domain/models/policy.dart';
@@ -11,7 +11,7 @@ class RemotePolicyRepository implements PolicyRepository {
   @override
   Future<BranchPolicy> fetchCurrentBranchPolicy() async {
     final dto = await _api.getCurrentBranchPolicy();
-    return _toBranchPolicy(dto);
+    return mapBranchPolicyDto(dto);
   }
 
   @override
@@ -23,6 +23,7 @@ class RemotePolicyRepository implements PolicyRepository {
     String? saleKhrRoundingMode,
     String? saleKhrRoundingGranularity,
     bool? saleAllowPayLater,
+    bool? saleAllowManualExternalPaymentClaim,
   }) async {
     final dto = await _api.updateCurrentBranchPolicy(
       saleVatEnabled: saleVatEnabled,
@@ -32,27 +33,8 @@ class RemotePolicyRepository implements PolicyRepository {
       saleKhrRoundingMode: saleKhrRoundingMode,
       saleKhrRoundingGranularity: saleKhrRoundingGranularity,
       saleAllowPayLater: saleAllowPayLater,
+      saleAllowManualExternalPaymentClaim: saleAllowManualExternalPaymentClaim,
     );
-    return _toBranchPolicy(dto);
-  }
-
-  BranchPolicy _toBranchPolicy(BranchPolicyDto dto) {
-    return BranchPolicy(
-      tenantId: dto.tenantId,
-      branchId: dto.branchId,
-      saleVatEnabled: dto.saleVatEnabled,
-      saleVatRatePercent: dto.saleVatRatePercent,
-      saleFxRateKhrPerUsd: dto.saleFxRateKhrPerUsd,
-      saleKhrRoundingEnabled: dto.saleKhrRoundingEnabled,
-      saleKhrRoundingMode: BranchPolicyRoundingModes.normalize(
-        dto.saleKhrRoundingMode,
-      ),
-      saleKhrRoundingGranularity: BranchPolicyRoundingGranularities.normalize(
-        dto.saleKhrRoundingGranularity,
-      ),
-      saleAllowPayLater: dto.saleAllowPayLater,
-      createdAt: dto.createdAt,
-      updatedAt: dto.updatedAt,
-    );
+    return mapBranchPolicyDto(dto);
   }
 }

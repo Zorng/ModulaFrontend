@@ -10,6 +10,7 @@ import 'package:modular_pos/features/branchV2/ui/viewmodels/branch_controller.da
 import 'package:modular_pos/features/branchV2/ui/viewmodels/branch_state.dart';
 import 'package:modular_pos/features/cash_session/domain/models/cash_session.dart';
 import 'package:modular_pos/features/cash_session/ui/viewmodels/cash_session_viewmodel.dart';
+import 'package:modular_pos/features/policy/domain/models/policy.dart';
 import 'package:modular_pos/features/policy/ui/viewmodels/policy_viewmodel.dart';
 import 'package:modular_pos/features/sale/data/mock_sale_repository.dart';
 import 'package:modular_pos/features/sale/data/sale_api.dart';
@@ -147,10 +148,30 @@ class SaleRepository implements SaleCheckoutRepository {
 
   @override
   Future<void> updateFulfillmentStatus({
-    required String saleId,
+    required String orderId,
     required String status,
+    String? note,
   }) async {
-    await _api.updateFulfillmentStatus(saleId, status: status);
+    final normalizedOrderId = orderId.trim();
+    final normalizedStatus = status.trim().toUpperCase();
+    final normalizedNote = note?.trim();
+    await _api.updateOrderFulfillmentStatus(
+      normalizedOrderId,
+      status: normalizedStatus,
+      note: normalizedNote,
+      idempotency: IdempotencyRequest(
+        actionKey: 'order.fulfillment.update',
+        intentId:
+            'order-fulfillment-$normalizedOrderId-$normalizedStatus-'
+            '${DateTime.now().microsecondsSinceEpoch}',
+        payload: {
+          'orderId': normalizedOrderId,
+          'status': normalizedStatus,
+          if (normalizedNote != null && normalizedNote.isNotEmpty)
+            'note': normalizedNote,
+        },
+      ),
+    );
   }
 
   @override
@@ -372,77 +393,301 @@ class SaleRepository implements SaleCheckoutRepository {
         return SaleMappers.toFinalizeResultFromCashCheckout(data);
       }
 
-      final paidAmount = _estimatePaidAmount(
-        cartLines: command.cartLines,
-        tenderCurrency: command.tenderCurrency,
-      );
-      final finalizePayload = <String, dynamic>{
-        'paidAmount': paidAmount,
-        if (command.khqrMd5 != null && command.khqrMd5!.isNotEmpty)
-          'khqrMd5': command.khqrMd5,
-      };
+      final normalizedIntentId = _readString(command.khqrIntentId);
       final normalizedSaleId = command.saleId.trim();
-      if (normalizedSaleId.isEmpty) {
-        final md5 = _readString(command.khqrMd5);
-        if (md5.isEmpty) {
+      if (normalizedIntentId.isNotEmpty) {
+        final intentState = await _api.getKhqrIntentStatus(normalizedIntentId);
+        final finalizedSaleId = _readString(intentState.saleId);
+        if (finalizedSaleId.isNotEmpty) {
+          return _buildMaterializedKhqrFinalizeResult(finalizedSaleId);
+        }
+        final normalizedStatus = intentState.status.trim().toUpperCase();
+        if (normalizedStatus == 'PAID_CONFIRMED') {
+          final normalizedMd5 = _readString(command.khqrMd5);
+          if (normalizedMd5.isEmpty) {
+            throw const SaleCheckoutRepositoryException(
+              reasonCode: SaleCheckoutReasonCodes.khqrFinalizationPending,
+              message:
+                  'KHQR payment is confirmed, but finalize fallback cannot continue because the payment reference is missing.',
+            );
+          }
+          final confirm = await _api.confirmKhqrPayment(
+            normalizedMd5,
+            idempotency: IdempotencyRequest(
+              actionKey: 'payment.khqr.confirm',
+              intentId: 'checkout-khqr-confirm-$normalizedIntentId',
+              payload: {
+                'md5': normalizedMd5,
+                'paymentIntentId': normalizedIntentId,
+              },
+            ),
+          );
+          final confirmedSaleId = _readString(confirm.sale?.saleId);
+          if (confirm.saleFinalized && confirmedSaleId.isNotEmpty) {
+            return _buildMaterializedKhqrFinalizeResult(confirmedSaleId);
+          }
           throw const SaleCheckoutRepositoryException(
-            reasonCode: SaleCheckoutReasonCodes.khqrNotConfirmed,
-            message: 'KHQR proof is missing. Generate KHQR again.',
+            reasonCode: SaleCheckoutReasonCodes.khqrFinalizationPending,
+            message:
+                'KHQR payment is confirmed, but backend finalization is still pending. Please wait a moment and try again.',
           );
         }
-        final data = await _api.confirmKhqrPayment(
-          md5,
-          idempotency: IdempotencyRequest(
-            actionKey: 'payment.khqr.confirm',
-            intentId: command.clientOpId,
-            payload: {'md5': md5},
-          ),
-        );
-        if (!data.saleFinalized || data.sale == null) {
-          throw const SaleCheckoutRepositoryException(
-            reasonCode: SaleCheckoutReasonCodes.khqrNotConfirmed,
-            message: 'KHQR payment is not confirmed yet.',
-          );
-        }
-        final preview = _estimateCheckoutPreview(
-          saleId: data.sale!.saleId,
-          paymentMethod: 'khqr',
-          cartLines: command.cartLines,
-          tenderCurrency: command.tenderCurrency,
-          cashReceived: null,
-        );
-        return SaleFinalizeSaleResultDto(
-          saleId: data.sale!.saleId,
-          status: SaleMappers.normalizeSaleState(data.sale!.status),
-          totalUsdExact: preview.totalUsdExact,
-          totalKhrExact: preview.totalKhrExact,
-          idempotentReplay: false,
-          receiptId: data.receipt?.receiptId,
-          receipt: SaleMappers.toImmediateReceipt(data.receipt),
+        throw const SaleCheckoutRepositoryException(
+          reasonCode: SaleCheckoutReasonCodes.khqrNotConfirmed,
+          message: 'KHQR payment is not confirmed yet.',
         );
       }
-      final data = await _api.finalizeSaleContract(
-        normalizedSaleId,
-        finalizePayload,
-        idempotency: IdempotencyRequest(
-          actionKey: 'sale.finalize',
-          intentId: command.clientOpId,
-          payload: {'saleId': normalizedSaleId, ...finalizePayload},
-        ),
+      if (normalizedSaleId.isNotEmpty) {
+        return _buildMaterializedKhqrFinalizeResult(normalizedSaleId);
+      }
+      throw const SaleCheckoutRepositoryException(
+        reasonCode: SaleCheckoutReasonCodes.khqrNotConfirmed,
+        message: 'KHQR intent is not available for this cart.',
       );
-      return SaleMappers.toFinalizeResultFromFinalizeResponse(data);
     } on ApiClientException catch (error) {
       throw _toSaleRepoException(error);
     }
+  }
+
+  Future<SaleFinalizeSaleResultDto> _buildMaterializedKhqrFinalizeResult(
+    String saleId,
+  ) async {
+    final sale = await _api.getSaleDetail(saleId);
+    SaleImmediateReceiptDto? receipt;
+    String? receiptId;
+    try {
+      final receiptRead = await _api.getReceiptBySaleId(saleId);
+      receiptId = receiptRead.receiptId;
+      receipt = SaleImmediateReceiptDto(
+        receiptId: receiptRead.receiptId,
+        saleId: receiptRead.saleId,
+        statusDisplay: receiptRead.statusDisplay,
+        issuedAt: receiptRead.issuedAt.toLocal(),
+      );
+    } on ApiClientException catch (error) {
+      // KHQR quick checkout should still succeed even if receipt hydration lags.
+      if (error.statusCode != 404) {
+        throw _toSaleRepoException(error);
+      }
+    }
+
+    return SaleFinalizeSaleResultDto(
+      saleId: sale.id,
+      status: SaleMappers.normalizeSaleState(sale.state),
+      totalUsdExact: sale.totalUsdExact,
+      totalKhrExact: sale.totalKhrExact,
+      idempotentReplay: false,
+      cashReceivedUsd: sale.cashReceivedUsd,
+      cashReceivedKhr: sale.cashReceivedKhr,
+      changeGivenUsd: sale.changeGivenUsd,
+      changeGivenKhr: sale.changeGivenKhr,
+      orderId: sale.orderId,
+      receiptId: receiptId,
+      receipt: receipt,
+    );
   }
 
   @override
   Future<SalePlaceOrderResultDto> placeOrder(
     SalePlaceOrderCommand command,
   ) async {
-    throw UnimplementedError(
-      'FE-SALE-09 will implement pay-later place order in API repository.',
-    );
+    final normalizedSourceMode = _readString(command.sourceMode).toUpperCase();
+    final isManualClaimOrder =
+        normalizedSourceMode == 'MANUAL_EXTERNAL_PAYMENT_CLAIM';
+    if (!isManualClaimOrder && !_policyAllowsPayLater(command.branchId)) {
+      throw const SaleCheckoutRepositoryException(
+        reasonCode: SaleCheckoutReasonCodes.payLaterDisabled,
+        message: 'Pay-later order placement is disabled for this branch.',
+      );
+    }
+
+    if (command.cartLines.isEmpty) {
+      throw const SaleCheckoutRepositoryException(
+        reasonCode: SaleCheckoutReasonCodes.invalidRequest,
+        message: 'Cannot place an order with an empty cart.',
+      );
+    }
+
+    final payload = <String, dynamic>{
+      'items': command.cartLines.map(_toCheckoutItemPayload).toList(),
+      if (command.saleType.trim().isNotEmpty)
+        'saleType': _normalizeSaleType(command.saleType),
+      if (isManualClaimOrder) 'sourceMode': normalizedSourceMode,
+    };
+
+    try {
+      final data = await _api.placeOrder(
+        payload,
+        idempotency: IdempotencyRequest(
+          actionKey: isManualClaimOrder
+              ? 'order.place.manual_external_payment_claim'
+              : 'order.place.standard_open_order',
+          intentId: command.clientOpId,
+          payload: payload,
+        ),
+      );
+      return SalePlaceOrderResultDto(
+        openTicketId: data.orderId,
+        saleId: data.saleId,
+        status: data.status,
+        batchId: data.batchId,
+        idempotentReplay: false,
+      );
+    } on ApiClientException catch (error) {
+      throw _toSaleRepoException(error);
+    }
+  }
+
+  @override
+  Future<String> uploadManualPaymentProofImage({
+    required List<int> imageBytes,
+  }) async {
+    try {
+      return await _api.uploadManualPaymentProofImage(imageBytes: imageBytes);
+    } on ApiClientException catch (error) {
+      throw _toSaleRepoException(error);
+    }
+  }
+
+  @override
+  Future<SaleCreateManualPaymentClaimResultDto> createManualPaymentClaim(
+    SaleCreateManualPaymentClaimCommand command,
+  ) async {
+    final normalizedOrderId = command.orderId.trim();
+    if (normalizedOrderId.isEmpty) {
+      throw const SaleCheckoutRepositoryException(
+        reasonCode: SaleCheckoutReasonCodes.invalidRequest,
+        message: 'Order id is required before creating a manual claim.',
+      );
+    }
+
+    final normalizedProofUrl = command.proofImageUrl.trim();
+    if (normalizedProofUrl.isEmpty) {
+      throw const SaleCheckoutRepositoryException(
+        reasonCode: SaleCheckoutReasonCodes.invalidRequest,
+        message: 'Proof image is required before creating a manual claim.',
+      );
+    }
+
+    final payload = <String, dynamic>{
+      'claimedPaymentMethod': command.claimedPaymentMethod.trim().toUpperCase(),
+      'saleType': _normalizeSaleType(command.saleType),
+      'tenderCurrency': command.tenderCurrency.trim().toUpperCase(),
+      'claimedTenderAmount': command.claimedTenderAmount,
+      'proofImageUrl': normalizedProofUrl,
+      if ((command.customerReference ?? '').trim().isNotEmpty)
+        'customerReference': command.customerReference!.trim(),
+      if ((command.note ?? '').trim().isNotEmpty) 'note': command.note!.trim(),
+    };
+
+    try {
+      final data = await _api.createManualPaymentClaim(
+        normalizedOrderId,
+        payload,
+        idempotency: IdempotencyRequest(
+          actionKey: 'order.manual_payment_claim.create',
+          intentId: command.clientOpId,
+          payload: {'orderId': normalizedOrderId, ...payload},
+        ),
+      );
+      return SaleCreateManualPaymentClaimResultDto(
+        claimId: data.claimId,
+        orderId: data.orderId.isEmpty ? normalizedOrderId : data.orderId,
+        status: data.status,
+        idempotentReplay: false,
+      );
+    } on ApiClientException catch (error) {
+      throw _toSaleRepoException(error);
+    }
+  }
+
+  @override
+  Future<SaleApproveManualPaymentClaimResultDto> approveManualPaymentClaim(
+    SaleApproveManualPaymentClaimCommand command,
+  ) async {
+    final normalizedOrderId = command.orderId.trim();
+    final normalizedClaimId = command.claimId.trim();
+    if (normalizedOrderId.isEmpty || normalizedClaimId.isEmpty) {
+      throw const SaleCheckoutRepositoryException(
+        reasonCode: SaleCheckoutReasonCodes.invalidRequest,
+        message: 'Order id and claim id are required before approval.',
+      );
+    }
+
+    final payload = <String, dynamic>{
+      if ((command.note ?? '').trim().isNotEmpty) 'note': command.note!.trim(),
+    };
+
+    try {
+      final data = await _api.approveManualPaymentClaim(
+        normalizedOrderId,
+        normalizedClaimId,
+        payload,
+        idempotency: IdempotencyRequest(
+          actionKey: 'order.manual_payment_claim.approve',
+          intentId: command.clientOpId,
+          payload: {
+            'orderId': normalizedOrderId,
+            'claimId': normalizedClaimId,
+            ...payload,
+          },
+        ),
+      );
+      return SaleApproveManualPaymentClaimResultDto(
+        claimId: data.claimId.isEmpty ? normalizedClaimId : data.claimId,
+        orderId: data.orderId.isEmpty ? normalizedOrderId : data.orderId,
+        status: data.status,
+        idempotentReplay: false,
+        saleId: data.saleId,
+        receiptId: data.receipt?.receiptId,
+        receipt: SaleMappers.toImmediateReceipt(data.receipt),
+      );
+    } on ApiClientException catch (error) {
+      throw _toSaleRepoException(error);
+    }
+  }
+
+  @override
+  Future<SaleRejectManualPaymentClaimResultDto> rejectManualPaymentClaim(
+    SaleRejectManualPaymentClaimCommand command,
+  ) async {
+    final normalizedOrderId = command.orderId.trim();
+    final normalizedClaimId = command.claimId.trim();
+    if (normalizedOrderId.isEmpty || normalizedClaimId.isEmpty) {
+      throw const SaleCheckoutRepositoryException(
+        reasonCode: SaleCheckoutReasonCodes.invalidRequest,
+        message: 'Order id and claim id are required before rejection.',
+      );
+    }
+
+    final payload = <String, dynamic>{
+      if ((command.note ?? '').trim().isNotEmpty) 'note': command.note!.trim(),
+    };
+
+    try {
+      final data = await _api.rejectManualPaymentClaim(
+        normalizedOrderId,
+        normalizedClaimId,
+        payload,
+        idempotency: IdempotencyRequest(
+          actionKey: 'order.manual_payment_claim.reject',
+          intentId: command.clientOpId,
+          payload: {
+            'orderId': normalizedOrderId,
+            'claimId': normalizedClaimId,
+            ...payload,
+          },
+        ),
+      );
+      return SaleRejectManualPaymentClaimResultDto(
+        claimId: data.claimId.isEmpty ? normalizedClaimId : data.claimId,
+        orderId: data.orderId.isEmpty ? normalizedOrderId : data.orderId,
+        status: data.status,
+        idempotentReplay: false,
+      );
+    } on ApiClientException catch (error) {
+      throw _toSaleRepoException(error);
+    }
   }
 
   @override
@@ -458,9 +703,73 @@ class SaleRepository implements SaleCheckoutRepository {
   Future<SaleCheckoutOpenTicketResultDto> checkoutOpenTicket(
     SaleCheckoutOpenTicketCommand command,
   ) async {
-    throw UnimplementedError(
-      'FE-SALE-11 will implement checkout open ticket in API repository.',
-    );
+    final normalizedOrderId = command.openTicketId.trim();
+    if (normalizedOrderId.isEmpty) {
+      throw const SaleCheckoutRepositoryException(
+        reasonCode: SaleCheckoutReasonCodes.invalidRequest,
+        message: 'Order id is required before settling an open ticket.',
+      );
+    }
+
+    try {
+      final orderDetail = await _api.getOrderDetail(normalizedOrderId);
+      final subtotalUsd = orderDetail.lines.fold<double>(
+        0,
+        (sum, line) => sum + line.lineSubtotal,
+      );
+      final grandTotalUsd = subtotalUsd;
+      final normalizedCurrency = command.tenderCurrency.trim().toUpperCase();
+      final grandTotalKhr = _estimateOrderTotalKhrFromCurrentPolicy(
+        totalUsdExact: grandTotalUsd,
+      );
+      final payload = <String, dynamic>{
+        'paymentMethod': command.paymentMethod.trim().toUpperCase(),
+        'tenderCurrency': normalizedCurrency,
+        'tenderAmount': normalizedCurrency == 'KHR'
+            ? grandTotalKhr
+            : grandTotalUsd,
+        'subtotalUsd': subtotalUsd,
+        'discountUsd': 0,
+        'vatUsd': 0,
+        'grandTotalUsd': grandTotalUsd,
+        if (_currentSaleFxRate() > 0)
+          'saleFxRateKhrPerUsd': _currentSaleFxRate(),
+      };
+      final cashReceivedTenderAmount = _cashReceivedTenderAmount(
+        tenderCurrency: normalizedCurrency,
+        cashReceived: command.cashReceived,
+      );
+      if (cashReceivedTenderAmount != null) {
+        payload['cashReceivedTenderAmount'] = cashReceivedTenderAmount;
+      }
+
+      final data = await _api.checkoutOrder(
+        normalizedOrderId,
+        payload,
+        idempotency: IdempotencyRequest(
+          actionKey: 'order.checkout',
+          intentId: command.clientOpId,
+          payload: {'orderId': normalizedOrderId, ...payload},
+        ),
+      );
+
+      return SaleCheckoutOpenTicketResultDto(
+        openTicketId: normalizedOrderId,
+        saleId: data.sale.id,
+        status: _mapOrderTicketStatus(
+          orderStatus:
+              data.order?.status ??
+              (((data.sale.orderId ?? '').isNotEmpty) ? 'CHECKED_OUT' : 'OPEN'),
+          isCheckedOutLike:
+              (data.sale.orderId ?? '').isNotEmpty ||
+              (data.order?.status ?? '').trim().toUpperCase() == 'CHECKED_OUT',
+        ),
+        idempotentReplay: false,
+        receiptId: data.receipt?.receiptId,
+      );
+    } on ApiClientException catch (error) {
+      throw _toSaleRepoException(error);
+    }
   }
 
   @override
@@ -474,41 +783,112 @@ class SaleRepository implements SaleCheckoutRepository {
 
   @override
   Future<SaleOrdersPageDto> getOrders(SaleOrdersQueryDto query) async {
-    final sales = await listSales(
-      status: query.status,
-      startDate: query.from,
-      endDate: query.to,
-      page: query.page,
+    final offset = max(0, (query.page - 1) * query.limit);
+    final orderPage = await _api.listOrders(
+      status: _mapOrderListStatusQuery(query.status),
+      view: _mapOrderListViewQuery(query.view),
+      from: query.from,
+      to: query.to,
       limit: query.limit,
+      offset: offset,
     );
-    final items = sales
-        .map(
-          (sale) => SaleOrderSummaryDto(
-            saleId: sale.id,
-            orderId: sale.id,
-            ticketStatus: sale.state,
-            fulfillmentStatus: sale.fulfillmentStatus,
-            totalUsdExact: sale.totalUsdExact,
-            totalKhrExact: sale.totalKhrExact,
-            placedAt: sale.createdAt,
-          ),
-        )
-        .toList();
+    final items = orderPage.items
+        .map((item) {
+          final isCheckedOutLike = _isEffectivelyCheckedOutOrder(
+            orderStatus: item.status,
+            sourceMode: item.sourceMode,
+            checkedOutAt: item.checkedOutAt,
+            paymentMethod: item.paymentMethod,
+          );
+          return SaleOrderSummaryDto(
+            saleId: '',
+            orderId: item.orderId,
+            sourceMode: item.sourceMode,
+            openedByAccountId: item.openedByAccountId,
+            ticketStatus: _mapOrderTicketStatus(
+              orderStatus: item.status,
+              isCheckedOutLike: isCheckedOutLike,
+            ),
+            fulfillmentStatus: _mapListedOrderFulfillmentStatus(
+              orderStatus: item.status,
+              listedFulfillmentStatus: item.fulfillmentStatus,
+              isCheckedOutLike: isCheckedOutLike,
+            ),
+            totalUsdExact: item.totalUsdExact,
+            totalKhrExact: _estimateOrderTotalKhrFromCurrentPolicy(
+              totalUsdExact: item.totalUsdExact,
+            ),
+            placedAt: item.createdAt,
+            linesPreview: item.linesPreview
+                .map(
+                  (line) => SaleOrderLinePreviewDto(
+                    name: line.menuItemNameSnapshot,
+                    quantity: line.quantity,
+                    modifierLabels: line.modifierLabels,
+                  ),
+                )
+                .toList(growable: false),
+            openedByDisplayName: item.openedByDisplayName,
+            checkedOutAt: item.checkedOutAt,
+            paymentMethod: item.paymentMethod,
+            manualPaymentClaimId: item.manualPaymentClaimId,
+            manualPaymentClaimStatus: item.manualPaymentClaimStatus,
+            manualPaymentClaimRequestedByAccountId:
+                item.manualPaymentClaimRequestedByAccountId,
+            manualPaymentClaimRequestedByDisplayName:
+                item.manualPaymentClaimRequestedByDisplayName,
+            manualPaymentClaimRequestedAt: item.manualPaymentClaimRequestedAt,
+          );
+        })
+        .toList(growable: false);
     return SaleOrdersPageDto(
       items: items,
       page: query.page,
-      limit: query.limit,
-      total: items.length,
+      limit: orderPage.limit == 0 ? query.limit : orderPage.limit,
+      total: orderPage.total,
     );
   }
 
   @override
   Future<SaleOpenTicketDetailDto> getOpenTicketDetail({
-    required String saleId,
+    required String orderId,
   }) async {
-    throw UnimplementedError(
-      'FE-SALE-13 will implement open ticket detail in API repository.',
-    );
+    final normalizedOrderId = orderId.trim();
+    if (normalizedOrderId.isEmpty) {
+      throw const SaleCheckoutRepositoryException(
+        reasonCode: SaleCheckoutReasonCodes.invalidRequest,
+        message: 'Order id is required before loading ticket detail.',
+      );
+    }
+
+    try {
+      final data = await _api.getOrderDetail(normalizedOrderId);
+      final payableUsdExact = data.lines.fold<double>(
+        0,
+        (sum, line) => sum + line.lineSubtotal,
+      );
+      return SaleOpenTicketDetailDto(
+        openTicketId: data.orderId,
+        orderId: data.orderId,
+        status: _mapOrderTicketStatus(
+          orderStatus: data.status,
+          isCheckedOutLike: _isEffectivelyCheckedOutOrder(
+            orderStatus: data.status,
+            sourceMode: data.sourceMode,
+            checkedOutAt: data.checkedOutAt,
+            paymentMethod: null,
+          ),
+        ),
+        batches: const <SaleOpenTicketBatchDto>[],
+        lineCount: data.lines.length,
+        payableUsdExact: payableUsdExact,
+        payableKhrExact: _estimateOrderTotalKhrFromCurrentPolicy(
+          totalUsdExact: payableUsdExact,
+        ),
+      );
+    } on ApiClientException catch (error) {
+      throw _toSaleRepoException(error);
+    }
   }
 
   @override
@@ -597,12 +977,12 @@ class SaleRepository implements SaleCheckoutRepository {
   }
 
   Map<String, dynamic> _toCheckoutItemPayload(SaleCartLineInputDto line) {
-    final modifiers = _normalizeModifierSelections(line.modifiers);
+    final modifierSelections = _normalizeModifierSelections(line.modifiers);
     return {
       'menuItemId': line.menuItemId,
       'quantity': line.quantity,
-      // Live checkout implementation still consumes `modifiers` here.
-      if (modifiers.isNotEmpty) 'modifiers': modifiers,
+      if (modifierSelections.isNotEmpty)
+        'modifierSelections': modifierSelections,
     };
   }
 
@@ -659,18 +1039,9 @@ class SaleRepository implements SaleCheckoutRepository {
     return tenderCurrency == 'KHR' ? cashReceived.khr : cashReceived.usd;
   }
 
-  double _estimatePaidAmount({
-    required List<SaleCartLineInputDto> cartLines,
-    required String tenderCurrency,
-  }) {
-    final totalUsd = cartLines.fold<double>(
-      0,
-      (sum, line) => sum + _lineTotalUsd(line),
-    );
-    if (tenderCurrency.toUpperCase() == 'KHR') {
-      return totalUsd * 4100;
-    }
-    return totalUsd;
+  double _currentSaleFxRate() {
+    final fxRate = _policyStateReader().branchPolicy.saleFxRateKhrPerUsd;
+    return fxRate > 0 ? fxRate : 0;
   }
 
   double _lineTotalUsd(SaleCartLineInputDto line) {
@@ -729,6 +1100,120 @@ class SaleRepository implements SaleCheckoutRepository {
     if (policy.branchId.trim().isEmpty) return false;
     if (policy.branchId.trim() != branchId) return false;
     return policy.saleAllowPayLater;
+  }
+
+  String? _mapOrderListStatusQuery(String? status) {
+    final normalized = (status ?? '').trim().toLowerCase();
+    switch (normalized) {
+      case 'open':
+      case 'pending':
+        return 'OPEN';
+      case 'cancelled':
+        return 'CANCELLED';
+      default:
+        return null;
+    }
+  }
+
+  String? _mapOrderListViewQuery(String? view) {
+    final normalized = (view ?? '').trim().toUpperCase();
+    if (normalized.isEmpty) return null;
+    return normalized;
+  }
+
+  bool _isEffectivelyCheckedOutOrder({
+    required String orderStatus,
+    required String sourceMode,
+    required DateTime? checkedOutAt,
+    required String? paymentMethod,
+  }) {
+    final normalizedOrderStatus = orderStatus.trim().toUpperCase();
+    if (normalizedOrderStatus == 'CHECKED_OUT') return true;
+
+    final normalizedSourceMode = sourceMode.trim().toUpperCase();
+    if (normalizedSourceMode == 'DIRECT_CHECKOUT') return true;
+
+    if (checkedOutAt != null) return true;
+
+    final normalizedPaymentMethod = (paymentMethod ?? '').trim().toUpperCase();
+    if (normalizedPaymentMethod.isNotEmpty &&
+        normalizedPaymentMethod != 'UNPAID') {
+      return true;
+    }
+
+    return false;
+  }
+
+  String _mapOrderTicketStatus({
+    required String orderStatus,
+    required bool isCheckedOutLike,
+  }) {
+    switch (orderStatus.trim().toUpperCase()) {
+      case 'OPEN':
+        return isCheckedOutLike ? 'PAID' : 'UNPAID';
+      case 'CANCELLED':
+        return 'CANCELLED';
+      default:
+        return 'PAID';
+    }
+  }
+
+  String _mapListedOrderFulfillmentStatus({
+    required String orderStatus,
+    required String? listedFulfillmentStatus,
+    required bool isCheckedOutLike,
+  }) {
+    final normalizedListStatus = (listedFulfillmentStatus ?? '')
+        .trim()
+        .toUpperCase();
+    switch (normalizedListStatus) {
+      case 'PENDING':
+        return 'pending';
+      case 'PREPARING':
+        return 'in_prep';
+      case 'READY':
+        return 'ready';
+      case 'DELIVERED':
+        return 'delivered';
+      case 'CANCELLED':
+        return 'cancelled';
+    }
+
+    switch (orderStatus.trim().toUpperCase()) {
+      case 'OPEN':
+        return 'pending';
+      case 'CANCELLED':
+        return 'cancelled';
+      case 'CHECKED_OUT':
+        return 'pending';
+      default:
+        return isCheckedOutLike ? 'pending' : 'in_prep';
+    }
+  }
+
+  double _estimateOrderTotalKhrFromCurrentPolicy({
+    required double totalUsdExact,
+  }) {
+    final policy = _policyStateReader().branchPolicy;
+    if (policy.saleFxRateKhrPerUsd <= 0) return 0;
+    final rawKhr = totalUsdExact * policy.saleFxRateKhrPerUsd;
+    if (!policy.saleKhrRoundingEnabled) return rawKhr;
+
+    final granularity = BranchPolicyRoundingGranularities.asAmount(
+      policy.saleKhrRoundingGranularity,
+    );
+    if (granularity <= 0) return rawKhr;
+
+    switch (BranchPolicyRoundingModes.normalize(policy.saleKhrRoundingMode)) {
+      case BranchPolicyRoundingModes.up:
+        return (rawKhr / granularity).ceilToDouble() * granularity;
+      case BranchPolicyRoundingModes.down:
+        return (rawKhr / granularity).floorToDouble() * granularity;
+      case BranchPolicyRoundingModes.nearest:
+        return (rawKhr / granularity).roundToDouble() * granularity;
+      default:
+        return rawKhr;
+    }
   }
 }
 

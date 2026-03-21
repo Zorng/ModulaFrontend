@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:modular_pos/core/routing/app_router.dart';
+import 'package:modular_pos/core/sync/sync_freshness.dart';
+import 'package:modular_pos/core/widgets/sync/sync_freshness_banner.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_category.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
-import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/features/menu/ui/view/menu/widgets/menu_page_filter_bar.dart';
 import 'package:modular_pos/features/menu/ui/view/menu/widgets/menu_page_items_section.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
@@ -28,7 +30,9 @@ class _MenuPageState extends ConsumerState<MenuPage> {
   Widget build(BuildContext context) {
     final menuState = ref.watch(menuViewModelProvider);
     final notifier = ref.read(menuViewModelProvider.notifier);
+    final workspaceFreshness = ref.watch(branchWorkspaceSyncFreshnessProvider);
     final items = menuState.filteredItems;
+    final freshness = workspaceFreshness.asData?.value;
 
     final categories = <MenuCategory>[
       const MenuCategory(id: 'all', name: 'All'),
@@ -65,6 +69,14 @@ class _MenuPageState extends ConsumerState<MenuPage> {
                 }
               },
             ),
+            if (freshness != null) ...[
+              const SizedBox(height: 12),
+              SyncFreshnessBanner(freshness: freshness),
+            ],
+            if (menuState.isLoading && items.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              const LinearProgressIndicator(minHeight: 2),
+            ],
             Expanded(
               child: MenuPageItemsSection(
                 isLoading: menuState.isLoading,
@@ -82,10 +94,7 @@ class _MenuPageState extends ConsumerState<MenuPage> {
   }
 
   Future<void> _openItemDetail(BuildContext context, MenuItem item) async {
-    await context.push<MenuItem>(
-      AppRoute.adminMenuItemForm.path,
-      extra: item,
-    );
+    await context.push<MenuItem>(AppRoute.adminMenuItemForm.path, extra: item);
     if (mounted) {
       await ref.read(menuViewModelProvider.notifier).loadMenu();
     }

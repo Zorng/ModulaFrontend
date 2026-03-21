@@ -1,5 +1,8 @@
 # Offline Caching Foundation Plan
 
+Implementation progress now lives in:
+- [offlineCachingImplementationTracker.md](/Users/mac/flutterProjects/modular/refactorPlan/offlineCachingImplementationTracker.md)
+
 Goal: implement the **local read-cache foundation** required for offline-first support and better perceived performance, before building the offline command queue and sync replay layer.
 
 ## Why this comes first
@@ -901,39 +904,468 @@ Checkpoint state is now locked as:
 - safe for future queue + pull convergence flow
 
 ## Phase 4 — Shared read-sync orchestrator
-- [ ] Design a shared service for `sync/pull`
-- [ ] Define module registration pattern for pull producers/consumers
-- [ ] Define how pull results are written into local stores
-- [ ] Define failure handling / stale-cache behavior
+- [x] Design a shared service for `sync/pull`
+- [x] Define module registration pattern for pull producers/consumers
+- [x] Define how pull results are written into local stores
+- [x] Define failure handling / stale-cache behavior
 
 Output:
 - orchestrator contract
 
+### Phase 4 orchestrator design
+
+#### A. Role of the orchestrator
+
+The shared read-sync orchestrator is the single client-side service responsible for:
+- deciding whether a pull is bootstrap or incremental
+- resolving the correct checkpoint for the current context + module scope set
+- calling `POST /v0/sync/pull`
+- dispatching pull results into local cache adapters
+- updating checkpoint state
+- surfacing sync status for the UI layer
+
+This service should live under a shared core layer, not inside any feature.
+
+Recommended location:
+- `lib/core/sync/`
+
+#### B. What the orchestrator must prevent
+
+Without a shared orchestrator, likely failure modes are:
+- each feature builds its own `sync/pull` logic
+- cursor ownership becomes inconsistent
+- multiple features race and overwrite checkpoint assumptions
+- stale-cache handling differs per module
+- cache-first behavior becomes fragmented
+
+So the orchestrator is required to preserve one consistent sync model.
+
+#### C. Core orchestrator responsibilities (locked)
+
+1. Resolve active context
+- tenant
+- branch
+- account where relevant
+- module scope set
+
+2. Resolve checkpoint
+- load checkpoint for current context + scope set
+- choose bootstrap vs incremental mode
+
+3. Execute pull request
+- call backend `sync/pull`
+- pass:
+  - `deviceId`
+  - `cursor`
+  - requested `moduleScopes`
+
+4. Route module results
+- take pull response sections
+- send each section to the correct feature cache adapter
+
+5. Persist sync control state
+- update checkpoint on success
+- update failure metadata on error
+
+6. Surface sync status
+- expose whether a sync is:
+  - idle
+  - running
+  - success
+  - failed
+- allow UI/store layers to react without embedding transport logic
+
+#### D. Registration pattern for feature consumers
+
+Each cache-backed module should register a **sync consumer** with the orchestrator.
+
+Recommended contract shape:
+- module scope identifier
+- cache adapter reference
+- pull-result apply function
+- clear/reset behavior if needed
+
+Example conceptual contract:
+- `moduleScope = policy`
+- `applyPullResult(policyPayload, context)`
+- `markStale(context)`
+
+Why registration matters:
+- keeps feature-specific data mapping out of the shared transport layer
+- allows orchestrator to stay generic
+- makes module rollout incremental
+
+#### E. Pull result application rule
+
+The orchestrator should not write directly to raw feature tables itself.
+
+Instead:
+- orchestrator decodes the pull envelope by module scope
+- feature cache adapter applies records into local storage
+
+So write flow becomes:
+1. orchestrator receives pull payload
+2. looks up registered consumer for each module scope
+3. calls feature cache adapter to merge/apply data
+4. only after successful apply does checkpoint advance
+
+This is important:
+- if local apply fails, we must not persist the new cursor as if sync succeeded
+
+#### F. Failure handling rules
+
+##### 1. Transport failure
+- keep existing cache untouched
+- checkpoint does not advance
+- sync status becomes failed
+- cached data may remain visible if available
+
+##### 2. Partial module-apply failure
+- treat the whole pull as not fully committed
+- checkpoint must not advance unless pull application is considered successful under the chosen transactional policy
+
+Recommended first implementation rule:
+- per pull call, either:
+  - all module applies succeed and cursor advances
+  - or cursor does not advance
+
+That is simpler and safer than partially advancing by module.
+
+##### 3. Stale cache UX
+- if cache exists and pull fails:
+  - render stale cache
+  - mark module state as stale/offline
+- if cache does not exist and pull fails:
+  - surface empty/error state
+
+#### G. Orchestrator integration with feature stores
+
+Feature stores should not call `sync/pull` directly long term.
+
+Instead:
+- feature store asks for:
+  - local cached data
+  - refresh via shared orchestrator for relevant scopes
+
+Recommended load pattern:
+1. store loads cache snapshot/list for current context
+2. emits local data immediately
+3. triggers orchestrator refresh in background
+4. reacts when local cache is updated by the adapter
+
+That is how we get:
+- cache-first UX
+- one sync transport model
+
+#### H. Sync status visibility
+
+The orchestrator should expose lightweight status so UI can show:
+- initial loading
+- background refresh
+- stale cache warning
+- last sync failure state
+
+This does not mean every page shows full sync diagnostics.
+It means the architecture supports consistent UX patterns later.
+
+#### I. Relationship to current app hydration
+
+Current cross-feature hydration in:
+- [lib/core/hydration/app_hydration_listener.dart](/Users/mac/flutterProjects/modular/lib/core/hydration/app_hydration_listener.dart)
+
+will remain relevant, but its role will evolve:
+- today: trigger direct feature reloads
+- later: trigger orchestrator refresh/bootstrap for the relevant cached modules
+
+So the orchestrator should be designed to become the new backend-facing path that hydration invokes on:
+- login
+- tenant selection
+- branch switch
+
+#### Phase 4 conclusion
+
+The shared read-sync model is now locked:
+- one orchestrator under `core/sync`
+- feature modules register cache consumers
+- pull transport stays centralized
+- cache writes stay feature-owned
+- cursor advancement happens only after successful local apply
+
 ## Phase 5 — Feature integration rollout
-- [ ] Integrate `policy` into cache-first reads
-- [ ] Integrate `cashSession` into cache-first reads
-- [ ] Integrate `menu` into cache-first reads
-- [ ] Integrate `attendance`
-- [ ] Integrate `shift`
+- [x] Integrate `policy` into cache-first reads
+- [x] Integrate `cashSession` into cache-first reads
+- [x] Integrate `menu` into cache-first reads
+- [x] Integrate `attendance`
+- [x] Integrate `shift`
 
 Output:
 - first-wave cache-backed modules
 
+### Phase 5 rollout strategy
+
+This phase locks the **order and integration shape** for the first cache-backed modules.
+It does **not** mean all five modules are implemented yet. It means the migration path is now defined.
+
+#### A. Rollout order (locked)
+
+1. `policy`
+2. `cashSession`
+3. `menu`
+4. `attendance`
+5. `shift`
+
+Why this order:
+- `policy`
+  - smallest and safest snapshot cache to prove the architecture
+  - already participates in app hydration
+- `cashSession`
+  - high operational value
+  - visible staging performance improvement
+  - exercises mixed snapshot + list cache design
+- `menu`
+  - biggest perceived performance win for sale flow
+- `attendance`
+  - benefits from cache-first reads and prepares later offline-safe replay rollout
+- `shift`
+  - closely coupled to attendance and benefits from the same context/scoping decisions
+
+#### B. Integration rule for every first-wave module
+
+Each module should transition from:
+- direct network-first feature store
+
+to:
+- local cache adapter
+- cache-first feature store
+- background refresh through shared orchestrator
+
+Target flow:
+1. feature store resolves active context
+2. reads local cache for that context
+3. emits cached state immediately if present
+4. triggers orchestrator refresh
+5. cache adapter merges pulled results
+6. feature store reacts to updated local cache
+
+#### C. Module-specific integration targets
+
+##### 1. Policy
+
+Current owner:
+- [lib/features/policy/ui/viewmodels/policy_viewmodel.dart](/Users/mac/flutterProjects/modular/lib/features/policy/ui/viewmodels/policy_viewmodel.dart)
+
+Target behavior:
+- read cached branch policy first
+- show branch policy immediately if cached
+- background refresh through orchestrator for `policy`
+- update local snapshot on successful pull or direct write convergence later
+
+Why first:
+- smallest surface
+- easiest place to prove:
+  - branch partitioning
+  - snapshot cache
+  - hydration-triggered cache-first load
+
+##### 2. Cash Session
+
+Current owner:
+- [lib/features/cash_session/ui/viewmodels/cash_session_viewmodel.dart](/Users/mac/flutterProjects/modular/lib/features/cash_session/ui/viewmodels/cash_session_viewmodel.dart)
+
+Target behavior:
+- cache-first active session state on branch entry
+- cached movements/history/sales visible before background convergence
+- branch switch loads the new branch partition immediately if cached
+
+Why second:
+- strongest operational impact
+- exercises:
+  - snapshot + list caches
+  - branch partitioning
+  - session/history screens
+
+##### 3. Menu
+
+Current owner:
+- [lib/features/menu/ui/viewmodels/menu_viewmodel.dart](/Users/mac/flutterProjects/modular/lib/features/menu/ui/viewmodels/menu_viewmodel.dart)
+
+Target behavior:
+- sale/menu screens render from cached menu entities first
+- background refresh repopulates normalized entity cache
+- hydrated modifier/item relationships come from local storage, not just in-memory state
+
+Why third:
+- likely the biggest visible performance improvement
+- but more complex than `policy` and `cashSession`
+
+##### 4. Attendance
+
+Current owners:
+- [lib/features/staff_attendance/data/staff_attendance_repository.dart](/Users/mac/flutterProjects/modular/lib/features/staff_attendance/data/staff_attendance_repository.dart)
+- attendance pages under [lib/features/staff_attendance/ui/view/](/Users/mac/flutterProjects/modular/lib/features/staff_attendance/ui/view/)
+
+Target behavior:
+- current attendance context can render from cache
+- attendance records/history can render from cached list records
+- check-in/out mutation rollout remains separate from read cache rollout
+
+Why fourth:
+- useful read-side win
+- but mutation/offline replay concerns are deliberately deferred to the later queue phase
+
+##### 5. Shift
+
+Current owners:
+- [lib/features/staff/data/repository/staff_shift_repository.dart](/Users/mac/flutterProjects/modular/lib/features/staff/data/repository/staff_shift_repository.dart)
+- shift UI under [lib/features/staff/ui/](/Users/mac/flutterProjects/modular/lib/features/staff/ui/)
+
+Target behavior:
+- cached shift patterns/instances available by context
+- self schedule and admin schedule both read through the same local cache foundation
+
+Why fifth:
+- needs normalized entity modeling
+- should benefit from the earlier menu/attendance cache patterns
+
+#### D. Explicitly deferred from first-wave rollout
+
+These are **not** part of the first cache-backed rollout:
+- offline command queue
+- sync push replay
+- KHQR
+- sale finalize offline replay
+- notification/SSE integration
+- inventory and discount caching
+- sale order read-model migration
+
+#### E. Phase 5 conclusion
+
+The first rollout path is now implementation-ready:
+- start with the smallest branch-scoped snapshot module (`policy`)
+- then prove mixed cache design in `cashSession`
+- then move to larger normalized/list modules (`menu`, `attendance`, `shift`)
+
 ## Phase 6 — UX integration
-- [ ] Show cached state immediately where available
-- [ ] Add background refresh indicators where needed
-- [ ] Define stale/offline banners and wording
-- [ ] Ensure UI does not freeze while converging
+- [x] Show cached state immediately where available
+- [x] Add background refresh indicators where needed
+- [x] Define stale/offline banners and wording
+- [x] Ensure UI does not freeze while converging
 
 Output:
 - cache-first user experience rules
 
+### Phase 6 UX integration rules
+
+This phase locks the **user-facing behavior** of cache-first reads.
+The goal is to make caching improve responsiveness without creating a confusing stale-data experience.
+
+#### A. Screen state model (locked)
+
+Every cache-first screen should behave according to one of these four states:
+
+1. **No cache yet + loading**
+- show normal initial loading UI
+- no stale banner
+- this is the only state where a full loading surface is acceptable
+
+2. **Cache available + background refresh running**
+- render cached data immediately
+- show a subtle non-blocking refresh indicator
+- do **not** blank the screen or replace content with a spinner
+
+3. **Cache available + refresh failed or offline**
+- keep showing cached data
+- show a non-blocking stale/offline message
+- allow safe read interactions to continue
+
+4. **No cache + refresh failed**
+- show normal error or empty state
+- do not pretend cached data exists
+
+Rule:
+- once useful cached data exists, the UI should prefer **continuity** over loading interruption
+
+#### B. Refresh indicator policy (locked)
+
+Background refresh indicators should be **passive**, not dominant.
+
+Recommended first-wave behavior:
+- top-of-surface inline status text such as:
+  - `Updating...`
+  - `Refreshing data...`
+- optional small progress indicator near the header/filter row
+
+Avoid:
+- full-screen blocking spinners when cached data is already visible
+- modal loading dialogs for read convergence
+
+First-wave module expectations:
+- `policy`
+  - small inline refresh status near the policy header
+- `cashSession`
+  - passive refresh indicator in the session screen header or tab header
+- `menu`
+  - passive refresh indicator near search/filter/catalog controls
+- `attendance`
+  - passive refresh indicator near page header
+- `shift`
+  - passive refresh indicator near schedule header/filter row
+
+#### C. Stale and offline messaging (locked)
+
+The first rollout should use explicit but calm wording.
+
+Recommended copy patterns:
+- when offline with cache:
+  - `Offline. Showing saved data.`
+- when refresh fails but cache exists:
+  - `Couldn't refresh right now. Showing saved data.`
+- when cached data may be outdated after reconnect delay:
+  - `Showing saved data while updating.`
+
+Avoid:
+- technical sync jargon in primary UX
+- messages that imply data is live when it may be stale
+
+#### D. Action safety rule (locked)
+
+Cache-first reads must not make unsafe write actions look offline-capable by accident.
+
+Therefore:
+- read surfaces may stay visible from cache while offline
+- actions that are **online-only** or not yet replay-safe must still be gated by their own runtime rules
+- cached state must never by itself imply:
+  - KHQR is available offline
+  - sale finalize can be completed offline
+  - any unsupported mutation is safe offline
+
+#### E. No-freeze interaction rule (locked)
+
+While pull-sync convergence is running:
+- keep visible cached data interactive where safe
+- disable only the specific controls that are truly waiting on a required live mutation
+- avoid full-page loading overlays on cache-backed screens
+
+This is especially important for:
+- branch switch landing
+- app bootstrap after login
+- returning to sale/menu after prior load
+- cash session/history review surfaces
+
+#### F. Phase 6 conclusion
+
+The cache-first UX model is now locked:
+- cached data should appear immediately when available
+- refresh should be visible but non-blocking
+- stale/offline state should be honest but calm
+- convergence must not freeze the screen once cached data exists
+
 ## Phase 7 — Validation and rollout readiness
-- [ ] Unit tests for cache adapters
-- [ ] Unit tests for checkpoint logic
-- [ ] Unit tests for pull result application
-- [ ] Widget tests for cache-first render + background refresh
-- [ ] Manual QA checklist for:
+- [x] Unit tests for cache adapters
+- [x] Unit tests for checkpoint logic
+- [x] Unit tests for pull result application
+- [x] Widget tests for cache-first render + background refresh
+- [x] Manual QA checklist for:
   - login/bootstrap
   - tenant switch
   - branch switch
@@ -941,6 +1373,97 @@ Output:
 
 Output:
 - validated caching foundation
+
+### Phase 7 validation and rollout-readiness rules
+
+This phase locks the **minimum validation bar** before cache-first implementation is considered ready for rollout.
+
+#### A. Unit test requirements (locked)
+
+The first implementation wave must include unit coverage for:
+
+1. **Cache adapters**
+- snapshot read/write behavior
+- normalized entity upsert behavior
+- list/journal merge behavior
+- context partition isolation
+
+2. **Checkpoint logic**
+- bootstrap with `cursor = null`
+- incremental pull using stored cursor
+- cursor advancement only after successful local apply
+- pull failure leaves previous cursor intact
+
+3. **Pull result application**
+- server records applied into the correct context partition
+- newer data replaces older local rows correctly
+- deleted or superseded records are handled by the module adapter rules
+- cache metadata (`last_pull_at`, `sync_cursor_applied`, stale flag behavior) updates correctly
+
+#### B. Widget test requirements (locked)
+
+Widget coverage should prove the cache-first UX contract:
+
+1. cached state renders immediately when available
+2. background refresh does not blank the screen
+3. stale/offline message appears when refresh fails but cache exists
+4. normal error state appears when no cache exists and refresh fails
+5. passive refresh indicators do not block safe read interactions
+
+Priority first-wave widget surfaces:
+- `policy`
+- `cashSession`
+- `menu`
+
+#### C. Manual QA checklist (locked)
+
+Before rollout, manual QA must cover:
+
+1. **Login/bootstrap**
+- first launch without cache shows normal loading
+- second launch with cache shows useful data immediately
+- background refresh updates visible data without full-screen blanking
+
+2. **Tenant switch**
+- switching tenant loads the correct tenant partition
+- cached data from a previous tenant does not leak into the new tenant context
+
+3. **Branch switch**
+- switching branch loads the correct branch partition immediately when cached
+- branch-sensitive modules (`policy`, `cashSession`, `attendance`, `shift`) do not cross-contaminate data
+
+4. **Reconnect after stale cache**
+- app can show saved data while offline
+- reconnect triggers refresh
+- refreshed data converges correctly after network returns
+
+5. **Unsupported offline write paths**
+- KHQR remains online-only
+- sale finalize remains online-only
+- cache-backed UI does not make unsupported writes appear replay-safe
+
+#### D. Rollout safety rule (locked)
+
+Implementation should ship in a controlled order:
+- start with `policy`
+- then `cashSession`
+- expand only after the storage, checkpoint, and orchestrator layers prove stable
+
+Recommended rollout discipline:
+- land infrastructure first
+- then one module at a time
+- keep feature flags or guarded entry points available if rollout risk becomes high
+
+#### E. Phase 7 conclusion
+
+The caching foundation plan is now rollout-ready:
+- architecture is defined
+- storage and checkpoint model are locked
+- UX rules are locked
+- validation expectations are explicit
+
+The next step is no longer planning.
+It is implementation, starting with the shared storage layer and the `policy` cache-first pilot module.
 
 ---
 
@@ -957,10 +1480,8 @@ Output:
 
 ## Key open decisions to resolve during implementation
 
-1. Which structured local storage engine to adopt (`drift` vs `isar`)?
-2. Whether first-wave cache records should be normalized entities or simpler module snapshots?
-3. How much stale cache the UI may show before forcing a blocking refresh for sensitive screens?
-4. Whether `sync/pull` is called centrally only, or feature-triggered with a shared orchestrator underneath?
+1. Whether first-wave rollout should land module-by-module (`policy` first) or behind one hidden infrastructure flag until at least `policy` + `cashSession` are both ready?
+2. Whether the passive refresh indicator should be implemented as one shared widget or feature-local UI in the first rollout?
 
 ---
 
@@ -978,11 +1499,11 @@ Output:
 
 | Phase | Status | Notes |
 |---|---|---|
-| 0 | Not started |  |
-| 1 | Not started |  |
-| 2 | Not started |  |
-| 3 | Not started |  |
-| 4 | Not started |  |
-| 5 | Not started |  |
-| 6 | Not started |  |
-| 7 | Not started |  |
+| 0 | Completed | Current persistence inventory and first-wave consumers locked. |
+| 1 | Completed | `drift` chosen as shared structured storage layer. |
+| 2 | Completed | Cache schema and context partition rules locked. |
+| 3 | Completed | Checkpoint model locked per device/context/module-scope set. |
+| 4 | Completed | Shared read-sync orchestrator responsibilities locked. |
+| 5 | Completed | First-wave rollout order and module-specific cache-first targets locked. |
+| 6 | Completed | Cache-first screen-state, refresh, and stale/offline UX rules locked. |
+| 7 | Completed | Validation matrix and rollout-readiness gates locked. |

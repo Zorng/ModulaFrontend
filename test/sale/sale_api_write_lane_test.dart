@@ -14,6 +14,52 @@ void main() {
   });
 
   group('SaleApi write idempotency', () {
+    test('uploadManualPaymentProofImage sends area payment-proof', () async {
+      final dio = _MockDio();
+      when(
+        () => dio.post<dynamic>(
+          any(),
+          data: any(named: 'data'),
+        ),
+      ).thenAnswer(
+        (_) async => Response<dynamic>(
+          requestOptions: RequestOptions(path: '/v0/media/images/upload'),
+          data: {
+            'success': true,
+            'data': {
+              'imageUrl': 'https://cdn.example.com/payment-proof/proof-1.jpg',
+            },
+          },
+        ),
+      );
+
+      final api = SaleApi(dio);
+      final imageUrl = await api.uploadManualPaymentProofImage(
+        imageBytes: const [0xFF, 0xD8, 0xFF, 0x00],
+      );
+
+      expect(imageUrl, 'https://cdn.example.com/payment-proof/proof-1.jpg');
+
+      final captured =
+          verify(
+                () => dio.post<dynamic>(
+                  '/v0/media/images/upload',
+                  data: captureAny(named: 'data'),
+                ),
+              ).captured.single
+              as FormData;
+      expect(
+        captured.fields,
+        contains(
+          isA<MapEntry<String, String>>()
+              .having((entry) => entry.key, 'key', 'area')
+              .having((entry) => entry.value, 'value', 'payment-proof'),
+        ),
+      );
+      expect(captured.files, hasLength(1));
+      expect(captured.files.single.key, 'image');
+    });
+
     test('finalizeCashCheckout includes idempotency metadata', () async {
       final dio = _MockDio();
       final payload = {
@@ -41,13 +87,19 @@ void main() {
           data: {
             'success': true,
             'data': {
-              'sale': {
-                'id': 'sale-1',
-                'status': 'FINALIZED',
-                'grandTotalUsd': 8,
-                'grandTotalKhr': 32800,
-                'createdAt': '2026-02-23T18:00:00.000Z',
-                'updatedAt': '2026-02-23T18:00:00.000Z',
+              'id': 'sale-1',
+              'orderId': 'order-1',
+              'status': 'FINALIZED',
+              'tenderCurrency': 'USD',
+              'paymentMethod': 'CASH',
+              'grandTotalUsd': 8,
+              'grandTotalKhr': 32800,
+              'createdAt': '2026-02-23T18:00:00.000Z',
+              'updatedAt': '2026-02-23T18:00:00.000Z',
+              'order': {
+                'id': 'order-1',
+                'status': 'CHECKED_OUT',
+                'sourceMode': 'DIRECT_CHECKOUT',
               },
             },
           },
@@ -55,7 +107,11 @@ void main() {
       );
 
       final api = SaleApi(dio);
-      await api.finalizeCashCheckout(payload, idempotency: request);
+      final result = await api.finalizeCashCheckout(
+        payload,
+        idempotency: request,
+      );
+      expect(result.orderId, 'order-1');
 
       verify(
         () => dio.post<Map<String, dynamic>>(
@@ -216,6 +272,87 @@ void main() {
                   .having((r) => r.intentId, 'intentId', 'sale-finalize-sale-1')
                   .having((r) => r.payload, 'payload', {
                     'saleId': 'sale-1',
+                    ...payload,
+                  }),
+            ),
+          ),
+        ),
+      ).called(1);
+    });
+
+    test('checkoutOrder includes idempotency metadata', () async {
+      final dio = _MockDio();
+      final payload = {
+        'paymentMethod': 'CASH',
+        'tenderCurrency': 'USD',
+        'tenderAmount': 8,
+        'subtotalUsd': 8,
+        'discountUsd': 0,
+        'vatUsd': 0,
+        'grandTotalUsd': 8,
+        'saleFxRateKhrPerUsd': 4100,
+        'cashReceivedTenderAmount': 10,
+      };
+      final request = IdempotencyRequest(
+        actionKey: 'order.checkout',
+        intentId: 'order-checkout-1',
+        payload: {'orderId': 'order-1', ...payload},
+      );
+      when(
+        () => dio.post<Map<String, dynamic>>(
+          any(),
+          data: any(named: 'data'),
+          options: any(named: 'options'),
+        ),
+      ).thenAnswer(
+        (_) async => Response<Map<String, dynamic>>(
+          requestOptions: RequestOptions(path: '/v0/orders/order-1/checkout'),
+          data: {
+            'success': true,
+            'data': {
+              'id': 'sale-1',
+              'orderId': 'order-1',
+              'status': 'FINALIZED',
+              'saleType': 'DINE_IN',
+              'tenderCurrency': 'USD',
+              'paymentMethod': 'CASH',
+              'grandTotalUsd': 8,
+              'grandTotalKhr': 32800,
+              'createdAt': '2026-03-19T10:00:00.000Z',
+              'updatedAt': '2026-03-19T10:00:00.000Z',
+              'order': {
+                'id': 'order-1',
+                'status': 'CHECKED_OUT',
+                'sourceMode': 'STANDARD',
+              },
+              'lines': [],
+            },
+          },
+        ),
+      );
+
+      final api = SaleApi(dio);
+      final result = await api.checkoutOrder(
+        'order-1',
+        payload,
+        idempotency: request,
+      );
+      expect(result.orderId, 'order-1');
+
+      verify(
+        () => dio.post<Map<String, dynamic>>(
+          '/v0/orders/order-1/checkout',
+          data: payload,
+          options: any(
+            named: 'options',
+            that: isA<Options>().having(
+              (o) => o.extra?[idempotencyRequestExtraKey],
+              'idempotencyRequest',
+              isA<IdempotencyRequest>()
+                  .having((r) => r.actionKey, 'actionKey', 'order.checkout')
+                  .having((r) => r.intentId, 'intentId', 'order-checkout-1')
+                  .having((r) => r.payload, 'payload', {
+                    'orderId': 'order-1',
                     ...payload,
                   }),
             ),

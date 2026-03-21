@@ -15,19 +15,24 @@ typedef CashMovementSubmitCallback =
     );
 
 class CashMovementSubmitResult {
-  const CashMovementSubmitResult._({
-    required this.isSuccess,
-    this.errorMessage,
-  });
+  const CashMovementSubmitResult._({required this.outcome, this.message});
 
-  const CashMovementSubmitResult.success() : this._(isSuccess: true);
+  const CashMovementSubmitResult.success()
+    : this._(outcome: CashMovementSubmitOutcome.success);
+
+  const CashMovementSubmitResult.queued(String message)
+    : this._(outcome: CashMovementSubmitOutcome.queued, message: message);
 
   const CashMovementSubmitResult.failure(String message)
-    : this._(isSuccess: false, errorMessage: message);
+    : this._(outcome: CashMovementSubmitOutcome.failure, message: message);
 
-  final bool isSuccess;
-  final String? errorMessage;
+  final CashMovementSubmitOutcome outcome;
+  final String? message;
+
+  bool get isSuccess => outcome == CashMovementSubmitOutcome.success;
 }
+
+enum CashMovementSubmitOutcome { success, queued, failure }
 
 /// A card for adding cash movements with session requirement check.
 class CashMovementCard extends ConsumerStatefulWidget {
@@ -215,7 +220,7 @@ class _CashMovementCardState extends ConsumerState<CashMovementCard> {
       _isSubmitting = false;
     });
 
-    if (result.isSuccess) {
+    if (result.outcome == CashMovementSubmitOutcome.success) {
       ref.read(cashMovementFormProvider.notifier).clear();
       ref.read(unsavedInputProvider.notifier).markCashMovementUnsaved(false);
       _amountController.clear();
@@ -230,10 +235,27 @@ class _CashMovementCardState extends ConsumerState<CashMovementCard> {
       return;
     }
 
+    if (result.outcome == CashMovementSubmitOutcome.queued) {
+      ref.read(cashMovementFormProvider.notifier).clear();
+      ref.read(unsavedInputProvider.notifier).markCashMovementUnsaved(false);
+      _amountController.clear();
+      _noteController.clear();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            result.message ??
+                'Cash movement saved offline and queued for sync.',
+          ),
+          backgroundColor: const Color(0xFFB45309),
+        ),
+      );
+      return;
+    }
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          result.errorMessage ?? 'Unable to add cash movement. Try again.',
+          result.message ?? 'Unable to add cash movement. Try again.',
         ),
         backgroundColor: const Color(0xFFED533C),
       ),

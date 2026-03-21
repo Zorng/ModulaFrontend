@@ -142,9 +142,9 @@ class SaleMappers {
             ? response.preview.grandTotalKhr
             : response.preview.grandTotalUsd);
     return SaleKhqrAttemptDto(
-      saleId: (response.attempt.saleId ?? '')
-          .ifEmpty(response.intent.saleId ?? '')
-          .ifEmpty(command.saleId),
+      saleId: (response.attempt.saleId ?? '').ifEmpty(
+        response.intent.saleId ?? '',
+      ),
       attemptId: intentId,
       md5: response.attempt.md5,
       status: normalizeKhqrStatus(
@@ -174,7 +174,7 @@ class SaleMappers {
     required SaleKhqrIntentStateDto state,
   }) {
     return SaleKhqrStatusDto(
-      saleId: (state.saleId ?? '').ifEmpty(command.saleId),
+      saleId: state.saleId ?? '',
       md5: command.md5,
       status: normalizeKhqrStatus(
         rawStatus: state.status,
@@ -204,7 +204,7 @@ class SaleMappers {
       cashReceivedKhr: response.sale.cashReceivedKhr,
       changeGivenUsd: response.sale.changeGivenUsd,
       changeGivenKhr: response.sale.changeGivenKhr,
-      orderId: null,
+      orderId: response.orderId ?? response.order?.id,
       receiptId: response.receipt?.receiptId,
       receipt: toImmediateReceipt(response.receipt),
     );
@@ -228,7 +228,7 @@ class SaleMappers {
       cashReceivedKhr: response.sale.cashReceivedKhr,
       changeGivenUsd: response.sale.changeGivenUsd,
       changeGivenKhr: response.sale.changeGivenKhr,
-      orderId: null,
+      orderId: response.sale.orderId,
       receiptId: response.receipt?.receiptId,
       receipt: toImmediateReceipt(response.receipt),
     );

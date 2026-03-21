@@ -17,6 +17,8 @@ class SaleCheckoutErrorMessage {
         return 'Configure a Bakong receiver account for this branch before generating KHQR.';
       case SaleCheckoutReasonCodes.khqrNotConfirmed:
         return 'KHQR payment is not confirmed yet.';
+      case SaleCheckoutReasonCodes.khqrFinalizationPending:
+        return 'KHQR payment is confirmed, but backend finalization is still pending.';
       case SaleCheckoutReasonCodes.idempotencyConflict:
       case SaleCheckoutReasonCodes.duplicateOperation:
         return 'This request is already processing. Please wait before retrying.';

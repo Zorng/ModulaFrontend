@@ -27,6 +27,8 @@ String mapCashSessionErrorMessage({
       return 'This cash-session action is already in progress. Wait a moment and refresh.';
     case CashSessionErrorCodes.offlineUnreachable:
       return 'Cash-session actions are unavailable while offline. Reconnect and try again.';
+    case CashSessionErrorCodes.onlineOnlyAction:
+      return 'This cash-session action requires connectivity and cannot be queued offline.';
     default:
       return UserErrorMessage.build(context: context, error: error);
   }

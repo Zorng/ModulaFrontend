@@ -133,6 +133,148 @@ void main() {
     expect(dto.receipt?.saleId, 'sale-2');
   });
 
+  test('parses approve manual payment claim response with receipt', () {
+    final dto = SaleApproveManualPaymentClaimResponseDto.fromJson({
+      'claimId': 'claim-1',
+      'orderId': 'order-1',
+      'status': 'APPROVED',
+      'saleId': 'sale-1',
+      'receipt': {
+        'receiptId': 'receipt-1',
+        'saleId': 'sale-1',
+        'statusDisplay': 'NORMAL',
+        'issuedAt': '2026-03-17T09:15:00.000Z',
+      },
+    });
+
+    expect(dto.claimId, 'claim-1');
+    expect(dto.orderId, 'order-1');
+    expect(dto.status, 'APPROVED');
+    expect(dto.saleId, 'sale-1');
+    expect(dto.receipt?.receiptId, 'receipt-1');
+  });
+
+  test('parses reject manual payment claim response', () {
+    final dto = SaleRejectManualPaymentClaimResponseDto.fromJson({
+      'claim': {'id': 'claim-1', 'orderId': 'order-1', 'status': 'REJECTED'},
+    });
+
+    expect(dto.claimId, 'claim-1');
+    expect(dto.orderId, 'order-1');
+    expect(dto.status, 'REJECTED');
+  });
+
+  test('parses order list response dto', () {
+    final dto = SaleOrdersListResponseDto.fromJson({
+      'items': [
+        {
+          'id': 'order-1',
+          'status': 'OPEN',
+          'sourceMode': 'STANDARD',
+          'fulfillmentStatus': 'PREPARING',
+          'totalUsdExact': 5,
+          'linesPreview': [
+            {
+              'menuItemNameSnapshot': 'Iced Latte',
+              'quantity': 2,
+              'modifierLabels': ['Less ice'],
+            },
+          ],
+          'checkedOutAt': null,
+          'paymentMethod': null,
+          'manualPaymentClaimId': null,
+          'manualPaymentClaimStatus': null,
+          'createdAt': '2026-03-18T09:00:00.000Z',
+          'updatedAt': '2026-03-18T09:05:00.000Z',
+        },
+      ],
+      'limit': 20,
+      'offset': 0,
+      'total': 1,
+      'hasMore': false,
+    });
+
+    expect(dto.items, hasLength(1));
+    expect(dto.items.single.orderId, 'order-1');
+    expect(dto.items.single.status, 'OPEN');
+    expect(dto.items.single.fulfillmentStatus, 'PREPARING');
+    expect(dto.items.single.totalUsdExact, 5);
+    expect(dto.items.single.linesPreview.single.modifierLabels, ['Less ice']);
+    expect(dto.limit, 20);
+    expect(dto.total, 1);
+    expect(dto.hasMore, isFalse);
+  });
+
+  test('parses order detail response dto', () {
+    final dto = SaleOrderDetailResponseDto.fromJson({
+      'id': 'order-1',
+      'tenantId': 'tenant-1',
+      'branchId': 'branch-1',
+      'openedByAccountId': 'user-1',
+      'status': 'OPEN',
+      'sourceMode': 'STANDARD',
+      'createdAt': '2026-03-18T09:00:00.000Z',
+      'updatedAt': '2026-03-18T09:05:00.000Z',
+      'lines': [
+        {
+          'id': 'line-1',
+          'orderId': 'order-1',
+          'menuItemId': 'item-1',
+          'menuItemNameSnapshot': 'Iced Latte',
+          'unitPrice': 3.5,
+          'quantity': 1,
+          'lineSubtotal': 3.5,
+          'note': 'Less ice',
+        },
+      ],
+      'fulfillmentBatches': [
+        {
+          'id': 'batch-1',
+          'orderId': 'order-1',
+          'status': 'PREPARING',
+          'note': 'Started by kitchen',
+          'createdByAccountId': 'user-1',
+          'completedAt': null,
+          'createdAt': '2026-03-18T09:06:00.000Z',
+          'updatedAt': '2026-03-18T09:06:00.000Z',
+        },
+      ],
+      'manualPaymentClaims': [
+        {
+          'id': 'claim-1',
+          'orderId': 'order-1',
+          'status': 'PENDING',
+          'claimedPaymentMethod': 'KHQR',
+          'tenderCurrency': 'USD',
+          'claimedTenderAmount': 3.5,
+        },
+      ],
+    });
+
+    expect(dto.orderId, 'order-1');
+    expect(dto.lines.single.menuItemNameSnapshot, 'Iced Latte');
+    expect(dto.fulfillmentBatches.single.status, 'PREPARING');
+    expect(dto.manualPaymentClaims.single.claimId, 'claim-1');
+  });
+
+  test('parses order fulfillment update response dto', () {
+    final dto = SaleOrderFulfillmentUpdateResponseDto.fromJson({
+      'id': 'batch-1',
+      'orderId': 'order-1',
+      'status': 'PREPARING',
+      'note': 'Started by kitchen',
+      'createdByAccountId': 'user-1',
+      'completedAt': null,
+      'createdAt': '2026-03-18T09:06:00.000Z',
+      'updatedAt': '2026-03-18T09:06:00.000Z',
+    });
+
+    expect(dto.id, 'batch-1');
+    expect(dto.orderId, 'order-1');
+    expect(dto.status, 'PREPARING');
+    expect(dto.note, 'Started by kitchen');
+  });
+
   test('parses sale dto from list/detail contract fields', () {
     final dto = SaleDto.fromJson({
       'id': 'sale-3',

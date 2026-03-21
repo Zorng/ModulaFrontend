@@ -30,11 +30,33 @@ String formatOrderDate(DateTime date) {
 
 String orderStatusLabel(String status) {
   return switch (status) {
-    'pending' => 'Pending Payment',
+    'pending' => 'Pending',
     'in_prep' => 'Preparing',
     'ready' => 'Ready',
     'delivered' => 'Delivered',
     'cancelled' => 'Cancelled',
+    _ => status,
+  };
+}
+
+String orderFulfillmentStatusLabel(String status) {
+  return switch (status) {
+    'pending' => 'Pending',
+    'in_prep' => 'Preparing',
+    'ready' => 'Ready',
+    'delivered' => 'Delivered',
+    'cancelled' => 'Cancelled',
+    _ => status,
+  };
+}
+
+String externalPaymentClaimStatusLabel(String status) {
+  return switch (status) {
+    'claim_recorded' => 'Claim Recorded',
+    'claim_pending' => 'Claim Pending',
+    'claim_rejected' => 'Claim Rejected',
+    'claim_needs_proof' => 'Proof Needed',
+    'claim_approved' => 'Claim Approved',
     _ => status,
   };
 }
@@ -56,6 +78,28 @@ Color orderStatusTextColor(String status) {
     'cancelled' => Colors.grey.shade700,
     'ready' => Colors.blue.shade800,
     _ => Colors.amber.shade800,
+  };
+}
+
+Color externalPaymentClaimStatusColor(String status) {
+  return switch (status) {
+    'claim_recorded' => Colors.amber.withValues(alpha: 0.18),
+    'claim_pending' => Colors.blue.withValues(alpha: 0.15),
+    'claim_rejected' => Colors.red.withValues(alpha: 0.15),
+    'claim_needs_proof' => Colors.orange.withValues(alpha: 0.18),
+    'claim_approved' => Colors.green.withValues(alpha: 0.15),
+    _ => Colors.blueGrey.withValues(alpha: 0.15),
+  };
+}
+
+Color externalPaymentClaimStatusTextColor(String status) {
+  return switch (status) {
+    'claim_recorded' => Colors.amber.shade900,
+    'claim_pending' => Colors.blue.shade800,
+    'claim_rejected' => Colors.red.shade800,
+    'claim_needs_proof' => Colors.orange.shade900,
+    'claim_approved' => Colors.green.shade800,
+    _ => Colors.blueGrey.shade800,
   };
 }
 

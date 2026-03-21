@@ -308,16 +308,9 @@ void main() {
   );
 
   test(
-    'SaleCartNotifier.addSelection syncs remotely when cart already has a saleId',
+    'SaleCartNotifier.addSelection clears stale legacy saleId instead of syncing remotely',
     () async {
       final repo = _MockSaleRepository();
-
-      when(
-        () => repo.addItem(
-          saleId: any(named: 'saleId'),
-          item: any(named: 'item'),
-        ),
-      ).thenAnswer((_) async => 'sale-item-1');
 
       final container = createTestContainer(
         overrides: [
@@ -361,24 +354,18 @@ void main() {
       await notifier.addSelection(selection);
 
       verifyNever(
-        () => repo.ensureDraft(
-          saleType: any(named: 'saleType'),
-          fxRateUsed: any(named: 'fxRateUsed'),
-        ),
-      );
-      verify(
         () => repo.addItem(
           saleId: any(named: 'saleId'),
           item: any(named: 'item'),
         ),
-      ).called(1);
+      );
 
       final state = container.read(saleCartProvider);
-      expect(state.saleId, 'sale-1');
+      expect(state.saleId, isNull);
       expect(state.lines, hasLength(1));
       expect(state.lines.first.item.id, 'menu-1');
       expect(state.lines.first.quantity, 1);
-      expect(state.lines.first.saleItemId, 'sale-item-1');
+      expect(state.lines.first.saleItemId, isNull);
     },
   );
 
@@ -570,7 +557,6 @@ void main() {
       expect(state.lines, isEmpty);
       expect(state.saleId, isNull);
       expect(state.lastPlacedOpenTicketId, 'ticket-1');
-      expect(state.lastPlacedSaleId, 'sale-1');
     },
   );
 
@@ -647,7 +633,6 @@ void main() {
       expect(state.isCheckoutDenied, isFalse);
       expect(state.isCheckoutIdempotencyIssue, isFalse);
       expect(state.lastPlacedOpenTicketId, isNull);
-      expect(state.lastPlacedSaleId, isNull);
     },
   );
 

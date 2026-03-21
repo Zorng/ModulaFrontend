@@ -43,6 +43,7 @@ class PolicyApi {
     String? saleKhrRoundingMode,
     String? saleKhrRoundingGranularity,
     bool? saleAllowPayLater,
+    bool? saleAllowManualExternalPaymentClaim,
   }) async {
     final payload = UpdateBranchPolicyInputDto(
       saleVatEnabled: saleVatEnabled,
@@ -52,6 +53,7 @@ class PolicyApi {
       saleKhrRoundingMode: saleKhrRoundingMode,
       saleKhrRoundingGranularity: saleKhrRoundingGranularity,
       saleAllowPayLater: saleAllowPayLater,
+      saleAllowManualExternalPaymentClaim: saleAllowManualExternalPaymentClaim,
     ).toJson();
     try {
       final response = await _dio.patch<dynamic>(

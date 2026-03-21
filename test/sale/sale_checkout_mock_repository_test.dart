@@ -222,9 +222,13 @@ void main() {
 
       expect(added.idempotentReplay, isFalse);
 
-      final detail = await repo.getOpenTicketDetail(saleId: placed.saleId);
+      final detail = await repo.getOpenTicketDetail(
+        orderId: placed.openTicketId,
+      );
       expect(detail.batches.length, 2);
+      expect(detail.lineCount, 2);
       expect(detail.status, 'UNPAID');
+      expect(detail.orderId, placed.openTicketId);
 
       final settled = await repo.checkoutOpenTicket(
         SaleCheckoutOpenTicketCommand(

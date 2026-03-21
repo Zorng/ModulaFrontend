@@ -10,6 +10,7 @@
     "saleKhrRoundingMode": "UP",
     "saleKhrRoundingGranularity": "100",
     "saleAllowPayLater": true,
+    "saleAllowManualExternalPaymentClaim": true,
     "createdAt": "2026-02-17T10:00:00.000Z",
     "updatedAt": "2026-02-17T10:05:00.000Z"
   }

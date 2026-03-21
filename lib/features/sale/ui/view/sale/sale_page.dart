@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/core/feedback/user_error_message.dart';
+import 'package:modular_pos/core/sync/sync_freshness.dart';
 import 'package:modular_pos/core/theme/responsive.dart';
+import 'package:modular_pos/core/widgets/sync/sync_freshness_banner.dart';
 import 'package:modular_pos/features/cash_session/ui/viewmodels/cash_session_viewmodel.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_category.dart';
 import 'package:modular_pos/features/menu/data/menu_repository.dart';
@@ -26,10 +28,9 @@ class _SalePageState extends ConsumerState<SalePage> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final branchId = ref.read(saleAccessBranchIdProvider);
-      ref.read(menuViewModelProvider.notifier).loadMenu(
-        branchId: branchId,
-        readLane: MenuReadLane.branchContext,
-      );
+      ref
+          .read(menuViewModelProvider.notifier)
+          .loadMenu(branchId: branchId, readLane: MenuReadLane.branchContext);
     });
   }
 
@@ -37,10 +38,12 @@ class _SalePageState extends ConsumerState<SalePage> {
   Widget build(BuildContext context) {
     final menuState = ref.watch(menuViewModelProvider);
     final menuVm = ref.read(menuViewModelProvider.notifier);
+    final workspaceFreshness = ref.watch(branchWorkspaceSyncFreshnessProvider);
     final cashSessionState = ref.watch(cashSessionViewModelProvider);
     final showCashSessionBanner =
         cashSessionState.sessionStatus != SessionStatus.open;
     final saleBranchId = ref.watch(saleAccessBranchIdProvider);
+    final freshness = workspaceFreshness.asData?.value;
 
     final width = MediaQuery.of(context).size.width;
     final isLarge = AppBreakpoints.isLarge(width);
@@ -78,6 +81,14 @@ class _SalePageState extends ConsumerState<SalePage> {
             selectedCategoryId: menuState.selectedCategoryId,
             onSelected: menuVm.filterByCategory,
           ),
+          if (freshness != null) ...[
+            const SizedBox(height: 12),
+            SyncFreshnessBanner(freshness: freshness),
+          ],
+          if (menuState.isLoading && hasMenuItems) ...[
+            const SizedBox(height: 12),
+            const LinearProgressIndicator(minHeight: 2),
+          ],
           const SizedBox(height: 12),
         ],
       );
@@ -103,10 +114,11 @@ class _SalePageState extends ConsumerState<SalePage> {
                 if (!hasMenuItems) buildHeader(constrainToMaxWidth: false),
                 Expanded(
                   child: switch ((menuState.isLoading, menuState.error)) {
-                    (true, _) => const Center(
+                    (true, _) when filteredItems.isEmpty => const Center(
                       child: CircularProgressIndicator(),
                     ),
-                    (false, final String? error) when error != null =>
+                    (false, final String? error)
+                        when error != null && filteredItems.isEmpty =>
                       SalePageStateMessage(
                         message: UserErrorMessage.build(
                           context: 'Failed to load menu',
@@ -148,8 +160,11 @@ class _SalePageState extends ConsumerState<SalePage> {
               if (!hasMenuItems) buildHeader(constrainToMaxWidth: true),
               Expanded(
                 child: switch ((menuState.isLoading, menuState.error)) {
-                  (true, _) => const Center(child: CircularProgressIndicator()),
-                  (false, final String? error) when error != null =>
+                  (true, _) when filteredItems.isEmpty => const Center(
+                    child: CircularProgressIndicator(),
+                  ),
+                  (false, final String? error)
+                      when error != null && filteredItems.isEmpty =>
                     SalePageStateMessage(
                       message: UserErrorMessage.build(
                         context: 'Failed to load menu',

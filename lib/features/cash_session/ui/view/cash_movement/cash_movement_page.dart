@@ -36,12 +36,23 @@ class CashMovementPage extends ConsumerWidget {
           'You do not have permission to record this movement type.',
         );
       }
-      await notifier.addCashMovement(
+      final actionResult = await notifier.addCashMovement(
         type,
         usdAmount,
         khrAmount,
         reason: reason,
       );
+
+      if (actionResult.outcome == CashSessionActionOutcome.queued) {
+        return CashMovementSubmitResult.queued(
+          actionResult.message ??
+              'Cash movement saved offline. It will sync when you reconnect.',
+        );
+      }
+
+      if (actionResult.outcome == CashSessionActionOutcome.applied) {
+        return const CashMovementSubmitResult.success();
+      }
 
       final latestState = ref.read(cashSessionViewModelProvider);
       if (latestState.error != null) {
@@ -54,7 +65,9 @@ class CashMovementPage extends ConsumerWidget {
         );
       }
 
-      return const CashMovementSubmitResult.success();
+      return CashMovementSubmitResult.failure(
+        actionResult.message ?? 'Unable to add cash movement. Try again.',
+      );
     }
 
     return SafeArea(

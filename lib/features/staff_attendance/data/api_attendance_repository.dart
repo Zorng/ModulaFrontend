@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/core/network/idempotency_key_store.dart';
+import 'package:modular_pos/features/staff_attendance/data/attendance_mapper.dart';
 import 'package:modular_pos/features/staff_attendance/data/attendance_repository_contract.dart';
 import 'package:modular_pos/features/staff_attendance/data/dto/attendance_record_dto.dart';
 import 'package:modular_pos/features/staff_attendance/data/dto/attendance_shift_schedule_dto.dart';
@@ -27,7 +28,7 @@ class ApiAttendanceRepository implements AttendanceRepository {
     try {
       final data = await _api.getAttendanceContext(branchId: branchId);
       if (data == null) return const AttendanceContext.empty();
-      return _mapContext(data);
+      return mapAttendanceContextData(data);
     } on DioError {
       return const AttendanceContext.empty();
     }
@@ -123,89 +124,8 @@ class ApiAttendanceRepository implements AttendanceRepository {
     return records.map(_mapRecord).toList();
   }
 
-  AttendanceContext _mapContext(Map<String, dynamic> data) {
-    final activeShift = _parseMap(data['active_shift'] ?? data['activeShift']);
-    final activeAttendance = _parseMap(
-      data['active_attendance'] ?? data['activeAttendance'],
-    );
-    final geofence = _parseMap(data['geofence']);
-    return AttendanceContext(
-      canCheckIn: data['can_check_in'] == true || data['canCheckIn'] == true,
-      reasonCode: _readString(data, 'reason_code', fallbackKey: 'reasonCode'),
-      reasonMessage: _readString(
-        data,
-        'reason_message',
-        fallbackKey: 'reasonMessage',
-      ),
-      activeShift: activeShift == null
-          ? null
-          : AttendanceShiftWindow(
-              shiftId:
-                  _readString(
-                    activeShift,
-                    'shift_id',
-                    fallbackKey: 'shiftId',
-                  ) ??
-                  '',
-              startAt:
-                  _readString(
-                    activeShift,
-                    'start_at',
-                    fallbackKey: 'startAt',
-                  ) ??
-                  '',
-              endAt:
-                  _readString(activeShift, 'end_at', fallbackKey: 'endAt') ??
-                  '',
-            ),
-      activeAttendance: activeAttendance == null
-          ? null
-          : ActiveAttendanceSession(
-              attendanceId:
-                  _readString(
-                    activeAttendance,
-                    'attendance_id',
-                    fallbackKey: 'attendanceId',
-                  ) ??
-                  '',
-              startAt:
-                  _readString(
-                    activeAttendance,
-                    'start_at',
-                    fallbackKey: 'startAt',
-                  ) ??
-                  '',
-            ),
-      locationVerificationMode: _parseVerificationMode(
-        _readString(
-              data,
-              'location_verification_mode',
-              fallbackKey: 'locationVerificationMode',
-            ) ??
-            'disabled',
-      ),
-      geofence: geofence == null
-          ? null
-          : AttendanceGeofence(
-              centerLat:
-                  _readDouble(
-                    geofence,
-                    'center_lat',
-                    fallbackKey: 'centerLat',
-                  ) ??
-                  0,
-              centerLng:
-                  _readDouble(
-                    geofence,
-                    'center_lng',
-                    fallbackKey: 'centerLng',
-                  ) ??
-                  0,
-              radiusM:
-                  _readDouble(geofence, 'radius_m', fallbackKey: 'radiusM') ??
-                  0,
-            ),
-    );
+  AttendanceRecord _mapRecord(AttendanceRecordDto dto) {
+    return mapAttendanceRecordDto(dto);
   }
 
   AttendanceMutationResult _mapMutation(
@@ -242,29 +162,8 @@ class ApiAttendanceRepository implements AttendanceRepository {
     );
   }
 
-  AttendanceRecord _mapRecord(AttendanceRecordDto dto) {
-    AttendanceLocation? location;
-    if (dto.location != null) {
-      location = AttendanceLocation(
-        lat: dto.location!.lat,
-        lng: dto.location!.lng,
-      );
-    }
-    return AttendanceRecord(
-      id: dto.id,
-      tenantId: dto.tenantId,
-      branchId: dto.branchId,
-      employeeId: dto.employeeId,
-      type: dto.type,
-      occurredAt: dto.occurredAt.toLocal(),
-      createdAt: dto.createdAt.toLocal(),
-      location: location,
-    );
-  }
-
   AttendanceRecord _mapRecordDtoMap(Map<String, dynamic> data) {
-    final dto = AttendanceRecordDto.fromJson(data);
-    return _mapRecord(dto);
+    return mapAttendanceRecordData(data);
   }
 
   AttendanceShiftScheduleEntry _mapScheduleEntry(
@@ -276,19 +175,6 @@ class ApiAttendanceRepository implements AttendanceRepository {
       endTime: dto.endTime,
       isOff: dto.isOff,
     );
-  }
-
-  AttendanceLocationVerificationMode _parseVerificationMode(String raw) {
-    switch (raw.toLowerCase()) {
-      case 'checkin_only':
-      case 'checkinonly':
-        return AttendanceLocationVerificationMode.checkinOnly;
-      case 'checkin_and_checkout':
-      case 'checkinandcheckout':
-        return AttendanceLocationVerificationMode.checkinAndCheckout;
-      default:
-        return AttendanceLocationVerificationMode.disabled;
-    }
   }
 
   AttendanceLocationResult _parseLocationResult(String? raw) {

@@ -72,8 +72,8 @@ List<RouteBase> buildSaleRoutes() {
       path: AppRoute.orderDetail.path,
       name: AppRoute.orderDetail.name,
       builder: (context, state) {
-        final orderNumber = state.extra as String;
-        return OrderDetailPage(orderNumber: orderNumber);
+        final orderIdentityKey = state.extra as String;
+        return OrderDetailPage(orderIdentityKey: orderIdentityKey);
       },
     ),
   ];

@@ -30,10 +30,10 @@ class MenuPageItemsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (isLoading) {
+    if (isLoading && items.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
-    if (error != null) {
+    if (error != null && items.isEmpty) {
       return Center(
         child: Text(
           UserErrorMessage.build(context: 'Failed to load menu', error: error),

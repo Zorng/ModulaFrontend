@@ -46,7 +46,7 @@ class _OrderStatusBottomSheetState extends State<OrderStatusBottomSheet> {
             Row(
               children: [
                 const Text(
-                  'Update Order Status',
+                  'Update Fulfillment Status',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                 ),
                 const Spacer(),
@@ -69,7 +69,7 @@ class _OrderStatusBottomSheetState extends State<OrderStatusBottomSheet> {
                 children: [
                   ..._statuses.map(
                     (status) => RadioListTile<String>(
-                      title: Text(orderStatusLabel(status)),
+                      title: Text(orderFulfillmentStatusLabel(status)),
                       value: status,
                     ),
                   ),

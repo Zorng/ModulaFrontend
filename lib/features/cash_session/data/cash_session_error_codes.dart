@@ -13,6 +13,7 @@ class CashSessionErrorCodes {
   static const idempotencyConflict = 'IDEMPOTENCY_CONFLICT';
   static const idempotencyInProgress = 'IDEMPOTENCY_IN_PROGRESS';
   static const offlineUnreachable = 'OFFLINE_UNREACHABLE';
+  static const onlineOnlyAction = 'ONLINE_ONLY_ACTION';
 
   static const knownCodes = <String>{
     cashSessionAlreadyOpen,
@@ -25,6 +26,7 @@ class CashSessionErrorCodes {
     idempotencyConflict,
     idempotencyInProgress,
     offlineUnreachable,
+    onlineOnlyAction,
   };
 
   static String? normalize(String? code) {
