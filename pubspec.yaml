@@ -49,6 +49,7 @@ flutter:
 
   assets:
     - 'assets/images/modula.svg'
+    - 'assets/images/bakong_logo.png' 
 
   fonts:
     - family: DMSans

@@ -87,6 +87,7 @@ void main() {
         'amount': 3.5,
         'currency': 'USD',
         'toAccountId': 'bakong-001',
+        'receiverName': 'Modula Cafe',
         'expiresAt': '2026-02-21T10:30:00.000Z',
       },
       'preview': {'itemCount': 1, 'grandTotalUsd': 3.5, 'grandTotalKhr': 14350},
@@ -100,6 +101,7 @@ void main() {
     expect(dto.paymentRequest.amount, 3.5);
     expect(dto.paymentRequest.currency, 'USD');
     expect(dto.paymentRequest.toAccountId, 'bakong-001');
+    expect(dto.paymentRequest.receiverName, 'Modula Cafe');
     expect(dto.preview.grandTotalUsd, 3.5);
   });
 

@@ -258,12 +258,14 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
   }
 
   Future<void> _showKhqrPopup({
+    required SaleCartNotifier cartNotifier,
     required bool readOnly,
     required double grandTotalUsd,
     required double grandTotalKhr,
   }) async {
     final result = await showDialog<bool>(
       context: context,
+      barrierDismissible: false,
       builder: (dialogContext) => SaleKhqrPopup(
         readOnly: readOnly,
         grandTotalUsd: grandTotalUsd,
@@ -271,26 +273,73 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
       ),
     );
     if (result == true && mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('KHQR payment confirmed.')));
+      final ordersNotifier = ref.read(ordersProvider.notifier);
+      try {
+        final checkoutResult = await cartNotifier.checkout();
+        await ordersNotifier.load(date: DateTime.now());
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_finalizeSuccessMessage(checkoutResult))),
+        );
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              _actionErrorMessage(context: 'Checkout failed', error: e),
+            ),
+          ),
+        );
+      }
     }
+  }
+
+  Future<void> _handleKhqrPrimaryAction({
+    required SaleCartNotifier cartNotifier,
+    required bool readOnly,
+    required double grandTotalUsd,
+    required double grandTotalKhr,
+    required String khqrStatus,
+  }) async {
+    if (readOnly) return;
+
+    final normalizedStatus = SaleKhqrUiStates.normalize(khqrStatus);
+    final needsFreshGenerate =
+        normalizedStatus == SaleKhqrUiStates.readyToGenerate ||
+        normalizedStatus == SaleKhqrUiStates.superseded ||
+        normalizedStatus == SaleKhqrUiStates.expired ||
+        normalizedStatus == SaleKhqrUiStates.cancelled;
+
+    if (needsFreshGenerate) {
+      try {
+        await cartNotifier.generateKhqrAttempt();
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              _actionErrorMessage(context: 'Failed to generate KHQR', error: e),
+            ),
+          ),
+        );
+        return;
+      }
+    }
+
+    if (!mounted) return;
+    await _showKhqrPopup(
+      cartNotifier: cartNotifier,
+      readOnly: readOnly,
+      grandTotalUsd: grandTotalUsd,
+      grandTotalKhr: grandTotalKhr,
+    );
   }
 
   Future<void> _handlePaymentMethodChanged({
     required String value,
     required SaleCartNotifier cartNotifier,
-    required bool readOnly,
-    required double grandTotalUsd,
-    required double grandTotalKhr,
   }) async {
     await cartNotifier.setPaymentMethod(value);
-    if (!mounted || value.toLowerCase() != 'qr') return;
-    await _showKhqrPopup(
-      readOnly: readOnly,
-      grandTotalUsd: grandTotalUsd,
-      grandTotalKhr: grandTotalKhr,
-    );
   }
 
   double _lineTotal(CartLine line, Map<String, ModifierGroup> groupLookup) {
@@ -481,6 +530,9 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
     final items = cartState.lines;
     final paymentMethod = cartState.paymentMethod.toLowerCase();
     final tenderCurrency = cartState.tenderCurrency.toUpperCase();
+    final khqrReceiverConfigured = ref.watch(
+      saleKhqrReceiverConfiguredProvider,
+    );
     final menuState = ref.watch(menuViewModelProvider);
     final cartNotifier = ref.read(saleCartProvider.notifier);
     final gate = ref.watch(saleAccessGateProvider);
@@ -516,7 +568,7 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
       tenderCurrency: tenderCurrency,
     );
     final isSmall = AppBreakpoints.isSmall(MediaQuery.sizeOf(context).width);
-    final khqrReady = saleKhqrCanFinalize(cartState.khqrStatus);
+    final khqrStatus = SaleKhqrUiStates.normalize(cartState.khqrStatus);
     _syncKhqrPolling(
       paymentMethod: paymentMethod,
       khqrStatus: cartState.khqrStatus,
@@ -529,14 +581,35 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
         !cartState.isFinalizing &&
         items.isNotEmpty &&
         ((paymentMethod == 'cash' && tenderUsd >= grandTotalUsd) ||
-            (paymentMethod == 'qr' && khqrReady));
+            (paymentMethod == 'qr' &&
+                saleKhqrCanFinalize(cartState.khqrStatus)));
     final canPlaceOrder =
         gate.canPlacePayLater &&
         payLaterEnabled &&
         !cartState.isFinalizing &&
         items.isNotEmpty;
-    final canPrimaryAction = isPayLaterMode ? canPlaceOrder : canCheckout;
-    final primaryActionLabel = isPayLaterMode ? 'Place Order' : 'Checkout';
+    final canKhqrAction =
+        gate.canCheckout &&
+        !cartState.isFinalizing &&
+        items.isNotEmpty &&
+        khqrReceiverConfigured != false;
+    final qrPrimaryActionLabel = switch (khqrStatus) {
+      SaleKhqrUiStates.superseded ||
+      SaleKhqrUiStates.expired => 'Generate New Code',
+      SaleKhqrUiStates.cancelled ||
+      SaleKhqrUiStates.readyToGenerate => 'Generate Code',
+      _ => 'View Code',
+    };
+    final canPrimaryAction = isPayLaterMode
+        ? canPlaceOrder
+        : paymentMethod == 'qr'
+        ? canKhqrAction
+        : canCheckout;
+    final primaryActionLabel = isPayLaterMode
+        ? 'Place Order'
+        : paymentMethod == 'qr'
+        ? qrPrimaryActionLabel
+        : 'Checkout';
     final payLaterDisabledMessage = !payLaterEnabled && isPayLaterMode
         ? 'Pay-later is disabled by branch policy. Switch order type to continue.'
         : null;
@@ -791,9 +864,6 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
                       _handlePaymentMethodChanged(
                         value: value,
                         cartNotifier: cartNotifier,
-                        readOnly: readOnly,
-                        grandTotalUsd: grandTotalUsd,
-                        grandTotalKhr: grandTotalKhr,
                       ),
                   onTenderCurrencyChanged: (value) => ref
                       .read(saleCartProvider.notifier)
@@ -812,11 +882,8 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
                     setState(() {});
                   },
                   khqrStatus: cartState.khqrStatus,
-                  onOpenKhqrPopup: () => _showKhqrPopup(
-                    readOnly: readOnly,
-                    grandTotalUsd: grandTotalUsd,
-                    grandTotalKhr: grandTotalKhr,
-                  ),
+                  khqrErrorCode: cartState.khqrErrorCode,
+                  khqrReceiverConfigured: khqrReceiverConfigured,
                 ),
               ],
             ),
@@ -832,6 +899,17 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
             showClearCart: !readOnly,
             onClearCart: () => _showClearCartConfirmation(cartNotifier),
             onCheckout: () async {
+              if (paymentMethod == 'qr') {
+                await _handleKhqrPrimaryAction(
+                  cartNotifier: cartNotifier,
+                  readOnly: readOnly,
+                  grandTotalUsd: grandTotalUsd,
+                  grandTotalKhr: grandTotalKhr,
+                  khqrStatus: cartState.khqrStatus,
+                );
+                return;
+              }
+
               if (isPayLaterMode) {
                 try {
                   final result = await cartNotifier.placeOrder();

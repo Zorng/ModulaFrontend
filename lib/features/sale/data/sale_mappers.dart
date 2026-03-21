@@ -163,6 +163,7 @@ class SaleMappers {
       payloadType: response.paymentRequest.payloadType,
       deepLinkUrl: response.paymentRequest.deepLinkUrl,
       toAccountId: response.paymentRequest.toAccountId,
+      receiverName: response.paymentRequest.receiverName,
       reasonCode: response.intent.reasonCode,
       reasonMessage: null,
     );

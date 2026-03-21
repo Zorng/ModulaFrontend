@@ -364,10 +364,7 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    final openPopupButton = find.widgetWithText(
-      FilledButton,
-      'Open KHQR Popup',
-    );
+    final openPopupButton = find.widgetWithText(FilledButton, 'View Code');
     expect(openPopupButton, findsOneWidget);
     await tester.ensureVisible(openPopupButton);
     await tester.tap(openPopupButton);

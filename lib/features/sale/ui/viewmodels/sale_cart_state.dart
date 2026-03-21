@@ -85,6 +85,7 @@ class SaleCartState {
     this.khqrPayloadType,
     this.khqrDeepLinkUrl,
     this.khqrToAccountId,
+    this.khqrReceiverName,
     this.khqrAmount,
     this.khqrCurrency,
     this.khqrExpiresAt,
@@ -118,6 +119,7 @@ class SaleCartState {
   final String? khqrPayloadType;
   final String? khqrDeepLinkUrl;
   final String? khqrToAccountId;
+  final String? khqrReceiverName;
   final double? khqrAmount;
   final String? khqrCurrency;
   final DateTime? khqrExpiresAt;
@@ -185,6 +187,7 @@ class SaleCartState {
     Object? khqrPayloadType = _unset,
     Object? khqrDeepLinkUrl = _unset,
     Object? khqrToAccountId = _unset,
+    Object? khqrReceiverName = _unset,
     Object? khqrAmount = _unset,
     Object? khqrCurrency = _unset,
     Object? khqrExpiresAt = _unset,
@@ -246,6 +249,9 @@ class SaleCartState {
       khqrToAccountId: khqrToAccountId == _unset
           ? this.khqrToAccountId
           : khqrToAccountId as String?,
+      khqrReceiverName: khqrReceiverName == _unset
+          ? this.khqrReceiverName
+          : khqrReceiverName as String?,
       khqrAmount: khqrAmount == _unset
           ? this.khqrAmount
           : khqrAmount as double?,
@@ -284,6 +290,7 @@ class SaleCartState {
       'khqrPayloadType': khqrPayloadType,
       'khqrDeepLinkUrl': khqrDeepLinkUrl,
       'khqrToAccountId': khqrToAccountId,
+      'khqrReceiverName': khqrReceiverName,
       'khqrAmount': khqrAmount,
       'khqrCurrency': khqrCurrency,
       'khqrExpiresAt': khqrExpiresAt?.toIso8601String(),
@@ -323,6 +330,7 @@ class SaleCartState {
       khqrPayloadType: json['khqrPayloadType'] as String?,
       khqrDeepLinkUrl: json['khqrDeepLinkUrl'] as String?,
       khqrToAccountId: json['khqrToAccountId'] as String?,
+      khqrReceiverName: json['khqrReceiverName'] as String?,
       khqrAmount: (json['khqrAmount'] as num?)?.toDouble(),
       khqrCurrency: json['khqrCurrency'] as String?,
       khqrExpiresAt: json['khqrExpiresAt'] == null

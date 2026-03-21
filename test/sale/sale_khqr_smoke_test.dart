@@ -231,6 +231,10 @@ void main() {
 
       await cartNotifier.addSelection(selection);
       await cartNotifier.setPaymentMethod('qr');
+      final readyState = container.read(saleCartProvider);
+      expect(readyState.khqrStatus, SaleKhqrUiStates.readyToGenerate);
+
+      await cartNotifier.generateKhqrAttempt();
 
       final generated = container.read(saleCartProvider);
       expect(generated.khqrStatus, SaleKhqrUiStates.waitingForPayment);
@@ -245,6 +249,10 @@ void main() {
 
       await cartNotifier.setPaymentMethod('cash');
       await cartNotifier.setPaymentMethod('qr');
+      final readyToRegenerate = container.read(saleCartProvider);
+      expect(readyToRegenerate.khqrStatus, SaleKhqrUiStates.readyToGenerate);
+
+      await cartNotifier.generateKhqrAttempt();
       final regenerated = container.read(saleCartProvider);
       expect(regenerated.khqrStatus, SaleKhqrUiStates.waitingForPayment);
       expect(regenerated.khqrMd5, isNotNull);
