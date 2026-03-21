@@ -203,6 +203,9 @@ class _BranchManagementPageState extends ConsumerState<BranchManagementPage> {
       if (!mounted) return;
       setState(() => _branch = updated);
       ref.read(branchControllerProvider.notifier).patchBranchInList(updated);
+      ref
+          .read(authActiveBranchNameOverrideProvider.notifier)
+          .setName(updated.branchName);
       _showMessage('Branch profile updated.');
     });
 
