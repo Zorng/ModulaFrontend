@@ -139,7 +139,7 @@ class DriftStaffShiftCacheStore implements StaffShiftCacheStore {
         .toList(growable: false);
 
     final schedule = scope == null
-        ? const StaffShiftSchedule(patterns: [], instances: [])
+        ? StaffShiftSchedule(patterns: [], instances: [])
         : await _readSchedule(scope);
 
     return StaffShiftCacheSnapshot(
@@ -334,7 +334,7 @@ class DriftStaffShiftCacheStore implements StaffShiftCacheStore {
             .getSingleOrNull();
 
     if (resolvedScopeRow == null) {
-      return const StaffShiftSchedule(patterns: [], instances: []);
+      return StaffShiftSchedule(patterns: [], instances: []);
     }
 
     final patternRows =

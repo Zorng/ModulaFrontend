@@ -24,6 +24,8 @@ class StaffMembershipDetailPage extends ConsumerStatefulWidget {
 
 class _StaffMembershipDetailPageState
     extends ConsumerState<StaffMembershipDetailPage> {
+  static const double _dialogMaxWidth = 600;
+
   bool _isChangingRole = false;
   bool _isRevoking = false;
   bool _isSavingBranches = false;
@@ -67,11 +69,23 @@ class _StaffMembershipDetailPageState
               data.branchAssignment.branchIds,
               data.branchNameById,
             );
+            final initials = detail.displayName
+                .trim()
+                .split(' ')
+                .take(2)
+                .map((w) => w.isNotEmpty ? w[0].toUpperCase() : '')
+                .join();
+
             return ListView(
               children: [
+                // ── Inline error ─────────────────────────────────────
                 if (_actionMessage != null) ...[
                   Card(
                     color: Colors.orange.shade50,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                     child: Padding(
                       padding: const EdgeInsets.all(12),
                       child: Text(_actionMessage!),
@@ -79,37 +93,103 @@ class _StaffMembershipDetailPageState
                   ),
                   const SizedBox(height: 12),
                 ],
+
+                // ── Header card ──────────────────────────────────────
                 Card(
                   color: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    side: BorderSide(color: Colors.grey.shade200),
+                  ),
                   child: Padding(
                     padding: const EdgeInsets.all(16),
-                    child: Column(
+                    child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          detail.displayName,
-                          style: Theme.of(context).textTheme.headlineSmall,
-                        ),
-                        const SizedBox(height: 8),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            StaffRoleChip(roleKey: detail.roleKey),
-                            StaffStatusChip.membership(
-                              status: detail.membershipStatus,
+                        Container(
+                          width: 52,
+                          height: 52,
+                          decoration: BoxDecoration(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.primaryContainer,
+                            shape: BoxShape.circle,
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            initials,
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 16,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onPrimaryContainer,
                             ),
-                          ],
+                          ),
                         ),
-                        const SizedBox(height: 12),
-                        Text(detail.phone),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                detail.displayName,
+                                style: Theme.of(context).textTheme.titleLarge
+                                    ?.copyWith(fontWeight: FontWeight.w700),
+                              ),
+                              const SizedBox(height: 6),
+                              Row(
+                                children: [
+                                  StaffRoleChip(roleKey: detail.roleKey),
+                                  const SizedBox(width: 8),
+                                  StaffStatusChip.membership(
+                                    status: detail.membershipStatus,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      detail.phone,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(
+                                            color: Colors.grey.shade600,
+                                          ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
                       ],
                     ),
                   ),
                 ),
                 const SizedBox(height: 12),
+
+                // ── Membership summary ───────────────────────────────
                 StaffDetailSectionCard(
                   title: 'Membership summary',
+                  trailing: _isChangingRole
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : TextButton(
+                          onPressed: () => _changeRole(context, data),
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size(0, 34),
+                            padding: const EdgeInsets.symmetric(horizontal: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          child: const Text('Change role'),
+                        ),
                   child: Column(
                     children: [
                       StaffDetailInfoRow(
@@ -122,15 +202,19 @@ class _StaffMembershipDetailPageState
                       ),
                       StaffDetailInfoRow(
                         label: 'Role',
-                        value: detail.roleLabel,
+                        value: '',
+                        valueWidget: StaffRoleChip(roleKey: detail.roleKey),
                       ),
                       StaffDetailInfoRow(
                         label: 'Status',
-                        value: detail.statusLabel,
+                        value: '',
+                        valueWidget: StaffStatusChip.membership(
+                          status: detail.membershipStatus,
+                        ),
                       ),
                       StaffDetailInfoRow(
                         label: 'Profile status',
-                        value: detail.staffProfileStatus ?? '-',
+                        value: detail.staffProfileStatus ?? '—',
                       ),
                       StaffDetailInfoRow(
                         label: 'Invited',
@@ -143,25 +227,33 @@ class _StaffMembershipDetailPageState
                       StaffDetailInfoRow(
                         label: 'Revoked',
                         value: formatStaffDateTime(detail.revokedAt),
+                        isLast: true,
                       ),
                     ],
                   ),
                 ),
                 const SizedBox(height: 12),
+
+                // ── Branch assignment ────────────────────────────────
                 StaffDetailSectionCard(
                   title: 'Branch assignment',
-                  trailing: TextButton(
-                    onPressed: _isSavingBranches
-                        ? null
-                        : () => _editBranches(context, data),
-                    child: _isSavingBranches
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Edit'),
-                  ),
+                  trailing: _isSavingBranches
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : TextButton(
+                          onPressed: () => _editBranches(context, data),
+                          style: FilledButton.styleFrom(
+                            minimumSize: const Size(0, 34),
+                            padding: const EdgeInsets.symmetric(horizontal: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          child: const Text('Edit'),
+                        ),
                   child: Column(
                     children: [
                       StaffDetailInfoRow(
@@ -181,42 +273,46 @@ class _StaffMembershipDetailPageState
                           data.branchAssignment.activeBranchIds,
                           data.branchNameById,
                         ),
+                        isLast: true,
                       ),
                     ],
                   ),
                 ),
                 const SizedBox(height: 12),
+
+                // ── Actions ──────────────────────────────────────────
                 StaffDetailSectionCard(
                   title: 'Actions',
-                  child: Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    children: [
-                      OutlinedButton(
-                        onPressed: _isChangingRole
-                            ? null
-                            : () => _changeRole(context, data),
-                        child: _isChangingRole
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            : const Text('Change role'),
-                      ),
-                      FilledButton.tonal(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.tonal(
                         onPressed: _isRevoking ? null : () => _revoke(context),
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size(0, 44),
+                          backgroundColor: Colors.red.shade50,
+                          foregroundColor: Colors.red.shade700,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
                         child: _isRevoking
-                            ? const SizedBox(
+                            ? SizedBox(
                                 width: 16,
                                 height: 16,
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.red.shade700,
+                                ),
                               )
                             : const Text('Revoke membership'),
                       ),
-                    ],
+                    ),
                   ),
                 ),
+
+                const SizedBox(height: 24),
               ],
             );
           },
@@ -225,53 +321,67 @@ class _StaffMembershipDetailPageState
     );
   }
 
+  // ── Dialogs & actions (unchanged logic) ─────────────────────────────
+
   Future<void> _changeRole(
     BuildContext context,
     StaffMembershipDetailPageData data,
   ) async {
-    var selectedRole = data.detail.roleKey;
+    const roleOptions = {'ADMIN', 'MANAGER', 'CASHIER'};
+    final currentRole = data.detail.roleKey.trim().toUpperCase();
+    var selectedRole = roleOptions.contains(currentRole)
+        ? currentRole
+        : 'CASHIER';
     final result = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
+        constraints: const BoxConstraints(maxWidth: _dialogMaxWidth),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        backgroundColor: Colors.white,
         title: const Text('Change role'),
-        content: StatefulBuilder(
-          builder: (context, setDialogState) => DropdownMenu<String>(
-            initialSelection: selectedRole,
-            width: 260,
-            onSelected: (value) {
-              if (value == null) return;
-              setDialogState(() => selectedRole = value);
-            },
-            dropdownMenuEntries: const [
-              DropdownMenuEntry(value: 'ADMIN', label: 'Admin'),
-              DropdownMenuEntry(value: 'MANAGER', label: 'Manager'),
-              DropdownMenuEntry(value: 'CASHIER', label: 'Cashier'),
-            ],
+        content: _buildDialogContent(
+          child: StatefulBuilder(
+            builder: (context, setDialogState) => LayoutBuilder(
+              builder: (context, constraints) => DropdownMenu<String>(
+                initialSelection: selectedRole,
+                width: constraints.maxWidth,
+                requestFocusOnTap: false,
+                menuStyle: const MenuStyle(
+                  backgroundColor: WidgetStatePropertyAll<Color>(Colors.white),
+                  surfaceTintColor: WidgetStatePropertyAll<Color>(Colors.white),
+                ),
+                onSelected: (value) {
+                  if (value == null) return;
+                  setDialogState(() => selectedRole = value);
+                },
+                dropdownMenuEntries: const [
+                  DropdownMenuEntry(value: 'ADMIN', label: 'Admin'),
+                  DropdownMenuEntry(value: 'MANAGER', label: 'Manager'),
+                  DropdownMenuEntry(value: 'CASHIER', label: 'Cashier'),
+                ],
+              ),
+            ),
           ),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(selectedRole),
-            child: const Text('Save'),
+          _buildDialogActions(
+            context: context,
+            confirmLabel: 'Save',
+            onConfirm: () => Navigator.of(context).pop(selectedRole),
           ),
         ],
       ),
     );
-    if (result == null || result == data.detail.roleKey) return;
+    if (result == null || result == currentRole) return;
 
     setState(() {
       _isChangingRole = true;
       _actionMessage = null;
     });
     try {
-      await ref.read(membershipCommandRepositoryProvider).changeRole(
-        membershipId: widget.membershipId,
-        roleKey: result,
-      );
+      await ref
+          .read(membershipCommandRepositoryProvider)
+          .changeRole(membershipId: widget.membershipId, roleKey: result);
       ref.invalidate(staffMembershipDetailPageProvider(widget.membershipId));
       await ref
           .read(staffMembershipListControllerProvider.notifier)
@@ -299,11 +409,13 @@ class _StaffMembershipDetailPageState
     final result = await showDialog<Set<String>>(
       context: context,
       builder: (context) => AlertDialog(
+        constraints: const BoxConstraints(maxWidth: _dialogMaxWidth),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        backgroundColor: Colors.white,
         title: const Text('Assign branches'),
-        content: StatefulBuilder(
-          builder: (context, setDialogState) => SizedBox(
-            width: 360,
-            child: SingleChildScrollView(
+        content: _buildDialogContent(
+          child: StatefulBuilder(
+            builder: (context, setDialogState) => SingleChildScrollView(
               child: StaffBranchSelectionList(
                 availableBranches: data.availableBranches,
                 selectedBranchIds: selected,
@@ -313,13 +425,10 @@ class _StaffMembershipDetailPageState
           ),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(selected),
-            child: const Text('Save'),
+          _buildDialogActions(
+            context: context,
+            confirmLabel: 'Save',
+            onConfirm: () => Navigator.of(context).pop(selected),
           ),
         ],
       ),
@@ -331,10 +440,12 @@ class _StaffMembershipDetailPageState
       _actionMessage = null;
     });
     try {
-      await ref.read(staffBranchAssignmentRepositoryProvider).assignBranches(
-        membershipId: widget.membershipId,
-        branchIds: result.toList(growable: false),
-      );
+      await ref
+          .read(staffBranchAssignmentRepositoryProvider)
+          .assignBranches(
+            membershipId: widget.membershipId,
+            branchIds: result.toList(growable: false),
+          );
       ref.invalidate(staffMembershipDetailPageProvider(widget.membershipId));
       await ref
           .read(staffMembershipListControllerProvider.notifier)
@@ -358,18 +469,21 @@ class _StaffMembershipDetailPageState
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        constraints: const BoxConstraints(maxWidth: _dialogMaxWidth),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        backgroundColor: Colors.white,
         title: const Text('Revoke membership'),
-        content: const Text(
-          'This removes the team member from the tenant. Continue?',
+        content: _buildDialogContent(
+          child: const Text(
+            'This removes the team member from the tenant. Continue?',
+          ),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Revoke'),
+          _buildDialogActions(
+            context: context,
+            confirmLabel: 'Revoke',
+            onConfirm: () => Navigator.of(context).pop(true),
+            onCancel: () => Navigator.of(context).pop(false),
           ),
         ],
       ),
@@ -401,5 +515,37 @@ class _StaffMembershipDetailPageState
     } finally {
       if (mounted) setState(() => _isRevoking = false);
     }
+  }
+
+  Widget _buildDialogActions({
+    required BuildContext context,
+    required String confirmLabel,
+    required VoidCallback onConfirm,
+    VoidCallback? onCancel,
+  }) {
+    return SizedBox(
+      width: double.maxFinite,
+      child: Row(
+        children: [
+          Expanded(
+            child: FilledButton.tonal(
+              onPressed: onCancel ?? () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: FilledButton(
+              onPressed: onConfirm,
+              child: Text(confirmLabel),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDialogContent({required Widget child}) {
+    return SizedBox(width: double.maxFinite, child: child);
   }
 }

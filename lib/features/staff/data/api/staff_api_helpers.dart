@@ -21,6 +21,30 @@ class StaffApiHelpers {
     return const <StaffJsonMap>[];
   }
 
+  static List<StaffJsonMap> unwrapPagedItems(dynamic body) {
+    final unwrapped = ApiContract.unwrapData(body);
+    if (unwrapped is List) {
+      return unwrapped
+          .whereType<Map>()
+          .map((entry) => ApiContract.asJsonMap(entry))
+          .toList(growable: false);
+    }
+    final map = ApiContract.asJsonMap(unwrapped);
+    final candidate =
+        map['items'] ??
+        map['data'] ??
+        map['rows'] ??
+        map['results'] ??
+        map['records'];
+    if (candidate is List) {
+      return candidate
+          .whereType<Map>()
+          .map((entry) => ApiContract.asJsonMap(entry))
+          .toList(growable: false);
+    }
+    return const <StaffJsonMap>[];
+  }
+
   static List<String> stringList(dynamic value) {
     if (value is! List) return const <String>[];
     return value

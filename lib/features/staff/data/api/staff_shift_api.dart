@@ -22,6 +22,8 @@ class StaffShiftApi {
     required String from,
     required String to,
     String? membershipId,
+    int? limit,
+    int? offset,
   }) async {
     try {
       final response = await _dio.get<dynamic>(
@@ -30,6 +32,8 @@ class StaffShiftApi {
           'branchId': branchId.trim(),
           'from': from.trim(),
           'to': to.trim(),
+          if (limit != null) 'limit': limit,
+          if (offset != null) 'offset': offset,
           if ((membershipId ?? '').trim().isNotEmpty)
             'membershipId': membershipId!.trim(),
         },
@@ -48,11 +52,18 @@ class StaffShiftApi {
     required String membershipId,
     required String from,
     required String to,
+    int? limit,
+    int? offset,
   }) async {
     try {
       final response = await _dio.get<dynamic>(
         '$_prefix/memberships/${membershipId.trim()}',
-        queryParameters: {'from': from.trim(), 'to': to.trim()},
+        queryParameters: {
+          'from': from.trim(),
+          'to': to.trim(),
+          if (limit != null) 'limit': limit,
+          if (offset != null) 'offset': offset,
+        },
       );
       final data = StaffApiHelpers.unwrapMap(response.data);
       return StaffShiftScheduleDto.fromJson(data);

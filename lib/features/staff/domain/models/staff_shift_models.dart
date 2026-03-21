@@ -88,14 +88,62 @@ class StaffShiftInstance {
   final DateTime updatedAt;
 }
 
-class StaffShiftSchedule {
-  const StaffShiftSchedule({
-    required this.patterns,
-    required this.instances,
-    this.membershipId,
+class OffsetPage<T> {
+  const OffsetPage({
+    required this.items,
+    required this.limit,
+    required this.offset,
+    required this.total,
+    required this.hasMore,
   });
 
-  final List<StaffShiftPattern> patterns;
-  final List<StaffShiftInstance> instances;
+  final List<T> items;
+  final int limit;
+  final int offset;
+  final int total;
+  final bool hasMore;
+
+  static OffsetPage<T> empty<T>({int limit = 50}) {
+    return OffsetPage<T>(
+      items: List<T>.empty(growable: false),
+      limit: limit,
+      offset: 0,
+      total: 0,
+      hasMore: false,
+    );
+  }
+}
+
+class StaffShiftSchedule {
+  StaffShiftSchedule({
+    List<StaffShiftPattern>? patterns,
+    List<StaffShiftInstance>? instances,
+    OffsetPage<StaffShiftPattern>? patternPage,
+    OffsetPage<StaffShiftInstance>? instancePage,
+    this.membershipId,
+  }) : patternPage =
+           patternPage ??
+           OffsetPage<StaffShiftPattern>(
+             items: patterns ?? const <StaffShiftPattern>[],
+             limit: 200,
+             offset: 0,
+             total: 0,
+             hasMore: false,
+           ),
+       instancePage =
+           instancePage ??
+           OffsetPage<StaffShiftInstance>(
+             items: instances ?? const <StaffShiftInstance>[],
+             limit: 200,
+             offset: 0,
+             total: 0,
+             hasMore: false,
+           );
+
+  final OffsetPage<StaffShiftPattern> patternPage;
+  final OffsetPage<StaffShiftInstance> instancePage;
   final String? membershipId;
+
+  List<StaffShiftPattern> get patterns => patternPage.items;
+  List<StaffShiftInstance> get instances => instancePage.items;
 }

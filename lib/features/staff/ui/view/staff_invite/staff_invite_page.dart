@@ -9,6 +9,7 @@ import 'package:modular_pos/features/staff/data/repository/staff_branch_assignme
 import 'package:modular_pos/features/staff/domain/models/staff_membership_models.dart';
 import 'package:modular_pos/features/staff/ui/components/staff_branch_selection_list.dart';
 import 'package:modular_pos/features/staff/ui/components/staff_role_chip.dart';
+import 'package:modular_pos/features/staff/ui/viewmodels/staff_membership_detail_provider.dart';
 import 'package:modular_pos/features/staff/ui/viewmodels/staff_membership_list_controller.dart';
 import 'package:modular_pos/features/staff/ui/viewmodels/staff_support_providers.dart';
 
@@ -28,6 +29,11 @@ class _StaffInvitePageState extends ConsumerState<StaffInvitePage> {
   String? _message;
   MembershipInviteResult? _inviteResult;
   Set<String> _selectedBranchIds = <String>{};
+
+  static const MenuStyle _whiteDropdownMenuStyle = MenuStyle(
+    backgroundColor: WidgetStatePropertyAll<Color>(Colors.white),
+    surfaceTintColor: WidgetStatePropertyAll<Color>(Colors.white),
+  );
 
   @override
   void dispose() {
@@ -62,61 +68,86 @@ class _StaffInvitePageState extends ConsumerState<StaffInvitePage> {
               color: Colors.white,
               child: Padding(
                 padding: const EdgeInsets.all(16),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Create a tenant membership invite.',
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        controller: _phoneController,
-                        decoration: const InputDecoration(
-                          labelText: 'Phone',
-                          hintText: '+85512345678',
-                        ),
-                        validator: (value) {
-                          final phone = (value ?? '').trim();
-                          if (phone.isEmpty) return 'Phone is required.';
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      DropdownMenu<String>(
-                        initialSelection: _selectedRole,
-                        width: 280,
-                        label: const Text('Role'),
-                        onSelected: (value) {
-                          if (value == null) return;
-                          setState(() => _selectedRole = value);
-                        },
-                        dropdownMenuEntries: const [
-                          DropdownMenuEntry(value: 'ADMIN', label: 'Admin'),
-                          DropdownMenuEntry(value: 'MANAGER', label: 'Manager'),
-                          DropdownMenuEntry(value: 'CASHIER', label: 'Cashier'),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final fieldWidth = constraints.maxWidth;
+                    return Form(
+                      key: _formKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Create a tenant membership invite.',
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                          const SizedBox(height: 16),
+                          SizedBox(
+                            width: fieldWidth,
+                            child: TextFormField(
+                              controller: _phoneController,
+                              decoration: const InputDecoration(
+                                labelText: 'Phone',
+                                hintText: '+85512345678',
+                                hintStyle: TextStyle(color: Color(0xFF9CA3AF)),
+                              ),
+                              validator: (value) {
+                                final phone = (value ?? '').trim();
+                                if (phone.isEmpty) return 'Phone is required.';
+                                return null;
+                              },
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          SizedBox(
+                            width: fieldWidth,
+                            child: DropdownMenu<String>(
+                              initialSelection: _selectedRole,
+                              width: fieldWidth,
+                              requestFocusOnTap: false,
+                              menuStyle: _whiteDropdownMenuStyle,
+                              label: const Text('Role'),
+                              onSelected: (value) {
+                                if (value == null) return;
+                                setState(() => _selectedRole = value);
+                              },
+                              dropdownMenuEntries: const [
+                                DropdownMenuEntry(
+                                  value: 'ADMIN',
+                                  label: 'Admin',
+                                ),
+                                DropdownMenuEntry(
+                                  value: 'MANAGER',
+                                  label: 'Manager',
+                                ),
+                                DropdownMenuEntry(
+                                  value: 'CASHIER',
+                                  label: 'Cashier',
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: FilledButton(
+                              onPressed: _isInviting || tenantId.isEmpty
+                                  ? null
+                                  : () => _submitInvite(tenantId),
+                              child: _isInviting
+                                  ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Text('Send invite'),
+                            ),
+                          ),
                         ],
                       ),
-                      const SizedBox(height: 24),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: FilledButton(
-                          onPressed: _isInviting || tenantId.isEmpty
-                              ? null
-                              : () => _submitInvite(tenantId),
-                          child: _isInviting
-                              ? const SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
-                                )
-                              : const Text('Send invite'),
-                        ),
-                      ),
-                    ],
-                  ),
+                    );
+                  },
                 ),
               ),
             ),
@@ -171,24 +202,29 @@ class _StaffInvitePageState extends ConsumerState<StaffInvitePage> {
                         const SizedBox(height: 16),
                         Row(
                           children: [
-                            OutlinedButton(
-                              onPressed: () => context.go(AppRoute.staff.path),
-                              child: const Text('Finish later'),
+                            Expanded(
+                              child: FilledButton.tonal(
+                                onPressed: () =>
+                                    context.go(AppRoute.staff.path),
+                                child: const Text('Finish later'),
+                              ),
                             ),
-                            const Spacer(),
-                            FilledButton(
-                              onPressed: _isSavingBranches
-                                  ? null
-                                  : () => _saveBranches(),
-                              child: _isSavingBranches
-                                  ? const SizedBox(
-                                      width: 18,
-                                      height: 18,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
-                                    )
-                                  : const Text('Save branches'),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: FilledButton(
+                                onPressed: _isSavingBranches
+                                    ? null
+                                    : () => _saveBranches(),
+                                child: _isSavingBranches
+                                    ? const SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : const Text('Save branches'),
+                              ),
                             ),
                           ],
                         ),
@@ -211,7 +247,9 @@ class _StaffInvitePageState extends ConsumerState<StaffInvitePage> {
       _message = null;
     });
     try {
-      final result = await ref.read(membershipCommandRepositoryProvider).inviteMember(
+      final result = await ref
+          .read(membershipCommandRepositoryProvider)
+          .inviteMember(
             tenantId: tenantId,
             phone: _phoneController.text.trim(),
             roleKey: _selectedRole,
@@ -219,6 +257,7 @@ class _StaffInvitePageState extends ConsumerState<StaffInvitePage> {
       await ref
           .read(staffMembershipListControllerProvider.notifier)
           .reconcileAfterMutation();
+      ref.invalidate(staffMembershipDetailPageProvider(result.membershipId));
       if (!mounted) return;
       setState(() {
         _inviteResult = result;
@@ -245,7 +284,9 @@ class _StaffInvitePageState extends ConsumerState<StaffInvitePage> {
       _message = null;
     });
     try {
-      await ref.read(staffBranchAssignmentRepositoryProvider).assignBranches(
+      await ref
+          .read(staffBranchAssignmentRepositoryProvider)
+          .assignBranches(
             membershipId: inviteResult.membershipId,
             branchIds: _selectedBranchIds.toList(growable: false),
           );
@@ -253,6 +294,9 @@ class _StaffInvitePageState extends ConsumerState<StaffInvitePage> {
           .read(staffMembershipListControllerProvider.notifier)
           .reconcileAfterMutation();
       if (!mounted) return;
+      ref.invalidate(
+        staffMembershipDetailPageProvider(inviteResult.membershipId),
+      );
       context.goNamed(
         AppRoute.staffDetail.name,
         pathParameters: {'membershipId': inviteResult.membershipId},

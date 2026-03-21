@@ -196,7 +196,7 @@ void main() {
           ),
           staffShiftRepositoryProvider.overrideWithValue(
             _FakeStaffShiftRepository(
-              schedule: const StaffShiftSchedule(
+              schedule: StaffShiftSchedule(
                 patterns: <StaffShiftPattern>[],
                 instances: <StaffShiftInstance>[],
               ),
@@ -251,7 +251,7 @@ void main() {
           ),
           staffShiftRepositoryProvider.overrideWithValue(
             _FakeStaffShiftRepository(
-              schedule: const StaffShiftSchedule(
+              schedule: StaffShiftSchedule(
                 patterns: <StaffShiftPattern>[],
                 instances: <StaffShiftInstance>[],
               ),
@@ -385,7 +385,7 @@ void main() {
           ),
           staffShiftRepositoryProvider.overrideWithValue(
             _FakeStaffShiftRepository(
-              schedule: const StaffShiftSchedule(
+              schedule: StaffShiftSchedule(
                 patterns: <StaffShiftPattern>[],
                 instances: <StaffShiftInstance>[],
               ),
@@ -479,7 +479,7 @@ void main() {
           ),
           staffShiftRepositoryProvider.overrideWithValue(
             _FakeStaffShiftRepository(
-              schedule: const StaffShiftSchedule(
+              schedule: StaffShiftSchedule(
                 patterns: <StaffShiftPattern>[],
                 instances: <StaffShiftInstance>[],
               ),
@@ -557,7 +557,7 @@ void main() {
           ),
           staffShiftRepositoryProvider.overrideWithValue(
             _FakeStaffShiftRepository(
-              schedule: const StaffShiftSchedule(
+              schedule: StaffShiftSchedule(
                 patterns: <StaffShiftPattern>[],
                 instances: <StaffShiftInstance>[],
               ),
@@ -928,6 +928,8 @@ class _FakeStaffShiftRepository implements StaffShiftRepository {
     required String from,
     required String to,
     String? membershipId,
+    int? limit,
+    int? offset,
   }) async {
     return schedule;
   }

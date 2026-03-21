@@ -9,20 +9,23 @@ class StaffRoleChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = _colorForRole(roleKey);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        border: Border.all(color: color),
-        borderRadius: BorderRadius.circular(999),
+        color: color,
+        borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
         formatRoleKey(roleKey),
-        style: Theme.of(
-          context,
-        ).textTheme.labelMedium?.copyWith(color: color),
+        style: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w500,
+          color: Colors.white,
+        ),
       ),
-    );
+    );    
   }
+
 
   Color _colorForRole(String rawRole) {
     switch (rawRole.trim().toUpperCase()) {

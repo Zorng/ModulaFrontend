@@ -41,7 +41,7 @@ class StaffAttendanceReviewApi {
           'offset': offset,
         },
       );
-      final list = StaffApiHelpers.unwrapList(response.data);
+      final list = StaffApiHelpers.unwrapPagedItems(response.data);
       return list
           .map(StaffAttendanceReviewRecordDto.fromJson)
           .toList(growable: false);

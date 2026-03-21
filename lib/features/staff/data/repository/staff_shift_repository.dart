@@ -9,6 +9,8 @@ abstract class StaffShiftRepository {
     required String from,
     required String to,
     String? membershipId,
+    int? limit,
+    int? offset,
   });
 
   Future<StaffShiftSchedule> fetchMySchedule();
@@ -76,6 +78,8 @@ class RemoteStaffShiftRepository implements StaffShiftRepository {
   const RemoteStaffShiftRepository(this._api);
 
   final StaffShiftApi _api;
+  static const _defaultPageLimit = 200;
+  static const _maxPageLimit = 500;
 
   @override
   Future<StaffShiftSchedule> fetchSchedule({
@@ -83,13 +87,27 @@ class RemoteStaffShiftRepository implements StaffShiftRepository {
     required String from,
     required String to,
     String? membershipId,
+    int? limit,
+    int? offset,
   }) async {
-    final dto = await _api.fetchSchedule(
-      branchId: branchId,
-      from: from,
-      to: to,
-      membershipId: membershipId,
-    );
+    final normalizedLimit = _normalizeLimit(limit);
+    final normalizedOffset = _normalizeOffset(offset);
+    final cleanMembershipId = (membershipId ?? '').trim();
+    final dto = cleanMembershipId.isNotEmpty
+        ? await _api.fetchMembershipSchedule(
+            membershipId: cleanMembershipId,
+            from: from,
+            to: to,
+            limit: normalizedLimit,
+            offset: normalizedOffset,
+          )
+        : await _api.fetchSchedule(
+            branchId: branchId,
+            from: from,
+            to: to,
+            limit: normalizedLimit,
+            offset: normalizedOffset,
+          );
     return mapStaffShiftScheduleDto(dto);
   }
 
@@ -228,5 +246,16 @@ class RemoteStaffShiftRepository implements StaffShiftRepository {
       intentId: intentId,
     );
     return mapStaffShiftInstanceDto(dto);
+  }
+
+  int _normalizeLimit(int? value) {
+    if (value == null || value <= 0) return _defaultPageLimit;
+    if (value > _maxPageLimit) return _maxPageLimit;
+    return value;
+  }
+
+  int _normalizeOffset(int? value) {
+    if (value == null || value < 0) return 0;
+    return value;
   }
 }

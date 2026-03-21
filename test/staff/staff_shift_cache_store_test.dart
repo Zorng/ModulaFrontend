@@ -129,7 +129,7 @@ void main() {
         fromDate: '2026-03-17',
         toDate: '2026-03-23',
       ),
-      schedule: const StaffShiftSchedule(patterns: [], instances: []),
+      schedule: StaffShiftSchedule(patterns: [], instances: []),
     );
 
     await store.clearTenant(tenantId: 'tenant-1');

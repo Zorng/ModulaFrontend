@@ -108,41 +108,110 @@ class StaffShiftInstanceDto {
   }
 }
 
+class StaffOffsetPageDto<T> {
+  const StaffOffsetPageDto({
+    required this.items,
+    required this.limit,
+    required this.offset,
+    required this.total,
+    required this.hasMore,
+  });
+
+  final List<T> items;
+  final int limit;
+  final int offset;
+  final int total;
+  final bool hasMore;
+
+  factory StaffOffsetPageDto.fromJson(
+    dynamic raw,
+    T Function(Map<String, dynamic> json) fromJson,
+  ) {
+    if (raw is List) {
+      final legacyItems = raw
+          .whereType<Map>()
+          .map((entry) => fromJson(Map<String, dynamic>.from(entry)))
+          .toList(growable: false);
+      return StaffOffsetPageDto<T>(
+        items: legacyItems,
+        limit: legacyItems.length,
+        offset: 0,
+        total: legacyItems.length,
+        hasMore: false,
+      );
+    }
+
+    final json = raw is Map
+        ? Map<String, dynamic>.from(raw)
+        : <String, dynamic>{};
+    final rawItems =
+        json['items'] ?? json['data'] ?? json['rows'] ?? json['results'];
+    final items = rawItems is List
+        ? rawItems
+              .whereType<Map>()
+              .map((entry) => fromJson(Map<String, dynamic>.from(entry)))
+              .toList(growable: false)
+        : List<T>.empty(growable: false);
+
+    final limit =
+        StaffApiHelpers.parseInt(json['limit']) ??
+        StaffApiHelpers.parseInt(json['pageSize']) ??
+        StaffApiHelpers.parseInt(json['perPage']) ??
+        items.length;
+    final offset =
+        StaffApiHelpers.parseInt(json['offset']) ??
+        StaffApiHelpers.parseInt(json['skip']) ??
+        0;
+    final total =
+        StaffApiHelpers.parseInt(json['total']) ??
+        StaffApiHelpers.parseInt(json['totalCount']) ??
+        StaffApiHelpers.parseInt(json['count']) ??
+        items.length;
+    final hasMoreValue =
+        json['hasMore'] ?? json['has_more'] ?? json['nextPage'] != null;
+    final hasMore = hasMoreValue is bool
+        ? hasMoreValue
+        : (offset + items.length) < total;
+
+    return StaffOffsetPageDto<T>(
+      items: items,
+      limit: limit,
+      offset: offset,
+      total: total,
+      hasMore: hasMore,
+    );
+  }
+}
+
 class StaffShiftScheduleDto {
   const StaffShiftScheduleDto({
-    required this.patterns,
-    required this.instances,
+    required this.patternPage,
+    required this.instancePage,
     required this.membershipId,
   });
 
-  final List<StaffShiftPatternDto> patterns;
-  final List<StaffShiftInstanceDto> instances;
+  final StaffOffsetPageDto<StaffShiftPatternDto> patternPage;
+  final StaffOffsetPageDto<StaffShiftInstanceDto> instancePage;
   final String? membershipId;
 
+  List<StaffShiftPatternDto> get patterns => patternPage.items;
+  List<StaffShiftInstanceDto> get instances => instancePage.items;
+
   factory StaffShiftScheduleDto.fromJson(Map<String, dynamic> json) {
-    final rawPatterns = json['patterns'];
-    final rawInstances = json['instances'];
+    final scheduleJson = json['schedule'] is Map
+        ? Map<String, dynamic>.from(json['schedule'] as Map)
+        : json;
+
     return StaffShiftScheduleDto(
-      patterns: rawPatterns is List
-          ? rawPatterns
-                .whereType<Map>()
-                .map(
-                  (entry) =>
-                      StaffShiftPatternDto.fromJson(Map<String, dynamic>.from(entry)),
-                )
-                .toList(growable: false)
-          : const <StaffShiftPatternDto>[],
-      instances: rawInstances is List
-          ? rawInstances
-                .whereType<Map>()
-                .map(
-                  (entry) => StaffShiftInstanceDto.fromJson(
-                    Map<String, dynamic>.from(entry),
-                  ),
-                )
-                .toList(growable: false)
-          : const <StaffShiftInstanceDto>[],
-      membershipId: json['membershipId']?.toString(),
+      patternPage: StaffOffsetPageDto<StaffShiftPatternDto>.fromJson(
+        scheduleJson['patterns'] ?? scheduleJson['patternPage'],
+        StaffShiftPatternDto.fromJson,
+      ),
+      instancePage: StaffOffsetPageDto<StaffShiftInstanceDto>.fromJson(
+        scheduleJson['instances'] ?? scheduleJson['instancePage'],
+        StaffShiftInstanceDto.fromJson,
+      ),
+      membershipId: scheduleJson['membershipId']?.toString(),
     );
   }
 }

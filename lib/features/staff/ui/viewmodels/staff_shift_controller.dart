@@ -20,7 +20,14 @@ class StaffShiftState {
     required this.selectedMembershipId,
     required this.dateRange,
     required this.schedule,
+    required this.pageSize,
+    required this.patternOffset,
+    required this.patternHasMore,
+    required this.instanceOffset,
+    required this.instanceHasMore,
     this.isRefreshing = false,
+    this.isLoadingPatternMore = false,
+    this.isLoadingInstanceMore = false,
     this.isSaving = false,
     this.inlineError,
   });
@@ -31,7 +38,14 @@ class StaffShiftState {
   final String? selectedMembershipId;
   final DateTimeRange dateRange;
   final StaffShiftSchedule schedule;
+  final int pageSize;
+  final int patternOffset;
+  final bool patternHasMore;
+  final int instanceOffset;
+  final bool instanceHasMore;
   final bool isRefreshing;
+  final bool isLoadingPatternMore;
+  final bool isLoadingInstanceMore;
   final bool isSaving;
   final String? inlineError;
 
@@ -44,7 +58,14 @@ class StaffShiftState {
     bool clearSelectedMembershipId = false,
     DateTimeRange? dateRange,
     StaffShiftSchedule? schedule,
+    int? pageSize,
+    int? patternOffset,
+    bool? patternHasMore,
+    int? instanceOffset,
+    bool? instanceHasMore,
     bool? isRefreshing,
+    bool? isLoadingPatternMore,
+    bool? isLoadingInstanceMore,
     bool? isSaving,
     String? inlineError,
     bool clearInlineError = false,
@@ -60,7 +81,15 @@ class StaffShiftState {
           : (selectedMembershipId ?? this.selectedMembershipId),
       dateRange: dateRange ?? this.dateRange,
       schedule: schedule ?? this.schedule,
+      pageSize: pageSize ?? this.pageSize,
+      patternOffset: patternOffset ?? this.patternOffset,
+      patternHasMore: patternHasMore ?? this.patternHasMore,
+      instanceOffset: instanceOffset ?? this.instanceOffset,
+      instanceHasMore: instanceHasMore ?? this.instanceHasMore,
       isRefreshing: isRefreshing ?? this.isRefreshing,
+      isLoadingPatternMore: isLoadingPatternMore ?? this.isLoadingPatternMore,
+      isLoadingInstanceMore:
+          isLoadingInstanceMore ?? this.isLoadingInstanceMore,
       isSaving: isSaving ?? this.isSaving,
       inlineError: clearInlineError ? null : inlineError ?? this.inlineError,
     );
@@ -85,6 +114,8 @@ final staffShiftTenantIdProvider = Provider<String>((ref) {
 });
 
 class StaffShiftController extends AsyncNotifier<StaffShiftState> {
+  static const _defaultPageSize = 50;
+
   StaffShiftRepository get _repository =>
       ref.read(staffShiftRepositoryProvider);
   StaffShiftCacheStore get _cache => ref.read(staffShiftCacheStoreProvider);
@@ -113,13 +144,17 @@ class StaffShiftController extends AsyncNotifier<StaffShiftState> {
               expectedBranchId: cached.selectedBranchId,
               expectedMembershipId: cached.selectedMembershipId,
               dateRange: dateRange,
+              pageSize: cached.pageSize,
             ),
           ),
         );
         return cached;
       }
     }
-    return _loadRemoteInitialState(dateRange: dateRange);
+    return _loadRemoteInitialState(
+      dateRange: dateRange,
+      pageSize: _defaultPageSize,
+    );
   }
 
   Future<void> setBranchId(String? value) async {
@@ -152,6 +187,30 @@ class StaffShiftController extends AsyncNotifier<StaffShiftState> {
     );
   }
 
+  Future<void> clearFilters() async {
+    final current = _currentState;
+    if (current == null || current.selectedMembershipId == null) return;
+    await _reload(
+      selectedBranchId: current.selectedBranchId,
+      selectedMembershipId: null,
+      dateRange: current.dateRange,
+    );
+  }
+
+  Future<void> setFilters({
+    required String? branchId,
+    required String? membershipId,
+    required DateTimeRange dateRange,
+  }) async {
+    final current = _currentState;
+    if (current == null) return;
+    await _reload(
+      selectedBranchId: branchId,
+      selectedMembershipId: membershipId,
+      dateRange: dateRange,
+    );
+  }
+
   Future<void> refresh() async {
     final current = _currentState;
     if (current == null) {
@@ -164,6 +223,102 @@ class StaffShiftController extends AsyncNotifier<StaffShiftState> {
       selectedMembershipId: current.selectedMembershipId,
       dateRange: current.dateRange,
     );
+  }
+
+  Future<void> loadMorePatterns() async {
+    final current = _currentState;
+    if (current == null ||
+        current.isLoadingPatternMore ||
+        !current.patternHasMore) {
+      return;
+    }
+
+    state = AsyncData(
+      current.copyWith(isLoadingPatternMore: true, clearInlineError: true),
+    );
+    try {
+      final page = await _loadSchedulePage(
+        selectedBranchId: current.selectedBranchId,
+        selectedMembershipId: current.selectedMembershipId,
+        dateRange: current.dateRange,
+        limit: current.pageSize,
+        offset: current.patternOffset,
+      );
+      final fetchedCount = page.patterns.length;
+      state = AsyncData(
+        current.copyWith(
+          schedule: StaffShiftSchedule(
+            membershipId: current.schedule.membershipId ?? page.membershipId,
+            patternPage: OffsetPage<StaffShiftPattern>(
+              items: [...current.schedule.patterns, ...page.patterns],
+              limit: current.pageSize,
+              offset: page.patternPage.offset,
+              total: page.patternPage.total,
+              hasMore: page.patternPage.hasMore,
+            ),
+            instancePage: current.schedule.instancePage,
+          ),
+          patternOffset: current.patternOffset + fetchedCount,
+          patternHasMore: page.patternPage.hasMore,
+          isLoadingPatternMore: false,
+        ),
+      );
+    } catch (error) {
+      state = AsyncData(
+        current.copyWith(
+          isLoadingPatternMore: false,
+          inlineError: _formatError(error),
+        ),
+      );
+    }
+  }
+
+  Future<void> loadMoreInstances() async {
+    final current = _currentState;
+    if (current == null ||
+        current.isLoadingInstanceMore ||
+        !current.instanceHasMore) {
+      return;
+    }
+
+    state = AsyncData(
+      current.copyWith(isLoadingInstanceMore: true, clearInlineError: true),
+    );
+    try {
+      final page = await _loadSchedulePage(
+        selectedBranchId: current.selectedBranchId,
+        selectedMembershipId: current.selectedMembershipId,
+        dateRange: current.dateRange,
+        limit: current.pageSize,
+        offset: current.instanceOffset,
+      );
+      final fetchedCount = page.instances.length;
+      state = AsyncData(
+        current.copyWith(
+          schedule: StaffShiftSchedule(
+            membershipId: current.schedule.membershipId ?? page.membershipId,
+            patternPage: current.schedule.patternPage,
+            instancePage: OffsetPage<StaffShiftInstance>(
+              items: [...current.schedule.instances, ...page.instances],
+              limit: current.pageSize,
+              offset: page.instancePage.offset,
+              total: page.instancePage.total,
+              hasMore: page.instancePage.hasMore,
+            ),
+          ),
+          instanceOffset: current.instanceOffset + fetchedCount,
+          instanceHasMore: page.instancePage.hasMore,
+          isLoadingInstanceMore: false,
+        ),
+      );
+    } catch (error) {
+      state = AsyncData(
+        current.copyWith(
+          isLoadingInstanceMore: false,
+          inlineError: _formatError(error),
+        ),
+      );
+    }
   }
 
   Future<void> createPattern({
@@ -281,6 +436,7 @@ class StaffShiftController extends AsyncNotifier<StaffShiftState> {
         selectedBranchId: current.selectedBranchId,
         selectedMembershipId: current.selectedMembershipId,
         dateRange: current.dateRange,
+        pageSize: current.pageSize,
       );
       state = AsyncData(refreshed);
     } catch (error) {
@@ -307,7 +463,7 @@ class StaffShiftController extends AsyncNotifier<StaffShiftState> {
       selectedMembershipId: selectedMembershipId,
       clearSelectedMembershipId: selectedMembershipId == null,
       dateRange: dateRange,
-      schedule: const StaffShiftSchedule(patterns: [], instances: []),
+      schedule: _emptySchedule(current.pageSize),
       isRefreshing: true,
       clearInlineError: true,
     );
@@ -330,7 +486,13 @@ class StaffShiftController extends AsyncNotifier<StaffShiftState> {
         selectedMembershipId: selectedMembershipId,
         dateRange: dateRange,
       )) {
-        baseState = requestedState.copyWith(schedule: cached.schedule);
+        baseState = requestedState.copyWith(
+          schedule: cached.schedule,
+          patternOffset: cached.schedule.patterns.length,
+          patternHasMore: cached.schedule.patternPage.hasMore,
+          instanceOffset: cached.schedule.instances.length,
+          instanceHasMore: cached.schedule.instancePage.hasMore,
+        );
       }
     }
     state = AsyncData(baseState);
@@ -341,6 +503,7 @@ class StaffShiftController extends AsyncNotifier<StaffShiftState> {
         selectedBranchId: selectedBranchId,
         selectedMembershipId: selectedMembershipId,
         dateRange: dateRange,
+        pageSize: current.pageSize,
       );
       state = AsyncData(next);
     } catch (error) {
@@ -359,29 +522,23 @@ class StaffShiftController extends AsyncNotifier<StaffShiftState> {
     required String? selectedBranchId,
     required String? selectedMembershipId,
     required DateTimeRange dateRange,
+    required int pageSize,
   }) async {
-    StaffShiftSchedule schedule = const StaffShiftSchedule(
-      patterns: [],
-      instances: [],
+    final schedule = await _loadSchedulePage(
+      selectedBranchId: selectedBranchId,
+      selectedMembershipId: selectedMembershipId,
+      dateRange: dateRange,
+      limit: pageSize,
+      offset: 0,
     );
-    if ((selectedBranchId ?? '').trim().isNotEmpty) {
-      final scope = _resolveCacheScope(
-        tenantId: _tenantId,
-        selectedBranchId: selectedBranchId,
-        selectedMembershipId: selectedMembershipId,
-        dateRange: dateRange,
-      );
-      schedule = await _withTimeout(
-        _repository.fetchSchedule(
-          branchId: selectedBranchId!.trim(),
-          from: _formatDate(dateRange.start),
-          to: _formatDate(dateRange.end),
-          membershipId: selectedMembershipId,
-        ),
-      );
-      if (scope != null) {
-        await _cache.writeSchedule(scope: scope, schedule: schedule);
-      }
+    final scope = _resolveCacheScope(
+      tenantId: _tenantId,
+      selectedBranchId: selectedBranchId,
+      selectedMembershipId: selectedMembershipId,
+      dateRange: dateRange,
+    );
+    if (scope != null) {
+      await _cache.writeSchedule(scope: scope, schedule: schedule);
     }
     if (_tenantId.isNotEmpty) {
       await _cache.writeOptions(
@@ -397,6 +554,42 @@ class StaffShiftController extends AsyncNotifier<StaffShiftState> {
       selectedMembershipId: selectedMembershipId,
       dateRange: dateRange,
       schedule: schedule,
+      pageSize: pageSize,
+      patternOffset: schedule.patterns.length,
+      patternHasMore: schedule.patternPage.hasMore,
+      instanceOffset: schedule.instances.length,
+      instanceHasMore: schedule.instancePage.hasMore,
+    );
+  }
+
+  Future<StaffShiftSchedule> _loadSchedulePage({
+    required String? selectedBranchId,
+    required String? selectedMembershipId,
+    required DateTimeRange dateRange,
+    required int limit,
+    required int offset,
+  }) async {
+    final branchId = (selectedBranchId ?? '').trim();
+    final membershipId = (selectedMembershipId ?? '').trim();
+    if (branchId.isEmpty && membershipId.isEmpty) {
+      return _emptySchedule(limit);
+    }
+    return _withTimeout(
+      _repository.fetchSchedule(
+        branchId: branchId,
+        from: _formatDate(dateRange.start),
+        to: _formatDate(dateRange.end),
+        membershipId: membershipId.isEmpty ? null : membershipId,
+        limit: limit,
+        offset: offset,
+      ),
+    );
+  }
+
+  StaffShiftSchedule _emptySchedule(int limit) {
+    return StaffShiftSchedule(
+      patternPage: OffsetPage.empty<StaffShiftPattern>(limit: limit),
+      instancePage: OffsetPage.empty<StaffShiftInstance>(limit: limit),
     );
   }
 
@@ -430,7 +623,12 @@ class StaffShiftController extends AsyncNotifier<StaffShiftState> {
         selectedBranchId: null,
         selectedMembershipId: null,
         dateRange: dateRange,
-        schedule: const StaffShiftSchedule(patterns: [], instances: []),
+        schedule: _emptySchedule(_defaultPageSize),
+        pageSize: _defaultPageSize,
+        patternOffset: 0,
+        patternHasMore: false,
+        instanceOffset: 0,
+        instanceHasMore: false,
       );
     }
 
@@ -443,6 +641,11 @@ class StaffShiftController extends AsyncNotifier<StaffShiftState> {
         toDate: _formatDate(dateRange.end),
       ),
     );
+    final resolvedPageSize = scoped.schedule.patternPage.limit > 0
+        ? scoped.schedule.patternPage.limit
+        : (scoped.schedule.instancePage.limit > 0
+              ? scoped.schedule.instancePage.limit
+              : _defaultPageSize);
     return StaffShiftState(
       branches: bootstrap.branches,
       memberships: bootstrap.memberships,
@@ -450,11 +653,17 @@ class StaffShiftController extends AsyncNotifier<StaffShiftState> {
       selectedMembershipId: null,
       dateRange: dateRange,
       schedule: scoped.schedule,
+      pageSize: resolvedPageSize,
+      patternOffset: scoped.schedule.patterns.length,
+      patternHasMore: scoped.schedule.patternPage.hasMore,
+      instanceOffset: scoped.schedule.instances.length,
+      instanceHasMore: scoped.schedule.instancePage.hasMore,
     );
   }
 
   Future<StaffShiftState> _loadRemoteInitialState({
     required DateTimeRange dateRange,
+    required int pageSize,
   }) async {
     final (branches, memberships) = await _loadRemoteOptions();
     final selectedBranchId = branches.isNotEmpty
@@ -466,6 +675,7 @@ class StaffShiftController extends AsyncNotifier<StaffShiftState> {
       selectedBranchId: selectedBranchId,
       selectedMembershipId: null,
       dateRange: dateRange,
+      pageSize: pageSize,
     );
   }
 
@@ -474,9 +684,13 @@ class StaffShiftController extends AsyncNotifier<StaffShiftState> {
     required String? expectedBranchId,
     required String? expectedMembershipId,
     required DateTimeRange dateRange,
+    required int pageSize,
   }) async {
     try {
-      final next = await _loadRemoteInitialState(dateRange: dateRange);
+      final next = await _loadRemoteInitialState(
+        dateRange: dateRange,
+        pageSize: pageSize,
+      );
       if (_sameSelection(
         next,
         selectedBranchId: expectedBranchId,

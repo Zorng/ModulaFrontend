@@ -19,6 +19,10 @@ class StaffMembershipDataTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final buttonStyle = FilledButton.styleFrom(
+      minimumSize: const Size(0, 44),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+    );
     return LayoutBuilder(
       builder: (context, constraints) => SingleChildScrollView(
         scrollDirection: Axis.horizontal,
@@ -125,7 +129,7 @@ class StaffMembershipDataTable extends StatelessWidget {
                               ),
                               DataCell(
                                 FilledButton(
-                                  style: AppTableTheme.actionButtonStyle,
+                                  style: buttonStyle,
                                   onPressed: () => onView(membership),
                                   child: const Text('View'),
                                 ),
