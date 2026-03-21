@@ -16,11 +16,18 @@ This project can be deployed to Netlify as a static Flutter web build.
 - SPA fallback redirect: `/* -> /index.html`
 
 `scripts/netlify-build.sh`:
-- installs the pinned Flutter SDK revision from `.metadata` by default
-- optionally honors `FLUTTER_VERSION` if Netlify explicitly overrides the pin
+- installs a released Linux Flutter SDK for Netlify builds
+- uses `FLUTTER_CHANNEL` + `FLUTTER_VERSION`
 - enables Flutter web
 - runs `flutter pub get`
 - builds the app with `--dart-define` values coming from Netlify environment variables
+
+Current Netlify pin:
+
+```text
+FLUTTER_CHANNEL=stable
+FLUTTER_VERSION=3.41.5
+```
 
 ## Required Netlify environment variables
 
