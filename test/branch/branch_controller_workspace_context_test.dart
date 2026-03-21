@@ -54,6 +54,16 @@ class _StubBranchRepository implements BranchRepository {
   }
 
   @override
+  Future<BranchListItem> updateCurrentBranchProfile({
+    required String branchName,
+    required String? branchAddress,
+    required String? contactNumber,
+    String? accessTokenOverride,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
   Future<BranchListItem> updateCurrentBranchKhqrReceiver({
     required String khqrReceiverAccountId,
     required String khqrReceiverName,

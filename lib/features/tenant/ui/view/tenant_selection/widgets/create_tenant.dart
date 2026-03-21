@@ -11,6 +11,7 @@ Future<void> showCreateTenantDialog(BuildContext context) {
     context: context,
     builder: (dialogContext) {
       return Dialog(
+        backgroundColor: Colors.white,
         insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
         child: Container(
           width: double.infinity,
@@ -121,6 +122,11 @@ class _CreateTenantDialogBodyState
                 },
                 decoration: InputDecoration(
                   hintText: 'Enter tenant name',
+                  hintStyle: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface.withValues(
+                      alpha: 0.4,
+                    ),
+                  ),
                   errorText: _tenantNameError,
                 ),
               ),
@@ -139,6 +145,12 @@ class _CreateTenantDialogBodyState
               children: [
                 Expanded(
                   child: OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(48),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
                     onPressed: isCreating
                         ? null
                         : () => Navigator.of(context).pop(),
@@ -148,6 +160,12 @@ class _CreateTenantDialogBodyState
                 const SizedBox(width: 12),
                 Expanded(
                   child: FilledButton(
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(48),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
                     onPressed: isCreating ? null : _submit,
                     child: isCreating
                         ? const SizedBox(

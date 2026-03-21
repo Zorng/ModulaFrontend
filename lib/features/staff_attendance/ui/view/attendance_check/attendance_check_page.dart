@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:modular_pos/core/network/app_connectivity.dart';
+import 'package:modular_pos/core/network/app_connectivity_contract.dart';
 import 'package:modular_pos/core/theme/app_buttons.dart';
 import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
 import 'package:modular_pos/features/staff/data/repository/staff_shift_repository.dart';
 import 'package:modular_pos/features/staff/domain/models/staff_shift_models.dart';
+import 'package:modular_pos/features/staff_attendance/data/attendance_cache_store.dart';
+import 'package:modular_pos/features/staff_attendance/data/attendance_offline_queue.dart';
 import 'package:modular_pos/features/staff_attendance/data/attendance_repository_contract.dart';
 import 'package:modular_pos/features/staff_attendance/data/staff_attendance_repository.dart';
 import 'package:modular_pos/features/staff_attendance/domain/models/attendance_record.dart';
@@ -12,6 +16,13 @@ import 'package:modular_pos/features/staff_attendance/ui/view/attendance_check/w
 import 'package:modular_pos/features/staff_attendance/ui/view/attendance_check/widgets/today_shift_card.dart';
 import 'package:modular_pos/features/staff_attendance/ui/view/attendance_shared/attendance_geolocation.dart';
 import 'package:modular_pos/features/staff_attendance/ui/view/attendance_shared/attendance_utils.dart';
+import 'package:uuid/uuid.dart';
+
+typedef AttendanceGeoCapture = Future<AttendanceGeoSnapshot> Function();
+
+final attendanceGeoCaptureProvider = Provider<AttendanceGeoCapture>((ref) {
+  return AttendanceGeolocation.capture;
+});
 
 class AttendanceCheckPage extends ConsumerStatefulWidget {
   const AttendanceCheckPage({super.key});
@@ -22,6 +33,8 @@ class AttendanceCheckPage extends ConsumerStatefulWidget {
 }
 
 class _AttendanceCheckPageState extends ConsumerState<AttendanceCheckPage> {
+  static const Uuid _uuid = Uuid();
+
   bool _shiftExpanded = false;
   bool _contextLoading = false;
   bool _scheduleLoading = false;
@@ -35,7 +48,7 @@ class _AttendanceCheckPageState extends ConsumerState<AttendanceCheckPage> {
   DateTime? _todayCheckOutAt;
 
   List<AttendanceShiftScheduleEntry> _shiftSchedule = const [];
-  StaffShiftSchedule _canonicalShiftSchedule = const StaffShiftSchedule(
+  StaffShiftSchedule _canonicalShiftSchedule = StaffShiftSchedule(
     patterns: <StaffShiftPattern>[],
     instances: <StaffShiftInstance>[],
   );
@@ -44,9 +57,28 @@ class _AttendanceCheckPageState extends ConsumerState<AttendanceCheckPage> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadCachedAttendanceData();
       _loadSchedule();
       _loadAttendanceContext();
       _loadTodayAttendance();
+    });
+  }
+
+  Future<void> _loadCachedAttendanceData() async {
+    final scope = ref.read(attendanceCacheScopeProvider);
+    if (scope == null) return;
+
+    final snapshot = await ref.read(attendanceCacheStoreProvider).read(scope);
+    if (!mounted) return;
+    if (snapshot.context == null && snapshot.records.isEmpty) return;
+
+    final todayAttendance = _deriveTodayAttendance(snapshot.records);
+    setState(() {
+      if (snapshot.context != null) {
+        _attendanceContext = snapshot.context!;
+      }
+      _todayCheckInAt = todayAttendance.checkInAt;
+      _todayCheckOutAt = todayAttendance.checkOutAt;
     });
   }
 
@@ -59,7 +91,7 @@ class _AttendanceCheckPageState extends ConsumerState<AttendanceCheckPage> {
       if (branchId == null || branchId.isEmpty) {
         if (!mounted) return;
         setState(() {
-          _canonicalShiftSchedule = const StaffShiftSchedule(
+          _canonicalShiftSchedule = StaffShiftSchedule(
             patterns: <StaffShiftPattern>[],
             instances: <StaffShiftInstance>[],
           );
@@ -89,6 +121,7 @@ class _AttendanceCheckPageState extends ConsumerState<AttendanceCheckPage> {
   }
 
   Future<void> _loadAttendanceContext() async {
+    final requestedScope = ref.read(attendanceCacheScopeProvider);
     setState(() => _contextLoading = true);
     try {
       final repo = ref.read(staffAttendanceRepositoryProvider);
@@ -101,11 +134,20 @@ class _AttendanceCheckPageState extends ConsumerState<AttendanceCheckPage> {
       final attendanceContext = await repo.getAttendanceContext(
         branchId: branchId,
       );
+      if (requestedScope != null) {
+        await ref
+            .read(attendanceCacheStoreProvider)
+            .writeContext(scope: requestedScope, context: attendanceContext);
+      }
       if (!mounted) return;
+      if (requestedScope != null &&
+          ref.read(attendanceCacheScopeProvider) != requestedScope) {
+        return;
+      }
       setState(() => _attendanceContext = attendanceContext);
     } catch (_) {
       if (!mounted) return;
-      setState(() => _attendanceContext = const AttendanceContext.empty());
+      setState(() => _errorMessage = 'Failed to refresh attendance context');
     } finally {
       if (mounted) {
         setState(() => _contextLoading = false);
@@ -114,6 +156,7 @@ class _AttendanceCheckPageState extends ConsumerState<AttendanceCheckPage> {
   }
 
   Future<void> _loadTodayAttendance() async {
+    final requestedScope = ref.read(attendanceCacheScopeProvider);
     setState(() {
       _errorMessage = null;
     });
@@ -140,7 +183,16 @@ class _AttendanceCheckPageState extends ConsumerState<AttendanceCheckPage> {
         limit: 100,
         offset: 0,
       );
+      if (requestedScope != null) {
+        await ref
+            .read(attendanceCacheStoreProvider)
+            .writeRecords(scope: requestedScope, records: records);
+      }
       if (!mounted) return;
+      if (requestedScope != null &&
+          ref.read(attendanceCacheScopeProvider) != requestedScope) {
+        return;
+      }
       _syncTodayFromRecords(records);
     } catch (_) {
       if (!mounted) return;
@@ -154,10 +206,13 @@ class _AttendanceCheckPageState extends ConsumerState<AttendanceCheckPage> {
     final now = DateTime.now();
     final nowIsoUtc = now.toUtc().toIso8601String();
     final repo = ref.read(staffAttendanceRepositoryProvider);
+    final cacheScope = ref.read(attendanceCacheScopeProvider);
     final branchId = ref.read(authActiveBranchIdProvider);
+    final connectivityStatus = ref.read(appConnectivityStatusProvider);
     final hasOpenAttendance =
         _attendanceContext.activeAttendance != null ||
         (_todayCheckInAt != null && _todayCheckOutAt == null);
+    var shouldRefreshContext = true;
 
     if (branchId == null || branchId.isEmpty) {
       if (!mounted) return;
@@ -169,10 +224,81 @@ class _AttendanceCheckPageState extends ConsumerState<AttendanceCheckPage> {
     }
 
     try {
-      final position = await AttendanceGeolocation.capture();
-      final clientOpId = _buildClientOpId(
-        hasOpenAttendance ? 'attendance-end' : 'attendance-start',
-      );
+      final position = await ref.read(attendanceGeoCaptureProvider)();
+      final clientOpId = _buildClientOpId();
+      if (connectivityStatus == AppConnectivityStatus.offline) {
+        if (cacheScope == null) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Unable to queue attendance offline right now.'),
+            ),
+          );
+          return;
+        }
+
+        shouldRefreshContext = false;
+        if (!hasOpenAttendance) {
+          final payload = AttendanceCheckInPayload(
+            branchId: branchId,
+            deviceLat: position.latitude,
+            deviceLng: position.longitude,
+            deviceAccuracyM: position.accuracyM,
+            clientOpId: clientOpId,
+            clientTs: nowIsoUtc,
+          );
+          await ref
+              .read(attendanceOfflineQueueProvider)
+              .enqueueCheckIn(scope: cacheScope, payload: payload);
+          await _applyOfflineQueuedMutation(
+            scope: cacheScope,
+            occurredAt: now,
+            recordType: 'CHECK_IN',
+            attendanceId: clientOpId,
+            position: position,
+          );
+          if (!mounted || ref.read(attendanceCacheScopeProvider) != cacheScope) {
+            return;
+          }
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Check-in saved offline. It will sync when you reconnect.',
+              ),
+            ),
+          );
+        } else {
+          final payload = AttendanceCheckOutPayload(
+            branchId: branchId,
+            deviceLat: position.latitude,
+            deviceLng: position.longitude,
+            deviceAccuracyM: position.accuracyM,
+            clientOpId: clientOpId,
+            clientTs: nowIsoUtc,
+          );
+          await ref
+              .read(attendanceOfflineQueueProvider)
+              .enqueueCheckOut(scope: cacheScope, payload: payload);
+          await _applyOfflineQueuedMutation(
+            scope: cacheScope,
+            occurredAt: now,
+            recordType: 'CHECK_OUT',
+            attendanceId: clientOpId,
+            position: position,
+          );
+          if (!mounted || ref.read(attendanceCacheScopeProvider) != cacheScope) {
+            return;
+          }
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Check-out saved offline. It will sync when you reconnect.',
+              ),
+            ),
+          );
+        }
+        return;
+      }
       if (!hasOpenAttendance) {
         final result = await repo.checkInWithPayload(
           AttendanceCheckInPayload(
@@ -224,11 +350,107 @@ class _AttendanceCheckPageState extends ConsumerState<AttendanceCheckPage> {
       if (mounted) {
         setState(() => _submitting = false);
       }
-      _loadAttendanceContext();
+      if (shouldRefreshContext) {
+        _loadAttendanceContext();
+      }
     }
   }
 
+  Future<void> _applyOfflineQueuedMutation({
+    required AttendanceCacheScope scope,
+    required DateTime occurredAt,
+    required String recordType,
+    required String attendanceId,
+    required AttendanceGeoSnapshot position,
+  }) async {
+    final cacheStore = ref.read(attendanceCacheStoreProvider);
+    final snapshot = await cacheStore.read(scope);
+    final record = AttendanceRecord(
+      id: attendanceId,
+      tenantId: scope.tenantId,
+      branchId: scope.branchId,
+      employeeId: scope.accountId,
+      type: recordType,
+      occurredAt: occurredAt,
+      createdAt: occurredAt,
+      location: position.latitude == null || position.longitude == null
+          ? null
+          : AttendanceLocation(
+              lat: position.latitude!,
+              lng: position.longitude!,
+            ),
+    );
+    final updatedContext = recordType == 'CHECK_IN'
+        ? AttendanceContext(
+            canCheckIn: false,
+            reasonCode: AttendanceReasonCodes.alreadyCheckedIn,
+            reasonMessage: 'Attendance saved offline. Waiting to sync.',
+            activeShift: _attendanceContext.activeShift,
+            activeAttendance: ActiveAttendanceSession(
+              attendanceId: attendanceId,
+              startAt: occurredAt.toUtc().toIso8601String(),
+            ),
+            locationVerificationMode:
+                _attendanceContext.locationVerificationMode,
+            geofence: _attendanceContext.geofence,
+          )
+        : AttendanceContext(
+            canCheckIn: true,
+            reasonCode: null,
+            reasonMessage: null,
+            activeShift: _attendanceContext.activeShift,
+            activeAttendance: null,
+            locationVerificationMode:
+                _attendanceContext.locationVerificationMode,
+            geofence: _attendanceContext.geofence,
+          );
+    final updatedRecords = _mergeAttendanceRecords(
+      snapshot.records,
+      newRecord: record,
+    );
+    final todayAttendance = _deriveTodayAttendance(updatedRecords);
+    await cacheStore.writeContext(scope: scope, context: updatedContext);
+    await cacheStore.writeRecords(scope: scope, records: updatedRecords);
+    if (!mounted) return;
+    if (ref.read(attendanceCacheScopeProvider) != scope) return;
+    setState(() {
+      _attendanceContext = updatedContext;
+      _todayCheckInAt = todayAttendance.checkInAt;
+      _todayCheckOutAt = todayAttendance.checkOutAt;
+      _errorMessage = null;
+      _locationResultLabel = null;
+      _locationResultMessage = null;
+    });
+  }
+
+  List<AttendanceRecord> _mergeAttendanceRecords(
+    List<AttendanceRecord> existingRecords, {
+    required AttendanceRecord newRecord,
+  }) {
+    final merged = existingRecords
+        .where((record) => record.id != newRecord.id)
+        .toList(growable: true)
+      ..add(newRecord)
+      ..sort((a, b) {
+        final occurredCompare = a.occurredAt.compareTo(b.occurredAt);
+        if (occurredCompare != 0) return occurredCompare;
+        return a.createdAt.compareTo(b.createdAt);
+      });
+    return List<AttendanceRecord>.unmodifiable(merged);
+  }
+
   void _syncTodayFromRecords(List<AttendanceRecord> records) {
+    final todayAttendance = _deriveTodayAttendance(records);
+
+    setState(() {
+      _todayCheckInAt = todayAttendance.checkInAt;
+      _todayCheckOutAt = todayAttendance.checkOutAt;
+    });
+  }
+
+  ({DateTime? checkInAt, DateTime? checkOutAt}) _deriveTodayAttendance(
+    List<AttendanceRecord> records,
+  ) {
     final todayKey = formatDateKey(DateTime.now());
     final todayRecords =
         records
@@ -255,17 +477,10 @@ class _AttendanceCheckPageState extends ConsumerState<AttendanceCheckPage> {
       orElse: () => checkIn,
     );
 
-    final todayCheckInAt = checkIn.type == 'CHECK_IN'
-        ? checkIn.occurredAt
-        : null;
-    final todayCheckOutAt = checkOut.type == 'CHECK_OUT'
-        ? checkOut.occurredAt
-        : null;
-
-    setState(() {
-      _todayCheckInAt = todayCheckInAt;
-      _todayCheckOutAt = todayCheckOutAt;
-    });
+    return (
+      checkInAt: checkIn.type == 'CHECK_IN' ? checkIn.occurredAt : null,
+      checkOutAt: checkOut.type == 'CHECK_OUT' ? checkOut.occurredAt : null,
+    );
   }
 
   String _scheduleLabelForDay(int dayIndex) {
@@ -279,9 +494,8 @@ class _AttendanceCheckPageState extends ConsumerState<AttendanceCheckPage> {
     return '${entry.startTime ?? '--'} - ${entry.endTime ?? '--'}';
   }
 
-  String _buildClientOpId(String action) {
-    final micros = DateTime.now().microsecondsSinceEpoch;
-    return '$action-$micros';
+  String _buildClientOpId() {
+    return _uuid.v4();
   }
 
   List<AttendanceShiftScheduleEntry> _buildWeeklyScheduleEntries({

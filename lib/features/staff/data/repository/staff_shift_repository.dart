@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/features/staff/data/api/staff_shift_api.dart';
+import 'package:modular_pos/features/staff/data/staff_shift_mapper.dart';
 import 'package:modular_pos/features/staff/domain/models/staff_shift_models.dart';
 
 abstract class StaffShiftRepository {
@@ -8,6 +9,8 @@ abstract class StaffShiftRepository {
     required String from,
     required String to,
     String? membershipId,
+    int? limit,
+    int? offset,
   });
 
   Future<StaffShiftSchedule> fetchMySchedule();
@@ -75,6 +78,8 @@ class RemoteStaffShiftRepository implements StaffShiftRepository {
   const RemoteStaffShiftRepository(this._api);
 
   final StaffShiftApi _api;
+  static const _defaultPageLimit = 200;
+  static const _maxPageLimit = 500;
 
   @override
   Future<StaffShiftSchedule> fetchSchedule({
@@ -82,20 +87,34 @@ class RemoteStaffShiftRepository implements StaffShiftRepository {
     required String from,
     required String to,
     String? membershipId,
+    int? limit,
+    int? offset,
   }) async {
-    final dto = await _api.fetchSchedule(
-      branchId: branchId,
-      from: from,
-      to: to,
-      membershipId: membershipId,
-    );
-    return _toSchedule(dto);
+    final normalizedLimit = _normalizeLimit(limit);
+    final normalizedOffset = _normalizeOffset(offset);
+    final cleanMembershipId = (membershipId ?? '').trim();
+    final dto = cleanMembershipId.isNotEmpty
+        ? await _api.fetchMembershipSchedule(
+            membershipId: cleanMembershipId,
+            from: from,
+            to: to,
+            limit: normalizedLimit,
+            offset: normalizedOffset,
+          )
+        : await _api.fetchSchedule(
+            branchId: branchId,
+            from: from,
+            to: to,
+            limit: normalizedLimit,
+            offset: normalizedOffset,
+          );
+    return mapStaffShiftScheduleDto(dto);
   }
 
   @override
   Future<StaffShiftSchedule> fetchMySchedule() async {
     final dto = await _api.fetchMySchedule();
-    return _toSchedule(dto);
+    return mapStaffShiftScheduleDto(dto);
   }
 
   @override
@@ -123,7 +142,7 @@ class RemoteStaffShiftRepository implements StaffShiftRepository {
       }..removeWhere((key, value) => value == null),
       intentId: intentId,
     );
-    return _toPattern(dto);
+    return mapStaffShiftPatternDto(dto);
   }
 
   @override
@@ -150,7 +169,7 @@ class RemoteStaffShiftRepository implements StaffShiftRepository {
       },
       intentId: intentId,
     );
-    return _toPattern(dto);
+    return mapStaffShiftPatternDto(dto);
   }
 
   @override
@@ -164,7 +183,7 @@ class RemoteStaffShiftRepository implements StaffShiftRepository {
       reason: reason,
       intentId: intentId,
     );
-    return _toPattern(dto);
+    return mapStaffShiftPatternDto(dto);
   }
 
   @override
@@ -188,7 +207,7 @@ class RemoteStaffShiftRepository implements StaffShiftRepository {
       }..removeWhere((key, value) => value == null),
       intentId: intentId,
     );
-    return _toInstance(dto);
+    return mapStaffShiftInstanceDto(dto);
   }
 
   @override
@@ -212,7 +231,7 @@ class RemoteStaffShiftRepository implements StaffShiftRepository {
       },
       intentId: intentId,
     );
-    return _toInstance(dto);
+    return mapStaffShiftInstanceDto(dto);
   }
 
   @override
@@ -226,53 +245,17 @@ class RemoteStaffShiftRepository implements StaffShiftRepository {
       reason: reason,
       intentId: intentId,
     );
-    return _toInstance(dto);
+    return mapStaffShiftInstanceDto(dto);
   }
 
-  StaffShiftSchedule _toSchedule(dynamic dto) {
-    return StaffShiftSchedule(
-      membershipId: dto.membershipId,
-      patterns: dto.patterns
-          .map<StaffShiftPattern>(_toPattern)
-          .toList(growable: false),
-      instances: dto.instances
-          .map<StaffShiftInstance>(_toInstance)
-          .toList(growable: false),
-    );
+  int _normalizeLimit(int? value) {
+    if (value == null || value <= 0) return _defaultPageLimit;
+    if (value > _maxPageLimit) return _maxPageLimit;
+    return value;
   }
 
-  StaffShiftPattern _toPattern(dynamic dto) {
-    return StaffShiftPattern(
-      id: dto.id,
-      tenantId: dto.tenantId,
-      membershipId: dto.membershipId,
-      branchId: dto.branchId,
-      daysOfWeek: dto.daysOfWeek,
-      plannedStartTime: dto.plannedStartTime,
-      plannedEndTime: dto.plannedEndTime,
-      status: parseStaffShiftPatternStatus(dto.status),
-      effectiveFrom: dto.effectiveFrom,
-      effectiveTo: dto.effectiveTo,
-      note: dto.note,
-      createdAt: dto.createdAt,
-      updatedAt: dto.updatedAt,
-    );
-  }
-
-  StaffShiftInstance _toInstance(dynamic dto) {
-    return StaffShiftInstance(
-      id: dto.id,
-      tenantId: dto.tenantId,
-      membershipId: dto.membershipId,
-      branchId: dto.branchId,
-      patternId: dto.patternId,
-      date: dto.date,
-      plannedStartTime: dto.plannedStartTime,
-      plannedEndTime: dto.plannedEndTime,
-      status: parseStaffShiftInstanceStatus(dto.status),
-      note: dto.note,
-      createdAt: dto.createdAt,
-      updatedAt: dto.updatedAt,
-    );
+  int _normalizeOffset(int? value) {
+    if (value == null || value < 0) return 0;
+    return value;
   }
 }

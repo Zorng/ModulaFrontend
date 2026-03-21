@@ -1,25 +1,42 @@
 import 'package:flutter/material.dart';
+import 'package:modular_pos/core/theme/responsive.dart';
+import 'package:modular_pos/core/theme/app_table_theme.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
 import 'package:modular_pos/features/inventory/domain/utils/stock_quantity_formatter.dart';
 import 'package:modular_pos/features/inventory/ui/view/inventory_stock_items/widgets/stock_item_image.dart';
+import 'package:modular_pos/features/inventory/ui/widgets/inventory_stock_status_chip.dart';
 
 class InventoryItemCard extends StatelessWidget {
   const InventoryItemCard({
     super.key,
     required this.item,
     required this.categoryLabel,
-    required this.onTap,
-    this.showState = true,
+    this.onAdjust,
+    this.onViewHistory,
   });
 
   final StockItem item;
   final String categoryLabel;
-  final VoidCallback onTap;
-  final bool showState;
+  final VoidCallback? onAdjust;
+  final VoidCallback? onViewHistory;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final isSmallScreen = AppBreakpoints.isSmall(
+      MediaQuery.sizeOf(context).width,
+    );
+    final buttonTextStyle = Theme.of(
+      context,
+    ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600);
+    final viewHistoryButtonStyle = OutlinedButton.styleFrom(
+      foregroundColor: AppTableTheme.actionButtonColor,
+      side: const BorderSide(color: AppTableTheme.actionButtonColor),
+      minimumSize: const Size(0, 48),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      textStyle: buttonTextStyle,
+    );
     final formatter = StockQuantityFormatter(
       baseQty: item.onHand,
       pieceSize: item.pieceSize,
@@ -31,105 +48,131 @@ class InventoryItemCard extends StatelessWidget {
       pieceSize: item.pieceSize,
       baseUnit: item.baseUnit,
     ).format();
-    return InkWell(
-      borderRadius: BorderRadius.circular(16),
-      onTap: onTap,
-      child: Card(
-        elevation: 3,
-        color: Colors.white,
-        shadowColor: colorScheme.shadow.withValues(alpha: 0.2),
-        surfaceTintColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              StockItemImage(imageUrl: item.imageUrl),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      item.name,
-                      style: Theme.of(context).textTheme.titleMedium,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      _pieceLabel(item),
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: colorScheme.surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        categoryLabel,
-                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                        maxLines: 1,
+    return Card(
+      elevation: 3,
+      color: Colors.white,
+      shadowColor: colorScheme.shadow.withValues(alpha: 0.2),
+      surfaceTintColor: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                StockItemImage(imageUrl: item.imageUrl),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        item.name,
+                        style: Theme.of(context).textTheme.titleSmall,
+                        maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    if (showState)
-                      InventoryStatePill(
-                        state: item.onHand == 0
-                            ? InventoryStockState.outOfStock
-                            : item.isLowStock
-                            ? InventoryStockState.lowStock
-                            : InventoryStockState.healthy,
+                      const SizedBox(height: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 4,
+                        ),
+                        decoration: AppTableTheme.categoryPillDecoration,
+                        child: Text(
+                          categoryLabel,
+                          style: AppTableTheme.categoryPillText,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Column(
+                  mainAxisAlignment: MainAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    InventoryStockStatusChip(item: item),
+                    const SizedBox(height: 8),
+                    ...onHandLines.map(
+                      (line) => Text(
+                        line,
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    ..._minLines(minText).map(
+                      (line) => Text(
+                        line,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ),
                   ],
                 ),
-              ),
-              const SizedBox(width: 16),
-              Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  ...onHandLines.map(
-                    (line) => Text(
-                      line,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: item.isLowStock ? colorScheme.error : null,
-                        fontWeight: FontWeight.w600,
+              ],
+            ),
+            if (onAdjust != null || onViewHistory != null) ...[
+              const SizedBox(height: 22),
+              if (isSmallScreen)
+                Row(
+                  children: [
+                    if (onViewHistory != null)
+                      Expanded(
+                        child: OutlinedButton(
+                          style: viewHistoryButtonStyle,
+                          onPressed: onViewHistory,
+                          child: const Text('View history'),
+                        ),
                       ),
-                    ),
+                    if (onAdjust != null && onViewHistory != null)
+                      const SizedBox(width: 12),
+                    if (onAdjust != null)
+                      Expanded(
+                        child: FilledButton(
+                          onPressed: onAdjust,
+                          child: const Text('Adjust'),
+                        ),
+                      ),
+                  ],
+                )
+              else
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    alignment: WrapAlignment.end,
+                    children: [
+                      if (onViewHistory != null)
+                        SizedBox(
+                          width: 148,
+                          child: OutlinedButton(
+                            style: viewHistoryButtonStyle,
+                            onPressed: onViewHistory,
+                            child: const Text('View history'),
+                          ),
+                        ),
+                      if (onAdjust != null)
+                        SizedBox(
+                          width: 148,
+                          child: FilledButton(
+                            onPressed: onAdjust,
+                            child: const Text('Adjust'),
+                          ),
+                        ),
+                    ],
                   ),
-                  ..._minLines(minText).map(
-                    (line) => Text(
-                      line,
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ),
-                ],
-              ),
+                ),
             ],
-          ),
+          ],
         ),
       ),
     );
   }
-}
-
-String _pieceLabel(StockItem item) {
-  if (item.pieceSize <= 1) return item.baseUnit;
-  return '${item.pieceSize} ${item.baseUnit} per piece';
 }
 
 List<String> _quantityLines(StockQuantityFormatter formatter) {
@@ -156,70 +199,3 @@ List<String> _minLines(String formatted) {
   final parts = formatted.split('+').map((part) => part.trim()).toList();
   return ['Min ${parts.first}', if (parts.length > 1) parts[1]];
 }
-
-class InventoryStatePill extends StatelessWidget {
-  const InventoryStatePill({super.key, required this.state});
-
-  final InventoryStockState state;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final color = switch (state) {
-      InventoryStockState.lowStock => scheme.errorContainer,
-      InventoryStockState.outOfStock => scheme.error,
-      InventoryStockState.healthy => scheme.secondaryContainer,
-    };
-    final textColor = switch (state) {
-      InventoryStockState.lowStock => scheme.onErrorContainer,
-      InventoryStockState.outOfStock => scheme.onError,
-      InventoryStockState.healthy => scheme.onSecondaryContainer,
-    };
-
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 180),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(999),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(_stateIcon(state), size: 14, color: textColor),
-              const SizedBox(width: 4),
-              Flexible(
-                child: Text(
-                  _stateLabel(state),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: textColor,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  String _stateLabel(InventoryStockState state) => switch (state) {
-    InventoryStockState.healthy => 'Healthy',
-    InventoryStockState.lowStock => 'Low stock',
-    InventoryStockState.outOfStock => 'Out of stock',
-  };
-
-  IconData _stateIcon(InventoryStockState state) => switch (state) {
-    InventoryStockState.healthy => Icons.check_circle,
-    InventoryStockState.lowStock => Icons.warning_amber,
-    InventoryStockState.outOfStock => Icons.error_outline,
-  };
-}
-
-enum InventoryStockState { healthy, lowStock, outOfStock }

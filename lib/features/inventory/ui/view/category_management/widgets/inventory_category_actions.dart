@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:modular_pos/core/routing/app_router.dart';
+import 'package:modular_pos/core/theme/app_theme.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_category.dart';
 import 'package:modular_pos/features/inventory/ui/components/category_form.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/category_controller.dart';
@@ -24,24 +25,47 @@ class InventoryCategoryActionMenu extends ConsumerWidget {
 
   static Future<void> openView(
     BuildContext context,
+    WidgetRef ref,
     InventoryCategory category, {
     bool useDialog = false,
+    VoidCallback? onArchived,
   }) async {
+    final hostContext = context;
     if (useDialog) {
       await showDialog<void>(
         context: context,
-        builder: (context) => Dialog(
+        builder: (dialogContext) => Dialog(
           insetPadding: const EdgeInsets.symmetric(
             horizontal: 24,
             vertical: 24,
           ),
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+          surfaceTintColor: Theme.of(context).scaffoldBackgroundColor,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          clipBehavior: Clip.antiAlias,
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 520),
             child: CategoryFormBody(
               mode: CategoryFormMode.view,
               category: category,
               showHeader: true,
-              onClose: () => Navigator.of(context).pop(),
+              allowArchiveInViewMode: true,
+              backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+              onArchived: onArchived,
+              onArchiveRequested: () async {
+                Navigator.of(dialogContext).pop();
+                await Future<void>.delayed(Duration.zero);
+                if (!hostContext.mounted) return;
+                await archiveCategory(
+                  hostContext,
+                  ref,
+                  category,
+                  onArchived: onArchived,
+                );
+              },
+              onClose: () => Navigator.of(dialogContext).pop(),
             ),
           ),
         ),
@@ -58,10 +82,16 @@ class InventoryCategoryActionMenu extends ConsumerWidget {
       onSelected: (value) {
         switch (value) {
           case _CategoryAction.view:
-            openView(context, category, useDialog: useDialog);
+            openView(
+              context,
+              ref,
+              category,
+              useDialog: useDialog,
+              onArchived: onArchived,
+            );
             break;
           case _CategoryAction.archive:
-            _archiveCategory(context, ref);
+            archiveCategory(context, ref, category, onArchived: onArchived);
             break;
         }
       },
@@ -77,24 +107,61 @@ class InventoryCategoryActionMenu extends ConsumerWidget {
     );
   }
 
-  Future<void> _archiveCategory(BuildContext context, WidgetRef ref) async {
+  static Future<void> archiveCategory(
+    BuildContext context,
+    WidgetRef ref,
+    InventoryCategory category, {
+    VoidCallback? onArchived,
+  }) async {
+    final cancelButtonStyle = AppTheme.cancelActionButtonStyle;
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Archive category?'),
-        content: Text(
-          '"${category.name}" will be archived and detached from stock items.',
+      builder: (context) => Dialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        surfaceTintColor: Theme.of(context).scaffoldBackgroundColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        clipBehavior: Clip.antiAlias,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 520),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Archive category?',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  '"${category.name}" will be archived and detached from stock items.',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(
+                      child: FilledButton(
+                        style: cancelButtonStyle,
+                        onPressed: () => Navigator.of(context).pop(false),
+                        child: const Text('Cancel'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: FilledButton(
+                        onPressed: () => Navigator.of(context).pop(true),
+                        child: const Text('Archive'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Archive'),
-          ),
-        ],
       ),
     );
     if (confirm != true) return;

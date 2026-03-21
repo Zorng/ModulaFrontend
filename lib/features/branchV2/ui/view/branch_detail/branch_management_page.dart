@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:modular_pos/core/feedback/user_error_message.dart';
 import 'package:modular_pos/core/network/api_contract.dart';
-import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/branchV2/data/branch_repository.dart';
 import 'package:modular_pos/features/branchV2/domain/models/branch_models.dart';
+import 'package:modular_pos/features/branchV2/ui/view/branch_selection/widgets/google_maps.dart';
+import 'package:modular_pos/features/branchV2/ui/viewmodels/branch_controller.dart';
 
 class BranchManagementPage extends ConsumerStatefulWidget {
   const BranchManagementPage({super.key, required this.branchId});
@@ -44,25 +46,21 @@ class _BranchManagementPageState extends ConsumerState<BranchManagementPage> {
       }
 
       final targetBranchId = widget.branchId.trim();
-      final activeBranchId = (ref.read(authActiveBranchIdProvider) ?? '')
-          .trim();
       if (targetBranchId.isEmpty) {
         throw const ApiClientException(message: 'Branch ID is required.');
       }
 
-      if (activeBranchId != targetBranchId) {
-        await ref
-            .read(loginControllerProvider.notifier)
-            .selectBranch(targetBranchId);
-        final loginState = ref.read(loginControllerProvider);
-        final error = (loginState.error ?? '').trim();
-        if (error.isNotEmpty) {
-          throw ApiClientException(
-            message: error,
-            code: loginState.errorCode,
-            statusCode: loginState.errorStatusCode,
-          );
-        }
+      await ref
+          .read(loginControllerProvider.notifier)
+          .selectBranch(targetBranchId);
+      final loginState = ref.read(loginControllerProvider);
+      final error = (loginState.error ?? '').trim();
+      if (error.isNotEmpty) {
+        throw ApiClientException(
+          message: error,
+          code: loginState.errorCode,
+          statusCode: loginState.errorStatusCode,
+        );
       }
 
       final accessToken =
@@ -78,6 +76,9 @@ class _BranchManagementPageState extends ConsumerState<BranchManagementPage> {
         _branch = branch;
         _loading = false;
       });
+      // Refresh the branch list in the background so BranchSelectionPage has
+      // up-to-date data when the user navigates back.
+      ref.read(branchControllerProvider.notifier).loadInitial();
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -88,6 +89,129 @@ class _BranchManagementPageState extends ConsumerState<BranchManagementPage> {
         );
       });
     }
+  }
+
+  Future<void> _showProfileEditDialog() async {
+    final branch = _branch;
+    if (branch == null) return;
+
+    final nameController = TextEditingController(text: branch.branchName);
+    final addressController = TextEditingController(
+      text: branch.branchAddress ?? '',
+    );
+    final contactController = TextEditingController(
+      text: branch.contactNumber ?? '',
+    );
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        titlePadding: const EdgeInsets.fromLTRB(20, 16, 8, 0),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Edit Branch Profile',
+                style: Theme.of(dialogContext).textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.bold),
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.close),
+              tooltip: 'Cancel',
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+            ),
+          ],
+        ),
+        contentPadding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+        content: SizedBox(
+          width: 420,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListenableBuilder(
+                  listenable: nameController,
+                  builder: (context, _) => TextField(
+                    controller: nameController,
+                    decoration: InputDecoration(
+                      labelText: 'Branch name',
+                      errorText: nameController.text.trim().isEmpty
+                          ? 'Branch name is required'
+                          : null,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: addressController,
+                  decoration: const InputDecoration(
+                    labelText: 'Address (optional)',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: contactController,
+                  decoration: const InputDecoration(
+                    labelText: 'Contact number (optional)',
+                  ),
+                  keyboardType: TextInputType.phone,
+                ),
+                const SizedBox(height: 16),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          ListenableBuilder(
+            listenable: nameController,
+            builder: (context, _) => FilledButton(
+              onPressed: nameController.text.trim().isEmpty
+                  ? null
+                  : () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Save'),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) {
+      nameController.dispose();
+      addressController.dispose();
+      contactController.dispose();
+      return;
+    }
+
+    await _runSave(() async {
+      final accessToken =
+          ref.read(loginControllerProvider).session?.accessToken ?? '';
+      final updated = await ref
+          .read(branchRepositoryProvider)
+          .updateCurrentBranchProfile(
+            branchName: nameController.text.trim(),
+            branchAddress: addressController.text.trim().isEmpty
+                ? null
+                : addressController.text.trim(),
+            contactNumber: contactController.text.trim().isEmpty
+                ? null
+                : contactController.text.trim(),
+            accessTokenOverride: accessToken,
+          );
+      if (!mounted) return;
+      setState(() => _branch = updated);
+      ref.read(branchControllerProvider.notifier).patchBranchInList(updated);
+      ref
+          .read(authActiveBranchNameOverrideProvider.notifier)
+          .setName(updated.branchName);
+      _showMessage('Branch profile updated.');
+    });
+
+    nameController.dispose();
+    addressController.dispose();
+    contactController.dispose();
   }
 
   Future<void> _showKhqrDialog() async {
@@ -104,28 +228,47 @@ class _BranchManagementPageState extends ConsumerState<BranchManagementPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Update KHQR Receiver'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        titlePadding: const EdgeInsets.fromLTRB(20, 16, 8, 0),
+        title: Row(
           children: [
-            TextField(
-              controller: accountController,
-              decoration: const InputDecoration(
-                labelText: 'Receiver account ID',
+            Expanded(
+              child: Text(
+                'Update KHQR Receiver',
+                style: Theme.of(dialogContext).textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.bold),
               ),
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: nameController,
-              decoration: const InputDecoration(labelText: 'Receiver name'),
+            IconButton(
+              icon: const Icon(Icons.close),
+              tooltip: 'Cancel',
+              onPressed: () => Navigator.of(dialogContext).pop(false),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
+        contentPadding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+        content: SizedBox(
+          width: 420,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: accountController,
+                decoration: const InputDecoration(
+                  labelText: 'Receiver account ID',
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: nameController,
+                decoration: const InputDecoration(labelText: 'Receiver name'),
+              ),
+              const SizedBox(height: 16),
+            ],
           ),
+        ),
+        actions: [
           FilledButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
             child: const Text('Save'),
@@ -152,6 +295,7 @@ class _BranchManagementPageState extends ConsumerState<BranchManagementPage> {
           );
       if (!mounted) return;
       setState(() => _branch = updated);
+      ref.read(branchControllerProvider.notifier).patchBranchInList(updated);
       _showMessage('KHQR receiver updated.');
     });
 
@@ -163,42 +307,77 @@ class _BranchManagementPageState extends ConsumerState<BranchManagementPage> {
     final branch = _branch;
     if (branch == null) return;
 
+    final existingLocation = branch.workplaceLocation;
     final mode = ValueNotifier<String>(
       branch.attendanceLocationVerificationMode.isEmpty
           ? 'disabled'
           : branch.attendanceLocationVerificationMode,
     );
-    final latitudeController = TextEditingController(
-      text: branch.workplaceLocation?.latitude.toString() ?? '',
-    );
-    final longitudeController = TextEditingController(
-      text: branch.workplaceLocation?.longitude.toString() ?? '',
-    );
     final radiusController = TextEditingController(
-      text: branch.workplaceLocation?.radiusMeters.toString() ?? '',
+      text: existingLocation?.radiusMeters.toString() ?? '',
+    );
+    // Holds the lat/lng picked from the map; null means "clear location".
+    final pickedLocation = ValueNotifier<LatLng?>(
+      existingLocation == null
+          ? null
+          : LatLng(existingLocation.latitude, existingLocation.longitude),
     );
 
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Update Attendance Location'),
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        titlePadding: const EdgeInsets.fromLTRB(20, 16, 8, 0),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Attendance Location',
+                style: Theme.of(dialogContext).textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.bold),
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.close),
+              tooltip: 'Cancel',
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+            ),
+          ],
+        ),
+        contentPadding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
         content: SizedBox(
           width: 420,
           child: SingleChildScrollView(
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
+                // Verification mode
+                Text(
+                  'Verification mode',
+                  style: Theme.of(
+                    dialogContext,
+                  ).textTheme.labelMedium?.copyWith(
+                    color: Theme.of(
+                      dialogContext,
+                    ).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 6),
                 ValueListenableBuilder<String>(
                   valueListenable: mode,
                   builder: (context, value, _) => DropdownMenu<String>(
-                    width: 360,
+                    expandedInsets: EdgeInsets.zero,
                     initialSelection: value,
-                    label: const Text('Verification mode'),
                     onSelected: (selected) {
                       if (selected != null) mode.value = selected;
                     },
                     dropdownMenuEntries: const [
-                      DropdownMenuEntry(value: 'disabled', label: 'Disabled'),
+                      DropdownMenuEntry(
+                        value: 'disabled',
+                        label: 'Disabled',
+                      ),
                       DropdownMenuEntry(
                         value: 'checkin_only',
                         label: 'Check-in only',
@@ -210,42 +389,168 @@ class _BranchManagementPageState extends ConsumerState<BranchManagementPage> {
                     ],
                   ),
                 ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: latitudeController,
-                  decoration: const InputDecoration(labelText: 'Latitude'),
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                    signed: true,
+                const SizedBox(height: 20),
+                // Workplace location
+                ValueListenableBuilder<LatLng?>(
+                  valueListenable: pickedLocation,
+                  builder: (context, picked, _) => Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Workplace location',
+                                  style: Theme.of(
+                                    dialogContext,
+                                  ).textTheme.labelMedium?.copyWith(
+                                    color: Theme.of(
+                                      dialogContext,
+                                    ).colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  picked == null
+                                      ? 'Not set'
+                                      : 'Lat ${picked.latitude.toStringAsFixed(5)}'
+                                            ',  Lng ${picked.longitude.toStringAsFixed(5)}',
+                                  style: Theme.of(
+                                    dialogContext,
+                                  ).textTheme.bodySmall,
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          OutlinedButton.icon(
+                            icon: const Icon(Icons.map_outlined, size: 16),
+                            label: Text(
+                              picked == null ? 'Pick on map' : 'Change',
+                            ),
+                            onPressed: () async {
+                              final result = await showLocationPickerDialog(
+                                context: dialogContext,
+                                initialLocation: picked,
+                                initialRadius: double.tryParse(
+                                  radiusController.text.trim(),
+                                ),
+                              );
+                              if (result != null) {
+                                pickedLocation.value = result.latLng;
+                                radiusController.text =
+                                    result.radiusMeters.round().toString();
+                              }
+                            },
+                          ),
+                        ],
+                      ),
+                      if (picked != null) ...[
+                        const SizedBox(height: 10),
+                        ListenableBuilder(
+                          listenable: radiusController,
+                          builder: (context, _) {
+                            final radius =
+                                double.tryParse(
+                                  radiusController.text.trim(),
+                                ) ??
+                                200;
+                            return ClipRRect(
+                              borderRadius: BorderRadius.circular(10),
+                              child: SizedBox(
+                                height: 160,
+                                child: GoogleMap(
+                                  key: ValueKey(
+                                    '${picked.latitude},${picked.longitude},$radius',
+                                  ),
+                                  initialCameraPosition: CameraPosition(
+                                    target: picked,
+                                    zoom: 15,
+                                  ),
+                                  markers: {
+                                    Marker(
+                                      markerId: const MarkerId('preview'),
+                                      position: picked,
+                                    ),
+                                  },
+                                  circles: {
+                                    Circle(
+                                      circleId: const CircleId(
+                                        'preview_radius',
+                                      ),
+                                      center: picked,
+                                      radius: radius,
+                                      fillColor: Colors.blue.withValues(
+                                        alpha: 0.15,
+                                      ),
+                                      strokeColor: Colors.blue,
+                                      strokeWidth: 2,
+                                    ),
+                                  },
+                                  zoomControlsEnabled: false,
+                                  scrollGesturesEnabled: false,
+                                  zoomGesturesEnabled: false,
+                                  rotateGesturesEnabled: false,
+                                  tiltGesturesEnabled: false,
+                                  myLocationButtonEnabled: false,
+                                  liteModeEnabled: true,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ],
+                    ],
                   ),
                 ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: longitudeController,
-                  decoration: const InputDecoration(labelText: 'Longitude'),
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                    signed: true,
-                  ),
+                const SizedBox(height: 16),
+                // Radius
+                ValueListenableBuilder(
+                  valueListenable: radiusController,
+                  builder: (context, _, __) {
+                    final parsed = double.tryParse(
+                      radiusController.text.trim(),
+                    );
+                    final errorText = radiusController.text.trim().isEmpty
+                        ? null
+                        : parsed == null
+                        ? 'Enter a valid number'
+                        : (parsed < 10 || parsed > 500)
+                        ? 'Must be between 10 and 500 m'
+                        : null;
+                    return TextField(
+                      controller: radiusController,
+                      decoration: InputDecoration(
+                        labelText: 'Radius (meters)',
+                        helperText: 'Range: 10 – 500 m',
+                        prefixIcon: const Icon(Icons.radar, size: 18),
+                        errorText: errorText,
+                      ),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                    );
+                  },
                 ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: radiusController,
-                  decoration: const InputDecoration(labelText: 'Radius meters'),
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 4),
+                // Clear
                 Align(
                   alignment: Alignment.centerLeft,
-                  child: TextButton(
+                  child: TextButton.icon(
+                    style: TextButton.styleFrom(
+                      foregroundColor:
+                          Theme.of(dialogContext).colorScheme.error,
+                      padding: EdgeInsets.zero,
+                    ),
+                    icon: const Icon(Icons.clear, size: 16),
+                    label: const Text('Clear location'),
                     onPressed: () {
-                      latitudeController.clear();
-                      longitudeController.clear();
+                      pickedLocation.value = null;
                       radiusController.clear();
                     },
-                    child: const Text('Clear workplace location'),
                   ),
                 ),
               ],
@@ -253,13 +558,27 @@ class _BranchManagementPageState extends ConsumerState<BranchManagementPage> {
           ),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Save'),
+          ValueListenableBuilder<LatLng?>(
+            valueListenable: pickedLocation,
+            builder: (context, picked, _) => ListenableBuilder(
+              listenable: radiusController,
+              builder: (context, _) {
+                final hasLocation = picked != null;
+                final text = radiusController.text.trim();
+                final parsed = double.tryParse(text);
+                final radiusValid = !hasLocation ||
+                    (text.isNotEmpty &&
+                        parsed != null &&
+                        parsed >= 10 &&
+                        parsed <= 500);
+                return FilledButton(
+                  onPressed: radiusValid
+                      ? () => Navigator.of(dialogContext).pop(true)
+                      : null,
+                  child: const Text('Save'),
+                );
+              },
+            ),
           ),
         ],
       ),
@@ -267,16 +586,15 @@ class _BranchManagementPageState extends ConsumerState<BranchManagementPage> {
 
     if (confirmed != true) {
       mode.dispose();
-      latitudeController.dispose();
-      longitudeController.dispose();
       radiusController.dispose();
+      pickedLocation.dispose();
       return;
     }
 
     await _runSave(() async {
-      final workplaceLocation = _parseWorkplaceLocation(
-        latitudeController.text,
-        longitudeController.text,
+      final picked = pickedLocation.value;
+      final workplaceLocation = _buildWorkplaceLocation(
+        picked,
         radiusController.text,
       );
       final accessToken =
@@ -290,36 +608,35 @@ class _BranchManagementPageState extends ConsumerState<BranchManagementPage> {
           );
       if (!mounted) return;
       setState(() => _branch = updated);
+      ref.read(branchControllerProvider.notifier).patchBranchInList(updated);
       _showMessage('Attendance location updated.');
     });
 
     mode.dispose();
-    latitudeController.dispose();
-    longitudeController.dispose();
     radiusController.dispose();
+    pickedLocation.dispose();
   }
 
-  BranchWorkplaceLocation? _parseWorkplaceLocation(
-    String latitudeText,
-    String longitudeText,
+  BranchWorkplaceLocation? _buildWorkplaceLocation(
+    LatLng? picked,
     String radiusText,
   ) {
-    final lat = latitudeText.trim();
-    final lng = longitudeText.trim();
+    if (picked == null) return null;
     final radius = radiusText.trim();
-    if (lat.isEmpty || lng.isEmpty || radius.isEmpty) return null;
-
-    final latitude = double.tryParse(lat);
-    final longitude = double.tryParse(lng);
-    final radiusMeters = double.tryParse(radius);
-    if (latitude == null || longitude == null || radiusMeters == null) {
+    if (radius.isEmpty) {
       throw const ApiClientException(
-        message: 'Latitude, longitude, and radius must be valid numbers.',
+        message: 'Radius is required when a location is set.',
+      );
+    }
+    final radiusMeters = double.tryParse(radius);
+    if (radiusMeters == null) {
+      throw const ApiClientException(
+        message: 'Radius must be a valid number.',
       );
     }
     return BranchWorkplaceLocation(
-      latitude: latitude,
-      longitude: longitude,
+      latitude: picked.latitude,
+      longitude: picked.longitude,
       radiusMeters: radiusMeters,
     );
   }
@@ -364,7 +681,7 @@ class _BranchManagementPageState extends ConsumerState<BranchManagementPage> {
       appBar: AppBar(
         leading: IconButton(
           tooltip: 'Back',
-          onPressed: () => context.go(AppRoute.branch.path),
+          onPressed: () => context.pop(),
           icon: const Icon(Icons.arrow_back),
         ),
         title: const Text('Branch Management'),
@@ -395,8 +712,8 @@ class _BranchManagementPageState extends ConsumerState<BranchManagementPage> {
                 ],
                 _SectionCard(
                   title: branch.branchName,
-                  actionLabel: 'Read only',
-                  onAction: null,
+                  actionLabel: _saving ? 'Saving...' : 'Edit',
+                  onAction: _saving ? null : _showProfileEditDialog,
                   rows: [
                     _SummaryRow(label: 'Status', value: branch.status),
                     _SummaryRow(label: 'Branch ID', value: branch.branchId),
@@ -409,8 +726,6 @@ class _BranchManagementPageState extends ConsumerState<BranchManagementPage> {
                       value: _display(branch.contactNumber),
                     ),
                   ],
-                  footer:
-                      'Branch profile editing is not available yet because the current backend contract does not expose a branch profile update endpoint.',
                 ),
                 const SizedBox(height: 16),
                 _SectionCard(
@@ -463,14 +778,12 @@ class _SectionCard extends StatelessWidget {
     required this.rows,
     this.actionLabel,
     this.onAction,
-    this.footer,
   });
 
   final String title;
   final List<_SummaryRow> rows;
   final String? actionLabel;
   final VoidCallback? onAction;
-  final String? footer;
 
   @override
   Widget build(BuildContext context) {
@@ -498,15 +811,6 @@ class _SectionCard extends StatelessWidget {
             for (var index = 0; index < rows.length; index++) ...[
               rows[index],
               if (index < rows.length - 1) const SizedBox(height: 12),
-            ],
-            if (footer != null) ...[
-              const SizedBox(height: 12),
-              Text(
-                footer!,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ),
             ],
           ],
         ),

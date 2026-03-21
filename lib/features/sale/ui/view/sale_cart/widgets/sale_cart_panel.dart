@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:modular_pos/core/network/app_connectivity.dart';
+import 'package:modular_pos/core/network/app_connectivity_contract.dart';
 import 'package:modular_pos/core/printing/thermal_printer_controller.dart';
 import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/core/formatters/khr_currency_formatter.dart';
@@ -142,10 +144,10 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
 
   Future<void> _showOpenTicketDialog({
     required SaleCartNotifier cartNotifier,
-    required String saleId,
+    required String orderId,
   }) async {
     try {
-      final detail = await cartNotifier.getOpenTicketDetail(saleId: saleId);
+      final detail = await cartNotifier.getOpenTicketDetail(orderId: orderId);
       if (!mounted) return;
       await showDialog<void>(
         context: context,
@@ -161,7 +163,7 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
                 children: [
                   Text('Ticket #: ${detail.openTicketId}'),
                   const SizedBox(height: 4),
-                  Text('Sale ID: ${detail.saleId}'),
+                  Text('Order ID: ${detail.orderId}'),
                   const SizedBox(height: 4),
                   Text('Status: ${detail.status}'),
                   const SizedBox(height: 12),
@@ -175,7 +177,7 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
                   Text('\$${detail.payableUsdExact.toStringAsFixed(2)}'),
                   Text('KHR ${formatKhrAmount(detail.payableKhrExact)}'),
                   const SizedBox(height: 12),
-                  Text('Batches: ${detail.batches.length}'),
+                  Text('Lines: ${detail.lineCount}'),
                 ],
               ),
             ),
@@ -449,6 +451,27 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
     return UserErrorMessage.build(context: context, error: error);
   }
 
+  Future<void> _handleOfflineManualClaimCapture({
+    required SaleCartNotifier cartNotifier,
+    required OrdersNotifier ordersNotifier,
+  }) async {
+    final result = await cartNotifier.captureOfflineManualClaimOrder();
+    await ordersNotifier.load(date: DateTime.now());
+
+    ref
+        .read(fulfillmentWorkspaceTabProvider.notifier)
+        .setTab(FulfillmentWorkspaceTab.externalClaims);
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Order ${result.orderNumber} captured for external KHQR claim. Add proof and submit it from Fulfillment > External Claims when back online.',
+        ),
+      ),
+    );
+  }
+
   double _roundKhr(
     double amount, {
     required bool enabled,
@@ -536,6 +559,7 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
     final menuState = ref.watch(menuViewModelProvider);
     final cartNotifier = ref.read(saleCartProvider.notifier);
     final gate = ref.watch(saleAccessGateProvider);
+    final connectivityStatus = ref.watch(appConnectivityStatusProvider);
     final readOnly = !gate.canAddToCart || cartState.isFinalizing;
     final policyState = ref.watch(policyNotifierProvider);
     final branchPolicy = policyState.branchPolicy;
@@ -567,7 +591,7 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
       paymentMethod: paymentMethod,
       tenderCurrency: tenderCurrency,
     );
-    final isSmall = AppBreakpoints.isSmall(MediaQuery.sizeOf(context).width);
+    final isLarge = AppBreakpoints.isLarge(MediaQuery.sizeOf(context).width);
     final khqrStatus = SaleKhqrUiStates.normalize(cartState.khqrStatus);
     _syncKhqrPolling(
       paymentMethod: paymentMethod,
@@ -575,6 +599,7 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
     );
     final orderType = cartState.saleType;
     final isPayLaterMode = orderType == 'dine_in';
+    final isOffline = connectivityStatus == AppConnectivityStatus.offline;
     final payLaterEnabled = branchPolicy.saleAllowPayLater;
     final canCheckout =
         gate.canCheckout &&
@@ -592,7 +617,18 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
         gate.canCheckout &&
         !cartState.isFinalizing &&
         items.isNotEmpty &&
-        khqrReceiverConfigured != false;
+        khqrReceiverConfigured != false &&
+        !isOffline;
+    final canOfflineCashCapture =
+        gate.canCreateDraftSale &&
+        !cartState.isFinalizing &&
+        items.isNotEmpty &&
+        paymentMethod == 'cash';
+    final canOfflineManualClaimCapture =
+        gate.canCreateDraftSale &&
+        !cartState.isFinalizing &&
+        items.isNotEmpty &&
+        paymentMethod == 'qr';
     final qrPrimaryActionLabel = switch (khqrStatus) {
       SaleKhqrUiStates.superseded ||
       SaleKhqrUiStates.expired => 'Generate New Code',
@@ -600,18 +636,29 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
       SaleKhqrUiStates.readyToGenerate => 'Generate Code',
       _ => 'View Code',
     };
-    final canPrimaryAction = isPayLaterMode
+    final canPrimaryAction = isOffline && paymentMethod == 'cash'
+        ? canOfflineCashCapture
+        : isOffline && paymentMethod == 'qr'
+        ? canOfflineManualClaimCapture
+        : isPayLaterMode
         ? canPlaceOrder
         : paymentMethod == 'qr'
         ? canKhqrAction
         : canCheckout;
-    final primaryActionLabel = isPayLaterMode
+    final primaryActionLabel = isOffline && paymentMethod == 'cash'
+        ? 'Queue Cash Checkout'
+        : isOffline && paymentMethod == 'qr'
+        ? 'Checkout'
+        : isPayLaterMode
         ? 'Place Order'
         : paymentMethod == 'qr'
         ? qrPrimaryActionLabel
         : 'Checkout';
     final payLaterDisabledMessage = !payLaterEnabled && isPayLaterMode
         ? 'Pay-later is disabled by branch policy. Switch order type to continue.'
+        : null;
+    final offlineKhqrClaimMessage = isOffline && paymentMethod == 'qr'
+        ? 'Offline KHQR gateway is unavailable. Checkout will capture the order first. Add proof and submit the external-payment claim when back online.'
         : null;
     final checkoutBannerMessage = SaleCheckoutErrorMessage.build(
       reasonCode: cartState.checkoutErrorCode,
@@ -635,7 +682,7 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (!isSmall) ...[
+        if (isLarge) ...[
           // Cart Header
           Padding(
             padding: const EdgeInsets.all(20),
@@ -696,6 +743,8 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text('Sale finalized successfully.'),
+                        if (cartState.lastFinalizedOrderId != null)
+                          Text('Order #: ${cartState.lastFinalizedOrderId}'),
                         if (cartState.lastReceiptId != null)
                           Text('Receipt #: ${cartState.lastReceiptId}'),
                         if (cartState.lastReceipt != null &&
@@ -757,7 +806,7 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
                       children: [
                         const Text('Open ticket placed successfully.'),
                         Text('Ticket #: ${cartState.lastPlacedOpenTicketId}'),
-                        if (cartState.lastPlacedSaleId != null)
+                        if (cartState.lastPlacedOpenTicketId != null)
                           Align(
                             alignment: Alignment.centerLeft,
                             child: TextButton(
@@ -765,7 +814,8 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
                                   ? null
                                   : () => _showOpenTicketDialog(
                                       cartNotifier: cartNotifier,
-                                      saleId: cartState.lastPlacedSaleId!,
+                                      orderId:
+                                          cartState.lastPlacedOpenTicketId!,
                                     ),
                               child: const Text('View Ticket'),
                             ),
@@ -841,6 +891,15 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
                     ),
                   ),
                 ],
+                if (offlineKhqrClaimMessage != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    offlineKhqrClaimMessage,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 20),
                 // Summary Section
                 Text(
@@ -899,6 +958,58 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
             showClearCart: !readOnly,
             onClearCart: () => _showClearCartConfirmation(cartNotifier),
             onCheckout: () async {
+              if (isOffline && paymentMethod == 'cash') {
+                try {
+                  final result = await cartNotifier.captureOfflineCashOrder();
+                  await ref
+                      .read(ordersProvider.notifier)
+                      .load(date: DateTime.now());
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Order ${result.orderNumber} queued offline. Keep the app online later so cash checkout can sync automatically.',
+                      ),
+                    ),
+                  );
+                } catch (e) {
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        _actionErrorMessage(
+                          context: 'Offline capture failed',
+                          error: e,
+                        ),
+                      ),
+                    ),
+                  );
+                }
+                return;
+              }
+
+              if (isOffline && paymentMethod == 'qr') {
+                try {
+                  await _handleOfflineManualClaimCapture(
+                    cartNotifier: cartNotifier,
+                    ordersNotifier: ref.read(ordersProvider.notifier),
+                  );
+                } catch (e) {
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        _actionErrorMessage(
+                          context: 'External claim checkout failed',
+                          error: e,
+                        ),
+                      ),
+                    ),
+                  );
+                }
+                return;
+              }
+
               if (paymentMethod == 'qr') {
                 await _handleKhqrPrimaryAction(
                   cartNotifier: cartNotifier,

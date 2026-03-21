@@ -111,6 +111,13 @@ class CategoryController extends Notifier<CategoryState> {
   }
 
   Future<void> _refreshInventory() async {
-    await ref.read(stockInventoryControllerProvider.notifier).loadStockItems();
+    final inventoryController = ref.read(
+      stockInventoryControllerProvider.notifier,
+    );
+    final inventoryState = ref.read(stockInventoryControllerProvider);
+    await inventoryController.loadStockItems();
+    await inventoryController.loadInventoryItems(
+      branchId: inventoryState.selectedInventoryBranchId,
+    );
   }
 }

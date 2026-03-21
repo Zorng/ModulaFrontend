@@ -41,6 +41,7 @@ class _StaticMenuViewModel extends MenuViewModel {
   @override
   Future<void> loadMenu({
     String? branchId,
+    String? status,
     MenuReadLane readLane = MenuReadLane.management,
   }) async {}
 }
@@ -106,7 +107,7 @@ class _OrdersSpyNotifier extends OrdersNotifier {
   List<Order> build() => const [];
 
   @override
-  Future<void> load({DateTime? date}) async {
+  Future<void> load({DateTime? date, String? status, String? view}) async {
     loadCallCount += 1;
   }
 }

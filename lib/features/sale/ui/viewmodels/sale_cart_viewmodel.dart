@@ -3,6 +3,8 @@ import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/core/logging/app_log.dart';
+import 'package:modular_pos/core/network/app_connectivity.dart';
+import 'package:modular_pos/core/network/app_connectivity_contract.dart';
 import 'package:modular_pos/core/printing/esc_pos_receipt_formatter.dart';
 import 'package:modular_pos/core/printing/thermal_printer_controller.dart';
 import 'package:modular_pos/features/auth/domain/active_branch_context_provider.dart';
@@ -20,14 +22,18 @@ import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
 import 'package:modular_pos/features/policy/domain/models/policy.dart';
 import 'package:modular_pos/features/policy/ui/viewmodels/policy_viewmodel.dart';
 import 'package:modular_pos/features/sale/data/sale_checkout_repository_contract.dart';
+import 'package:modular_pos/features/sale/data/sale_offline_cash_queue.dart';
+import 'package:modular_pos/features/sale/data/sale_outage_store.dart';
 import 'package:modular_pos/features/sale/data/sale_repository.dart';
 import 'package:modular_pos/features/sale/domain/models/sale.dart';
+import 'package:modular_pos/features/sale/domain/models/sale_outage_order.dart';
 import 'package:modular_pos/features/sale/ui/view/sale_item_detail/sale_item_detail_page.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_access_gate.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_payload_builder.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_state.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_khqr_states.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:uuid/uuid.dart';
 
 final saleCartProvider = NotifierProvider<SaleCartNotifier, SaleCartState>(
   SaleCartNotifier.new,
@@ -36,7 +42,9 @@ final saleCartProvider = NotifierProvider<SaleCartNotifier, SaleCartState>(
 BranchListItem? _resolveActiveBranchKhqrProfile(Ref ref) {
   final activeBranchId =
       (ref.watch(activeBranchContextIdProvider) ??
-              ref.watch(saleAccessGateProvider.select((gate) => gate.branchId)) ??
+              ref.watch(
+                saleAccessGateProvider.select((gate) => gate.branchId),
+              ) ??
               '')
           .trim();
   if (activeBranchId.isEmpty) return null;
@@ -70,12 +78,14 @@ final saleKhqrReceiverConfiguredProvider = Provider<bool?>((ref) {
 class SaleCheckoutResult {
   const SaleCheckoutResult({
     required this.summary,
+    this.orderId,
     this.receiptId,
     this.receipt,
     required this.idempotentReplay,
   });
 
   final SaleCheckoutSummary summary;
+  final String? orderId;
   final String? receiptId;
   final SaleImmediateReceiptDto? receipt;
   final bool idempotentReplay;
@@ -93,10 +103,21 @@ class SalePlaceOrderResult {
   final bool idempotentReplay;
 }
 
+class SaleOfflineCaptureResult {
+  const SaleOfflineCaptureResult({
+    required this.localIntentId,
+    required this.orderNumber,
+  });
+
+  final String localIntentId;
+  final String orderNumber;
+}
+
 class SaleCartNotifier extends Notifier<SaleCartState> {
   SaleCartNotifier();
 
   late final SaleCartRepository _repo = ref.read(saleCartRepositoryProvider);
+  final Uuid _uuid = const Uuid();
   static const String _cartStorageKey = 'sale_cart_state';
 
   void _logIgnoredError(String context, Object error, StackTrace stackTrace) {
@@ -120,7 +141,9 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
       final cartJson = prefs.getString(_cartStorageKey);
       if (cartJson != null && cartJson.isNotEmpty) {
         final json = jsonDecode(cartJson) as Map<String, dynamic>;
-        final restoredState = SaleCartState.fromJson(json);
+        final restoredState = _sanitizeRestoredCartState(
+          SaleCartState.fromJson(json),
+        );
         // Only restore if cart has items
         if (restoredState.lines.isNotEmpty) {
           state = restoredState;
@@ -134,6 +157,20 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
       // If restoration fails, start with empty cart
       state = const SaleCartState();
     }
+  }
+
+  SaleCartState _sanitizeRestoredCartState(SaleCartState restoredState) {
+    final sanitizedLines = restoredState.lines
+        .map(
+          (line) => CartLine(
+            item: line.item,
+            quantity: line.quantity,
+            selectedOptionIds: line.selectedOptionIds,
+            selectedOptions: line.selectedOptions,
+          ),
+        )
+        .toList(growable: false);
+    return restoredState.copyWith(saleId: null, lines: sanitizedLines);
   }
 
   Future<void> _persistCart(SaleCartState cartState) async {
@@ -158,6 +195,68 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
   double _fxRate() {
     final policies = ref.read(policyNotifierProvider);
     return policies.branchPolicy.saleFxRateKhrPerUsd;
+  }
+
+  Map<String, ModifierGroup> _groupLookup() {
+    final menuState = ref.read(menuViewModelProvider);
+    return {
+      for (final group in menuState.modifierGroups) group.id: group,
+      for (final entry in menuState.hydratedModifierGroups.entries)
+        entry.key: entry.value,
+    };
+  }
+
+  List<String> _modifierLabels(
+    CartLine line,
+    Map<String, ModifierGroup> groupLookup,
+  ) {
+    final labels = <String>[];
+    for (final entry in line.selectedOptionIds.entries) {
+      final group = groupLookup[entry.key];
+      if (group == null) continue;
+      for (final optionId in entry.value) {
+        final option = group.options.where(
+          (candidate) => candidate.id == optionId,
+        );
+        if (option.isNotEmpty) {
+          labels.add(option.first.name);
+        }
+      }
+    }
+    return labels;
+  }
+
+  double _lineTotalUsd(CartLine line, Map<String, ModifierGroup> groupLookup) {
+    var addonTotal = 0.0;
+    for (final entry in line.selectedOptionIds.entries) {
+      final group = groupLookup[entry.key];
+      if (group == null) continue;
+      for (final optionId in entry.value) {
+        final option = group.options.where(
+          (candidate) => candidate.id == optionId,
+        );
+        if (option.isNotEmpty) {
+          addonTotal += option.first.price;
+        }
+      }
+    }
+    return (line.item.price + addonTotal) * line.quantity;
+  }
+
+  double _subtotalUsd(
+    List<CartLine> lines,
+    Map<String, ModifierGroup> groupLookup,
+  ) {
+    return lines.fold<double>(
+      0,
+      (sum, line) => sum + _lineTotalUsd(line, groupLookup),
+    );
+  }
+
+  double _taxUsd(double subtotal, BranchPolicy branchPolicy) {
+    if (!branchPolicy.saleVatEnabled) return 0;
+    if (branchPolicy.saleVatRatePercent <= 0) return 0;
+    return subtotal * (branchPolicy.saleVatRatePercent / 100);
   }
 
   void _assertCanCreateDraftSale() {
@@ -197,6 +296,8 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
         return 'Configure a Bakong receiver account for this branch before generating KHQR.';
       case SaleCheckoutReasonCodes.khqrNotConfirmed:
         return 'KHQR payment is not confirmed yet.';
+      case SaleCheckoutReasonCodes.khqrFinalizationPending:
+        return 'KHQR payment is confirmed, but backend finalization is still pending.';
       case SaleCheckoutReasonCodes.idempotencyConflict:
       case SaleCheckoutReasonCodes.duplicateOperation:
         return 'This checkout is already processing. Please wait before retrying.';
@@ -228,18 +329,6 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
         fallback: message,
       ),
     );
-  }
-
-  Future<void> _ensureSaleId() async {
-    if (state.saleId != null && state.saleId!.isNotEmpty) return;
-    _assertCanCreateDraftSale();
-    final id = await _repo.ensureDraft(
-      saleType: state.saleType,
-      fxRateUsed: _fxRate(),
-    );
-    final newState = state.copyWith(saleId: id);
-    state = newState;
-    await _persistCart(newState);
   }
 
   SaleCartState _readyKhqrState(SaleCartState source, {String? reason}) {
@@ -284,7 +373,7 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
 
   SaleCartState _applyKhqrInvalidationOnCartChange(SaleCartState source) {
     if (source.lines.isEmpty) {
-      return _readyKhqrState(source);
+      return _readyKhqrState(source.copyWith(saleId: null));
     }
     if (source.paymentMethod.toLowerCase() != 'qr') {
       return source;
@@ -296,7 +385,7 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
         status == SaleKhqrUiStates.pendingConfirmation;
     if (!shouldSupersede) return source;
     return _supersededKhqrState(
-      source,
+      source.copyWith(saleId: null),
       reason: 'Cart changed. Generate a new KHQR code.',
     );
   }
@@ -440,14 +529,6 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
 
   Future<void> addSelection(SaleItemSelectionResult selection) async {
     _assertCanCreateDraftSale();
-    final saleId = state.saleId;
-
-    String? saleItemId;
-    if (saleId != null && saleId.isNotEmpty) {
-      final addPayload = SaleCartPayloadBuilder.fromSelection(selection);
-      saleItemId = await _repo.addItem(saleId: saleId, item: addPayload);
-    }
-    // Only update local state after successful sync.
     final lines = [...state.lines];
     for (var i = 0; i < lines.length; i++) {
       final line = lines[i];
@@ -458,13 +539,12 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
           )) {
         lines[i] = line.copyWith(
           quantity: line.quantity + selection.quantity,
-          saleItemId: line.saleItemId ?? saleItemId,
           selectedOptions: line.selectedOptions.isNotEmpty
               ? line.selectedOptions
               : selection.selectedOptions,
         );
         final newState = _applyKhqrInvalidationOnCartChange(
-          state.copyWith(lines: lines),
+          state.copyWith(saleId: null, lines: lines),
         );
         state = newState;
         await _persistCart(newState);
@@ -473,6 +553,7 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
     }
     final newState = _applyKhqrInvalidationOnCartChange(
       state.copyWith(
+        saleId: null,
         lines: [
           ...lines,
           CartLine(
@@ -480,7 +561,6 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
             quantity: selection.quantity,
             selectedOptionIds: selection.selectedOptionIds,
             selectedOptions: selection.selectedOptions,
-            saleItemId: saleItemId,
           ),
         ],
       ),
@@ -522,44 +602,16 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
 
   void setLines(List<CartLine> lines) {
     final newState = _applyKhqrInvalidationOnCartChange(
-      state.copyWith(lines: lines),
+      state.copyWith(saleId: null, lines: lines),
     );
     state = newState;
     _persistCart(newState);
   }
 
   Future<void> setSaleType(String saleType) async {
-    // If no draft or no lines yet, just update the sale type for future drafts.
-    if (state.saleId == null || state.saleId!.isEmpty || state.lines.isEmpty) {
-      final newState = _applyKhqrInvalidationOnCartChange(
-        state.copyWith(saleType: saleType),
-      );
-      state = newState;
-      await _persistCart(newState);
-      return;
-    }
-
-    // If changing sale type mid-cart, recreate the draft with the new type and re-sync items.
     if (state.saleType == saleType) return;
-    _assertCanCreateDraftSale();
-    final currentLines = state.lines;
-    final newSaleId = await _repo.ensureDraft(
-      saleType: saleType,
-      fxRateUsed: _fxRate(),
-    );
-    final rebuiltLines = <CartLine>[];
-
-    for (final line in currentLines) {
-      final rebuilt = _replayLineToSale(newSaleId, line);
-      rebuiltLines.add(await rebuilt);
-    }
-
     final newState = _applyKhqrInvalidationOnCartChange(
-      state.copyWith(
-        saleType: saleType,
-        saleId: newSaleId,
-        lines: rebuiltLines,
-      ),
+      state.copyWith(saleId: null, saleType: saleType),
     );
     state = newState;
     await _persistCart(newState);
@@ -582,49 +634,18 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
     if (quantity <= 0) {
       lines.removeAt(index);
       final newState = _applyKhqrInvalidationOnCartChange(
-        state.copyWith(lines: lines),
+        state.copyWith(saleId: null, lines: lines),
       );
       state = newState;
       await _persistCart(newState);
-      await _removeRemote(target);
       return;
     }
     lines[index] = target.copyWith(quantity: quantity);
     final newState = _applyKhqrInvalidationOnCartChange(
-      state.copyWith(lines: lines),
+      state.copyWith(saleId: null, lines: lines),
     );
     state = newState;
     await _persistCart(newState);
-    await _updateRemoteQuantity(target, quantity);
-  }
-
-  Future<void> _updateRemoteQuantity(CartLine line, int quantity) async {
-    final saleId = state.saleId;
-    if (saleId == null) return;
-    // backend expects itemId, but we don't have sale item id mapping;
-    // send menuItemId to update; if unsupported backend will ignore.
-    try {
-      await _repo.updateItemQuantity(
-        saleId: saleId,
-        itemId: line.saleItemId ?? line.item.id,
-        quantity: quantity,
-      );
-    } catch (e, st) {
-      _logIgnoredError('_updateRemoteQuantity', e, st);
-    }
-  }
-
-  Future<void> _removeRemote(CartLine line) async {
-    final saleId = state.saleId;
-    if (saleId == null) return;
-    try {
-      await _repo.removeItem(
-        saleId: saleId,
-        itemId: line.saleItemId ?? line.item.id,
-      );
-    } catch (e, st) {
-      _logIgnoredError('_removeRemote', e, st);
-    }
   }
 
   void clear() {
@@ -637,12 +658,12 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
       checkoutErrorMessage: null,
       checkoutErrorCode: null,
       lastFinalizedSaleId: null,
+      lastFinalizedOrderId: null,
       lastReceiptId: null,
       lastReceipt: null,
       lastPrintableReceipt: null,
       lastPrintableReceiptData: null,
       lastPlacedOpenTicketId: null,
-      lastPlacedSaleId: null,
     );
   }
 
@@ -691,9 +712,9 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
   }
 
   Future<SaleOpenTicketDetailDto> getOpenTicketDetail({
-    required String saleId,
+    required String orderId,
   }) {
-    return _repo.getOpenTicketDetail(saleId: saleId);
+    return _repo.getOpenTicketDetail(orderId: orderId);
   }
 
   Future<void> generateKhqrAttempt() async {
@@ -732,10 +753,10 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
     try {
       final attempt = await _repo.generateKhqrAttempt(
         SaleGenerateKhqrAttemptCommand(
-          saleId: currentState.saleId ?? '',
+          saleId: '',
           tenderCurrency: currentState.tenderCurrency.toUpperCase(),
           clientOpId:
-              'khqr-generate-${currentState.saleId ?? 'local-cart'}-${DateTime.now().millisecondsSinceEpoch}',
+              'khqr-generate-local-cart-${DateTime.now().millisecondsSinceEpoch}',
           saleType: currentState.saleType,
           cartLines: commandLines,
           expiresInSeconds: 180,
@@ -783,7 +804,6 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
 
   Future<void> checkKhqrStatus({bool silent = false}) async {
     final currentState = state;
-    final saleId = currentState.saleId;
     final intentId = currentState.khqrAttemptId;
     final md5 = currentState.khqrMd5;
     if (intentId == null || intentId.isEmpty || md5 == null || md5.isEmpty) {
@@ -807,7 +827,7 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
     try {
       final status = await _repo.checkKhqrStatus(
         SaleCheckKhqrStatusCommand(
-          saleId: saleId ?? '',
+          saleId: currentState.saleId ?? '',
           md5: md5,
           intentId: intentId,
         ),
@@ -845,7 +865,6 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
 
   Future<void> cancelKhqrAttempt() async {
     final currentState = state;
-    final saleId = currentState.saleId ?? '';
     final intentId = currentState.khqrAttemptId;
     final md5 = currentState.khqrMd5;
     if (intentId == null || intentId.isEmpty || md5 == null || md5.isEmpty) {
@@ -870,7 +889,7 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
     try {
       final status = await _repo.cancelKhqrAttempt(
         SaleCancelKhqrAttemptCommand(
-          saleId: saleId,
+          saleId: currentState.saleId ?? '',
           md5: md5,
           intentId: intentId,
           clientOpId: 'khqr-cancel-$intentId',
@@ -905,6 +924,260 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
       await _persistCart(errorState);
       rethrow;
     }
+  }
+
+  String _buildLocalOutageOrderNumber(DateTime timestamp) {
+    final compact = timestamp
+        .toUtc()
+        .millisecondsSinceEpoch
+        .toRadixString(36)
+        .toUpperCase();
+    return 'LOCAL-$compact';
+  }
+
+  List<SaleOutageLineSnapshot> _buildOutageLineSnapshots(
+    List<CartLine> lines,
+    Map<String, ModifierGroup> groupLookup,
+  ) {
+    return lines
+        .map(
+          (line) => SaleOutageLineSnapshot(
+            menuItemId: line.item.id,
+            name: line.item.name,
+            quantity: line.quantity,
+            selectedOptionIds: {
+              for (final entry in line.selectedOptionIds.entries)
+                entry.key: List<String>.from(entry.value),
+            },
+            modifierLabels: _modifierLabels(line, groupLookup),
+            unitPriceUsd: line.item.price,
+            lineTotalUsdExact: _lineTotalUsd(line, groupLookup),
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  Future<SaleOfflineCaptureResult> _captureOfflineOutageOrder({
+    required String requiredPaymentMethod,
+    required String sourceMode,
+    required String offlineOnlyMessage,
+    required String invalidMethodMessage,
+    bool enqueueCashReplay = false,
+    bool enqueueManualClaimCapture = false,
+  }) async {
+    if (state.isFinalizing) {
+      throw Exception('Offline order capture already in progress.');
+    }
+
+    final connectivityStatus = ref.read(appConnectivityStatusProvider);
+    if (connectivityStatus != AppConnectivityStatus.offline) {
+      throw SaleCheckoutRepositoryException(
+        reasonCode: SaleCheckoutReasonCodes.invalidRequest,
+        message: offlineOnlyMessage,
+      );
+    }
+
+    _assertCanCreateDraftSale();
+    final currentState = state;
+    if (currentState.lines.isEmpty) {
+      throw Exception('Cannot capture an empty cart.');
+    }
+    if (currentState.paymentMethod.toLowerCase() != requiredPaymentMethod) {
+      throw SaleCheckoutRepositoryException(
+        reasonCode: SaleCheckoutReasonCodes.invalidRequest,
+        message: invalidMethodMessage,
+      );
+    }
+
+    final gate = ref.read(saleAccessGateProvider);
+    if (!gate.canCreateDraftSale) {
+      final error = _saleAccessException(
+        gate,
+        fallbackCode: SaleCheckoutReasonCodes.unknownError,
+        fallbackMessage: 'Offline order capture is currently unavailable.',
+      );
+      state = _applyCheckoutFailure(
+        currentState,
+        reasonCode: error.reasonCode,
+        message: error.message,
+      );
+      throw error;
+    }
+
+    final scope = ref.read(saleOutageScopeProvider);
+    if (scope == null) {
+      const error = SaleCheckoutRepositoryException(
+        reasonCode: SaleCheckoutReasonCodes.branchRequired,
+        message: 'Tenant, branch, or account context is missing.',
+      );
+      state = _applyCheckoutFailure(
+        currentState,
+        reasonCode: error.reasonCode,
+        message: error.message,
+      );
+      throw error;
+    }
+
+    final groupLookup = _groupLookup();
+    final branchPolicy = ref.read(policyNotifierProvider).branchPolicy;
+    final subtotalUsd = _subtotalUsd(currentState.lines, groupLookup);
+    final taxUsd = _taxUsd(subtotalUsd, branchPolicy);
+    final totalUsd = subtotalUsd + taxUsd;
+    final totalKhr = _roundKhr(
+      totalUsd * _fxRate(),
+      enabled: branchPolicy.saleKhrRoundingEnabled,
+      mode: BranchPolicyRoundingModes.normalize(
+        branchPolicy.saleKhrRoundingMode,
+      ),
+      granularity: BranchPolicyRoundingGranularities.asAmount(
+        branchPolicy.saleKhrRoundingGranularity,
+      ),
+    );
+    final subtotalKhr = _roundKhr(
+      subtotalUsd * _fxRate(),
+      enabled: branchPolicy.saleKhrRoundingEnabled,
+      mode: BranchPolicyRoundingModes.normalize(
+        branchPolicy.saleKhrRoundingMode,
+      ),
+      granularity: BranchPolicyRoundingGranularities.asAmount(
+        branchPolicy.saleKhrRoundingGranularity,
+      ),
+    );
+    final taxKhr = _roundKhr(
+      taxUsd * _fxRate(),
+      enabled: branchPolicy.saleKhrRoundingEnabled,
+      mode: BranchPolicyRoundingModes.normalize(
+        branchPolicy.saleKhrRoundingMode,
+      ),
+      granularity: BranchPolicyRoundingGranularities.asAmount(
+        branchPolicy.saleKhrRoundingGranularity,
+      ),
+    );
+    final timestamp = DateTime.now().toUtc();
+    final localIntentId = _uuid.v4();
+    final orderNumber = _buildLocalOutageOrderNumber(timestamp);
+    final normalizedTenderCurrency = currentState.tenderCurrency
+        .trim()
+        .toUpperCase();
+    final double cashReceivedUsd = normalizedTenderCurrency == 'USD'
+        ? (currentState.cashUsd > 0 ? currentState.cashUsd : totalUsd)
+        : 0;
+    final double cashReceivedKhr = normalizedTenderCurrency == 'KHR'
+        ? (currentState.cashKhr > 0 ? currentState.cashKhr : totalKhr)
+        : 0;
+    final cashReceivedTenderAmount = normalizedTenderCurrency == 'KHR'
+        ? cashReceivedKhr
+        : cashReceivedUsd;
+    final replayItems = (enqueueCashReplay || enqueueManualClaimCapture)
+        ? _buildOfflineCashReplayItems(currentState.lines, groupLookup)
+        : const <Map<String, dynamic>>[];
+
+    final record = SaleOutageOrderRecord(
+      localIntentId: localIntentId,
+      orderNumber: orderNumber,
+      tenantId: scope.tenantId,
+      branchId: scope.branchId,
+      accountId: scope.accountId,
+      saleType: currentState.saleType,
+      paymentMethodRequested: currentState.paymentMethod.toLowerCase(),
+      tenderCurrency: normalizedTenderCurrency,
+      cashReceivedUsd: cashReceivedUsd,
+      cashReceivedKhr: cashReceivedKhr,
+      totalUsd: totalUsd,
+      totalKhr: totalKhr,
+      lines: _buildOutageLineSnapshots(currentState.lines, groupLookup),
+      state: enqueueCashReplay
+          ? SaleOutageOrderStates.awaitingSettlement
+          : SaleOutageOrderStates.localOpenOrderCaptured,
+      sourceMode: sourceMode,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    );
+
+    final outageStore = ref.read(saleOutageStoreProvider);
+    await outageStore.write(record);
+    if (enqueueCashReplay || enqueueManualClaimCapture) {
+      try {
+        final replayQueue = ref.read(saleOfflineCashQueueProvider);
+        if (enqueueCashReplay) {
+          final replayPayload = <String, dynamic>{
+            'orderId': _uuid.v4(),
+            'saleId': _uuid.v4(),
+            'items': replayItems,
+            'saleType': _normalizeCheckoutSaleType(currentState.saleType),
+            'tenderCurrency': normalizedTenderCurrency,
+            'cashReceivedTenderAmount': cashReceivedTenderAmount,
+            'pricingSnapshot': <String, dynamic>{
+              'subtotalUsd': subtotalUsd,
+              'subtotalKhr': subtotalKhr,
+              'vatUsd': taxUsd,
+              'vatKhr': taxKhr,
+              'grandTotalUsd': totalUsd,
+              'grandTotalKhr': totalKhr,
+              'saleFxRateKhrPerUsd': branchPolicy.saleFxRateKhrPerUsd,
+              'saleKhrRoundingEnabled': branchPolicy.saleKhrRoundingEnabled,
+              'saleKhrRoundingMode': branchPolicy.saleKhrRoundingMode,
+              'saleKhrRoundingGranularity':
+                  branchPolicy.saleKhrRoundingGranularity,
+            },
+          };
+          await replayQueue.enqueueCheckoutCashFinalize(
+            scope: scope,
+            localIntentId: localIntentId,
+            occurredAt: timestamp,
+            payload: replayPayload,
+          );
+        }
+        if (enqueueManualClaimCapture) {
+          final replayPayload = <String, dynamic>{
+            'orderId': _uuid.v4(),
+            'items': replayItems,
+          };
+          await replayQueue.enqueueManualExternalPaymentClaimCapture(
+            scope: scope,
+            localIntentId: localIntentId,
+            occurredAt: timestamp,
+            payload: replayPayload,
+          );
+        }
+      } catch (_) {
+        await outageStore.deleteByLocalIntentId(
+          scope: scope,
+          localIntentId: localIntentId,
+        );
+        rethrow;
+      }
+    }
+    await _clearPersistedCart();
+    state = const SaleCartState();
+    return SaleOfflineCaptureResult(
+      localIntentId: localIntentId,
+      orderNumber: orderNumber,
+    );
+  }
+
+  Future<SaleOfflineCaptureResult> captureOfflineCashOrder() {
+    return _captureOfflineOutageOrder(
+      requiredPaymentMethod: 'cash',
+      sourceMode: SaleOutageSourceModes.standardOpenOrder,
+      offlineOnlyMessage:
+          'Offline cash replay is only available while offline.',
+      invalidMethodMessage:
+          'Only cash orders can be queued offline in this slice.',
+      enqueueCashReplay: true,
+    );
+  }
+
+  Future<SaleOfflineCaptureResult> captureOfflineManualClaimOrder() async {
+    return _captureOfflineOutageOrder(
+      requiredPaymentMethod: 'qr',
+      sourceMode: SaleOutageSourceModes.manualExternalPaymentClaim,
+      offlineOnlyMessage:
+          'Manual claim capture is only available while offline.',
+      invalidMethodMessage:
+          'Manual external-payment claim capture requires QR payment selection.',
+      enqueueManualClaimCapture: true,
+    );
   }
 
   Future<SaleCheckoutResult> checkout() async {
@@ -981,6 +1254,7 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
       checkoutErrorMessage: null,
       checkoutErrorCode: null,
       lastFinalizedSaleId: null,
+      lastFinalizedOrderId: null,
       lastReceiptId: null,
       lastReceipt: null,
       lastPrintableReceipt: null,
@@ -990,11 +1264,17 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
     try {
       final finalizeResult = await _repo.finalizeSale(
         SaleFinalizeSaleCommand(
-          saleId: currentState.saleId ?? '',
+          saleId: commandPaymentMethod == 'cash'
+              ? ''
+              : (currentState.saleId ?? ''),
           paymentMethod: commandPaymentMethod,
           tenderCurrency: tenderCurrency,
-          clientOpId: 'sale-finalize-${currentState.saleId ?? 'local-cart'}',
+          clientOpId:
+              'sale-finalize-local-cart-${DateTime.now().millisecondsSinceEpoch}',
           cashReceived: commandPaymentMethod == 'cash' ? cashReceivedDto : null,
+          khqrIntentId: commandPaymentMethod == 'khqr'
+              ? currentState.khqrAttemptId
+              : null,
           khqrMd5: commandPaymentMethod == 'khqr' ? currentState.khqrMd5 : null,
           saleType: currentState.saleType,
           cartLines: commandLines,
@@ -1031,6 +1311,7 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
       );
       state = SaleCartState(
         lastFinalizedSaleId: resolvedSaleId,
+        lastFinalizedOrderId: finalizeResult.orderId,
         lastReceiptId: finalizeResult.receiptId,
         lastReceipt: finalizeResult.receipt,
         lastPrintableReceipt: printableReceipt,
@@ -1040,6 +1321,7 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
 
       return SaleCheckoutResult(
         summary: summary,
+        orderId: finalizeResult.orderId,
         receiptId: finalizeResult.receiptId,
         receipt: finalizeResult.receipt,
         idempotentReplay: finalizeResult.idempotentReplay,
@@ -1636,13 +1918,7 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
       );
       throw error;
     }
-
-    await _ensureSaleId();
     final currentState = state;
-    final saleId = currentState.saleId;
-    if (saleId == null || saleId.isEmpty) {
-      throw Exception('No sale draft');
-    }
     if (currentState.lines.isEmpty) {
       throw Exception('Cannot place an order with an empty cart.');
     }
@@ -1669,28 +1945,26 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
       checkoutErrorMessage: null,
       checkoutErrorCode: null,
       lastFinalizedSaleId: null,
+      lastFinalizedOrderId: null,
       lastReceiptId: null,
       lastReceipt: null,
       lastPlacedOpenTicketId: null,
-      lastPlacedSaleId: null,
     );
 
     try {
       final result = await _repo.placeOrder(
         SalePlaceOrderCommand(
-          saleId: saleId,
+          saleId: '',
           branchId: branchId,
           saleType: currentState.saleType,
-          clientOpId: 'sale-place-order-$saleId',
+          clientOpId:
+              'sale-place-order-local-cart-${DateTime.now().millisecondsSinceEpoch}',
           cartLines: commandLines,
         ),
       );
 
       await _clearPersistedCart();
-      state = SaleCartState(
-        lastPlacedOpenTicketId: result.openTicketId,
-        lastPlacedSaleId: result.saleId,
-      );
+      state = SaleCartState(lastPlacedOpenTicketId: result.openTicketId);
       return SalePlaceOrderResult(
         openTicketId: result.openTicketId,
         saleId: result.saleId,
@@ -1711,12 +1985,6 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
       );
       rethrow;
     }
-  }
-
-  Future<CartLine> _replayLineToSale(String saleId, CartLine line) async {
-    final payload = SaleCartPayloadBuilder.fromLine(line);
-    final saleItemId = await _repo.addItem(saleId: saleId, item: payload);
-    return line.copyWith(saleItemId: saleItemId);
   }
 
   List<SaleCartLineInputDto> _buildCommandLines(List<CartLine> lines) {
@@ -1740,5 +2008,88 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
         pricingSnapshot: payload.pricingSnapshot?.toJson(),
       );
     }).toList();
+  }
+
+  List<Map<String, dynamic>> _buildOfflineCashReplayItems(
+    List<CartLine> lines,
+    Map<String, ModifierGroup> groupLookup,
+  ) {
+    return lines
+        .map((line) {
+          final payload = SaleCartPayloadBuilder.fromLine(line);
+          final modifierSelections = payload.modifiers
+              .map(
+                (entry) => <String, dynamic>{
+                  'groupId': entry.groupId,
+                  'optionIds': List<String>.from(entry.optionIds)..sort(),
+                },
+              )
+              .toList(growable: false);
+          return <String, dynamic>{
+            'menuItemId': line.item.id,
+            'menuItemNameSnapshot': line.item.name,
+            'unitPrice': payload.unitPriceUsd ?? 0,
+            'quantity': line.quantity,
+            'lineSubtotal': payload.lineTotalUsdExact ?? 0,
+            'modifierSnapshot': _modifierSnapshot(line, groupLookup),
+            if (modifierSelections.isNotEmpty)
+              'modifierSelections': modifierSelections,
+            if (payload.pricingSnapshot != null)
+              'pricingSnapshot': payload.pricingSnapshot!.toJson(),
+          };
+        })
+        .toList(growable: false);
+  }
+
+  List<Map<String, dynamic>> _modifierSnapshot(
+    CartLine line,
+    Map<String, ModifierGroup> groupLookup,
+  ) {
+    final snapshot = <Map<String, dynamic>>[];
+    final sortedGroupIds = line.selectedOptionIds.keys.toList()..sort();
+    for (final groupId in sortedGroupIds) {
+      final selectedIds = List<String>.from(
+        line.selectedOptionIds[groupId] ?? [],
+      )..sort();
+      if (selectedIds.isEmpty) continue;
+
+      final selectedOptions =
+          line.selectedOptions[groupId] ?? const <ModifierOption>[];
+      final selectedById = {
+        for (final option in selectedOptions) option.id: option,
+      };
+      final group = groupLookup[groupId];
+
+      for (final optionId in selectedIds) {
+        ModifierOption? option = selectedById[optionId];
+        if (option == null && group != null) {
+          for (final candidate in group.options) {
+            if (candidate.id == optionId) {
+              option = candidate;
+              break;
+            }
+          }
+        }
+        final label = option?.name.trim() ?? '';
+        if (label.isEmpty) continue;
+        snapshot.add(<String, dynamic>{
+          'label': label,
+          'priceAdjustmentUsd': option?.priceDelta ?? option?.price ?? 0,
+        });
+      }
+    }
+    return snapshot;
+  }
+
+  String _normalizeCheckoutSaleType(String saleType) {
+    switch (saleType.trim().toLowerCase()) {
+      case 'dine_in':
+        return 'DINE_IN';
+      case 'delivery':
+        return 'DELIVERY';
+      case 'take_away':
+      default:
+        return 'TAKEAWAY';
+    }
   }
 }

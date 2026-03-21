@@ -3,6 +3,7 @@ import 'package:modular_pos/features/inventory/data/dto/inventory_journal_entry_
 import 'package:modular_pos/features/inventory/data/dto/restock_batch_dto.dart';
 import 'package:modular_pos/features/inventory/data/inventory_api.dart';
 import 'package:modular_pos/features/inventory/data/inventory_journal_repository.dart';
+import 'package:modular_pos/features/inventory/data/inventory_paginated_result.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_journal_entry.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_batch.dart';
 
@@ -29,6 +30,7 @@ class RemoteInventoryJournalRepository extends InventoryJournalRepository {
     num? purchaseCostUsd,
   }) async {
     final dto = await _api.createRestockBatch(
+      branchId: branchId,
       stockItemId: stockItemId,
       quantityInBaseUnit: qty.toInt(),
       receivedAt: receivedAt,
@@ -78,6 +80,7 @@ class RemoteInventoryJournalRepository extends InventoryJournalRepository {
 
   @override
   Future<int?> applyAdjustment({
+    required String branchId,
     required String stockItemId,
     required String style,
     int? deltaInBaseUnit,
@@ -86,6 +89,7 @@ class RemoteInventoryJournalRepository extends InventoryJournalRepository {
     String? note,
   }) {
     return _api.applyAdjustment(
+      branchId: branchId,
       stockItemId: stockItemId,
       style: style,
       deltaInBaseUnit: deltaInBaseUnit,
@@ -96,19 +100,48 @@ class RemoteInventoryJournalRepository extends InventoryJournalRepository {
   }
 
   @override
-  Future<List<InventoryJournalEntry>> fetch({
+  Future<InventoryPaginatedResult<InventoryJournalEntry>> fetch({
+    String? branchId,
+    bool tenantWide = false,
     String? stockItemId,
     InventoryJournalReason? reason,
+    DateTime? date,
+    DateTime? from,
+    DateTime? to,
     int limit = 50,
     int offset = 0,
   }) async {
-    final items = await _api.fetchJournal(
-      stockItemId: stockItemId,
-      reasonCode: reason != null ? _reasonToApi(reason) : null,
-      limit: limit,
-      offset: offset,
+    final normalizedBranchId = (branchId ?? '').trim().isEmpty
+        ? null
+        : branchId?.trim();
+    final result = tenantWide || normalizedBranchId == null
+        ? await _api.fetchTenantJournal(
+            branchId: tenantWide ? normalizedBranchId : null,
+            stockItemId: stockItemId,
+            reasonCode: reason != null ? _reasonToApi(reason) : null,
+            date: date,
+            from: date == null ? from : null,
+            to: date == null ? to : null,
+            limit: limit,
+            offset: offset,
+          )
+        : await _api.fetchJournal(
+            branchId: normalizedBranchId,
+            stockItemId: stockItemId,
+            reasonCode: reason != null ? _reasonToApi(reason) : null,
+            date: date,
+            from: date == null ? from : null,
+            to: date == null ? to : null,
+            limit: limit,
+            offset: offset,
+          );
+    return InventoryPaginatedResult<InventoryJournalEntry>(
+      items: result.items.map((dto) => _toDomain(dto)).toList(growable: false),
+      limit: result.limit,
+      offset: result.offset,
+      total: result.total,
+      hasMore: result.hasMore,
     );
-    return items.map((dto) => _toDomain(dto)).toList(growable: false);
   }
 
   @override
@@ -118,24 +151,33 @@ class RemoteInventoryJournalRepository extends InventoryJournalRepository {
   }
 
   @override
-  Future<List<StockBatch>> fetchRestockBatches({
+  Future<InventoryPaginatedResult<StockBatch>> fetchRestockBatches({
+    String? branchId,
     String status = 'all',
     String? stockItemId,
     int? limit,
     int? offset,
   }) async {
-    final rows = await _api.fetchRestockBatches(
+    final result = await _api.fetchRestockBatches(
+      branchId: branchId,
       status: status,
       stockItemId: stockItemId,
       limit: limit,
       offset: offset,
     );
-    return rows.map(_toBatch).toList(growable: false);
+    return InventoryPaginatedResult<StockBatch>(
+      items: result.items.map(_toBatch).toList(growable: false),
+      limit: result.limit,
+      offset: result.offset,
+      total: result.total,
+      hasMore: result.hasMore,
+    );
   }
 
   @override
   Future<StockBatch> updateRestockBatchMetadata({
     required String batchId,
+    required String branchId,
     String? expiryDate,
     String? supplierName,
     num? purchaseCostUsd,
@@ -143,6 +185,7 @@ class RemoteInventoryJournalRepository extends InventoryJournalRepository {
   }) async {
     final dto = await _api.updateRestockBatchMetadata(
       batchId: batchId,
+      branchId: branchId,
       expiryDate: expiryDate,
       supplierName: supplierName,
       purchaseCostUsd: purchaseCostUsd,
@@ -152,8 +195,11 @@ class RemoteInventoryJournalRepository extends InventoryJournalRepository {
   }
 
   @override
-  Future<void> archiveRestockBatch({required String batchId}) {
-    return _api.archiveRestockBatch(batchId: batchId);
+  Future<void> archiveRestockBatch({
+    required String batchId,
+    required String branchId,
+  }) {
+    return _api.archiveRestockBatch(batchId: batchId, branchId: branchId);
   }
 
   InventoryJournalEntry? _maybeEntry(

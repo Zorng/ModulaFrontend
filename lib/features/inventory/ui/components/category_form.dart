@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:modular_pos/core/theme/app_theme.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_category.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/category_controller.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/inventory_error_mapper.dart';
@@ -13,6 +14,10 @@ class CategoryFormBody extends ConsumerStatefulWidget {
     required this.mode,
     this.category,
     this.showHeader = true,
+    this.allowArchiveInViewMode = false,
+    this.backgroundColor = Colors.white,
+    this.onArchived,
+    this.onArchiveRequested,
     this.onClose,
   }) : assert(
          mode == CategoryFormMode.create || category != null,
@@ -22,6 +27,10 @@ class CategoryFormBody extends ConsumerStatefulWidget {
   final CategoryFormMode mode;
   final InventoryCategory? category;
   final bool showHeader;
+  final bool allowArchiveInViewMode;
+  final Color backgroundColor;
+  final VoidCallback? onArchived;
+  final Future<void> Function()? onArchiveRequested;
   final VoidCallback? onClose;
 
   @override
@@ -56,76 +65,112 @@ class _CategoryFormBodyState extends ConsumerState<CategoryFormBody> {
   @override
   Widget build(BuildContext context) {
     final isView = _mode == CategoryFormMode.view;
+    final archiveButtonStyle = AppTheme.cancelActionButtonStyle;
     return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (widget.showHeader)
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    _title(),
-                    style: Theme.of(context).textTheme.titleLarge,
+      padding: EdgeInsets.zero,
+      child: Container(
+        color: widget.backgroundColor,
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (widget.showHeader)
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _title(),
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
                   ),
+                  IconButton(
+                    tooltip: 'Close',
+                    icon: const Icon(Icons.close),
+                    onPressed:
+                        widget.onClose ?? () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+            if (widget.showHeader) const SizedBox(height: 16),
+            _RequiredFieldLabel(
+              text: 'Category Name',
+              child: TextField(
+                controller: _nameCtrl,
+                onChanged: (_) {
+                  if (_nameError == null) return;
+                  setState(() => _nameError = null);
+                },
+                enabled: !isView,
+                decoration: InputDecoration(
+                  hintText: 'e.g., Coffee, Pastries',
+                  errorText: _nameError,
+                  counterText: '',
                 ),
-                IconButton(
-                  tooltip: 'Close',
-                  icon: const Icon(Icons.close),
-                  onPressed:
-                      widget.onClose ?? () => Navigator.of(context).pop(),
-                ),
-              ],
-            ),
-          if (widget.showHeader) const SizedBox(height: 16),
-          _RequiredFieldLabel(
-            text: 'Category Name',
-            isRequired: true,
-            child: TextField(
-              controller: _nameCtrl,
-              onChanged: (_) {
-                if (_nameError == null) return;
-                setState(() => _nameError = null);
-              },
-              enabled: !isView,
-              decoration: InputDecoration(
-                hintText: 'e.g., Coffee, Pastries',
-                errorText: _nameError,
-                counterText: '',
               ),
             ),
-          ),
-          const SizedBox(height: 24),
-          _RequiredFieldLabel(
-            text: 'Description',
-            child: TextField(
-              controller: _descriptionCtrl,
-              enabled: !isView,
-              decoration: InputDecoration(
-                hintText: 'Enter category description',
-                errorText: _descriptionError,
+            const SizedBox(height: 24),
+            _RequiredFieldLabel(
+              text: 'Description',
+              isOptional: true,
+              child: TextField(
+                controller: _descriptionCtrl,
+                enabled: !isView,
+                decoration: InputDecoration(
+                  hintText: 'Enter category description',
+                  errorText: _descriptionError,
+                ),
+                maxLines: 3,
+                maxLength: 200,
               ),
-              maxLines: 3,
-              maxLength: 200,
             ),
-          ),
-          const SizedBox(height: 24),
-          _buildActions(context),
-        ],
+            const SizedBox(height: 24),
+            _buildActions(context, archiveButtonStyle: archiveButtonStyle),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildActions(BuildContext context) {
+  Widget _buildActions(
+    BuildContext context, {
+    required ButtonStyle archiveButtonStyle,
+  }) {
     if (_mode == CategoryFormMode.view) {
-      return SizedBox(
-        width: double.infinity,
-        child: FilledButton(
-          onPressed: () => setState(() => _mode = CategoryFormMode.edit),
-          child: const Text('Edit'),
-        ),
+      final canArchive =
+          widget.allowArchiveInViewMode && (widget.category?.isActive ?? false);
+      if (!canArchive) {
+        return SizedBox(
+          width: double.infinity,
+          child: FilledButton.icon(
+            onPressed: () => setState(() => _mode = CategoryFormMode.edit),
+            icon: const Icon(Icons.edit_outlined, size: 18),
+            label: const Text('Edit'),
+          ),
+        );
+      }
+
+      return Row(
+        children: [
+          Expanded(
+            child: FilledButton.icon(
+              style: archiveButtonStyle,
+              onPressed: widget.onArchiveRequested != null
+                  ? () => widget.onArchiveRequested!.call()
+                  : _archiveCategory,
+              icon: const Icon(Icons.archive_outlined, size: 18),
+              label: const Text('Archive'),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: FilledButton.icon(
+              onPressed: () => setState(() => _mode = CategoryFormMode.edit),
+              icon: const Icon(Icons.edit_outlined, size: 18),
+              label: const Text('Edit'),
+            ),
+          ),
+        ],
       );
     }
 
@@ -223,18 +268,97 @@ class _CategoryFormBodyState extends ConsumerState<CategoryFormBody> {
     if (!mounted) return;
     (widget.onClose ?? () => Navigator.of(context).pop())();
   }
+
+  Future<void> _archiveCategory() async {
+    final current = widget.category;
+    if (current == null || !current.isActive) return;
+
+    final cancelButtonStyle = AppTheme.cancelActionButtonStyle;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => Dialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        surfaceTintColor: Theme.of(context).scaffoldBackgroundColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        clipBehavior: Clip.antiAlias,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 520),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Archive category?',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  '"${current.name}" will be archived and detached from stock items.',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(
+                      child: FilledButton(
+                        style: cancelButtonStyle,
+                        onPressed: () => Navigator.of(context).pop(false),
+                        child: const Text('Cancel'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: FilledButton(
+                        onPressed: () => Navigator.of(context).pop(true),
+                        child: const Text('Archive'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    if (confirm != true) return;
+
+    try {
+      await ref
+          .read(categoryControllerProvider.notifier)
+          .deleteCategory(current.id);
+      if (!mounted) return;
+      widget.onArchived?.call();
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('"${current.name}" archived')));
+      (widget.onClose ?? () => Navigator.of(context).pop())();
+    } catch (e) {
+      if (!mounted) return;
+      final mapped = mapInventoryError(
+        e,
+        fallbackMessage: 'Failed to archive category.',
+      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(mapped.message)));
+    }
+  }
 }
 
 class _RequiredFieldLabel extends StatelessWidget {
   const _RequiredFieldLabel({
     required this.text,
     required this.child,
-    this.isRequired = false,
+    this.isOptional = false,
   });
 
   final String text;
   final Widget child;
-  final bool isRequired;
+  final bool isOptional;
 
   @override
   Widget build(BuildContext context) {
@@ -243,18 +367,9 @@ class _RequiredFieldLabel extends StatelessWidget {
       children: [
         Padding(
           padding: const EdgeInsets.only(bottom: 8),
-          child: RichText(
-            text: TextSpan(
-              text: text,
-              style: Theme.of(context).textTheme.titleSmall,
-              children: [
-                if (isRequired)
-                  const TextSpan(
-                    text: ' *',
-                    style: TextStyle(color: Colors.red),
-                  ),
-              ],
-            ),
+          child: Text(
+            isOptional ? '$text (Optional)' : text,
+            style: Theme.of(context).textTheme.titleSmall,
           ),
         ),
         child,

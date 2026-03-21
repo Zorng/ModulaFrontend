@@ -119,15 +119,9 @@ class _SessionActionCardState extends ConsumerState<SessionActionCard> {
   Widget _buildCloseForm(BuildContext context) {
     return Column(
       children: [
-        _currencyField(
-          label: 'Counted Cash (USD)',
-          controller: _usdController,
-        ),
+        _currencyField(label: 'Counted Cash (USD)', controller: _usdController),
         const SizedBox(height: 12),
-        _currencyField(
-          label: 'Counted Cash (KHR)',
-          controller: _khrController,
-        ),
+        _currencyField(label: 'Counted Cash (KHR)', controller: _khrController),
         const SizedBox(height: 12),
         _noteField(
           label: 'Note (Optional)',
@@ -281,7 +275,7 @@ class _SessionActionCardState extends ConsumerState<SessionActionCard> {
     };
   }
 
-  void _submitStart() {
+  Future<void> _submitStart() async {
     final usd = double.tryParse(_usdController.text.trim());
     final khr = double.tryParse(_khrController.text.trim());
     if (usd == null && khr == null) {
@@ -291,12 +285,19 @@ class _SessionActionCardState extends ConsumerState<SessionActionCard> {
       return;
     }
 
-    widget.notifier.startSession(
+    final result = await widget.notifier.startSession(
       usdAmount: usd ?? 0,
       khrAmount: khr ?? 0,
       note: _noteController.text.trim(),
     );
+    if (!mounted) return;
     _clearInputs();
+    if (result.outcome == CashSessionActionOutcome.queued) {
+      _showSnack(
+        result.message ?? 'Session opening saved offline and queued for sync.',
+        backgroundColor: const Color(0xFFB45309),
+      );
+    }
   }
 
   Future<void> _submitClose() async {
@@ -357,12 +358,19 @@ class _SessionActionCardState extends ConsumerState<SessionActionCard> {
       ref.read(saleCartProvider.notifier).clear();
     }
 
-    widget.notifier.closeSession(
+    final result = await widget.notifier.closeSession(
       countedUsd: usd ?? 0,
       countedKhr: khr ?? 0,
       note: _noteController.text.trim(),
     );
+    if (!mounted) return;
     _clearInputs();
+    if (result.outcome == CashSessionActionOutcome.queued) {
+      _showSnack(
+        result.message ?? 'Session closure saved offline and queued for sync.',
+        backgroundColor: const Color(0xFFB45309),
+      );
+    }
   }
 
   void _openForceCloseModal(BuildContext context) {
@@ -388,12 +396,12 @@ class _SessionActionCardState extends ConsumerState<SessionActionCard> {
     );
   }
 
-  void _showSnack(String message) {
+  void _showSnack(
+    String message, {
+    Color backgroundColor = const Color(0xFFED533C),
+  }) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: const Color(0xFFED533C),
-      ),
+      SnackBar(content: Text(message), backgroundColor: backgroundColor),
     );
   }
 

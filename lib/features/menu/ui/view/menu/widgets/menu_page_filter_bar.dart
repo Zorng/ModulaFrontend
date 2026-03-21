@@ -16,6 +16,9 @@ class MenuPageFilterBar extends StatelessWidget {
     required this.branchOptions,
     required this.selectedBranchId,
     required this.onBranchSelected,
+    required this.statusOptions,
+    required this.selectedStatus,
+    required this.onStatusSelected,
     required this.onSearchChanged,
     required this.onAddPressed,
   });
@@ -27,6 +30,9 @@ class MenuPageFilterBar extends StatelessWidget {
   final List<DropdownMenuEntry<String>> branchOptions;
   final String selectedBranchId;
   final ValueChanged<String> onBranchSelected;
+  final List<DropdownMenuEntry<String>> statusOptions;
+  final String selectedStatus;
+  final ValueChanged<String> onStatusSelected;
 
   final ValueChanged<String> onSearchChanged;
   final VoidCallback onAddPressed;
@@ -73,6 +79,18 @@ class MenuPageFilterBar extends StatelessWidget {
                   ),
                   const SizedBox(width: 12),
                   SizedBox(
+                    width: 160,
+                    child: InventoryDropdown<String>(
+                      initialValue: selectedStatus,
+                      entries: statusOptions,
+                      onSelected: (value) {
+                        if (value == null) return;
+                        onStatusSelected(value);
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  SizedBox(
                     width: 132,
                     child: AppAddNewButton(
                       onPressed: onAddPressed,
@@ -92,17 +110,30 @@ class MenuPageFilterBar extends StatelessWidget {
                   onAddPressed: onAddPressed,
                 ),
                 const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: InventoryDropdown<String>(
-                    initialValue: selectedBranchId,
-                    leadingIcon: const Icon(Icons.store_outlined),
-                    entries: branchOptions,
-                    onSelected: (value) {
-                      if (value == null) return;
-                      onBranchSelected(value);
-                    },
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: InventoryDropdown<String>(
+                        initialValue: selectedBranchId,
+                        entries: branchOptions,
+                        onSelected: (value) {
+                          if (value == null) return;
+                          onBranchSelected(value);
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: InventoryDropdown<String>(
+                        initialValue: selectedStatus,
+                        entries: statusOptions,
+                        onSelected: (value) {
+                          if (value == null) return;
+                          onStatusSelected(value);
+                        },
+                      ),
+                    ),
+                  ],
                 ),
               ],
             );

@@ -1,45 +1,99 @@
 import 'package:equatable/equatable.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_journal_entry.dart';
+import 'package:modular_pos/features/inventory/ui/models/inventory_journal_date_filter.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/inventory_error_mapper.dart';
+
+const Object _inventoryJournalUnset = Object();
+
+enum InventoryJournalScope { tenantWide, branch }
 
 class InventoryJournalState extends Equatable {
   const InventoryJournalState({
     this.isLoading = false,
-    this.isLoadingMore = false,
+    this.isPageLoading = false,
+    this.isAccumulatingPages = false,
     this.entries = const [],
-    this.limit = 50,
-    this.offset = 0,
-    this.hasMore = true,
+    this.scope = InventoryJournalScope.tenantWide,
+    this.selectedBranchId = 'all',
+    this.selectedStockItemId = '',
+    this.selectedReason,
+    this.dateFilter = const InventoryJournalDateFilter(
+      preset: InventoryJournalDatePreset.today,
+    ),
+    this.pageSize = 10,
+    this.currentPage = 1,
+    this.pageOffset = 0,
+    this.total = 0,
     this.error,
     this.errorCode,
   });
 
   final bool isLoading;
-  final bool isLoadingMore;
+  final bool isPageLoading;
+  final bool isAccumulatingPages;
   final List<InventoryJournalEntry> entries;
-  final int limit;
-  final int offset;
-  final bool hasMore;
+  final InventoryJournalScope scope;
+  final String selectedBranchId;
+  final String selectedStockItemId;
+  final InventoryJournalReason? selectedReason;
+  final InventoryJournalDateFilter dateFilter;
+  final int pageSize;
+  final int currentPage;
+  final int pageOffset;
+  final int total;
   final String? error;
   final InventoryErrorCode? errorCode;
 
+  bool get hasPreviousPage => !isAccumulatingPages && currentPage > 1;
+
+  int get totalPages => total <= 0 ? 1 : ((total + pageSize - 1) ~/ pageSize);
+
+  bool get hasNextPage => currentPage < totalPages;
+
+  int get visibleRangeStart =>
+      entries.isEmpty ? 0 : (isAccumulatingPages ? 1 : pageOffset + 1);
+
+  int get visibleRangeEnd {
+    if (entries.isEmpty) return 0;
+    final rawEnd = isAccumulatingPages
+        ? entries.length
+        : pageOffset + entries.length;
+    return total > 0 ? rawEnd.clamp(0, total) : rawEnd;
+  }
+
   InventoryJournalState copyWith({
     bool? isLoading,
-    bool? isLoadingMore,
+    bool? isPageLoading,
+    bool? isAccumulatingPages,
     List<InventoryJournalEntry>? entries,
-    int? limit,
-    int? offset,
-    bool? hasMore,
+    InventoryJournalScope? scope,
+    String? selectedBranchId,
+    String? selectedStockItemId,
+    Object? selectedReason = _inventoryJournalUnset,
+    InventoryJournalDateFilter? dateFilter,
+    int? pageSize,
+    int? currentPage,
+    int? pageOffset,
+    int? total,
     String? error,
     InventoryErrorCode? errorCode,
   }) {
     return InventoryJournalState(
       isLoading: isLoading ?? this.isLoading,
-      isLoadingMore: isLoadingMore ?? this.isLoadingMore,
+      isPageLoading: isPageLoading ?? this.isPageLoading,
+      isAccumulatingPages: isAccumulatingPages ?? this.isAccumulatingPages,
       entries: entries ?? this.entries,
-      limit: limit ?? this.limit,
-      offset: offset ?? this.offset,
-      hasMore: hasMore ?? this.hasMore,
+      scope: scope ?? this.scope,
+      selectedBranchId: selectedBranchId ?? this.selectedBranchId,
+      selectedStockItemId: selectedStockItemId ?? this.selectedStockItemId,
+      selectedReason: identical(selectedReason, _inventoryJournalUnset)
+          ? this.selectedReason
+          : selectedReason as InventoryJournalReason?,
+      dateFilter: dateFilter ?? this.dateFilter,
+      pageSize: pageSize ?? this.pageSize,
+      currentPage: currentPage ?? this.currentPage,
+      pageOffset: pageOffset ?? this.pageOffset,
+      total: total ?? this.total,
       error: error,
       errorCode: errorCode,
     );
@@ -48,11 +102,18 @@ class InventoryJournalState extends Equatable {
   @override
   List<Object?> get props => [
     isLoading,
-    isLoadingMore,
+    isPageLoading,
+    isAccumulatingPages,
     entries,
-    limit,
-    offset,
-    hasMore,
+    scope,
+    selectedBranchId,
+    selectedStockItemId,
+    selectedReason,
+    dateFilter,
+    pageSize,
+    currentPage,
+    pageOffset,
+    total,
     error,
     errorCode,
   ];

@@ -32,7 +32,7 @@ class StaffMembershipApi {
           'offset': offset,
         },
       );
-      final list = StaffApiHelpers.unwrapList(response.data);
+      final list = StaffApiHelpers.unwrapPagedItems(response.data);
       return list.map(StaffMembershipDto.fromJson).toList(growable: false);
     } on DioError catch (error) {
       throw ApiClientException.fromDio(
@@ -44,7 +44,9 @@ class StaffMembershipApi {
 
   Future<StaffMembershipDto> fetchMembershipDetail(String membershipId) async {
     try {
-      final response = await _dio.get<dynamic>('$_prefix/${membershipId.trim()}');
+      final response = await _dio.get<dynamic>(
+        '$_prefix/${membershipId.trim()}',
+      );
       final data = StaffApiHelpers.unwrapMap(response.data);
       return StaffMembershipDto.fromJson(data);
     } on DioError catch (error) {

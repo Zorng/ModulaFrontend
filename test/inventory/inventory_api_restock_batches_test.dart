@@ -24,24 +24,30 @@ void main() {
         requestOptions: RequestOptions(path: '/v0/inventory/restock-batches'),
         data: {
           'success': true,
-          'data': [
-            {
-              'id': 'batch-1',
-              'tenantId': 'tenant-1',
-              'branchId': 'branch-1',
-              'stockItemId': 'item-1',
-              'quantityInBaseUnit': 2400,
-              'status': 'ACTIVE',
-              'receivedAt': '2026-02-20T00:00:00.000Z',
-              'expiryDate': '2026-03-20',
-              'supplierName': 'Supplier X',
-              'purchaseCostUsd': 15.75,
-              'note': 'Morning restock',
-              'createdByAccountId': 'acct-1',
-              'createdAt': '2026-02-20T00:00:00.000Z',
-              'updatedAt': '2026-02-20T00:00:00.000Z',
-            },
-          ],
+          'data': {
+            'items': [
+              {
+                'id': 'batch-1',
+                'tenantId': 'tenant-1',
+                'branchId': 'branch-1',
+                'stockItemId': 'item-1',
+                'quantityInBaseUnit': 2400,
+                'status': 'ACTIVE',
+                'receivedAt': '2026-02-20T00:00:00.000Z',
+                'expiryDate': '2026-03-20',
+                'supplierName': 'Supplier X',
+                'purchaseCostUsd': 15.75,
+                'note': 'Morning restock',
+                'createdByAccountId': 'acct-1',
+                'createdAt': '2026-02-20T00:00:00.000Z',
+                'updatedAt': '2026-02-20T00:00:00.000Z',
+              },
+            ],
+            'limit': 50,
+            'offset': 0,
+            'total': 1,
+            'hasMore': false,
+          },
         },
       ),
     );
@@ -65,9 +71,13 @@ void main() {
         },
       ),
     ).called(1);
-    expect(rows, hasLength(1));
-    expect(rows.first.id, 'batch-1');
-    expect(rows.first.quantityInBaseUnit, 2400);
+    expect(rows.items, hasLength(1));
+    expect(rows.items.first.id, 'batch-1');
+    expect(rows.items.first.quantityInBaseUnit, 2400);
+    expect(rows.limit, 50);
+    expect(rows.offset, 0);
+    expect(rows.total, 1);
+    expect(rows.hasMore, isFalse);
   });
 
   test('fetchRestockBatches normalizes unknown status to all', () async {
@@ -80,7 +90,16 @@ void main() {
     ).thenAnswer(
       (_) async => Response<Map<String, dynamic>>(
         requestOptions: RequestOptions(path: '/v0/inventory/restock-batches'),
-        data: {'success': true, 'data': const []},
+        data: {
+          'success': true,
+          'data': {
+            'items': const [],
+            'limit': 50,
+            'offset': 0,
+            'total': 0,
+            'hasMore': false,
+          },
+        },
       ),
     );
 
@@ -146,6 +165,7 @@ void main() {
 
       final api = InventoryApi(dio);
       final result = await api.createRestockBatch(
+        branchId: 'branch-1',
         stockItemId: 'item-1',
         quantityInBaseUnit: 2400,
         receivedAt: '2026-02-20T00:00:00.000Z',
@@ -159,6 +179,7 @@ void main() {
         () => dio.post<Map<String, dynamic>>(
           '/v0/inventory/restock-batches',
           data: {
+            'branchId': 'branch-1',
             'stockItemId': 'item-1',
             'quantityInBaseUnit': 2400,
             'receivedAt': '2026-02-20T00:00:00.000Z',
@@ -179,6 +200,7 @@ void main() {
                     'inventory.restockBatches.create',
                   )
                   .having((r) => r.payload, 'payload', {
+                    'branchId': 'branch-1',
                     'stockItemId': 'item-1',
                     'quantityInBaseUnit': 2400,
                     'receivedAt': '2026-02-20T00:00:00.000Z',
@@ -230,6 +252,7 @@ void main() {
       final api = InventoryApi(dio);
       await expectLater(
         () => api.createRestockBatch(
+          branchId: 'branch-1',
           stockItemId: 'item-1',
           quantityInBaseUnit: 0,
         ),
@@ -282,6 +305,7 @@ void main() {
       final api = InventoryApi(dio);
       final result = await api.updateRestockBatchMetadata(
         batchId: 'batch-1',
+        branchId: 'branch-1',
         expiryDate: '2026-03-25',
         supplierName: 'Supplier X',
         purchaseCostUsd: 16.25,
@@ -292,6 +316,7 @@ void main() {
         () => dio.patch<Map<String, dynamic>>(
           '/v0/inventory/restock-batches/batch-1',
           data: {
+            'branchId': 'branch-1',
             'expiryDate': '2026-03-25',
             'supplierName': 'Supplier X',
             'purchaseCostUsd': 16.25,
@@ -310,6 +335,7 @@ void main() {
                   )
                   .having((r) => r.payload, 'payload', {
                     'batchId': 'batch-1',
+                    'branchId': 'branch-1',
                     'expiryDate': '2026-03-25',
                     'supplierName': 'Supplier X',
                     'purchaseCostUsd': 16.25,
@@ -359,6 +385,7 @@ void main() {
       await expectLater(
         () => api.updateRestockBatchMetadata(
           batchId: 'batch-1',
+          branchId: 'branch-1',
           note: 'Updated note',
         ),
         throwsA(
@@ -375,7 +402,11 @@ void main() {
     () async {
       final dio = _MockDio();
       when(
-        () => dio.post<void>(any(), options: any(named: 'options')),
+        () => dio.post<void>(
+          any(),
+          queryParameters: any(named: 'queryParameters'),
+          options: any(named: 'options'),
+        ),
       ).thenAnswer(
         (_) async => Response<void>(
           requestOptions: RequestOptions(
@@ -385,11 +416,12 @@ void main() {
       );
 
       final api = InventoryApi(dio);
-      await api.archiveRestockBatch(batchId: 'batch-1');
+      await api.archiveRestockBatch(batchId: 'batch-1', branchId: 'branch-1');
 
       verify(
         () => dio.post<void>(
           '/v0/inventory/restock-batches/batch-1/archive',
+          queryParameters: {'branchId': 'branch-1'},
           options: any(
             named: 'options',
             that: isA<Options>().having(
@@ -401,7 +433,10 @@ void main() {
                     'actionKey',
                     'inventory.restockBatches.archive',
                   )
-                  .having((r) => r.payload, 'payload', {'batchId': 'batch-1'}),
+                  .having((r) => r.payload, 'payload', {
+                    'batchId': 'batch-1',
+                    'branchId': 'branch-1',
+                  }),
             ),
           ),
         ),
@@ -416,6 +451,7 @@ void main() {
       when(
         () => dio.post<void>(
           '/v0/inventory/restock-batches/batch-1/archive',
+          queryParameters: any(named: 'queryParameters'),
           options: any(named: 'options'),
         ),
       ).thenThrow(
@@ -441,7 +477,7 @@ void main() {
 
       final api = InventoryApi(dio);
       await expectLater(
-        () => api.archiveRestockBatch(batchId: 'batch-1'),
+        () => api.archiveRestockBatch(batchId: 'batch-1', branchId: 'branch-1'),
         throwsA(
           isA<ApiClientException>()
               .having((e) => e.code, 'code', 'INVENTORY_RESTOCK_BATCH_ARCHIVED')
@@ -475,6 +511,7 @@ void main() {
 
       final api = InventoryApi(dio);
       final resultingOnHand = await api.applyAdjustment(
+        branchId: 'branch-1',
         stockItemId: 'item-1',
         style: 'delta',
         deltaInBaseUnit: -250,
@@ -486,6 +523,7 @@ void main() {
         () => dio.post<Map<String, dynamic>>(
           '/v0/inventory/adjustments',
           data: {
+            'branchId': 'branch-1',
             'stockItemId': 'item-1',
             'style': 'DELTA',
             'reasonCode': 'WASTE',
@@ -504,6 +542,7 @@ void main() {
                     'inventory.adjustments.apply',
                   )
                   .having((r) => r.payload, 'payload', {
+                    'branchId': 'branch-1',
                     'stockItemId': 'item-1',
                     'style': 'DELTA',
                     'reasonCode': 'WASTE',
@@ -550,6 +589,7 @@ void main() {
 
       final api = InventoryApi(dio);
       final resultingOnHand = await api.applyAdjustment(
+        branchId: 'branch-1',
         stockItemId: 'item-1',
         style: 'SET_TO_COUNT',
         countedOnHandInBaseUnit: 1800,
@@ -590,6 +630,7 @@ void main() {
       final api = InventoryApi(dio);
       await expectLater(
         () => api.applyAdjustment(
+          branchId: 'branch-1',
           stockItemId: 'item-1',
           style: 'DELTA',
           deltaInBaseUnit: 0,

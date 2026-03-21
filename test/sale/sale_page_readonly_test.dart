@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:modular_pos/core/sync/sync_freshness.dart';
 import 'package:modular_pos/features/auth/data/auth_repository.dart';
 import 'package:modular_pos/features/auth/data/auth_session_store.dart';
+import 'package:modular_pos/features/menu/domain/models/menu_category.dart';
+import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
 import 'package:modular_pos/features/menu/data/menu_repository.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_state.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
@@ -24,6 +27,7 @@ class _StaticMenuViewModel extends MenuViewModel {
   @override
   Future<void> loadMenu({
     String? branchId,
+    String? status,
     MenuReadLane readLane = MenuReadLane.management,
   }) async {
     // Intentionally no-op for widget tests.
@@ -32,6 +36,78 @@ class _StaticMenuViewModel extends MenuViewModel {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  testWidgets(
+    'SalePage keeps cached catalog visible and shows passive freshness banner',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final store = AuthSessionStore(prefs);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authSessionStoreProvider.overrideWithValue(store),
+            authRepositoryProvider.overrideWithValue(FakeAuthRepository()),
+            menuViewModelProvider.overrideWith(
+              () => _StaticMenuViewModel(
+                const MenuState(
+                  isLoading: false,
+                  allItems: [
+                    MenuItem(
+                      id: 'item-1',
+                      name: 'Latte',
+                      categoryId: 'cat-1',
+                      price: 2.5,
+                    ),
+                  ],
+                  filteredItems: [
+                    MenuItem(
+                      id: 'item-1',
+                      name: 'Latte',
+                      categoryId: 'cat-1',
+                      price: 2.5,
+                    ),
+                  ],
+                  categories: [MenuCategory(id: 'cat-1', name: 'Coffee')],
+                  error: 'offline',
+                  errorCode: 'OFFLINE_UNREACHABLE',
+                ),
+              ),
+            ),
+            branchWorkspaceSyncFreshnessProvider.overrideWith(
+              (ref) async => const SyncWorkspaceFreshness(
+                kind: SyncWorkspaceFreshnessKind.staleUsable,
+                message: 'Offline: showing last synced workspace data.',
+              ),
+            ),
+            saleAccessGateProvider.overrideWithValue(
+              const SaleAccessGate(
+                branchId: 'branch-1',
+                contextLoading: false,
+                branchActive: true,
+                branchFrozen: false,
+                cashSessionOpen: true,
+                canMutateCart: true,
+                canCheckout: true,
+                canPlacePayLater: false,
+              ),
+            ),
+          ],
+          child: const MaterialApp(home: SalePage()),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Offline: showing last synced workspace data.'),
+        findsOneWidget,
+      );
+      expect(find.text('Failed to load menu'), findsNothing);
+      expect(find.text('Latte'), findsOneWidget);
+    },
+  );
 
   testWidgets('SalePage renders search even when session is required', (
     tester,

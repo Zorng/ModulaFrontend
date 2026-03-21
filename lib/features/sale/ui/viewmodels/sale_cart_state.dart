@@ -72,12 +72,12 @@ class SaleCartState {
     this.checkoutErrorMessage,
     this.checkoutErrorCode,
     this.lastFinalizedSaleId,
+    this.lastFinalizedOrderId,
     this.lastReceiptId,
     this.lastReceipt,
     this.lastPrintableReceipt,
     this.lastPrintableReceiptData,
     this.lastPlacedOpenTicketId,
-    this.lastPlacedSaleId,
     this.khqrStatus = SaleKhqrUiStates.readyToGenerate,
     this.khqrAttemptId,
     this.khqrMd5,
@@ -106,12 +106,12 @@ class SaleCartState {
   final String? checkoutErrorMessage;
   final String? checkoutErrorCode;
   final String? lastFinalizedSaleId;
+  final String? lastFinalizedOrderId;
   final String? lastReceiptId;
   final SaleImmediateReceiptDto? lastReceipt;
   final SaleReceiptDto? lastPrintableReceipt;
   final ThermalReceiptPrintData? lastPrintableReceiptData;
   final String? lastPlacedOpenTicketId;
-  final String? lastPlacedSaleId;
   final String khqrStatus;
   final String? khqrAttemptId;
   final String? khqrMd5;
@@ -142,6 +142,7 @@ class SaleCartState {
       case SaleCheckoutReasonCodes.cashSessionRequired:
       case SaleCheckoutReasonCodes.payLaterDisabled:
       case SaleCheckoutReasonCodes.khqrNotConfirmed:
+      case SaleCheckoutReasonCodes.khqrFinalizationPending:
       case SaleCheckoutReasonCodes.invalidRequest:
         return true;
       default:
@@ -163,7 +164,7 @@ class SaleCartState {
   }
 
   SaleCartState copyWith({
-    String? saleId,
+    Object? saleId = _unset,
     String? saleType,
     List<CartLine>? lines,
     String? tenderCurrency,
@@ -174,12 +175,12 @@ class SaleCartState {
     Object? checkoutErrorMessage = _unset,
     Object? checkoutErrorCode = _unset,
     Object? lastFinalizedSaleId = _unset,
+    Object? lastFinalizedOrderId = _unset,
     Object? lastReceiptId = _unset,
     Object? lastReceipt = _unset,
     Object? lastPrintableReceipt = _unset,
     Object? lastPrintableReceiptData = _unset,
     Object? lastPlacedOpenTicketId = _unset,
-    Object? lastPlacedSaleId = _unset,
     String? khqrStatus,
     Object? khqrAttemptId = _unset,
     Object? khqrMd5 = _unset,
@@ -197,7 +198,7 @@ class SaleCartState {
     bool? isKhqrLoading,
   }) {
     return SaleCartState(
-      saleId: saleId ?? this.saleId,
+      saleId: saleId == _unset ? this.saleId : saleId as String?,
       saleType: saleType ?? this.saleType,
       lines: lines ?? this.lines,
       tenderCurrency: tenderCurrency ?? this.tenderCurrency,
@@ -214,6 +215,9 @@ class SaleCartState {
       lastFinalizedSaleId: lastFinalizedSaleId == _unset
           ? this.lastFinalizedSaleId
           : lastFinalizedSaleId as String?,
+      lastFinalizedOrderId: lastFinalizedOrderId == _unset
+          ? this.lastFinalizedOrderId
+          : lastFinalizedOrderId as String?,
       lastReceiptId: lastReceiptId == _unset
           ? this.lastReceiptId
           : lastReceiptId as String?,
@@ -229,9 +233,6 @@ class SaleCartState {
       lastPlacedOpenTicketId: lastPlacedOpenTicketId == _unset
           ? this.lastPlacedOpenTicketId
           : lastPlacedOpenTicketId as String?,
-      lastPlacedSaleId: lastPlacedSaleId == _unset
-          ? this.lastPlacedSaleId
-          : lastPlacedSaleId as String?,
       khqrStatus: khqrStatus ?? this.khqrStatus,
       khqrAttemptId: khqrAttemptId == _unset
           ? this.khqrAttemptId
@@ -315,12 +316,12 @@ class SaleCartState {
       checkoutErrorMessage: null,
       checkoutErrorCode: null,
       lastFinalizedSaleId: null,
+      lastFinalizedOrderId: null,
       lastReceiptId: null,
       lastReceipt: null,
       lastPrintableReceipt: null,
       lastPrintableReceiptData: null,
       lastPlacedOpenTicketId: null,
-      lastPlacedSaleId: null,
       khqrStatus: SaleKhqrUiStates.normalize(
         json['khqrStatus'] as String? ?? SaleKhqrUiStates.readyToGenerate,
       ),

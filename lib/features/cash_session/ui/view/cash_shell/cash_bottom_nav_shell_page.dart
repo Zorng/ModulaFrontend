@@ -94,7 +94,7 @@ class CashBottomNavShellPage extends ConsumerWidget {
 
         final shouldLeave = await checkUnsavedData();
         if (shouldLeave && context.mounted) {
-          context.go(AppRoute.portal.path);
+          context.go(AppRoute.branchPortal.path);
         }
       },
       child: AppBottomNavShellScaffold(
@@ -105,7 +105,7 @@ class CashBottomNavShellPage extends ConsumerWidget {
         onBackPressed: () async {
           final shouldLeave = await checkUnsavedData();
           if (shouldLeave && context.mounted) {
-            context.go(AppRoute.portal.path);
+            context.go(AppRoute.branchPortal.path);
           }
         },
         backIcon: Icons.home_outlined,

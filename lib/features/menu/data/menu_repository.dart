@@ -87,6 +87,8 @@ abstract class MenuRepository {
 
   Future<void> archiveCategory(String categoryId);
 
+  Future<void> restoreCategory(String categoryId);
+
   Future<void> deleteCategory(String categoryId) {
     return archiveCategory(categoryId);
   }
@@ -99,6 +101,8 @@ abstract class MenuRepository {
   });
 
   Future<void> archiveModifierGroup(String groupId);
+
+  Future<void> restoreModifierGroup(String groupId);
 
   Future<void> deleteModifierGroup(String groupId) {
     return archiveModifierGroup(groupId);

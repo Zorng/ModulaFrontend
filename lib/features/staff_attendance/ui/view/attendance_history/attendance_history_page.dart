@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/core/theme/app_buttons.dart';
 import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
+import 'package:modular_pos/features/staff_attendance/data/attendance_cache_store.dart';
 import 'package:modular_pos/features/staff_attendance/data/staff_attendance_repository.dart';
 import 'package:modular_pos/features/staff_attendance/domain/models/attendance_history_entry.dart';
 import 'package:modular_pos/features/staff_attendance/domain/models/attendance_record.dart';
@@ -30,12 +31,29 @@ class _AttendanceHistoryPageState extends ConsumerState<AttendanceHistoryPage> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadCachedHistory();
       _loadHistory(reset: true);
     });
   }
 
+  Future<void> _loadCachedHistory() async {
+    final scope = ref.read(attendanceCacheScopeProvider);
+    if (scope == null) return;
+
+    final snapshot = await ref.read(attendanceCacheStoreProvider).read(scope);
+    if (!mounted || snapshot.records.isEmpty) return;
+
+    setState(() {
+      _records = snapshot.records;
+      _offset = snapshot.records.length;
+      _hasMore = snapshot.records.length >= _limit;
+    });
+    _rebuildHistoryEntries();
+  }
+
   Future<void> _loadHistory({required bool reset}) async {
     if (_loading) return;
+    final requestedScope = ref.read(attendanceCacheScopeProvider);
     setState(() {
       _loading = true;
       _errorMessage = null;
@@ -68,7 +86,16 @@ class _AttendanceHistoryPageState extends ConsumerState<AttendanceHistoryPage> {
         offset: _offset,
       );
       if (!mounted) return;
+      if (requestedScope != null &&
+          ref.read(attendanceCacheScopeProvider) != requestedScope) {
+        return;
+      }
       final updated = reset ? records : [..._records, ...records];
+      if (requestedScope != null) {
+        await ref
+            .read(attendanceCacheStoreProvider)
+            .writeRecords(scope: requestedScope, records: updated);
+      }
       setState(() {
         _records = updated;
         _offset += records.length;

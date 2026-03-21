@@ -25,7 +25,7 @@ String orderDetailOrderTypeLabel(String orderType) {
 
 String orderDetailStatusLabel(String status) {
   return switch (status) {
-    'pending' => 'Pending Payment',
+    'pending' => 'Pending',
     'in_prep' => 'Preparing',
     'ready' => 'Ready',
     'delivered' => 'Delivered',

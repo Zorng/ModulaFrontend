@@ -27,6 +27,7 @@ class MenuState {
     this.compositionErrorCodes = const {},
     this.selectedCategoryId = 'all',
     this.selectedBranchId = 'all',
+    this.selectedStatus = 'active',
     this.searchQuery = '',
     this.error,
     this.errorCode,
@@ -49,6 +50,7 @@ class MenuState {
   final Map<String, String> compositionErrorCodes;
   final String selectedCategoryId;
   final String selectedBranchId;
+  final String selectedStatus;
   final String searchQuery;
   final String? error;
   final String? errorCode;
@@ -71,6 +73,7 @@ class MenuState {
     Map<String, String>? compositionErrorCodes,
     String? selectedCategoryId,
     String? selectedBranchId,
+    String? selectedStatus,
     String? searchQuery,
     Object? error = _unset,
     Object? errorCode = _unset,
@@ -98,6 +101,7 @@ class MenuState {
           compositionErrorCodes ?? this.compositionErrorCodes,
       selectedCategoryId: selectedCategoryId ?? this.selectedCategoryId,
       selectedBranchId: selectedBranchId ?? this.selectedBranchId,
+      selectedStatus: selectedStatus ?? this.selectedStatus,
       searchQuery: searchQuery ?? this.searchQuery,
       error: identical(error, _unset) ? this.error : error as String?,
       errorCode: identical(errorCode, _unset)

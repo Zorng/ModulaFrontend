@@ -1,12 +1,11 @@
-import 'package:flutter/material.dart';
-import 'package:web/web.dart' as html;
 import 'dart:ui_web' as ui;
 
-int _viewIdCounter = 0;
+import 'package:flutter/material.dart';
+import 'package:modular_pos/core/widgets/media/network_image_view_type.dart';
+import 'package:web/web.dart' as html;
 
-/// Render a network image using a platform view to bypass CanvasKit CORS texture issues.
-///
-/// Folder: `lib/core/widgets/media/`
+final Set<String> _registeredViewTypes = <String>{};
+
 Widget buildAdaptiveNetworkImage(
   String url,
   Widget placeholder, {
@@ -14,20 +13,27 @@ Widget buildAdaptiveNetworkImage(
   BoxFit fit = BoxFit.cover,
 }) {
   if (url.isEmpty) return placeholder;
-  final viewType = 'menu-img-${_viewIdCounter++}-${url.hashCode}';
-  ui.platformViewRegistry.registerViewFactory(viewType, (int _) {
-    final element = html.HTMLImageElement()
-      ..src = url
-      ..style.objectFit = _boxFitToCssObjectFit(fit)
-      ..style.width = '100%'
-      ..style.height = '100%'
-      ..style.borderRadius = '${borderRadius}px'
-      ..style.overflow = 'hidden';
-    element.onError.listen((_) {
-      element.style.display = 'none';
+  final normalizedUrl = url.trim();
+  final viewType = buildNetworkImageViewType(
+    url: normalizedUrl,
+    borderRadius: borderRadius,
+    fit: fit,
+  );
+  if (_registeredViewTypes.add(viewType)) {
+    ui.platformViewRegistry.registerViewFactory(viewType, (int _) {
+      final element = html.HTMLImageElement()
+        ..src = normalizedUrl
+        ..style.objectFit = _boxFitToCssObjectFit(fit)
+        ..style.width = '100%'
+        ..style.height = '100%'
+        ..style.borderRadius = '${borderRadius}px'
+        ..style.overflow = 'hidden';
+      element.onError.listen((_) {
+        element.style.display = 'none';
+      });
+      return element;
     });
-    return element;
-  });
+  }
 
   return ClipRRect(
     borderRadius: BorderRadius.circular(borderRadius),
@@ -35,7 +41,7 @@ Widget buildAdaptiveNetworkImage(
       fit: StackFit.expand,
       children: [
         placeholder,
-        HtmlElementView(viewType: viewType),
+        HtmlElementView(key: ValueKey(viewType), viewType: viewType),
       ],
     ),
   );

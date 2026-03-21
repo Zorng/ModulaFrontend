@@ -16,6 +16,7 @@ abstract class PolicyRepository {
     String? saleKhrRoundingMode,
     String? saleKhrRoundingGranularity,
     bool? saleAllowPayLater,
+    bool? saleAllowManualExternalPaymentClaim,
   });
 }
 

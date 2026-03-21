@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:modular_pos/core/network/api_contract.dart';
 
 enum InventoryErrorCode {
+  branchNotFound,
   stockItemNotFound,
   stockCategoryNotFound,
   restockBatchNotFound,
@@ -47,6 +48,8 @@ InventoryMappedError mapInventoryError(
   final code = _inventoryErrorCodeFromRaw(rawCode);
   final serverMessage = _errorMessageOf(error).trim();
   final mappedMessage = switch (code) {
+    InventoryErrorCode.branchNotFound =>
+      'Selected branch no longer exists. Refresh branches and try again.',
     InventoryErrorCode.stockItemNotFound =>
       'Stock item no longer exists. Refresh and try again.',
     InventoryErrorCode.stockCategoryNotFound =>
@@ -106,6 +109,8 @@ InventoryMappedError mapInventoryError(
 
 InventoryErrorCode _inventoryErrorCodeFromRaw(String rawCode) {
   switch (rawCode) {
+    case 'BRANCH_NOT_FOUND':
+      return InventoryErrorCode.branchNotFound;
     case 'INVENTORY_STOCK_ITEM_NOT_FOUND':
       return InventoryErrorCode.stockItemNotFound;
     case 'INVENTORY_STOCK_CATEGORY_NOT_FOUND':
@@ -161,6 +166,7 @@ bool isInventoryAccessErrorCode(InventoryErrorCode code) {
   switch (code) {
     case InventoryErrorCode.entitlementBlocked:
     case InventoryErrorCode.entitlementReadOnly:
+    case InventoryErrorCode.branchNotFound:
     case InventoryErrorCode.branchFrozen:
     case InventoryErrorCode.subscriptionFrozen:
     case InventoryErrorCode.noMembership:

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/features/branchV2/ui/viewmodels/branch_controller.dart';
 import 'package:modular_pos/features/branchV2/ui/viewmodels/branch_state.dart';
 
@@ -9,6 +8,7 @@ Future<void> showCreateBranchDialog(BuildContext context) {
     context: context,
     builder: (_) {
       return Dialog(
+        backgroundColor: Colors.white,
         insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
         child: Container(
           width: double.infinity,
@@ -30,10 +30,14 @@ class CreateBranchDialogBody extends ConsumerStatefulWidget {
 
 class _CreateBranchDialogBodyState extends ConsumerState<CreateBranchDialogBody> {
   final _nameController = TextEditingController();
+  final _addressController = TextEditingController();
+  final _contactController = TextEditingController();
 
   @override
   void dispose() {
     _nameController.dispose();
+    _addressController.dispose();
+    _contactController.dispose();
     super.dispose();
   }
 
@@ -82,11 +86,35 @@ class _CreateBranchDialogBodyState extends ConsumerState<CreateBranchDialogBody>
               TextField(
                 controller: _nameController,
                 enabled: !isSubmitting,
-                textInputAction: TextInputAction.done,
-                onSubmitted: (_) => _onCreate(controller),
-                decoration: const InputDecoration(
+                textInputAction: TextInputAction.next,
+                decoration: InputDecoration(
                   labelText: 'Branch name',
                   hintText: 'Enter branch name',
+                  hintStyle: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface.withValues(
+                      alpha: 0.4,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _addressController,
+                enabled: !isSubmitting,
+                textInputAction: TextInputAction.next,
+                decoration: const InputDecoration(
+                  labelText: 'Address (optional)',
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _contactController,
+                enabled: !isSubmitting,
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => _onCreate(controller),
+                keyboardType: TextInputType.phone,
+                decoration: const InputDecoration(
+                  labelText: 'Contact number (optional)',
                 ),
               ),
             ] else if (canConfirmPayment) ...[
@@ -132,67 +160,26 @@ class _CreateBranchDialogBodyState extends ConsumerState<CreateBranchDialogBody>
               ),
             ],
             const SizedBox(height: 24),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final isSmall = AppBreakpoints.isSmall(constraints.maxWidth);
-                final closeText = flow == BranchCreateFlowStatus.confirmed
-                    ? 'Close'
-                    : 'Cancel';
-                final closeButton = OutlinedButton(
+            if (canCreate)
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: isSubmitting ? null : () => _onCreate(controller),
+                  child: const Text('Create'),
+                ),
+              )
+            else if (canConfirmPayment)
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
                   onPressed: isSubmitting
                       ? null
-                      : () {
-                          controller.clearCreateFlow();
-                          Navigator.of(context).pop();
-                        },
-                  child: Text(closeText),
-                );
-                final primaryButton = canCreate
-                    ? FilledButton(
-                        onPressed: isSubmitting
-                            ? null
-                            : () {
-                                _onCreate(controller);
-                              },
-                        child: const Text('Create'),
-                      )
-                    : canConfirmPayment
-                    ? FilledButton(
-                        onPressed: isSubmitting
-                            ? null
-                            : () {
-                                controller.confirmCreateBranch(
-                                  paymentToken: 'PAID',
-                                );
-                              },
-                        child: const Text('Confirm Payment'),
-                      )
-                    : null;
-
-                if (primaryButton == null) {
-                  return SizedBox(width: double.infinity, child: closeButton);
-                }
-
-                if (isSmall) {
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      closeButton,
-                      const SizedBox(height: 12),
-                      primaryButton,
-                    ],
-                  );
-                }
-
-                return Row(
-                  children: [
-                    Expanded(child: closeButton),
-                    const SizedBox(width: 12),
-                    Expanded(child: primaryButton),
-                  ],
-                );
-              },
-            ),
+                      : () => controller.confirmCreateBranch(
+                            paymentToken: 'PAID',
+                          ),
+                  child: const Text('Confirm Payment'),
+                ),
+              ),
           ],
         ),
       ),
@@ -200,6 +187,10 @@ class _CreateBranchDialogBodyState extends ConsumerState<CreateBranchDialogBody>
   }
 
   void _onCreate(BranchController controller) {
-    controller.initiateCreateBranch(branchName: _nameController.text);
+    controller.initiateCreateBranch(
+      branchName: _nameController.text,
+      branchAddress: _addressController.text,
+      contactNumber: _contactController.text,
+    );
   }
 }

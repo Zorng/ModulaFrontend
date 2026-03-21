@@ -30,6 +30,10 @@ class MockSaleRepository implements SaleCheckoutRepository {
   final Map<String, _MockOpenTicket> _openTicketsById =
       <String, _MockOpenTicket>{};
   final Map<String, String> _openTicketIdBySaleId = <String, String>{};
+  final Map<String, _MockManualPaymentClaim> _manualClaimsById =
+      <String, _MockManualPaymentClaim>{};
+  final Map<String, List<String>> _manualClaimIdsByOrderId =
+      <String, List<String>>{};
   final Map<String, _MockKhqrAttempt> _khqrByMd5 = <String, _MockKhqrAttempt>{};
   final Map<String, String> _latestKhqrMd5BySaleId = <String, String>{};
   final Map<String, SaleReceiptDto> _receiptsBySaleId =
@@ -84,6 +88,8 @@ class MockSaleRepository implements SaleCheckoutRepository {
     _voidedSales.clear();
     _openTicketsById.clear();
     _openTicketIdBySaleId.clear();
+    _manualClaimsById.clear();
+    _manualClaimIdsByOrderId.clear();
     _khqrByMd5.clear();
     _latestKhqrMd5BySaleId.clear();
     _receiptsBySaleId.clear();
@@ -271,10 +277,11 @@ class MockSaleRepository implements SaleCheckoutRepository {
 
   @override
   Future<void> updateFulfillmentStatus({
-    required String saleId,
+    required String orderId,
     required String status,
+    String? note,
   }) async {
-    final finalized = _finalizedSales[saleId];
+    final finalized = _finalizedSales[orderId];
     if (finalized == null) return;
     finalized.fulfillmentStatus = status;
     finalized.updatedAt = _now();
@@ -483,7 +490,7 @@ class MockSaleRepository implements SaleCheckoutRepository {
         _latestKhqrMd5BySaleId[saleId] = attempt.md5;
 
         return SaleKhqrAttemptDto(
-          saleId: attempt.saleId,
+          saleId: '',
           attemptId: attempt.attemptId,
           md5: attempt.md5,
           status: attempt.status,
@@ -507,7 +514,8 @@ class MockSaleRepository implements SaleCheckoutRepository {
     SaleCheckKhqrStatusCommand command,
   ) async {
     final attempt = _khqrByMd5[command.md5];
-    if (attempt == null || attempt.saleId != command.saleId) {
+    if (attempt == null ||
+        !_khqrAttemptMatchesCommandSaleId(command.saleId, attempt)) {
       throw const SaleCheckoutRepositoryException(
         reasonCode: SaleCheckoutReasonCodes.invalidRequest,
         message: 'KHQR attempt was not found for this sale.',
@@ -518,7 +526,7 @@ class MockSaleRepository implements SaleCheckoutRepository {
 
     if (attempt.status == 'SUPERSEDED' || attempt.status == 'PAID_CONFIRMED') {
       return SaleKhqrStatusDto(
-        saleId: attempt.saleId,
+        saleId: attempt.status == 'PAID_CONFIRMED' ? attempt.saleId : '',
         md5: attempt.md5,
         status: attempt.status,
         confirmedAt: attempt.confirmedAt,
@@ -532,7 +540,7 @@ class MockSaleRepository implements SaleCheckoutRepository {
       attempt.reasonCode = null;
       attempt.reasonMessage = null;
       return SaleKhqrStatusDto(
-        saleId: attempt.saleId,
+        saleId: '',
         md5: attempt.md5,
         status: attempt.status,
       );
@@ -543,7 +551,7 @@ class MockSaleRepository implements SaleCheckoutRepository {
     if (!_online && attempt.pollCount >= 1) {
       attempt.status = 'PENDING_CONFIRMATION';
       return SaleKhqrStatusDto(
-        saleId: attempt.saleId,
+        saleId: '',
         md5: attempt.md5,
         status: attempt.status,
       );
@@ -562,7 +570,7 @@ class MockSaleRepository implements SaleCheckoutRepository {
 
     attempt.status = 'WAITING_FOR_PAYMENT';
     return SaleKhqrStatusDto(
-      saleId: attempt.saleId,
+      saleId: '',
       md5: attempt.md5,
       status: attempt.status,
     );
@@ -573,7 +581,8 @@ class MockSaleRepository implements SaleCheckoutRepository {
     SaleCancelKhqrAttemptCommand command,
   ) async {
     final attempt = _khqrByMd5[command.md5];
-    if (attempt == null || attempt.saleId != command.saleId) {
+    if (attempt == null ||
+        !_khqrAttemptMatchesCommandSaleId(command.saleId, attempt)) {
       throw const SaleCheckoutRepositoryException(
         reasonCode: SaleCheckoutReasonCodes.invalidRequest,
         message: 'KHQR attempt was not found for this sale.',
@@ -594,7 +603,7 @@ class MockSaleRepository implements SaleCheckoutRepository {
         }
 
         return SaleKhqrStatusDto(
-          saleId: attempt.saleId,
+          saleId: '',
           md5: attempt.md5,
           status: attempt.status,
           confirmedAt: attempt.confirmedAt,
@@ -714,9 +723,12 @@ class MockSaleRepository implements SaleCheckoutRepository {
   Future<SalePlaceOrderResultDto> placeOrder(
     SalePlaceOrderCommand command,
   ) async {
+    final isManualClaimOrder =
+        (command.sourceMode ?? '').trim().toUpperCase() ==
+        'MANUAL_EXTERNAL_PAYMENT_CLAIM';
     _ensureWriteAllowed(
       branchId: command.branchId,
-      requiresPayLaterEnabled: true,
+      requiresPayLaterEnabled: !isManualClaimOrder,
       requiresOnline: true,
     );
 
@@ -778,6 +790,237 @@ class MockSaleRepository implements SaleCheckoutRepository {
           saleId: command.saleId,
           status: ticket.status,
           batchId: batchId,
+          idempotentReplay: false,
+        );
+      },
+    );
+  }
+
+  @override
+  Future<String> uploadManualPaymentProofImage({
+    required List<int> imageBytes,
+  }) async {
+    _ensureWriteAllowed(
+      branchId: _activeBranchId,
+      requiresPayLaterEnabled: false,
+      requiresOnline: true,
+    );
+    if (imageBytes.isEmpty) {
+      throw const SaleCheckoutRepositoryException(
+        reasonCode: SaleCheckoutReasonCodes.invalidRequest,
+        message: 'Proof image is required before creating a manual claim.',
+      );
+    }
+    return 'https://example.com/payment-proof/${_nextId('proof')}.jpg';
+  }
+
+  @override
+  Future<SaleCreateManualPaymentClaimResultDto> createManualPaymentClaim(
+    SaleCreateManualPaymentClaimCommand command,
+  ) async {
+    _ensureWriteAllowed(
+      branchId: _activeBranchId,
+      requiresPayLaterEnabled: false,
+      requiresOnline: true,
+    );
+
+    return _runIdempotent(
+      action: 'ticket.manual_claim.create',
+      key: command.clientOpId,
+      payload: command.toJson(),
+      onReplay: (existing) => existing.copyWith(idempotentReplay: true),
+      execute: () async {
+        final orderId = command.orderId.trim();
+        final ticket = _openTicketsById[orderId];
+        if (ticket == null || ticket.status != 'UNPAID') {
+          throw const SaleCheckoutRepositoryException(
+            reasonCode: SaleCheckoutReasonCodes.invalidRequest,
+            message: 'Open order is not available for manual payment claim.',
+          );
+        }
+        if (command.proofImageUrl.trim().isEmpty) {
+          throw const SaleCheckoutRepositoryException(
+            reasonCode: SaleCheckoutReasonCodes.invalidRequest,
+            message: 'Proof image is required before creating a manual claim.',
+          );
+        }
+
+        final existingPendingIds =
+            _manualClaimIdsByOrderId[orderId] ?? const <String>[];
+        for (final existingClaimId in existingPendingIds) {
+          final existingClaim = _manualClaimsById[existingClaimId];
+          if (existingClaim?.status == 'PENDING_REVIEW') {
+            throw const SaleCheckoutRepositoryException(
+              reasonCode: SaleCheckoutReasonCodes.invalidRequest,
+              message: 'This order already has a pending manual payment claim.',
+            );
+          }
+        }
+
+        final claimId = _nextId('manual_claim');
+        _manualClaimsById[claimId] = _MockManualPaymentClaim(
+          claimId: claimId,
+          orderId: orderId,
+          claimedPaymentMethod: command.claimedPaymentMethod
+              .trim()
+              .toUpperCase(),
+          saleType: command.saleType,
+          tenderCurrency: command.tenderCurrency.trim().toUpperCase(),
+          claimedTenderAmount: command.claimedTenderAmount,
+          proofImageUrl: command.proofImageUrl.trim(),
+          customerReference: command.customerReference?.trim(),
+          note: command.note?.trim(),
+          status: 'PENDING_REVIEW',
+          createdAt: _now(),
+        );
+        _manualClaimIdsByOrderId
+            .putIfAbsent(orderId, () => <String>[])
+            .add(claimId);
+
+        return SaleCreateManualPaymentClaimResultDto(
+          claimId: claimId,
+          orderId: orderId,
+          status: 'PENDING_REVIEW',
+          idempotentReplay: false,
+        );
+      },
+    );
+  }
+
+  @override
+  Future<SaleApproveManualPaymentClaimResultDto> approveManualPaymentClaim(
+    SaleApproveManualPaymentClaimCommand command,
+  ) async {
+    _ensureWriteAllowed(
+      branchId: _activeBranchId,
+      requiresPayLaterEnabled: false,
+      requiresOnline: true,
+    );
+
+    return _runIdempotent(
+      action: 'ticket.manual_claim.approve',
+      key: command.clientOpId,
+      payload: command.toJson(),
+      onReplay: (existing) => existing.copyWith(idempotentReplay: true),
+      execute: () async {
+        final claim = _manualClaimsById[command.claimId];
+        final ticket = _openTicketsById[command.orderId];
+        if (claim == null ||
+            ticket == null ||
+            claim.orderId != ticket.openTicketId ||
+            claim.status != 'PENDING_REVIEW') {
+          throw const SaleCheckoutRepositoryException(
+            reasonCode: SaleCheckoutReasonCodes.invalidRequest,
+            message: 'Manual payment claim is not pending review anymore.',
+          );
+        }
+
+        final allItems = ticket.batches.expand((batch) => batch.items).toList();
+        final totals = _computeTotals(
+          fxRateUsed: 4100,
+          items: allItems,
+          tenderCurrency: claim.tenderCurrency,
+          cashReceived: null,
+        );
+        final now = _now();
+
+        _finalizedSales[ticket.saleId] = _MockFinalizedSale(
+          saleId: ticket.saleId,
+          saleType: claim.saleType,
+          paymentMethod: claim.claimedPaymentMethod.toLowerCase(),
+          tenderCurrency: claim.tenderCurrency.toLowerCase(),
+          subtotalUsdExact: totals.subtotalUsdExact,
+          subtotalKhrExact: totals.subtotalKhrExact,
+          totalUsdExact: totals.totalUsdExact,
+          totalKhrExact: totals.totalKhrExact,
+          cashReceivedUsd: 0,
+          cashReceivedKhr: 0,
+          changeGivenUsd: 0,
+          changeGivenKhr: 0,
+          fulfillmentStatus: 'in_prep',
+          state: 'finalized',
+          items: allItems,
+          createdAt: now,
+          updatedAt: now,
+        );
+
+        ticket.status = 'CHECKED_OUT';
+        ticket.updatedAt = now;
+        claim.status = 'APPROVED';
+        claim.reviewedAt = now;
+        claim.reviewNote = command.note?.trim();
+        claim.saleId = ticket.saleId;
+
+        final receiptId = _nextId('receipt');
+        final receipt = _buildReceipt(
+          saleId: ticket.saleId,
+          receiptId: receiptId,
+          paymentMethod: claim.claimedPaymentMethod.toLowerCase(),
+          subtotalUsdExact: totals.subtotalUsdExact,
+          totalUsdExact: totals.totalUsdExact,
+          totalKhrExact: totals.totalKhrExact,
+          items: allItems,
+          issuedAt: now,
+        );
+        _receiptsBySaleId[ticket.saleId] = receipt;
+        _drafts.remove(ticket.saleId);
+
+        return SaleApproveManualPaymentClaimResultDto(
+          claimId: claim.claimId,
+          orderId: ticket.openTicketId,
+          status: claim.status,
+          idempotentReplay: false,
+          saleId: ticket.saleId,
+          receiptId: receipt.receiptNumber,
+          receipt: SaleImmediateReceiptDto(
+            receiptId: receipt.receiptNumber,
+            saleId: receipt.saleId,
+            statusDisplay: 'NORMAL',
+            issuedAt: receipt.issuedAt,
+          ),
+        );
+      },
+    );
+  }
+
+  @override
+  Future<SaleRejectManualPaymentClaimResultDto> rejectManualPaymentClaim(
+    SaleRejectManualPaymentClaimCommand command,
+  ) async {
+    _ensureWriteAllowed(
+      branchId: _activeBranchId,
+      requiresPayLaterEnabled: false,
+      requiresOnline: true,
+    );
+
+    return _runIdempotent(
+      action: 'ticket.manual_claim.reject',
+      key: command.clientOpId,
+      payload: command.toJson(),
+      onReplay: (existing) => existing.copyWith(idempotentReplay: true),
+      execute: () async {
+        final claim = _manualClaimsById[command.claimId];
+        final ticket = _openTicketsById[command.orderId];
+        if (claim == null ||
+            ticket == null ||
+            claim.orderId != ticket.openTicketId ||
+            claim.status != 'PENDING_REVIEW') {
+          throw const SaleCheckoutRepositoryException(
+            reasonCode: SaleCheckoutReasonCodes.invalidRequest,
+            message: 'Manual payment claim is not pending review anymore.',
+          );
+        }
+
+        final now = _now();
+        claim.status = 'REJECTED';
+        claim.reviewedAt = now;
+        claim.reviewNote = command.note?.trim();
+        ticket.updatedAt = now;
+
+        return SaleRejectManualPaymentClaimResultDto(
+          claimId: claim.claimId,
+          orderId: ticket.openTicketId,
+          status: claim.status,
           idempotentReplay: false,
         );
       },
@@ -1000,6 +1243,8 @@ class MockSaleRepository implements SaleCheckoutRepository {
         SaleOrderSummaryDto(
           saleId: ticket.saleId,
           orderId: ticket.openTicketId,
+          sourceMode: 'STANDARD',
+          openedByAccountId: 'mock-account-1',
           ticketStatus: ticket.status,
           fulfillmentStatus: ticket.status == 'PAID' ? 'in_prep' : 'pending',
           totalUsdExact: ticket.payableUsdExact,
@@ -1014,6 +1259,8 @@ class MockSaleRepository implements SaleCheckoutRepository {
         SaleOrderSummaryDto(
           saleId: finalized.saleId,
           orderId: finalized.saleId,
+          sourceMode: 'DIRECT_CHECKOUT',
+          openedByAccountId: 'mock-account-1',
           ticketStatus: 'PAID',
           fulfillmentStatus: finalized.fulfillmentStatus,
           totalUsdExact: finalized.totalUsdExact,
@@ -1026,8 +1273,27 @@ class MockSaleRepository implements SaleCheckoutRepository {
     final filtered = items.where((order) {
       final lowerStatus = query.status?.toLowerCase();
       if (lowerStatus != null && lowerStatus.isNotEmpty) {
-        if (order.ticketStatus.toLowerCase() != lowerStatus &&
-            order.fulfillmentStatus.toLowerCase() != lowerStatus) {
+        switch (lowerStatus) {
+          case 'open':
+          case 'pending':
+            if (order.ticketStatus.toLowerCase() != 'unpaid') {
+              return false;
+            }
+            break;
+          default:
+            if (order.ticketStatus.toLowerCase() != lowerStatus &&
+                order.fulfillmentStatus.toLowerCase() != lowerStatus) {
+              return false;
+            }
+            break;
+        }
+      }
+      final lowerView = query.view?.toLowerCase();
+      if (lowerView == 'fulfillment_active') {
+        if (order.ticketStatus.toLowerCase() == 'cancelled') return false;
+        final fulfillmentStatus = order.fulfillmentStatus.toLowerCase();
+        if (fulfillmentStatus == 'delivered' ||
+            fulfillmentStatus == 'cancelled') {
           return false;
         }
       }
@@ -1057,20 +1323,22 @@ class MockSaleRepository implements SaleCheckoutRepository {
 
   @override
   Future<SaleOpenTicketDetailDto> getOpenTicketDetail({
-    required String saleId,
+    required String orderId,
   }) async {
-    final openTicketId = _openTicketIdBySaleId[saleId];
-    final ticket = openTicketId == null ? null : _openTicketsById[openTicketId];
+    final normalizedOrderId = orderId.trim();
+    final ticket = normalizedOrderId.isEmpty
+        ? null
+        : _openTicketsById[normalizedOrderId];
     if (ticket == null) {
       throw const SaleCheckoutRepositoryException(
         reasonCode: SaleCheckoutReasonCodes.invalidRequest,
-        message: 'Open ticket not found for this sale.',
+        message: 'Open ticket not found for this order.',
       );
     }
 
     return SaleOpenTicketDetailDto(
       openTicketId: ticket.openTicketId,
-      saleId: ticket.saleId,
+      orderId: ticket.openTicketId,
       status: ticket.status,
       batches: ticket.batches
           .map(
@@ -1082,6 +1350,10 @@ class MockSaleRepository implements SaleCheckoutRepository {
             ),
           )
           .toList(),
+      lineCount: ticket.batches.fold<int>(
+        0,
+        (sum, batch) => sum + batch.items.length,
+      ),
       payableUsdExact: ticket.payableUsdExact,
       payableKhrExact: ticket.payableKhrExact,
     );
@@ -1518,6 +1790,15 @@ class MockSaleRepository implements SaleCheckoutRepository {
     }
   }
 
+  bool _khqrAttemptMatchesCommandSaleId(
+    String commandSaleId,
+    _MockKhqrAttempt attempt,
+  ) {
+    final normalizedCommandSaleId = commandSaleId.trim();
+    return normalizedCommandSaleId.isEmpty ||
+        attempt.saleId == normalizedCommandSaleId;
+  }
+
   double _resolveCurrentPayable({
     required String saleId,
     required String tenderCurrency,
@@ -1746,6 +2027,37 @@ class _MockOpenTicket {
   DateTime? cancelledAt;
 }
 
+class _MockManualPaymentClaim {
+  _MockManualPaymentClaim({
+    required this.claimId,
+    required this.orderId,
+    required this.claimedPaymentMethod,
+    required this.saleType,
+    required this.tenderCurrency,
+    required this.claimedTenderAmount,
+    required this.proofImageUrl,
+    required this.customerReference,
+    required this.note,
+    required this.status,
+    required this.createdAt,
+  });
+
+  final String claimId;
+  final String orderId;
+  final String claimedPaymentMethod;
+  final String saleType;
+  final String tenderCurrency;
+  final double claimedTenderAmount;
+  final String proofImageUrl;
+  final String? customerReference;
+  final String? note;
+  String status;
+  final DateTime createdAt;
+  DateTime? reviewedAt;
+  String? reviewNote;
+  String? saleId;
+}
+
 class _MockKhqrAttempt {
   _MockKhqrAttempt({
     required this.saleId,
@@ -1887,6 +2199,48 @@ extension on SaleAddItemsToOpenTicketResultDto {
     return SaleAddItemsToOpenTicketResultDto(
       openTicketId: openTicketId,
       batchId: batchId,
+      idempotentReplay: idempotentReplay ?? this.idempotentReplay,
+      reasonCode: reasonCode,
+      reasonMessage: reasonMessage,
+    );
+  }
+}
+
+extension on SaleCreateManualPaymentClaimResultDto {
+  SaleCreateManualPaymentClaimResultDto copyWith({bool? idempotentReplay}) {
+    return SaleCreateManualPaymentClaimResultDto(
+      claimId: claimId,
+      orderId: orderId,
+      status: status,
+      idempotentReplay: idempotentReplay ?? this.idempotentReplay,
+      reasonCode: reasonCode,
+      reasonMessage: reasonMessage,
+    );
+  }
+}
+
+extension on SaleApproveManualPaymentClaimResultDto {
+  SaleApproveManualPaymentClaimResultDto copyWith({bool? idempotentReplay}) {
+    return SaleApproveManualPaymentClaimResultDto(
+      claimId: claimId,
+      orderId: orderId,
+      status: status,
+      idempotentReplay: idempotentReplay ?? this.idempotentReplay,
+      saleId: saleId,
+      receiptId: receiptId,
+      receipt: receipt,
+      reasonCode: reasonCode,
+      reasonMessage: reasonMessage,
+    );
+  }
+}
+
+extension on SaleRejectManualPaymentClaimResultDto {
+  SaleRejectManualPaymentClaimResultDto copyWith({bool? idempotentReplay}) {
+    return SaleRejectManualPaymentClaimResultDto(
+      claimId: claimId,
+      orderId: orderId,
+      status: status,
       idempotentReplay: idempotentReplay ?? this.idempotentReplay,
       reasonCode: reasonCode,
       reasonMessage: reasonMessage,

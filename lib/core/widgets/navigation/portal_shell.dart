@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
+import 'package:modular_pos/core/widgets/navigation/navigation_layer_back_button.dart';
 import 'package:modular_pos/core/widgets/navigation/tenant_profile_header.dart';
 
 class PortalShell extends StatelessWidget {
@@ -47,18 +48,29 @@ class PortalShell extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 18),
           child: Row(
             children: [
-              TenantProfileHeader(
-                tenantName: tenantName ?? title,
-                branchName: branchName ?? subtitle,
-                initial:
-                    tenantInitial ??
-                    (tenantName?.characters.first.toUpperCase() ?? '?'),
-                onTap:
-                    onTenantTap ??
-                    () =>
-                        context.go('${AppRoute.tenantSelection.path}?switch=1'),
-                onBackPressed: onTenantBackPressed,
-                backTooltip: tenantBackTooltip,
+              if (onTenantBackPressed != null) ...[
+                NavigationLayerBackButton(
+                  onPressed: onTenantBackPressed!,
+                  tooltip: tenantBackTooltip,
+                ),
+                const SizedBox(width: 12),
+              ],
+              Expanded(
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: TenantProfileHeader(
+                    tenantName: tenantName ?? title,
+                    branchName: branchName ?? subtitle,
+                    initial:
+                        tenantInitial ??
+                        (tenantName?.characters.first.toUpperCase() ?? '?'),
+                    onTap:
+                        onTenantTap ??
+                        () => context.go(
+                          '${AppRoute.tenantSelection.path}?switch=1',
+                        ),
+                  ),
+                ),
               ),
               const Spacer(),
               if (onProfileTap != null)

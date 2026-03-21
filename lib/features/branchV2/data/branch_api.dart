@@ -68,6 +68,40 @@ class BranchApi {
     }
   }
 
+  Future<BranchCurrentProfileDto> updateCurrentBranchProfile({
+    required String branchName,
+    required String? branchAddress,
+    required String? contactNumber,
+    String? accessTokenOverride,
+  }) async {
+    final payload = <String, dynamic>{
+      'branchName': branchName.trim(),
+      'branchAddress': branchAddress?.trim().isEmpty ?? true
+          ? null
+          : branchAddress!.trim(),
+      'contactNumber': contactNumber?.trim().isEmpty ?? true
+          ? null
+          : contactNumber!.trim(),
+    };
+    try {
+      final response = await _dio.patch<dynamic>(
+        '$_orgPrefix/branch/current',
+        data: payload,
+        options: _authorizedOptions(accessTokenOverride),
+      );
+      final data = BranchEnvelope.unwrapDataMap(
+        response.data,
+        fallbackMessage: 'Failed to update branch profile.',
+      );
+      return BranchCurrentProfileDto.fromJson(data);
+    } on DioError catch (error) {
+      throw ApiClientException.fromDio(
+        error,
+        fallbackMessage: 'Failed to update branch profile.',
+      );
+    }
+  }
+
   Future<BranchCurrentProfileDto> updateCurrentBranchKhqrReceiver({
     required String khqrReceiverAccountId,
     required String khqrReceiverName,

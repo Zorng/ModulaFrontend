@@ -4,13 +4,14 @@ import 'package:go_router/go_router.dart';
 
 import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/widgets/media/product_image.dart';
+import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
+import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_controller.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_composition.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
-import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
 import 'package:modular_pos/features/menu/ui/view/view_menu_item/view_menu_item_utils.dart';
+import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
 
-/// A page to view the details of a menu item using only the hydrated item/modifier data.
 class ViewMenuItemPage extends ConsumerWidget {
   const ViewMenuItemPage({
     super.key,
@@ -25,11 +26,11 @@ class ViewMenuItemPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final menuState = ref.watch(menuViewModelProvider);
     final menuVm = ref.read(menuViewModelProvider.notifier);
+    final inventoryState = ref.watch(stockInventoryControllerProvider);
     final hydratedItem = menuState.hydratedItems[menuItem.id];
     final hydrationError = menuState.hydrationErrors[menuItem.id];
 
     if (hydratedItem == null) {
-      // Trigger hydration if missing and show loading.
       menuVm.loadItemWithModifiers(menuItem.id);
       return Scaffold(
         appBar: AppBar(
@@ -63,31 +64,25 @@ class ViewMenuItemPage extends ConsumerWidget {
     final branches = menuState.branches
         .where((branch) => latestItem.branchIds.contains(branch.id))
         .toList();
+    final stockItems = inventoryState.stockItems
+        .where((item) => item.isActive)
+        .toList(growable: false)
+      ..sort((a, b) => a.name.compareTo(b.name));
     final compositionLoaded =
-        menuState.compositionLoadedByItem[menuItem.id] ?? false;
+        menuState.compositionLoadedByItem[latestItem.id] == true;
     final compositionLoading =
-        menuState.compositionLoadingByItem[menuItem.id] ?? false;
-    final compositionError = menuState.compositionErrors[menuItem.id];
-    final compositionErrorCode = menuState.compositionErrorCodes[menuItem.id];
-    final baseComponents =
-        menuState.compositionByItem[menuItem.id] ?? const <MenuComponent>[];
-    final evaluatedComposition =
-        menuState.compositionEvaluationByItem[menuItem.id];
-    final previewComponents =
-        evaluatedComposition?.components ?? baseComponents;
+        menuState.compositionLoadingByItem[latestItem.id] == true;
+    final compositionError = menuState.compositionErrors[latestItem.id];
 
     if (!compositionLoaded && !compositionLoading) {
-      menuVm.loadItemComposition(menuItem.id);
+      menuVm.loadItemComposition(latestItem.id);
     }
-    if (compositionLoaded &&
-        !compositionLoading &&
-        compositionError == null &&
-        evaluatedComposition == null) {
-      menuVm.evaluateItemComposition(
-        menuItemId: menuItem.id,
-        selectedModifierOptionIds: const <String>[],
-      );
+    if (inventoryState.stockItems.isEmpty && !inventoryState.isLoading) {
+      ref.read(stockInventoryControllerProvider.notifier).loadStockItems();
     }
+
+    final composition =
+        menuState.compositionByItem[latestItem.id] ?? const <MenuComponent>[];
 
     return Scaffold(
       appBar: AppBar(
@@ -132,10 +127,17 @@ class ViewMenuItemPage extends ConsumerWidget {
             Text(categoryName, style: Theme.of(context).textTheme.bodyMedium),
             const SizedBox(height: 16),
             Text(
-              '\$${latestItem.price.toStringAsFixed(2)}',
+              '\$ ${latestItem.price.toStringAsFixed(2)}',
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                 color: Theme.of(context).primaryColor,
               ),
+            ),
+            const SizedBox(height: 24),
+            _CompositionSummaryCard(
+              components: composition,
+              stockItems: stockItems,
+              isLoading: compositionLoading,
+              errorText: compositionError,
             ),
             const SizedBox(height: 24),
             Text('Modifiers', style: Theme.of(context).textTheme.titleMedium),
@@ -200,37 +202,100 @@ class ViewMenuItemPage extends ConsumerWidget {
                     .map((branch) => Chip(label: Text(branch.name)))
                     .toList(),
               ),
-            const SizedBox(height: 24),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CompositionSummaryCard extends StatelessWidget {
+  const _CompositionSummaryCard({
+    required this.components,
+    required this.stockItems,
+    required this.isLoading,
+    this.errorText,
+  });
+
+  final List<MenuComponent> components;
+  final List<StockItem> stockItems;
+  final bool isLoading;
+  final String? errorText;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      color: Colors.white,
+      elevation: 0,
+      shadowColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Composition', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 4),
             Text(
-              'Composition Preview',
-              style: Theme.of(context).textTheme.titleMedium,
+              'Base components stay on the item, and modifier options can add or remove components during evaluation.',
+              style: Theme.of(context).textTheme.bodyMedium,
             ),
-            const SizedBox(height: 8),
-            if (compositionLoading && !compositionLoaded)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 12),
-                child: CircularProgressIndicator(),
-              )
-            else if (compositionError != null)
+            const SizedBox(height: 16),
+            if (isLoading && components.isEmpty)
+              const Center(child: CircularProgressIndicator())
+            else if (errorText != null && errorText!.trim().isNotEmpty)
               Text(
-                'Unable to load composition'
-                '${(compositionErrorCode ?? '').isNotEmpty ? ' ($compositionErrorCode)' : ''}: '
-                '$compositionError',
-                style: Theme.of(context).textTheme.bodyMedium,
+                errorText!,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.error,
+                ),
               )
-            else if (previewComponents.isEmpty)
+            else if (components.isEmpty)
               Text(
-                'No base components configured.',
-                style: Theme.of(context).textTheme.bodyMedium,
+                'No base components configured yet.',
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(color: Colors.grey),
               )
             else
-              ...previewComponents.map(
-                (component) => ListTile(
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(component.stockItemId),
-                  subtitle: Text(component.trackingMode),
-                  trailing: Text(component.quantityInBaseUnit.toString()),
+              ...components.map(
+                (component) => Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      color: Colors.grey.shade100,
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _stockItemLabel(stockItems, component.stockItemId),
+                                style: Theme.of(context).textTheme.titleSmall,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Quantity: ${_formatQuantity(component.quantityInBaseUnit)}',
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
+                            ],
+                          ),
+                        ),
+                        Chip(
+                          label: Text(component.trackingMode),
+                          backgroundColor: component.trackingMode == 'TRACKED'
+                              ? Theme.of(
+                                  context,
+                                ).colorScheme.primary.withValues(alpha: 0.08)
+                              : Colors.grey.shade300,
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
           ],
@@ -238,4 +303,21 @@ class ViewMenuItemPage extends ConsumerWidget {
       ),
     );
   }
+}
+
+String _stockItemLabel(List<StockItem> stockItems, String stockItemId) {
+  for (final item in stockItems) {
+    if (item.id == stockItemId) {
+      final unit = item.baseUnit.toString().trim();
+      return unit.isEmpty ? item.name.toString() : '${item.name} ($unit)';
+    }
+  }
+  return stockItemId;
+}
+
+String _formatQuantity(double value) {
+  if (value == value.roundToDouble()) {
+    return value.toInt().toString();
+  }
+  return value.toString();
 }

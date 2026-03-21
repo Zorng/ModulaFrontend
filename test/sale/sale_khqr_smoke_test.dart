@@ -58,6 +58,26 @@ class _SmokeBranchRepository implements BranchRepository {
   }) async => _current;
 
   @override
+  Future<BranchListItem> updateCurrentBranchProfile({
+    required String branchName,
+    required String? branchAddress,
+    required String? contactNumber,
+    String? accessTokenOverride,
+  }) async {
+    _current = BranchListItem(
+      branchId: _current.branchId,
+      tenantId: _current.tenantId,
+      branchName: branchName,
+      status: _current.status,
+      branchAddress: branchAddress,
+      contactNumber: contactNumber,
+      khqrReceiverAccountId: _current.khqrReceiverAccountId,
+      khqrReceiverName: _current.khqrReceiverName,
+    );
+    return _current;
+  }
+
+  @override
   Future<BranchListItem> updateCurrentBranchKhqrReceiver({
     required String khqrReceiverAccountId,
     required String khqrReceiverName,

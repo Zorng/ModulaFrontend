@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:modular_pos/core/sync/global_sync_status.dart';
 import 'package:modular_pos/core/widgets/navigation/app_navigation_config.dart';
 import 'package:modular_pos/core/widgets/navigation/app_navigation_portal_content.dart';
 import 'package:modular_pos/core/widgets/navigation/app_wide_navigation_rail_shell.dart';
+import 'package:modular_pos/core/widgets/navigation/navigation_layer_back_button.dart';
+import 'package:modular_pos/core/widgets/navigation/tenant_profile_header.dart';
+import 'package:modular_pos/core/widgets/sync/global_sync_status_indicator.dart';
 import 'package:modular_pos/features/auth/domain/models/auth_session.dart';
 import 'package:modular_pos/features/auth/domain/models/tenant_membership.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
@@ -69,6 +73,13 @@ Widget _railHarness({required AuthSession session, required String path}) {
       loginControllerProvider.overrideWith(
         () => _StaticLoginController(session),
       ),
+      globalSyncStatusProvider.overrideWithValue(
+        const GlobalSyncStatus(
+          kind: GlobalSyncStatusKind.online,
+          label: 'Online',
+          detail: 'Workspace is connected.',
+        ),
+      ),
     ],
     child: MaterialApp(
       home: AppScaffoldShell(currentPath: path, child: const SizedBox.shrink()),
@@ -79,6 +90,11 @@ Widget _railHarness({required AuthSession session, required String path}) {
 void _setWideViewport(WidgetTester tester) {
   tester.view.devicePixelRatio = 1.0;
   tester.view.physicalSize = const Size(1280, 800);
+}
+
+void _setNarrowViewport(WidgetTester tester) {
+  tester.view.devicePixelRatio = 1.0;
+  tester.view.physicalSize = const Size(390, 844);
 }
 
 void _resetViewport(WidgetTester tester) {
@@ -196,6 +212,10 @@ void main() {
     expect(find.text('Staff'), findsOneWidget);
     expect(find.text('Cash Sessions'), findsNothing);
     expect(find.byIcon(Icons.arrow_back), findsOneWidget);
+    expect(find.byType(NavigationLayerBackButton), findsOneWidget);
+    expect(find.byType(TenantProfileHeader), findsOneWidget);
+    expect(find.byType(GlobalSyncStatusIndicator), findsOneWidget);
+    expect(find.text('Online'), findsOneWidget);
     expect(find.byIcon(Icons.person_outline), findsNothing);
     expect(find.byIcon(Icons.settings_outlined), findsNothing);
     expect(find.text('No branch selected'), findsOneWidget);
@@ -227,6 +247,9 @@ void main() {
     expect(find.text('Sale'), findsOneWidget);
     expect(find.text('Branches'), findsNothing);
     expect(find.byIcon(Icons.arrow_back), findsOneWidget);
+    expect(find.byType(NavigationLayerBackButton), findsOneWidget);
+    expect(find.byType(TenantProfileHeader), findsOneWidget);
+    expect(find.byType(GlobalSyncStatusIndicator), findsOneWidget);
     expect(find.byIcon(Icons.person_outline), findsNothing);
     expect(find.byIcon(Icons.settings_outlined), findsNothing);
     expect(find.text('Branch A'), findsWidgets);
@@ -285,5 +308,25 @@ void main() {
       find.widgetWithText(ListTile, 'Cash Sessions'),
     );
     expect(cashTile.selected, isTrue);
+  });
+
+  testWidgets('mobile shell shows global sync indicator without wide rail', (
+    tester,
+  ) async {
+    _setNarrowViewport(tester);
+    addTearDown(() => _resetViewport(tester));
+
+    await tester.pumpWidget(
+      _railHarness(
+        session: _session(role: 'manager', branches: activeBranch),
+        path: '/attendance',
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(GlobalSyncStatusIndicator), findsOneWidget);
+    expect(find.text('Online'), findsOneWidget);
+    expect(find.byType(TenantProfileHeader), findsNothing);
+    expect(find.byType(NavigationLayerBackButton), findsNothing);
   });
 }

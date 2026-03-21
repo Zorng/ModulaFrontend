@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
+import 'package:modular_pos/features/inventory/ui/widgets/inventory_field_label.dart';
 
 class RestockStockItemAutocomplete extends StatefulWidget {
   const RestockStockItemAutocomplete({
@@ -42,100 +43,108 @@ class _RestockStockItemAutocompleteState
 
   @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
     return FormField<String>(
       validator: (_) =>
           widget.selectedItemId == null ? 'Select an item to restock' : null,
       builder: (state) {
-        return RawAutocomplete<StockItem>(
-          textEditingController: _controller,
-          focusNode: _focusNode,
-          displayStringForOption: (option) => option.name,
-          optionsBuilder: (textEditingValue) {
-            final query = textEditingValue.text.trim().toLowerCase();
-            if (query.isEmpty) return widget.items;
-            return widget.items.where((item) {
-              final name = item.name.toLowerCase();
-              return name.contains(query);
-            });
-          },
-          fieldViewBuilder:
-              (context, textController, focusNode, onFieldSubmitted) {
-                return TextFormField(
-                  controller: textController,
-                  focusNode: focusNode,
-                  decoration: InputDecoration(
-                    labelText: 'Stock item',
-                    hintText: widget.items.isEmpty
-                        ? 'Select a branch first'
-                        : 'Search stock item',
-                    errorText: state.errorText,
-                    suffixIcon: textController.text.isEmpty
-                        ? null
-                        : IconButton(
-                            icon: const Icon(Icons.clear),
-                            tooltip: 'Clear',
-                            onPressed: () {
-                              _controller.clear();
-                              widget.onCleared();
-                              state.didChange(null);
-                            },
-                          ),
-                  ),
-                  onTap: () {
-                    if (widget.items.isEmpty) widget.onTapEmpty();
-                    textController.value = TextEditingValue(
-                      text: textController.text,
-                      selection: TextSelection.collapsed(
-                        offset: textController.text.length,
-                      ),
-                    );
-                  },
-                  onChanged: (_) {
-                    if (widget.selectedItemId != null) {
-                      widget.onCleared();
-                      state.didChange(null);
-                    }
-                  },
-                );
-              },
-          optionsViewBuilder: (context, onSelected, options) {
-            final optionList = options.toList();
-            if (optionList.isEmpty) return const SizedBox.shrink();
-            final boxWidth = width.clamp(280.0, 420.0);
-            return Align(
-              alignment: Alignment.topLeft,
-              child: Material(
-                elevation: 4,
-                borderRadius: BorderRadius.circular(12),
-                child: SizedBox(
-                  width: boxWidth,
-                  child: ListView.builder(
-                    shrinkWrap: true,
-                    padding: EdgeInsets.zero,
-                    itemCount: optionList.length,
-                    itemBuilder: (context, index) {
-                      final option = optionList[index];
-                      return ListTile(
-                        title: Text(option.name),
-                        subtitle: Text(
-                          '${option.baseUnit} • ${option.branchName}',
+        return InventoryFieldLabel(
+          text: 'Stock item',
+          isRequired: true,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final fieldWidth = constraints.maxWidth.isFinite
+                  ? constraints.maxWidth
+                  : 320.0;
+              return RawAutocomplete<StockItem>(
+                textEditingController: _controller,
+                focusNode: _focusNode,
+                displayStringForOption: (option) => option.name,
+                optionsBuilder: (textEditingValue) {
+                  final query = textEditingValue.text.trim().toLowerCase();
+                  if (query.isEmpty) return widget.items;
+                  return widget.items.where((item) {
+                    final name = item.name.toLowerCase();
+                    return name.contains(query);
+                  });
+                },
+                fieldViewBuilder:
+                    (context, textController, focusNode, onFieldSubmitted) {
+                      return TextFormField(
+                        controller: textController,
+                        focusNode: focusNode,
+                        decoration: InputDecoration(
+                          hintText: widget.items.isEmpty
+                              ? 'Select a branch first'
+                              : 'Search stock item',
+                          errorText: state.errorText,
+                          suffixIcon: textController.text.isEmpty
+                              ? null
+                              : IconButton(
+                                  icon: const Icon(Icons.clear),
+                                  tooltip: 'Clear',
+                                  onPressed: () {
+                                    _controller.clear();
+                                    widget.onCleared();
+                                    state.didChange(null);
+                                  },
+                                ),
                         ),
                         onTap: () {
-                          onSelected(option);
-                          state.didChange(option.id);
+                          if (widget.items.isEmpty) widget.onTapEmpty();
+                          textController.value = TextEditingValue(
+                            text: textController.text,
+                            selection: TextSelection.collapsed(
+                              offset: textController.text.length,
+                            ),
+                          );
+                        },
+                        onChanged: (_) {
+                          if (widget.selectedItemId != null) {
+                            widget.onCleared();
+                            state.didChange(null);
+                          }
                         },
                       );
                     },
-                  ),
-                ),
-              ),
-            );
-          },
-          onSelected: (item) {
-            widget.onSelected(item);
-            state.didChange(item.id);
-          },
+                optionsViewBuilder: (context, onSelected, options) {
+                  final optionList = options.toList();
+                  if (optionList.isEmpty) return const SizedBox.shrink();
+                  return Align(
+                    alignment: Alignment.topLeft,
+                    child: Material(
+                      elevation: 4,
+                      borderRadius: BorderRadius.circular(12),
+                      child: SizedBox(
+                        width: fieldWidth,
+                        child: ListView.builder(
+                          shrinkWrap: true,
+                          padding: EdgeInsets.zero,
+                          itemCount: optionList.length,
+                          itemBuilder: (context, index) {
+                            final option = optionList[index];
+                            return ListTile(
+                              title: Text(option.name),
+                              subtitle: Text(
+                                '${option.baseUnit} • ${option.branchName}',
+                              ),
+                              onTap: () {
+                                onSelected(option);
+                                state.didChange(option.id);
+                              },
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                  );
+                },
+                onSelected: (item) {
+                  widget.onSelected(item);
+                  state.didChange(item.id);
+                },
+              );
+            },
+          ),
         );
       },
     );

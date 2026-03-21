@@ -1,4 +1,5 @@
 import 'package:modular_pos/features/auth/domain/models/user.dart';
+import 'package:modular_pos/features/branchV2/domain/models/branch_models.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
 
 class InventoryBranchOption {
@@ -10,17 +11,35 @@ class InventoryBranchOption {
 
 List<InventoryBranchOption> buildInventoryBranchOptions({
   required List<StockItem> items,
-  required List<UserBranch> userBranches,
+  List<BranchListItem> tenantBranches = const <BranchListItem>[],
+  List<UserBranch> userBranches = const <UserBranch>[],
 }) {
   final map = <String, String>{};
-  if (userBranches.isNotEmpty) {
+  if (tenantBranches.isNotEmpty) {
+    for (final branch in tenantBranches) {
+      final id = branch.branchId.trim();
+      if (id.isEmpty) continue;
+      final name = branch.branchName.trim().isNotEmpty
+          ? branch.branchName.trim()
+          : id;
+      map[id] = name;
+    }
+  } else if (userBranches.isNotEmpty) {
     for (final branch in userBranches) {
-      final id = branch.branchId.isNotEmpty ? branch.branchId : branch.id;
-      map[id] = branch.name;
+      final id = (branch.branchId.isNotEmpty ? branch.branchId : branch.id)
+          .trim();
+      if (id.isEmpty) continue;
+      final name = branch.name.trim().isNotEmpty ? branch.name.trim() : id;
+      map[id] = name;
     }
   } else {
     for (final item in items) {
-      map[item.branchId] = item.branchName;
+      final id = item.branchId.trim();
+      if (id.isEmpty) continue;
+      final name = item.branchName.trim().isNotEmpty
+          ? item.branchName.trim()
+          : id;
+      map[id] = name;
     }
   }
 

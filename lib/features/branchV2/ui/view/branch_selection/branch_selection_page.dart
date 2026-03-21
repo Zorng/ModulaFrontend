@@ -181,6 +181,7 @@ class _BranchSelectionPageState extends ConsumerState<BranchSelectionPage> {
 
     return Scaffold(
       appBar: AppBar(
+        scrolledUnderElevation: 0,
         leading: isSelectionMode
             ? IconButton(
                 tooltip: 'Back',
@@ -217,127 +218,148 @@ class _BranchSelectionPageState extends ConsumerState<BranchSelectionPage> {
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                headerMessage,
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final isSmall = AppBreakpoints.isSmall(constraints.maxWidth);
+          final searchQuery =
+              isSelectionMode ? _selectionSearchQuery : state.searchQuery;
+
+          final searchField = TextField(
+            controller: _searchController,
+            onChanged: (value) {
+              if (isSelectionMode) {
+                setState(() => _selectionSearchQuery = value);
+                return;
+              }
+              branchController.setSearchQuery(value);
+            },
+            decoration: InputDecoration(
+              hintText: 'Search branch',
+              prefixIcon: const Icon(Icons.search),
+              suffixIcon: searchQuery.trim().isEmpty
+                  ? null
+                  : IconButton(
+                      tooltip: 'Clear',
+                      onPressed: () {
+                        _searchController.clear();
+                        if (isSelectionMode) {
+                          setState(() => _selectionSearchQuery = '');
+                          return;
+                        }
+                        branchController.clearSearchQuery();
+                      },
+                      icon: const Icon(Icons.close),
+                    ),
             ),
-            const SizedBox(height: 12),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final isSmall = AppBreakpoints.isSmall(constraints.maxWidth);
-                final searchQuery = isSelectionMode
-                    ? _selectionSearchQuery
-                    : state.searchQuery;
-                final searchField = TextField(
-                  controller: _searchController,
-                  onChanged: (value) {
-                    if (isSelectionMode) {
-                      setState(() => _selectionSearchQuery = value);
-                      return;
-                    }
-                    branchController.setSearchQuery(value);
+          );
+
+          final createButton = FilledButton.icon(
+            onPressed: state.isLoading
+                ? null
+                : () {
+                    branchController.clearCreateFlow();
+                    showCreateBranchDialog(context);
                   },
-                  decoration: InputDecoration(
-                    hintText: 'Search branch',
-                    prefixIcon: const Icon(Icons.search),
-                    suffixIcon: searchQuery.trim().isEmpty
-                        ? null
-                        : IconButton(
-                            tooltip: 'Clear',
-                            onPressed: () {
-                              _searchController.clear();
-                              if (isSelectionMode) {
-                                setState(() => _selectionSearchQuery = '');
-                                return;
-                              }
-                              branchController.clearSearchQuery();
-                            },
-                            icon: const Icon(Icons.close),
-                          ),
-                  ),
-                );
-                final createButton = FilledButton.icon(
-                  onPressed: state.isLoading
-                      ? null
-                      : () {
-                          branchController.clearCreateFlow();
-                          showCreateBranchDialog(context);
-                        },
-                  icon: const Icon(Icons.add),
-                  label: const Text('Create Branch'),
-                );
+            icon: const Icon(Icons.add),
+            label: const Text('Create Branch'),
+          );
 
-                if (isSmall) {
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
+          return CustomScrollView(
+            slivers: [
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                sliver: SliverToBoxAdapter(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      searchField,
-                      if (!isSelectionMode && state.canManageTenant) ...[
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          headerMessage,
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      if (isSmall) ...[
+                        searchField,
+                        if (!isSelectionMode && state.canManageTenant) ...[
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            width: double.infinity,
+                            child: createButton,
+                          ),
+                        ],
+                      ] else
+                        Row(
+                          children: [
+                            Expanded(child: searchField),
+                            if (!isSelectionMode && state.canManageTenant) ...[
+                              const SizedBox(width: 12),
+                              SizedBox(width: 180, child: createButton),
+                            ],
+                          ],
+                        ),
+                      if (showBranchContextMessage) ...[
                         const SizedBox(height: 12),
-                        createButton,
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.surfaceContainerHighest,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            branchContextRequiredUserMessage,
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                        ),
                       ],
+                      if (friendlyError != null) ...[
+                        const SizedBox(height: 12),
+                        Text(
+                          friendlyError,
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: Theme.of(context).colorScheme.error,
+                              ),
+                        ),
+                      ],
+                      const SizedBox(height: 16),
                     ],
-                  );
-                }
-
-                return Row(
-                  children: [
-                    Expanded(child: searchField),
-                    if (!isSelectionMode && state.canManageTenant) ...[
-                      const SizedBox(width: 12),
-                      SizedBox(width: 180, child: createButton),
-                    ],
-                  ],
-                );
-              },
-            ),
-            const SizedBox(height: 16),
-            if (showBranchContextMessage) ...[
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  branchContextRequiredUserMessage,
-                  style: Theme.of(context).textTheme.bodyMedium,
+                  ),
                 ),
               ),
-              const SizedBox(height: 12),
-            ],
-            if (friendlyError != null) ...[
-              Text(
-                friendlyError,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.error,
-                ),
-              ),
-              const SizedBox(height: 12),
-            ],
-            Expanded(
-              child: isLoading && branches.isEmpty
-                  ? const Center(child: CircularProgressIndicator())
-                  : branches.isEmpty
-                  ? const Center(child: Text('No branch found.'))
-                  : ListView.separated(
-                      itemCount: branches.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 8),
-                      itemBuilder: (context, index) {
+              if (isLoading && branches.isEmpty)
+                const SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else if (branches.isEmpty)
+                const SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Center(child: Text('No branch found.')),
+                )
+              else
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  sliver: SliverGrid(
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: isSmall ? 1 : 2,
+                      crossAxisSpacing: 8,
+                      mainAxisSpacing: 8,
+                      mainAxisExtent: 230,
+                    ),
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) {
                         final branch = branches[index];
                         final displayBranch =
                             !isSelectionMode &&
@@ -356,10 +378,13 @@ class _BranchSelectionPageState extends ConsumerState<BranchSelectionPage> {
                               : null,
                         );
                       },
+                      childCount: branches.length,
                     ),
-            ),
-          ],
-        ),
+                  ),
+                ),
+            ],
+          );
+        },
       ),
     );
   }

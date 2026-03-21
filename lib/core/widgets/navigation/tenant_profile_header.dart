@@ -6,31 +6,21 @@ class TenantProfileHeader extends StatelessWidget {
     required this.tenantName,
     required this.branchName,
     required this.initial,
-    this.onBackPressed,
-    this.backTooltip,
     this.onTap,
   });
 
   final String tenantName;
   final String branchName;
   final String initial;
-  final VoidCallback? onBackPressed;
-  final String? backTooltip;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final borderRadius = BorderRadius.circular(14);
     final content = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (onBackPressed != null) ...[
-          IconButton(
-            onPressed: onBackPressed,
-            icon: const Icon(Icons.arrow_back),
-            tooltip: backTooltip ?? 'Back',
-          ),
-          const SizedBox(width: 4),
-        ],
         CircleAvatar(
           radius: 18,
           child: Text(
@@ -56,19 +46,27 @@ class TenantProfileHeader extends StatelessWidget {
       ],
     );
 
-    if (onTap == null) return content;
+    final decoratedContent = Ink(
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: borderRadius,
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: content,
+      ),
+    );
+
+    if (onTap == null) return decoratedContent;
 
     return Tooltip(
       message: 'Switch tenant',
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: borderRadius,
           onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-            child: content,
-          ),
+          child: decoratedContent,
         ),
       ),
     );

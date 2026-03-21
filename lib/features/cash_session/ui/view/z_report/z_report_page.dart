@@ -26,7 +26,7 @@ class ZReportPage extends ConsumerWidget {
             ? AppBackButton(
                 icon: Icons.home_outlined,
                 tooltip: 'Home',
-                onPressed: () => context.go(AppRoute.portal.path),
+                onPressed: () => context.go(AppRoute.branchPortal.path),
               )
             : null,
         title: const Align(

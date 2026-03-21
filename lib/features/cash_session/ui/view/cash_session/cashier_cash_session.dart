@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
+import 'package:modular_pos/core/sync/sync_freshness.dart';
 import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/core/widgets/navigation/app_back_button.dart';
+import 'package:modular_pos/core/widgets/sync/sync_freshness_banner.dart';
+import 'package:modular_pos/features/cash_session/data/cash_session_error_codes.dart';
 import 'package:modular_pos/features/cash_session/ui/viewmodels/cash_session_error_message.dart';
 import 'package:modular_pos/features/cash_session/ui/viewmodels/cash_session_viewmodel.dart';
 import 'package:modular_pos/features/cash_session/ui/widgets/session_overview_card.dart';
@@ -20,6 +23,8 @@ class CashSessionScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final sessionState = ref.watch(cashSessionViewModelProvider);
     final notifier = ref.read(cashSessionViewModelProvider.notifier);
+    final workspaceFreshness = ref.watch(branchWorkspaceSyncFreshnessProvider);
+    final freshness = workspaceFreshness.asData?.value;
 
     // Use screen width to determine navigation rail presence
     final screenWidth = MediaQuery.of(context).size.width;
@@ -37,18 +42,25 @@ class CashSessionScreen extends ConsumerWidget {
                   : AppBackButton(
                       icon: Icons.home_outlined,
                       tooltip: 'Home',
-                      onPressed: () => context.go(AppRoute.portal.path),
+                      onPressed: () => context.go(AppRoute.branchPortal.path),
                     ),
             )
           : null,
       body: SafeArea(
         child: hasNavigationRail
-            ? _buildWideLayout(context, sessionState, notifier, isSessionOpen)
+            ? _buildWideLayout(
+                context,
+                sessionState,
+                notifier,
+                isSessionOpen,
+                freshness,
+              )
             : _buildMobileLayout(
                 context,
                 sessionState,
                 notifier,
                 isSessionOpen,
+                freshness,
               ),
       ),
     );
@@ -59,13 +71,19 @@ class CashSessionScreen extends ConsumerWidget {
     CashSessionState sessionState,
     CashSessionViewModel notifier,
     bool isSessionOpen,
+    SyncWorkspaceFreshness? freshness,
   ) {
     final showSummary = _showsSummary(sessionState);
 
     return ListView(
       padding: const EdgeInsets.all(16.0),
       children: [
-        if (sessionState.error != null) _buildErrorBanner(sessionState),
+        if (freshness != null) ...[
+          SyncFreshnessBanner(freshness: freshness),
+          const SizedBox(height: 16),
+        ],
+        if (_shouldShowErrorBanner(sessionState, freshness))
+          _buildErrorBanner(sessionState),
         const SessionOverviewCard(),
         const SizedBox(height: 16),
         SessionActionCard(sessionState: sessionState, notifier: notifier),
@@ -92,6 +110,7 @@ class CashSessionScreen extends ConsumerWidget {
     CashSessionState sessionState,
     CashSessionViewModel notifier,
     bool isSessionOpen,
+    SyncWorkspaceFreshness? freshness,
   ) {
     final showSummary = _showsSummary(sessionState);
     final isNotStarted = sessionState.sessionStatus == SessionStatus.notStarted;
@@ -99,7 +118,12 @@ class CashSessionScreen extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.all(24.0),
       children: [
-        if (sessionState.error != null) _buildErrorBanner(sessionState),
+        if (freshness != null) ...[
+          SyncFreshnessBanner(freshness: freshness),
+          const SizedBox(height: 16),
+        ],
+        if (_shouldShowErrorBanner(sessionState, freshness))
+          _buildErrorBanner(sessionState),
         if (showSummary && isNotStarted)
           IntrinsicHeight(
             child: Row(
@@ -187,6 +211,25 @@ class CashSessionScreen extends ConsumerWidget {
   bool _showsSummary(CashSessionState sessionState) {
     return sessionState.isOwnedByCurrentUser ||
         sessionState.sessionStatus == SessionStatus.notStarted;
+  }
+
+  bool _shouldShowErrorBanner(
+    CashSessionState sessionState,
+    SyncWorkspaceFreshness? freshness,
+  ) {
+    if (sessionState.error == null || sessionState.error!.trim().isEmpty) {
+      return false;
+    }
+    if (freshness == null) return true;
+    final normalizedCode = CashSessionErrorCodes.normalize(
+      sessionState.errorCode,
+    );
+    final hasCachedState =
+        sessionState.session != null ||
+        sessionState.movements.isNotEmpty ||
+        sessionState.sales.isNotEmpty;
+    if (!hasCachedState) return true;
+    return normalizedCode != CashSessionErrorCodes.offlineUnreachable;
   }
 
   Widget _buildErrorBanner(CashSessionState sessionState) {

@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
+import 'package:modular_pos/core/sync/sync_freshness.dart';
 import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/core/widgets/forms/app_search_bar.dart';
 import 'package:modular_pos/core/widgets/navigation/app_back_button.dart';
+import 'package:modular_pos/core/widgets/sync/sync_freshness_banner.dart';
 import 'package:modular_pos/features/policy/domain/models/policy.dart';
 import 'package:modular_pos/features/policy/data/policy_error_codes.dart';
 import 'package:modular_pos/features/policy/ui/models/policy_models.dart';
@@ -163,12 +165,13 @@ class _PolicyPageState extends ConsumerState<PolicyPage> {
   Widget build(BuildContext context) {
     final loginState = ref.watch(loginControllerProvider);
     final policyState = ref.watch(policyNotifierProvider);
+    final workspaceFreshness = ref.watch(branchWorkspaceSyncFreshnessProvider);
     final isLoading = policyState.isLoading;
     final toggleValues = _composeToggleValues(policyState);
 
     final selectorValues = _composeSelectorValues(policyState);
     final isReadOnly = _isReadOnly(loginState);
-    final portalPath = AppRoute.portal.path;
+    final portalPath = AppRoute.branchPortal.path;
     final branchName = _resolveBranchName(ref);
 
     return LayoutBuilder(
@@ -183,6 +186,7 @@ class _PolicyPageState extends ConsumerState<PolicyPage> {
         final horizontalPadding = isLarge ? 32.0 : (isMedium ? 24.0 : 16.0);
         final showAppBar = !isLarge;
         final showBackButton = isSmall;
+        final freshness = workspaceFreshness.asData?.value;
 
         final filteredSections = _sections
             .map(
@@ -270,6 +274,10 @@ class _PolicyPageState extends ConsumerState<PolicyPage> {
                       const SizedBox(height: 16),
                       if (isLoading)
                         const LinearProgressIndicator(minHeight: 2),
+                      if (freshness != null) ...[
+                        const SizedBox(height: 8),
+                        SyncFreshnessBanner(freshness: freshness),
+                      ],
                       if (isReadOnly && showAppBar)
                         Padding(
                           padding: const EdgeInsets.only(top: 8, bottom: 4),
@@ -283,7 +291,10 @@ class _PolicyPageState extends ConsumerState<PolicyPage> {
                                 ),
                           ),
                         ),
-                      if (policyState.isOffline || policyState.error != null)
+                      if (_shouldShowFeatureStatusMessage(
+                        policyState,
+                        freshness,
+                      ))
                         Padding(
                           padding: const EdgeInsets.only(top: 8, bottom: 4),
                           child: Text(
@@ -377,6 +388,24 @@ class _PolicyPageState extends ConsumerState<PolicyPage> {
       return state.error!.trim();
     }
     return '';
+  }
+
+  bool _shouldShowFeatureStatusMessage(
+    PolicyState state,
+    SyncWorkspaceFreshness? freshness,
+  ) {
+    final hasMessage =
+        state.isOffline ||
+        (state.error != null && state.error!.trim().isNotEmpty);
+    if (!hasMessage) return false;
+    if (freshness == null) return true;
+
+    final normalizedCode = (state.errorCode ?? '').trim().toUpperCase();
+    final isGenericOfflineState =
+        state.isOffline &&
+        (state.isStale ||
+            normalizedCode == PolicyErrorCodes.offlineUnreachable);
+    return !isGenericOfflineState;
   }
 
   String? _reasonCodeMessage(String? code) {

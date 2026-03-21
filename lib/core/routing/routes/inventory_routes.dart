@@ -13,6 +13,7 @@ import 'package:modular_pos/features/inventory/ui/components/category_form.dart'
 import 'package:modular_pos/features/inventory/ui/view/inventory_shell/inventory_bottom_nav_shell_page.dart';
 import 'package:modular_pos/features/inventory/ui/view/inventory_stock_items/inventory_stock_items_page.dart';
 import 'package:modular_pos/features/inventory/ui/view/restock_stock_item/restock_stock_item_page.dart';
+import 'package:modular_pos/features/inventory/ui/view/stock_adjust_quantity/adjust_stock_quantity_request.dart';
 import 'package:modular_pos/features/inventory/ui/view/stock_adjust_quantity/stock_adjust_quantity_page.dart';
 import 'package:modular_pos/features/inventory/ui/view/stock_item_detail/stock_item_detail_page.dart';
 
@@ -116,7 +117,26 @@ List<RouteBase> buildInventoryRoutes() {
       path: AppRoute.inventoryAdjustStock.path,
       name: AppRoute.inventoryAdjustStock.name,
       builder: (context, state) {
-        final item = state.extra as StockItem;
+        final extra = state.extra;
+        if (extra is AdjustStockQuantityRequest) {
+          return AdjustStockQuantityPage(
+            item: extra.item,
+            initialBranchId: extra.initialBranchId,
+          );
+        }
+        final item = extra is StockItem
+            ? extra
+            : const StockItem(
+                id: 'unknown',
+                name: 'Unknown item',
+                baseUnit: 'pcs',
+                pieceSize: 1,
+                branchId: '',
+                branchName: '',
+                onHand: 0,
+                minThreshold: 0,
+                isActive: true,
+              );
         return AdjustStockQuantityPage(item: item);
       },
     ),

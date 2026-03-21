@@ -1,17 +1,20 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/features/inventory/data/inventory_journal_repository.dart';
+import 'package:modular_pos/features/inventory/data/inventory_paginated_result.dart';
+import 'package:modular_pos/features/inventory/data/mock_inventory_store.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_journal_entry.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_batch.dart';
 
 final mockInventoryJournalRepositoryProvider =
     Provider<InventoryJournalRepository>((ref) {
-      return MockInventoryJournalRepository();
+      final store = ref.watch(mockInventoryStoreProvider);
+      return MockInventoryJournalRepository(store);
     });
 
 class MockInventoryJournalRepository extends InventoryJournalRepository {
-  MockInventoryJournalRepository();
+  MockInventoryJournalRepository(this._store);
 
-  final List<InventoryJournalEntry> _entries = <InventoryJournalEntry>[];
+  final MockInventoryStore _store;
 
   @override
   Future<InventoryJournalEntry?> createRestockBatch({
@@ -24,16 +27,16 @@ class MockInventoryJournalRepository extends InventoryJournalRepository {
     String? supplierName,
     num? purchaseCostUsd,
   }) async {
-    final entry = _createEntry(
+    return _store.createRestockBatch(
       branchId: branchId,
       stockItemId: stockItemId,
-      qtyDelta: qty,
-      reason: InventoryJournalReason.restock,
+      qty: qty,
       note: note,
-      occurredAt: receivedAt,
+      receivedAt: receivedAt,
+      expiryDate: expiryDate,
+      supplierName: supplierName,
+      purchaseCostUsd: purchaseCostUsd,
     );
-    _entries.insert(0, entry);
-    return entry;
   }
 
   @override
@@ -44,16 +47,9 @@ class MockInventoryJournalRepository extends InventoryJournalRepository {
     required String note,
     String? occurredAt,
   }) async {
-    final entry = _createEntry(
-      branchId: branchId,
-      stockItemId: stockItemId,
-      qtyDelta: -qty.abs(),
-      reason: InventoryJournalReason.remove,
-      note: note,
-      occurredAt: occurredAt,
+    throw UnsupportedError(
+      'Use applyAdjustment for inventory deductions under the current inventory contract.',
     );
-    _entries.insert(0, entry);
-    return entry;
   }
 
   @override
@@ -64,20 +60,14 @@ class MockInventoryJournalRepository extends InventoryJournalRepository {
     required String note,
     String? occurredAt,
   }) async {
-    final entry = _createEntry(
-      branchId: branchId,
-      stockItemId: stockItemId,
-      qtyDelta: delta,
-      reason: InventoryJournalReason.add,
-      note: note,
-      occurredAt: occurredAt,
+    throw UnsupportedError(
+      'Use applyAdjustment for inventory corrections under the current inventory contract.',
     );
-    _entries.insert(0, entry);
-    return entry;
   }
 
   @override
   Future<int?> applyAdjustment({
+    required String branchId,
     required String stockItemId,
     required String style,
     int? deltaInBaseUnit,
@@ -85,106 +75,88 @@ class MockInventoryJournalRepository extends InventoryJournalRepository {
     required String reasonCode,
     String? note,
   }) async {
-    if (style.trim().toUpperCase() == 'SET_TO_COUNT') {
-      return countedOnHandInBaseUnit;
-    }
-    return null;
+    return _store.applyAdjustment(
+      branchId: branchId,
+      stockItemId: stockItemId,
+      style: style,
+      deltaInBaseUnit: deltaInBaseUnit,
+      countedOnHandInBaseUnit: countedOnHandInBaseUnit,
+      reasonCode: reasonCode,
+      note: note,
+    );
   }
 
   @override
-  Future<List<InventoryJournalEntry>> fetch({
+  Future<InventoryPaginatedResult<InventoryJournalEntry>> fetch({
+    String? branchId,
+    bool tenantWide = false,
     String? stockItemId,
     InventoryJournalReason? reason,
+    DateTime? date,
+    DateTime? from,
+    DateTime? to,
     int limit = 50,
     int offset = 0,
   }) async {
-    var filtered =
-        _entries
-            .where((entry) {
-              if (stockItemId != null &&
-                  stockItemId.isNotEmpty &&
-                  entry.itemId != stockItemId) {
-                return false;
-              }
-              if (reason != null && entry.reason != reason) {
-                return false;
-              }
-              return true;
-            })
-            .toList(growable: false)
-          ..sort((a, b) => b.occurredAt.compareTo(a.occurredAt));
-
-    final safeOffset = offset < 0 ? 0 : offset;
-    final safeLimit = limit <= 0 ? 50 : limit;
-    final start = safeOffset;
-    if (start >= filtered.length) {
-      return const <InventoryJournalEntry>[];
-    }
-    final end = (start + safeLimit).clamp(0, filtered.length);
-    filtered = filtered.sublist(start, end);
-
-    return filtered;
+    return _store.fetchJournal(
+      branchId: branchId,
+      tenantWide: tenantWide,
+      stockItemId: stockItemId,
+      reason: reason,
+      date: date,
+      from: date == null ? from : null,
+      to: date == null ? to : null,
+      limit: limit,
+      offset: offset,
+    );
   }
 
   @override
   Future<List<InventoryJournalEntry>> lowStockAlerts({String? branchId}) async {
-    return const <InventoryJournalEntry>[];
+    return _store.lowStockAlerts(branchId: branchId);
   }
 
   @override
-  Future<List<StockBatch>> fetchRestockBatches({
+  Future<InventoryPaginatedResult<StockBatch>> fetchRestockBatches({
+    String? branchId,
     String status = 'all',
     String? stockItemId,
     int? limit,
     int? offset,
   }) async {
-    return const <StockBatch>[];
+    return _store.fetchRestockBatches(
+      branchId: branchId,
+      status: status,
+      stockItemId: stockItemId,
+      limit: limit,
+      offset: offset,
+    );
   }
 
   @override
   Future<StockBatch> updateRestockBatchMetadata({
     required String batchId,
+    required String branchId,
     String? expiryDate,
     String? supplierName,
     num? purchaseCostUsd,
     String? note,
   }) async {
-    return StockBatch(
-      id: batchId,
-      stockItemId: '',
-      branchId: '',
-      onHand: 0,
-      receivedDate: DateTime.now().toIso8601String().split('T').first,
+    return _store.updateRestockBatchMetadata(
+      batchId: batchId,
+      branchId: branchId,
       expiryDate: expiryDate,
+      supplierName: supplierName,
+      purchaseCostUsd: purchaseCostUsd,
+      note: note,
     );
   }
 
   @override
-  Future<void> archiveRestockBatch({required String batchId}) async {}
-
-  InventoryJournalEntry _createEntry({
+  Future<void> archiveRestockBatch({
+    required String batchId,
     required String branchId,
-    required String stockItemId,
-    required num qtyDelta,
-    required InventoryJournalReason reason,
-    required String? note,
-    required String? occurredAt,
-  }) {
-    final now = DateTime.now();
-    final occurred = DateTime.tryParse(occurredAt ?? '') ?? now;
-    final id = 'mock-journal-${_entries.length + 1}';
-    return InventoryJournalEntry(
-      id: id,
-      itemId: stockItemId,
-      itemName: stockItemId,
-      branchId: branchId,
-      branchName: '',
-      reason: reason,
-      delta: qtyDelta.toInt(),
-      note: note ?? '',
-      actor: 'Mock User',
-      createdAt: now,
-      occurredAt: occurred,
-    );
+  }) async {
+    _store.archiveRestockBatch(batchId: batchId, branchId: branchId);
   }
 }

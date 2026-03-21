@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
+import 'package:modular_pos/core/theme/app_table_theme.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
-import 'package:modular_pos/features/inventory/ui/view/inventory_stock_items/inventory_stock_items_utils.dart';
 import 'package:modular_pos/features/inventory/ui/view/inventory_stock_items/widgets/stock_item_image.dart';
 
 class StockItemCard extends StatelessWidget {
@@ -20,6 +20,7 @@ class StockItemCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final baseUnitValue = _baseUnitValue(item);
     return Card(
       elevation: 3,
       color: Colors.white,
@@ -32,6 +33,7 @@ class StockItemCard extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               StockItemImage(imageUrl: item.imageUrl),
               const SizedBox(width: 16),
@@ -41,65 +43,52 @@ class StockItemCard extends StatelessWidget {
                   children: [
                     Text(
                       item.name,
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      pieceLabel(item),
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: scheme.onSurfaceVariant,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 2),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: scheme.surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        categoryLabel,
-                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: scheme.onSurfaceVariant,
-                        ),
-                      ),
+                      style: Theme.of(context).textTheme.titleSmall,
                     ),
                     const SizedBox(height: 8),
-                    Text(
-                      item.isActive ? 'Active' : 'Archived',
-                      style: TextStyle(
-                        color: item.isActive ? scheme.primary : scheme.error,
-                        fontWeight: FontWeight.w600,
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 4,
+                      ),
+                      decoration: AppTableTheme.categoryPillDecoration,
+                      child: Text(
+                        categoryLabel,
+                        style: AppTableTheme.categoryPillText,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],
                 ),
               ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    'Base: ${item.baseUnit}',
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                  Text(
-                    'Piece: ${item.pieceSize}',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                  if (!item.isActive && onRestore != null) ...[
-                    const SizedBox(height: 8),
-                    OutlinedButton.icon(
-                      onPressed: onRestore,
-                      icon: const Icon(Icons.restore_outlined, size: 18),
-                      label: const Text('Restore'),
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      'Base unit:',
+                      style: Theme.of(context).textTheme.bodySmall,
                     ),
+                    Text(
+                      baseUnitValue,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    if (!item.isActive && onRestore != null) ...[
+                      const SizedBox(height: 8),
+                      OutlinedButton.icon(
+                        onPressed: onRestore,
+                        icon: const Icon(Icons.restore_outlined, size: 18),
+                        label: const Text('Restore'),
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
             ],
           ),
@@ -107,4 +96,11 @@ class StockItemCard extends StatelessWidget {
       ),
     );
   }
+}
+
+String _baseUnitValue(StockItem item) {
+  if (item.pieceSize <= 1) {
+    return item.baseUnit;
+  }
+  return '${item.pieceSize} ${item.baseUnit}';
 }

@@ -9,6 +9,7 @@ class OrderFiltersBar extends StatelessWidget {
     required this.statuses,
     required this.selectedStatus,
     required this.onStatusChanged,
+    this.statusLabelBuilder = orderStatusLabel,
   });
 
   final DateTime selectedDate;
@@ -16,6 +17,7 @@ class OrderFiltersBar extends StatelessWidget {
   final List<String> statuses;
   final String selectedStatus;
   final ValueChanged<String> onStatusChanged;
+  final String Function(String status) statusLabelBuilder;
 
   @override
   Widget build(BuildContext context) {
@@ -45,7 +47,7 @@ class OrderFiltersBar extends StatelessWidget {
               itemBuilder: (context, index) {
                 final status = statuses[index];
                 return ChoiceChip(
-                  label: Text(orderStatusLabel(status)),
+                  label: Text(statusLabelBuilder(status)),
                   selected: selectedStatus == status,
                   onSelected: (_) => onStatusChanged(status),
                 );

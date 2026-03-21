@@ -33,7 +33,7 @@ class InventoryCategoryTile extends ConsumerWidget {
               category.name,
               style: Theme.of(
                 context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+              ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 2),
             Text(
@@ -60,22 +60,15 @@ class InventoryCategoryTile extends ConsumerWidget {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              category.isActive ? 'Active' : 'Archived',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: category.isActive ? scheme.primary : scheme.error,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(width: 8),
-            InventoryCategoryActionMenu(
-              category: category,
-              compact: true,
-              onArchived: onArchived,
+            Icon(
+              Icons.chevron_right_rounded,
+              color: scheme.onSurfaceVariant,
+              size: 24,
             ),
           ],
         ),
-        onTap: () => InventoryCategoryActionMenu.openView(context, category),
+        onTap: () =>
+            InventoryCategoryActionMenu.openView(context, ref, category),
       ),
     );
   }

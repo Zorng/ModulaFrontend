@@ -231,6 +231,8 @@ class BranchController extends Notifier<BranchState> {
 
   Future<void> initiateCreateBranch({
     required String branchName,
+    String? branchAddress,
+    String? contactNumber,
     String? intentId,
   }) async {
     final normalizedName = branchName.trim();
@@ -244,6 +246,11 @@ class BranchController extends Notifier<BranchState> {
       return;
     }
 
+    final normalizedAddress =
+        (branchAddress ?? '').trim().isEmpty ? null : branchAddress!.trim();
+    final normalizedContact =
+        (contactNumber ?? '').trim().isEmpty ? null : contactNumber!.trim();
+
     state = state.copyWith(
       isLoading: true,
       createFlowStatus: BranchCreateFlowStatus.initiating,
@@ -251,6 +258,8 @@ class BranchController extends Notifier<BranchState> {
       errorCode: null,
       errorStatusCode: null,
       activationResult: null,
+      pendingBranchAddress: normalizedAddress,
+      pendingContactNumber: normalizedContact,
     );
 
     try {
@@ -302,6 +311,29 @@ class BranchController extends Notifier<BranchState> {
         paymentToken: paymentToken.trim(),
         intentId: intentId,
       );
+
+      final pendingAddress = state.pendingBranchAddress;
+      final pendingContact = state.pendingContactNumber;
+      final hasProfileUpdate =
+          pendingAddress != null || pendingContact != null;
+
+      if (hasProfileUpdate) {
+        try {
+          final tokens = await _repository.selectBranchContext(
+            branchId: result.branchId,
+          );
+          final draft = state.activationDraft;
+          await _repository.updateCurrentBranchProfile(
+            branchName: draft?.branchName ?? result.branchName,
+            branchAddress: pendingAddress,
+            contactNumber: pendingContact,
+            accessTokenOverride: tokens.accessToken,
+          );
+        } catch (_) {
+          // Profile update is best-effort; activation itself succeeded.
+        }
+      }
+
       await _loadBranches(
         showLoading: false,
         highlightBranchId: result.branchId,
@@ -311,6 +343,8 @@ class BranchController extends Notifier<BranchState> {
         isLoading: false,
         createFlowStatus: BranchCreateFlowStatus.confirmed,
         activationResult: result,
+        pendingBranchAddress: null,
+        pendingContactNumber: null,
       );
     } catch (error) {
       _setCreateFlowError(
@@ -318,6 +352,11 @@ class BranchController extends Notifier<BranchState> {
         fallbackMessage: 'Failed to confirm branch activation.',
       );
     }
+  }
+
+  void patchBranchInList(BranchListItem profile) {
+    final mergedBranches = _mergeBranchProfileIntoList(profile);
+    state = state.copyWith(branches: mergedBranches);
   }
 
   void clearFeedback() {
@@ -329,6 +368,8 @@ class BranchController extends Notifier<BranchState> {
       createFlowStatus: BranchCreateFlowStatus.idle,
       activationDraft: null,
       activationResult: null,
+      pendingBranchAddress: null,
+      pendingContactNumber: null,
       error: null,
       errorCode: null,
       errorStatusCode: null,

@@ -12,6 +12,7 @@ import 'package:modular_pos/core/routing/routes/core_routes.dart';
 import 'package:modular_pos/core/routing/routes/inventory_routes.dart';
 import 'package:modular_pos/core/routing/routes/menu_routes.dart';
 import 'package:modular_pos/core/routing/routes/policy_routes.dart';
+import 'package:modular_pos/core/routing/routes/discount_routes.dart';
 import 'package:modular_pos/core/routing/routes/portal_routes.dart';
 import 'package:modular_pos/core/routing/routes/sale_routes.dart';
 import 'package:modular_pos/core/routing/routes/staff_routes.dart';
@@ -144,7 +145,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         );
       }
 
-      if (isPathInGroup(path, AppRoute.policy.path) && !isAdminOrOwner) {
+      if ((isPathInGroup(path, AppRoute.policy.path) ||
+              isPathInGroup(path, AppRoute.discount.path)) &&
+          !isAdminOrOwner) {
         return '/404';
       }
       if (isPathInGroup(path, AppRoute.branchSubscription.path) &&
@@ -187,6 +190,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ...buildPortalRoutes(ref),
           ...buildMenuRoutes(),
           ...buildPolicyRoutes(),
+          ...buildDiscountRoutes(),
           ...buildAccountRoutes(),
           ...buildAttendanceRoutes(),
           ...buildBranchRoutes(),
@@ -248,7 +252,8 @@ bool _isTenantAdminRoute(String path) {
   return isPathInGroup(path, AppRoute.branch.path) ||
       isPathInGroup(path, AppRoute.adminMenu.path) ||
       isPathInGroup(path, AppRoute.inventory.path) ||
-      isPathInGroup(path, AppRoute.staff.path);
+      isPathInGroup(path, AppRoute.staff.path) ||
+      isPathInGroup(path, AppRoute.discount.path);
 }
 
 bool _isBranchScopedRoute(String path) {
