@@ -46,25 +46,21 @@ class _BranchManagementPageState extends ConsumerState<BranchManagementPage> {
       }
 
       final targetBranchId = widget.branchId.trim();
-      final activeBranchId = (ref.read(authActiveBranchIdProvider) ?? '')
-          .trim();
       if (targetBranchId.isEmpty) {
         throw const ApiClientException(message: 'Branch ID is required.');
       }
 
-      if (activeBranchId != targetBranchId) {
-        await ref
-            .read(loginControllerProvider.notifier)
-            .selectBranch(targetBranchId);
-        final loginState = ref.read(loginControllerProvider);
-        final error = (loginState.error ?? '').trim();
-        if (error.isNotEmpty) {
-          throw ApiClientException(
-            message: error,
-            code: loginState.errorCode,
-            statusCode: loginState.errorStatusCode,
-          );
-        }
+      await ref
+          .read(loginControllerProvider.notifier)
+          .selectBranch(targetBranchId);
+      final loginState = ref.read(loginControllerProvider);
+      final error = (loginState.error ?? '').trim();
+      if (error.isNotEmpty) {
+        throw ApiClientException(
+          message: error,
+          code: loginState.errorCode,
+          statusCode: loginState.errorStatusCode,
+        );
       }
 
       final accessToken =
