@@ -12,6 +12,7 @@ class LoginFormContent extends StatelessWidget {
     required this.onToggleObscure,
     required this.onLogin,
     required this.onSignup,
+    this.onVerifyPhone,
     this.signupLabel = 'Create account',
     this.footerText,
     this.showDesktopFieldLabels = false,
@@ -30,6 +31,7 @@ class LoginFormContent extends StatelessWidget {
   final VoidCallback onToggleObscure;
   final VoidCallback onLogin;
   final VoidCallback onSignup;
+  final VoidCallback? onVerifyPhone;
   final String signupLabel;
   final String? footerText;
   final bool showDesktopFieldLabels;
@@ -131,6 +133,13 @@ class LoginFormContent extends StatelessWidget {
                   child: Text(signupLabel),
                 ),
               ],
+            ),
+          ),
+        if (onVerifyPhone != null)
+          Center(
+            child: TextButton(
+              onPressed: state.isLoading ? null : onVerifyPhone,
+              child: const Text('Verify phone / resend OTP'),
             ),
           ),
         if (footerText != null) ...[
