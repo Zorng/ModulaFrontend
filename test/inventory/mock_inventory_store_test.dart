@@ -9,14 +9,16 @@ void main() {
     () {
       final store = MockInventoryStore.seeded();
 
-      final items = store.fetchInventoryStockItems(branchId: 'mock-branch-1');
-      final names = items.map((item) => item.name).toList(growable: false);
+      final result = store.fetchInventoryStockItems(branchId: 'mock-branch-1');
+      final names = result.items
+          .map((item) => item.name)
+          .toList(growable: false);
 
       expect(names, contains('Whole Milk'));
       expect(names, contains('Arabica Beans'));
       expect(names, isNot(contains('Paper Cups')));
       expect(
-        items.firstWhere((item) => item.name == 'Arabica Beans').onHand,
+        result.items.firstWhere((item) => item.name == 'Arabica Beans').onHand,
         0,
       );
     },
@@ -42,6 +44,7 @@ void main() {
     expect(
       store
           .fetchInventoryStockItems(branchId: 'mock-branch-1')
+          .items
           .where((item) => item.id == created.id),
       isEmpty,
     );
@@ -57,6 +60,7 @@ void main() {
     expect(
       store
           .fetchInventoryStockItems(branchId: 'mock-branch-1')
+          .items
           .firstWhere((item) => item.id == created.id)
           .onHand,
       600,
@@ -75,6 +79,7 @@ void main() {
     expect(
       store
           .fetchInventoryStockItems(branchId: 'mock-branch-1')
+          .items
           .firstWhere((item) => item.id == created.id)
           .onHand,
       0,
@@ -88,9 +93,9 @@ void main() {
       branchId: 'mock-branch-1',
       status: 'active',
     );
-    expect(activeBatches, isNotEmpty);
+    expect(activeBatches.items, isNotEmpty);
 
-    final archivedTarget = activeBatches.first;
+    final archivedTarget = activeBatches.items.first;
     store.archiveRestockBatch(
       batchId: archivedTarget.id,
       branchId: archivedTarget.branchId,
@@ -106,11 +111,11 @@ void main() {
     );
 
     expect(
-      refreshedActive.any((batch) => batch.id == archivedTarget.id),
+      refreshedActive.items.any((batch) => batch.id == archivedTarget.id),
       isFalse,
     );
     expect(
-      archived.any((batch) => batch.id == archivedTarget.id),
+      archived.items.any((batch) => batch.id == archivedTarget.id),
       isTrue,
     );
   });
@@ -147,13 +152,37 @@ void main() {
     expect(restored.categoryId, before.categoryId);
   });
 
+  test('master stock items support pagination and filter queries', () {
+    final store = MockInventoryStore.seeded();
+    store.archiveStockItem('mock-stock-syrup');
+
+    final result = store.fetchMasterStockItems(
+      status: 'archived',
+      search: 'vanilla',
+      pageSize: 10,
+      offset: 0,
+    );
+
+    expect(result.items, hasLength(1));
+    expect(result.items.single.name, 'Vanilla Syrup');
+    expect(result.items.single.isActive, isFalse);
+    expect(result.limit, 10);
+    expect(result.offset, 0);
+    expect(result.total, 1);
+    expect(result.hasMore, isFalse);
+  });
+
   test('invalid branch targets raise BRANCH_NOT_FOUND', () {
     final store = MockInventoryStore.seeded();
 
     expect(
       () => store.fetchInventoryStockItems(branchId: 'missing-branch'),
       throwsA(
-        isA<ApiClientException>().having((error) => error.code, 'code', 'BRANCH_NOT_FOUND'),
+        isA<ApiClientException>().having(
+          (error) => error.code,
+          'code',
+          'BRANCH_NOT_FOUND',
+        ),
       ),
     );
   });

@@ -31,29 +31,70 @@ class StockInventoryController extends Notifier<StockInventoryState> {
   Future<void> loadInventoryItems({
     String? branchId,
     String status = 'all',
+    String? search,
+    String? categoryId,
+    String stockLevel = 'all',
+    int limit = 10,
+    int page = 1,
+    bool pageTransition = false,
+    bool accumulatePages = false,
   }) async {
     final targetBranchId = _normalizeBranchId(branchId);
+    final normalizedStatus = _normalizeListStatus(status);
+    final normalizedSearch = search?.trim() ?? '';
+    final normalizedCategoryId = categoryId?.trim() ?? '';
+    final normalizedStockLevel = _normalizeInventoryStockLevel(stockLevel);
+    final safeLimit = limit <= 0 ? 10 : limit;
+    final safePage = page <= 0 ? 1 : page;
+    final safeOffset = (safePage - 1) * safeLimit;
     try {
       state = state.copyWith(
-        isLoading: true,
+        isLoading: !pageTransition && !accumulatePages,
+        isInventoryPageLoading: pageTransition && !accumulatePages,
+        isLoadingMoreInventoryItems: accumulatePages,
+        isAccumulatingInventoryItems: accumulatePages,
         error: null,
         errorCode: null,
         selectedInventoryBranchId: targetBranchId ?? 'all',
+        inventoryPageSize: safeLimit,
+        inventoryStatus: normalizedStatus,
+        inventorySearch: normalizedSearch,
+        inventoryCategoryId: normalizedCategoryId,
+        inventoryStockLevel: normalizedStockLevel,
       );
-      final items = await _branchStockRepository.fetchStockItems(
+      final fetched = await _branchStockRepository.fetchStockItems(
         branchId: targetBranchId,
-        status: status,
+        status: normalizedStatus,
+        search: normalizedSearch.isEmpty ? null : normalizedSearch,
+        categoryId: normalizedCategoryId.isEmpty ? null : normalizedCategoryId,
+        stockLevel: normalizedStockLevel,
+        pageSize: safeLimit,
+        offset: safeOffset,
       );
       final branchLookup = _branchLookup();
       final onHandData = await _fetchOnHand(
         branchId: targetBranchId,
-        status: status,
+        status: normalizedStatus,
       );
       final mapped = _applyOnHand(
-        items.map((item) => _withBranchName(item, branchLookup)).toList(),
+        fetched.items
+            .map((item) => _withBranchName(item, branchLookup))
+            .toList(),
         onHandData,
       );
-      state = state.copyWith(isLoading: false, inventoryItems: mapped);
+      final nextItems = accumulatePages && safePage > 1
+          ? _mergeStockItems(state.inventoryItems, mapped)
+          : mapped;
+      state = state.copyWith(
+        isLoading: false,
+        isInventoryPageLoading: false,
+        isLoadingMoreInventoryItems: false,
+        isAccumulatingInventoryItems: accumulatePages,
+        inventoryItems: nextItems,
+        inventoryCurrentPage: safePage,
+        inventoryOffset: accumulatePages ? 0 : safeOffset,
+        inventoryTotal: fetched.total,
+      );
     } catch (e) {
       final mapped = mapInventoryError(
         e,
@@ -61,22 +102,147 @@ class StockInventoryController extends Notifier<StockInventoryState> {
       );
       state = state.copyWith(
         isLoading: false,
-        inventoryItems: const [],
+        isInventoryPageLoading: false,
+        isLoadingMoreInventoryItems: false,
+        isAccumulatingInventoryItems: false,
+        inventoryItems: pageTransition || accumulatePages
+            ? state.inventoryItems
+            : const [],
         error: mapped.message,
         errorCode: mapped.code,
       );
     }
   }
 
+  Future<void> goToNextInventoryPage() async {
+    if (state.isLoading || state.isInventoryPageLoading) return;
+    if (!state.hasNextInventoryPage) return;
+    await loadInventoryItems(
+      branchId: state.selectedInventoryBranchId == 'all'
+          ? null
+          : state.selectedInventoryBranchId,
+      status: state.inventoryStatus,
+      search: state.inventorySearch,
+      categoryId: state.inventoryCategoryId,
+      stockLevel: state.inventoryStockLevel,
+      limit: state.inventoryPageSize,
+      page: state.inventoryCurrentPage + 1,
+      pageTransition: true,
+    );
+  }
+
+  Future<void> goToPreviousInventoryPage() async {
+    if (state.isLoading || state.isInventoryPageLoading) return;
+    if (!state.hasPreviousInventoryPage) return;
+    await loadInventoryItems(
+      branchId: state.selectedInventoryBranchId == 'all'
+          ? null
+          : state.selectedInventoryBranchId,
+      status: state.inventoryStatus,
+      search: state.inventorySearch,
+      categoryId: state.inventoryCategoryId,
+      stockLevel: state.inventoryStockLevel,
+      limit: state.inventoryPageSize,
+      page: state.inventoryCurrentPage - 1,
+      pageTransition: true,
+    );
+  }
+
+  Future<void> goToInventoryPage(int page) async {
+    if (state.isLoading || state.isInventoryPageLoading) return;
+    if (page < 1 ||
+        page > state.inventoryTotalPages ||
+        page == state.inventoryCurrentPage) {
+      return;
+    }
+    await loadInventoryItems(
+      branchId: state.selectedInventoryBranchId == 'all'
+          ? null
+          : state.selectedInventoryBranchId,
+      status: state.inventoryStatus,
+      search: state.inventorySearch,
+      categoryId: state.inventoryCategoryId,
+      stockLevel: state.inventoryStockLevel,
+      limit: state.inventoryPageSize,
+      page: page,
+      pageTransition: true,
+    );
+  }
+
+  Future<void> loadMoreInventoryItems() async {
+    if (state.isLoading ||
+        state.isInventoryPageLoading ||
+        state.isLoadingMoreInventoryItems) {
+      return;
+    }
+    if (!state.hasNextInventoryPage) return;
+    await loadInventoryItems(
+      branchId: state.selectedInventoryBranchId == 'all'
+          ? null
+          : state.selectedInventoryBranchId,
+      status: state.inventoryStatus,
+      search: state.inventorySearch,
+      categoryId: state.inventoryCategoryId,
+      stockLevel: state.inventoryStockLevel,
+      limit: state.inventoryPageSize,
+      page: state.inventoryCurrentPage + 1,
+      pageTransition: true,
+      accumulatePages: true,
+    );
+  }
+
   Future<void> loadStockItems({String status = 'all'}) async {
+    await loadStockItemsPage(status: status);
+  }
+
+  Future<void> loadStockItemsPage({
+    String status = 'all',
+    String? search,
+    String? categoryId,
+    int limit = 10,
+    int page = 1,
+    bool pageTransition = false,
+    bool accumulatePages = false,
+  }) async {
+    final safeLimit = limit <= 0 ? 10 : limit;
+    final safePage = page <= 0 ? 1 : page;
+    final safeOffset = (safePage - 1) * safeLimit;
+    final normalizedStatus = _normalizeListStatus(status);
+    final normalizedSearch = search?.trim() ?? '';
+    final normalizedCategoryId = categoryId?.trim() ?? '';
     try {
-      state = state.copyWith(isLoading: true, error: null, errorCode: null);
-      final items = await _repository.fetchMasterStockItems();
-      final mapped = items
-          .where((item) => _matchesStatus(item, status))
-          .map(_toCatalogItem)
-          .toList(growable: false);
-      state = state.copyWith(isLoading: false, stockItems: mapped);
+      state = state.copyWith(
+        isLoading: !pageTransition && !accumulatePages,
+        isStockItemsPageLoading: pageTransition && !accumulatePages,
+        isLoadingMoreStockItems: accumulatePages,
+        error: null,
+        errorCode: null,
+        stockItemsPageSize: safeLimit,
+        stockItemsStatus: normalizedStatus,
+        stockItemsSearch: normalizedSearch,
+        stockItemsCategoryId: normalizedCategoryId,
+      );
+      final fetched = await _repository.fetchMasterStockItems(
+        status: normalizedStatus,
+        search: normalizedSearch.isEmpty ? null : normalizedSearch,
+        categoryId: normalizedCategoryId.isEmpty ? null : normalizedCategoryId,
+        pageSize: safeLimit,
+        offset: safeOffset,
+      );
+      final mapped = fetched.items.map(_toCatalogItem).toList(growable: false);
+      final nextItems = accumulatePages && safePage > 1
+          ? _mergeStockItems(state.stockItems, mapped)
+          : mapped;
+      state = state.copyWith(
+        isLoading: false,
+        isStockItemsPageLoading: false,
+        isLoadingMoreStockItems: false,
+        isAccumulatingStockItems: accumulatePages,
+        stockItems: nextItems,
+        stockItemsCurrentPage: safePage,
+        stockItemsOffset: accumulatePages ? 0 : safeOffset,
+        stockItemsTotal: fetched.total,
+      );
     } catch (e) {
       final mapped = mapInventoryError(
         e,
@@ -84,6 +250,8 @@ class StockInventoryController extends Notifier<StockInventoryState> {
       );
       state = state.copyWith(
         isLoading: false,
+        isStockItemsPageLoading: false,
+        isLoadingMoreStockItems: false,
         stockItems: const [],
         error: mapped.message,
         errorCode: mapped.code,
@@ -96,8 +264,77 @@ class StockInventoryController extends Notifier<StockInventoryState> {
       return true;
     }
 
-    final items = await _repository.fetchMasterStockItems();
-    return items.isNotEmpty;
+    final fetched = await _repository.fetchMasterStockItems(pageSize: 1);
+    return fetched.items.isNotEmpty;
+  }
+
+  Future<void> goToNextStockItemsPage() async {
+    if (state.isLoading || state.isStockItemsPageLoading) return;
+    if (!state.hasNextStockItemsPage) return;
+    await loadStockItemsPage(
+      status: state.stockItemsStatus,
+      search: state.stockItemsSearch,
+      categoryId: state.stockItemsCategoryId.isEmpty
+          ? null
+          : state.stockItemsCategoryId,
+      limit: state.stockItemsPageSize,
+      page: state.stockItemsCurrentPage + 1,
+      pageTransition: true,
+    );
+  }
+
+  Future<void> goToPreviousStockItemsPage() async {
+    if (state.isLoading || state.isStockItemsPageLoading) return;
+    if (!state.hasPreviousStockItemsPage) return;
+    await loadStockItemsPage(
+      status: state.stockItemsStatus,
+      search: state.stockItemsSearch,
+      categoryId: state.stockItemsCategoryId.isEmpty
+          ? null
+          : state.stockItemsCategoryId,
+      limit: state.stockItemsPageSize,
+      page: state.stockItemsCurrentPage - 1,
+      pageTransition: true,
+    );
+  }
+
+  Future<void> goToStockItemsPage(int page) async {
+    if (state.isLoading || state.isStockItemsPageLoading) return;
+    if (page < 1 ||
+        page > state.stockItemsTotalPages ||
+        page == state.stockItemsCurrentPage) {
+      return;
+    }
+    await loadStockItemsPage(
+      status: state.stockItemsStatus,
+      search: state.stockItemsSearch,
+      categoryId: state.stockItemsCategoryId.isEmpty
+          ? null
+          : state.stockItemsCategoryId,
+      limit: state.stockItemsPageSize,
+      page: page,
+      pageTransition: true,
+    );
+  }
+
+  Future<void> loadMoreStockItems() async {
+    if (state.isLoading ||
+        state.isStockItemsPageLoading ||
+        state.isLoadingMoreStockItems) {
+      return;
+    }
+    if (!state.hasNextStockItemsPage) return;
+    await loadStockItemsPage(
+      status: state.stockItemsStatus,
+      search: state.stockItemsSearch,
+      categoryId: state.stockItemsCategoryId.isEmpty
+          ? null
+          : state.stockItemsCategoryId,
+      limit: state.stockItemsPageSize,
+      page: state.stockItemsCurrentPage + 1,
+      pageTransition: true,
+      accumulatePages: true,
+    );
   }
 
   Future<void> loadRestockBatches({
@@ -130,17 +367,18 @@ class StockInventoryController extends Notifier<StockInventoryState> {
         restockBatchBranchId: normalizedBranchId,
         hasMoreRestockBatches: canAppend ? state.hasMoreRestockBatches : true,
       );
-      final batches = await _journalRepository.fetchRestockBatches(
+      final fetched = await _journalRepository.fetchRestockBatches(
         branchId: normalizedBranchId.isEmpty ? null : normalizedBranchId,
         status: normalizedStatus,
         stockItemId: stockItemId,
         limit: safeLimit,
         offset: safeOffset,
       );
+      final batches = fetched.items;
       final nextBatches = canAppend
           ? _mergeBatches(state.batches, batches)
           : batches;
-      final hasMore = batches.length == safeLimit;
+      final hasMore = fetched.hasMore;
       state = state.copyWith(
         isBatchesLoading: false,
         isLoadingMoreBatches: false,
@@ -538,6 +776,10 @@ class StockInventoryController extends Notifier<StockInventoryState> {
         item: item,
         batch: batch,
       );
+      final currentOnHand = await _currentOnHandForAdjustment(
+        item: item,
+        branchId: resolvedBranchId,
+      );
       final resolvedDelta = normalizedStyle == 'DELTA' ? delta : null;
       final resolvedCount = normalizedStyle == 'SET_TO_COUNT'
           ? countedOnHandInBaseUnit
@@ -560,7 +802,7 @@ class StockInventoryController extends Notifier<StockInventoryState> {
       }
       final expectedOnHand = normalizedStyle == 'SET_TO_COUNT'
           ? resolvedCount!
-          : item.onHand + resolvedDelta!;
+          : currentOnHand + resolvedDelta!;
       if (expectedOnHand < 0) {
         throw const ApiClientException(
           message: 'Adjustment exceeds available quantity.',
@@ -797,6 +1039,20 @@ class StockInventoryController extends Notifier<StockInventoryState> {
     return merged;
   }
 
+  List<StockItem> _mergeStockItems(
+    List<StockItem> existing,
+    List<StockItem> next,
+  ) {
+    final seen = <String>{for (final item in existing) item.id};
+    final merged = <StockItem>[...existing];
+    for (final item in next) {
+      if (seen.add(item.id)) {
+        merged.add(item);
+      }
+    }
+    return merged;
+  }
+
   String _normalizeListStatus(String value) {
     switch (value.trim().toLowerCase()) {
       case 'active':
@@ -808,15 +1064,15 @@ class StockInventoryController extends Notifier<StockInventoryState> {
     }
   }
 
-  bool _matchesStatus(StockItem item, String status) {
-    switch (status.trim().toLowerCase()) {
-      case 'active':
-        return item.isActive;
-      case 'archived':
-        return !item.isActive;
+  String _normalizeInventoryStockLevel(String value) {
+    switch (value.trim().toLowerCase()) {
       case 'all':
+      case 'in_stock':
+      case 'low_stock':
+      case 'out_of_stock':
+        return value.trim().toLowerCase();
       default:
-        return true;
+        return 'all';
     }
   }
 
@@ -825,6 +1081,32 @@ class StockInventoryController extends Notifier<StockInventoryState> {
     final trimmed = branchId.trim();
     if (trimmed.isEmpty || trimmed == 'all') return null;
     return trimmed;
+  }
+
+  Future<int> _currentOnHandForAdjustment({
+    required StockItem item,
+    required String branchId,
+  }) async {
+    for (final inventoryItem in state.inventoryItems) {
+      if (inventoryItem.id == item.id && inventoryItem.branchId == branchId) {
+        return inventoryItem.onHand;
+      }
+    }
+
+    final records = await _branchStockRepository.fetchOnHand(
+      branchId: branchId,
+      status: 'all',
+    );
+    for (final record in records) {
+      if (record.stockItemId == item.id) {
+        return record.onHand ?? 0;
+      }
+    }
+
+    if (item.branchId == branchId) {
+      return item.onHand;
+    }
+    return 0;
   }
 
   StockItem _findItemOrThrow(String id) {
@@ -850,7 +1132,10 @@ class StockInventoryController extends Notifier<StockInventoryState> {
   Future<void> _reloadCurrentInventoryLane() async {
     await loadInventoryItems(
       branchId: state.selectedInventoryBranchId,
-      status: 'all',
+      status: state.inventoryStatus,
+      search: state.inventorySearch,
+      categoryId: state.inventoryCategoryId,
+      stockLevel: state.inventoryStockLevel,
     );
   }
 

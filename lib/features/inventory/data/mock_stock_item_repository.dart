@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/features/inventory/data/mock_inventory_store.dart';
+import 'package:modular_pos/features/inventory/data/inventory_paginated_result.dart';
 import 'package:modular_pos/features/inventory/data/stock_item_repository.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
 
@@ -14,8 +15,20 @@ class MockStockItemRepository extends StockItemRepository {
   final MockInventoryStore _store;
 
   @override
-  Future<List<StockItem>> fetchMasterStockItems({int pageSize = 200}) async {
-    return _store.fetchMasterStockItems(pageSize: pageSize);
+  Future<InventoryPaginatedResult<StockItem>> fetchMasterStockItems({
+    String status = 'all',
+    String? search,
+    String? categoryId,
+    int pageSize = 200,
+    int offset = 0,
+  }) async {
+    return _store.fetchMasterStockItems(
+      status: status,
+      search: search,
+      categoryId: categoryId,
+      pageSize: pageSize,
+      offset: offset,
+    );
   }
 
   @override

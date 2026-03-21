@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:modular_pos/features/inventory/data/dto/stock_item_dto.dart';
 import 'package:modular_pos/features/inventory/data/inventory_api.dart';
+import 'package:modular_pos/features/inventory/data/inventory_paginated_result.dart';
 import 'package:modular_pos/features/inventory/data/remote_stock_item_repository.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_status.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
@@ -9,6 +10,90 @@ import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
 class _MockInventoryApi extends Mock implements InventoryApi {}
 
 void main() {
+  test('fetchMasterStockItems preserves paginated metadata', () async {
+    final api = _MockInventoryApi();
+    final repository = RemoteStockItemRepository(api);
+
+    when(
+      () => api.fetchStockItems(status: 'all', limit: 200, offset: 0),
+    ).thenAnswer(
+      (_) async => const InventoryPaginatedResult(
+        items: [
+          StockItemDto(
+            id: 'item-1',
+            tenantId: 'tenant-1',
+            categoryId: 'cat-1',
+            name: 'Whole Milk',
+            baseUnit: 'ml',
+            imageUrl: null,
+            lowStockThreshold: 1000,
+            status: InventoryStatus.active,
+            createdAt: '2026-02-20T00:00:00.000Z',
+            updatedAt: '2026-02-21T00:00:00.000Z',
+          ),
+        ],
+        limit: 200,
+        offset: 0,
+        total: 301,
+        hasMore: true,
+      ),
+    );
+
+    final result = await repository.fetchMasterStockItems();
+
+    expect(result.items, hasLength(1));
+    expect(result.items.first.id, 'item-1');
+    expect(result.items.first.onHand, 0);
+    expect(result.limit, 200);
+    expect(result.offset, 0);
+    expect(result.total, 301);
+    expect(result.hasMore, isTrue);
+  });
+
+  test(
+    'fetchMasterStockItems forwards filters and offset to the api',
+    () async {
+      final api = _MockInventoryApi();
+      final repository = RemoteStockItemRepository(api);
+
+      when(
+        () => api.fetchStockItems(
+          status: 'archived',
+          search: 'milk',
+          categoryId: 'cat-1',
+          limit: 10,
+          offset: 20,
+        ),
+      ).thenAnswer(
+        (_) async => const InventoryPaginatedResult(
+          items: [],
+          limit: 10,
+          offset: 20,
+          total: 0,
+          hasMore: false,
+        ),
+      );
+
+      await repository.fetchMasterStockItems(
+        status: 'archived',
+        search: 'milk',
+        categoryId: 'cat-1',
+        pageSize: 10,
+        offset: 20,
+      );
+
+      verify(
+        () => api.fetchStockItems(
+          status: 'archived',
+          search: 'milk',
+          categoryId: 'cat-1',
+          limit: 10,
+          offset: 20,
+        ),
+      ).called(1);
+    },
+  );
+
   test('createStockItem forwards contract payload shape', () async {
     final api = _MockInventoryApi();
     final repository = RemoteStockItemRepository(api);

@@ -27,21 +27,17 @@ class AppAddNewButton extends StatelessWidget {
 
     return FilledButton(
       onPressed: onPressed,
-      style: AppButtons.primary(
-        context,
-        compact: true,
-        textStyle: textStyle,
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          Icon(
-            Icons.add,
-            size: iconSize,
-            color: scheme.onPrimary,
-          ),
-          Text(label)
-        ],
+      style: AppButtons.primary(context, compact: true, textStyle: textStyle),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.add, size: iconSize, color: scheme.onPrimary),
+            const SizedBox(width: 8),
+            Text(label),
+          ],
+        ),
       ),
     );
   }

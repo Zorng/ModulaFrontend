@@ -1,20 +1,32 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
-import 'package:modular_pos/features/branchV2/domain/models/branch_models.dart';
-import 'package:modular_pos/features/branchV2/ui/viewmodels/branch_controller.dart';
+import 'package:modular_pos/core/theme/app_theme.dart';
+import 'package:modular_pos/core/theme/app_table_theme.dart';
+import 'package:modular_pos/core/theme/responsive.dart';
+import 'package:modular_pos/core/widgets/layout/app_pagination_bar.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
+import 'package:modular_pos/features/branchV2/domain/models/branch_models.dart';
+import 'package:modular_pos/features/branchV2/ui/viewmodels/branch_controller.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_journal_entry.dart';
-import 'package:modular_pos/features/inventory/domain/models/inventory_journal_summary.dart';
+import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
+import 'package:modular_pos/features/inventory/ui/models/inventory_journal_date_filter.dart';
 import 'package:modular_pos/features/inventory/ui/models/inventory_journal_reason_filter.dart';
-import 'package:modular_pos/features/inventory/ui/view/inventory_journal/inventory_journal_models.dart';
 import 'package:modular_pos/features/inventory/ui/view/inventory_journal/inventory_journal_utils.dart';
-import 'package:modular_pos/features/inventory/ui/view/inventory_journal/widgets/inventory_journal_branch_section.dart';
 import 'package:modular_pos/features/inventory/ui/view/inventory_journal/widgets/inventory_journal_date_field.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/inventory_journal_controller.dart';
-import 'package:modular_pos/core/routing/app_router.dart';
-import 'package:go_router/go_router.dart';
+import 'package:modular_pos/features/inventory/ui/viewmodels/inventory_journal_state.dart';
+import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_controller.dart';
+
+part 'widgets/inventory_journal_header.dart';
+part 'widgets/inventory_journal_feedback.dart';
+part 'widgets/inventory_journal_table.dart';
+part 'widgets/inventory_journal_mobile_list.dart';
+part 'widgets/inventory_journal_filter_sheet.dart';
 
 class InventoryJournalPage extends ConsumerStatefulWidget {
   const InventoryJournalPage({super.key});
@@ -25,39 +37,63 @@ class InventoryJournalPage extends ConsumerStatefulWidget {
 }
 
 class _InventoryJournalPageState extends ConsumerState<InventoryJournalPage> {
-  static const int _pageSize = 50;
+  static const int _pageSize = 10;
+
+  final ScrollController _pageScrollController = ScrollController();
   InventoryJournalReasonFilter? _selectedReasonFilter;
-  DateTime? _startDate;
-  DateTime? _endDate;
-  final TextEditingController _startCtrl = TextEditingController();
-  final TextEditingController _endCtrl = TextEditingController();
+  InventoryJournalDatePreset _datePreset = InventoryJournalDatePreset.today;
+  late DateTime _startDate;
+  late DateTime _endDate;
+  bool? _lastIsSmallScreen;
 
   @override
   void initState() {
     super.initState();
+    final current = ref.read(inventoryJournalControllerProvider);
+    _selectedReasonFilter = _reasonFilterFromDomain(current.selectedReason);
+    final resolvedDateFilter = resolveInventoryJournalDateFilter(
+      current.dateFilter,
+    );
+    final initialRange = _rangeFromDateFilter(resolvedDateFilter);
+    _datePreset = resolvedDateFilter.preset;
+    _startDate = initialRange.start;
+    _endDate = initialRange.end;
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(branchControllerProvider.notifier).loadInitial();
-      final current = ref.read(inventoryJournalControllerProvider);
-      if (current.entries.isNotEmpty ||
-          current.selectedStockItemId.isNotEmpty ||
-          current.selectedBranchId != 'all') {
+      final stockState = ref.read(stockInventoryControllerProvider);
+      if (stockState.stockItems.isEmpty) {
+        ref.read(stockInventoryControllerProvider.notifier).loadStockItems();
+      }
+      final state = ref.read(inventoryJournalControllerProvider);
+      if (state.entries.isNotEmpty ||
+          state.selectedStockItemId.isNotEmpty ||
+          state.selectedBranchId != 'all' ||
+          state.selectedReason != null ||
+          state.dateFilter.preset != InventoryJournalDatePreset.today) {
         return;
       }
       ref
           .read(inventoryJournalControllerProvider.notifier)
-          .load(limit: _pageSize);
+          .load(
+            limit: _pageSize,
+            dateFilter: _currentDateFilter(),
+            accumulatePages: _usesLazyLoading,
+          );
     });
   }
 
   @override
   void dispose() {
-    _startCtrl.dispose();
-    _endCtrl.dispose();
+    _pageScrollController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    final isSmallScreen = AppBreakpoints.isSmall(width);
+    _syncLayoutMode(isSmallScreen);
     final loginState = ref.watch(loginControllerProvider);
     final activeTenantId =
         (loginState.session?.activeTenantId ??
@@ -73,232 +109,436 @@ class _InventoryJournalPageState extends ConsumerState<InventoryJournalPage> {
               branch.tenantId.trim() == activeTenantId,
         )
         .toList(growable: false);
+    final stockItems = ref.watch(
+      stockInventoryControllerProvider.select((state) => state.stockItems),
+    );
     final journalState = ref.watch(inventoryJournalControllerProvider);
     final entries = journalState.entries;
-    final selectedBranchId = journalState.selectedBranchId;
-    final selectedStockItemId = journalState.selectedStockItemId;
+    final selectedItemLabel = _selectedItemLabel(
+      entries: entries,
+      stockItems: stockItems,
+      selectedStockItemId: journalState.selectedStockItemId,
+    );
+    final baseUnitLookup = {
+      for (final item in stockItems)
+        if (item.id.trim().isNotEmpty && item.baseUnit.trim().isNotEmpty)
+          item.id: item.baseUnit.trim(),
+    };
     final branchOptions = _branchOptions(
       entries,
       tenantBranches: tenantBranches,
       userBranches: loginState.user?.branches ?? const <UserBranch>[],
     );
-    final filteredEntries = _filteredEntries(entries, selectedBranchId);
-    final branchGroups = _groupByBranch(filteredEntries);
-    final selectedItemLabel = selectedStockItemId.isEmpty
-        ? null
-        : entries
-                  .where((entry) => entry.itemId == selectedStockItemId)
-                  .map((entry) => entry.itemName)
-                  .where((name) => name.trim().isNotEmpty)
-                  .cast<String?>()
-                  .firstWhere((name) => name != null, orElse: () => null) ??
-              'selected stock item';
+    final filteredEntries = _entriesWithBranchLabels(entries, branchOptions);
+    final dateGroups = _groupByDate(filteredEntries);
+    final rangeLabel = _journalRangeLabel(journalState);
+    final filterStatusItems = _filterStatusItems(
+      selectedItemLabel: selectedItemLabel,
+      selectedStockItemId: journalState.selectedStockItemId,
+      selectedBranchId: journalState.selectedBranchId,
+      branchOptions: branchOptions,
+    );
+    final hasFiltersApplied =
+        journalState.selectedStockItemId.isNotEmpty ||
+        journalState.selectedBranchId != 'all' ||
+        _selectedReasonFilter != null ||
+        _datePreset != InventoryJournalDatePreset.today;
 
     return Scaffold(
       body: Padding(
         padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: DropdownMenu<String>(
-                    initialSelection: selectedBranchId,
-                    label: const Text('Branch'),
-                    dropdownMenuEntries: branchOptions
-                        .map(
-                          (entry) => DropdownMenuEntry(
-                            value: entry.key,
-                            label: entry.value,
-                          ),
-                        )
-                        .toList(),
-                    onSelected: (value) {
-                      final branch = value ?? 'all';
-                      ref
-                          .read(inventoryJournalControllerProvider.notifier)
-                          .load(
-                            branchId: branch == 'all' ? null : branch,
-                            reason: inventoryJournalReasonFilterToDomainReason(
-                              _selectedReasonFilter,
-                            ),
-                            limit: _pageSize,
-                          );
-                    },
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: DropdownMenu<InventoryJournalReasonFilter?>(
-                    initialSelection: _selectedReasonFilter,
-                    label: const Text('Reason'),
-                    dropdownMenuEntries:
-                        <DropdownMenuEntry<InventoryJournalReasonFilter?>>[
-                          const DropdownMenuEntry<
-                            InventoryJournalReasonFilter?
-                          >(value: null, label: 'All reasons'),
-                          ...InventoryJournalReasonFilter.values.map(
-                            (filter) =>
-                                DropdownMenuEntry<
-                                  InventoryJournalReasonFilter?
-                                >(value: filter, label: filter.label),
-                          ),
-                        ],
-                    onSelected: (value) {
-                      setState(() {
-                        _selectedReasonFilter = value;
-                      });
-                      ref
-                          .read(inventoryJournalControllerProvider.notifier)
-                          .load(
-                            branchId: selectedBranchId == 'all'
-                                ? null
-                                : selectedBranchId,
-                            reason: inventoryJournalReasonFilterToDomainReason(
-                              value,
-                            ),
-                            limit: _pageSize,
-                          );
-                    },
-                  ),
-                ),
-                const SizedBox(width: 12),
-                IconButton(
-                  icon: const Icon(Icons.restart_alt),
-                  tooltip: 'Reset filters',
-                  onPressed: () {
-                    setState(() {
-                      _selectedReasonFilter = null;
-                      _startDate = null;
-                      _endDate = null;
-                      _startCtrl.clear();
-                      _endCtrl.clear();
-                    });
-                    ref
-                        .read(inventoryJournalControllerProvider.notifier)
-                        .load(limit: _pageSize);
-                  },
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            if (selectedStockItemId.isNotEmpty) ...[
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Showing history for $selectedItemLabel.',
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () {
-                        ref
-                            .read(inventoryJournalControllerProvider.notifier)
-                            .load(
-                              branchId: selectedBranchId == 'all'
-                                  ? null
-                                  : selectedBranchId,
-                              reason:
-                                  inventoryJournalReasonFilterToDomainReason(
-                                    _selectedReasonFilter,
-                                  ),
-                              limit: _pageSize,
-                            );
-                      },
-                      child: const Text('Clear item filter'),
-                    ),
-                  ],
+        child: NestedScrollView(
+          controller: _pageScrollController,
+          headerSliverBuilder: (context, innerBoxIsScrolled) => [
+            SliverToBoxAdapter(
+              child: _JournalPageHeader(
+                filterStatusItems: filterStatusItems,
+                hasFiltersApplied: hasFiltersApplied,
+                onFilterPressed: () => _openFilterModal(
+                  context,
+                  branchOptions: branchOptions,
+                  stockItems: stockItems,
+                  selectedBranchId: journalState.selectedBranchId,
+                  selectedItemId: journalState.selectedStockItemId,
+                  selectedItemName: selectedItemLabel,
                 ),
               ),
-              const SizedBox(height: 12),
+            ),
+            if (journalState.error != null && entries.isNotEmpty) ...[
+              const SliverToBoxAdapter(child: SizedBox(height: 12)),
+              SliverToBoxAdapter(
+                child: _SelectionBanner(
+                  text: journalState.error!,
+                  actionLabel: 'Retry',
+                  onPressed: _reloadCurrentQuery,
+                  isError: true,
+                ),
+              ),
             ],
-            InventoryJournalDateField(
-              controller: _startCtrl,
-              label: 'Start date',
-              onTap: () => _pickDate(isStart: true),
-              onClear: () => setState(() {
-                _startDate = null;
-                _startCtrl.clear();
-              }),
-            ),
-            const SizedBox(height: 12),
-            InventoryJournalDateField(
-              controller: _endCtrl,
-              label: 'End date',
-              onTap: () => _pickDate(isStart: false),
-              onClear: () => setState(() {
-                _endDate = null;
-                _endCtrl.clear();
-              }),
-            ),
-            const SizedBox(height: 16),
-            Expanded(
-              child: journalState.isLoading && entries.isEmpty
-                  ? const Center(child: CircularProgressIndicator())
-                  : journalState.error != null && entries.isEmpty
-                  ? Center(child: Text(journalState.error!))
-                  : branchGroups.isEmpty
-                  ? const Center(child: Text('No journal activity yet.'))
-                  : ListView.separated(
-                      itemCount:
-                          branchGroups.length + (journalState.hasMore ? 1 : 0),
-                      separatorBuilder: (_, __) => const SizedBox(height: 16),
-                      itemBuilder: (context, index) {
-                        if (index >= branchGroups.length) {
-                          if (journalState.isLoadingMore) {
-                            return const Center(
-                              child: Padding(
-                                padding: EdgeInsets.symmetric(vertical: 8),
-                                child: CircularProgressIndicator(),
-                              ),
-                            );
-                          }
-                          return Center(
-                            child: OutlinedButton(
-                              onPressed: () {
-                                ref
-                                    .read(
-                                      inventoryJournalControllerProvider
-                                          .notifier,
-                                    )
-                                    .loadMore(
-                                      branchId: selectedBranchId == 'all'
-                                          ? null
-                                          : selectedBranchId,
-                                      reason:
-                                          inventoryJournalReasonFilterToDomainReason(
-                                            _selectedReasonFilter,
-                                          ),
-                                    );
-                              },
-                              child: const Text('Load more'),
-                            ),
-                          );
-                        }
-                        final group = branchGroups[index];
-                        return InventoryJournalBranchSection(
-                          group: group,
-                          onOpenSummary: (summary) => context.push(
-                            AppRoute.inventoryJournalDetail.path,
-                            extra: summary,
-                          ),
-                        );
-                      },
-                    ),
-            ),
+            const SliverToBoxAdapter(child: SizedBox(height: 16)),
           ],
+          body: _buildScrollableBody(
+            isSmallScreen: isSmallScreen,
+            journalState: journalState,
+            dateGroups: dateGroups,
+            baseUnitLookup: baseUnitLookup,
+            rangeLabel: rangeLabel,
+          ),
         ),
       ),
     );
+  }
+
+  Widget _buildScrollableBody({
+    required bool isSmallScreen,
+    required InventoryJournalState journalState,
+    required List<_JournalDateGroup> dateGroups,
+    required Map<String, String> baseUnitLookup,
+    required String rangeLabel,
+  }) {
+    if (journalState.isLoading && journalState.entries.isEmpty) {
+      return const CustomScrollView(
+        slivers: [
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: Center(child: CircularProgressIndicator()),
+          ),
+        ],
+      );
+    }
+
+    if (journalState.error != null && journalState.entries.isEmpty) {
+      return CustomScrollView(
+        slivers: [
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: _JournalInitialError(
+              message: journalState.error!,
+              onRetry: _reloadCurrentQuery,
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (dateGroups.isEmpty) {
+      return CustomScrollView(
+        slivers: [
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: _JournalEmptyState(message: _emptyStateMessage),
+          ),
+        ],
+      );
+    }
+
+    if (isSmallScreen) {
+      return _JournalMobileList(
+        groups: dateGroups,
+        baseUnitLookup: baseUnitLookup,
+        hasNextPage: journalState.hasNextPage,
+        isLoadingMore: journalState.isPageLoading,
+        onLoadMore: _loadNextChunk,
+      );
+    }
+
+    return ListView(
+      padding: EdgeInsets.zero,
+      children: [
+        _JournalDesktopTable(
+          groups: dateGroups,
+          baseUnitLookup: baseUnitLookup,
+          hideItemColumn: journalState.selectedStockItemId.isNotEmpty,
+          hideBranchColumn: journalState.selectedBranchId != 'all',
+          rangeLabel: rangeLabel,
+          currentPage: journalState.currentPage,
+          totalPages: journalState.totalPages,
+          hasPreviousPage: journalState.hasPreviousPage,
+          hasNextPage: journalState.hasNextPage,
+          isPageLoading: journalState.isPageLoading,
+          onPageSelected: _goToPage,
+          onPreviousPage: _goToPreviousPage,
+          onNextPage: _goToNextPage,
+        ),
+      ],
+    );
+  }
+
+  String get _dateLabel {
+    return switch (_datePreset) {
+      InventoryJournalDatePreset.today => 'Today',
+      InventoryJournalDatePreset.yesterday => 'Yesterday',
+      InventoryJournalDatePreset.last7Days => 'Last 7 days',
+      InventoryJournalDatePreset.custom => _formatDateRange(
+        _startDate,
+        _endDate,
+      ),
+    };
+  }
+
+  String get _emptyStateMessage {
+    return switch (_datePreset) {
+      InventoryJournalDatePreset.today => 'No inventory activity for today.',
+      InventoryJournalDatePreset.yesterday =>
+        'No inventory activity for yesterday.',
+      InventoryJournalDatePreset.last7Days =>
+        'No inventory activity in the last 7 days.',
+      InventoryJournalDatePreset.custom =>
+        'No inventory activity for ${_formatDateRange(_startDate, _endDate)}.',
+    };
+  }
+
+  List<_FilterStatusItem> _filterStatusItems({
+    required String selectedItemLabel,
+    required String selectedStockItemId,
+    required String selectedBranchId,
+    required List<MapEntry<String, String>> branchOptions,
+  }) {
+    return <_FilterStatusItem>[
+      _FilterStatusItem(
+        label: 'Item',
+        value: selectedStockItemId.isNotEmpty ? selectedItemLabel : 'All items',
+        isEmphasized: selectedStockItemId.isNotEmpty,
+      ),
+      _FilterStatusItem(label: 'Date', value: _dateLabel),
+      if (selectedBranchId != 'all')
+        _FilterStatusItem(
+          label: 'Branch',
+          value: _branchLabel(branchOptions, selectedBranchId),
+        )
+      else
+        const _FilterStatusItem(label: 'Branch', value: 'All branches'),
+      if (_selectedReasonFilter != null)
+        _FilterStatusItem(
+          label: 'Movement',
+          value: _selectedReasonFilter!.label,
+        )
+      else
+        const _FilterStatusItem(label: 'Movement', value: 'All types'),
+    ];
+  }
+
+  String _selectedItemLabel({
+    required List<InventoryJournalEntry> entries,
+    required List<StockItem> stockItems,
+    required String selectedStockItemId,
+  }) {
+    if (selectedStockItemId.isEmpty) {
+      return 'selected stock item';
+    }
+    for (final item in stockItems) {
+      if (item.id != selectedStockItemId) continue;
+      final name = item.name.trim();
+      if (name.isNotEmpty) return name;
+    }
+    for (final entry in entries) {
+      if (entry.itemId != selectedStockItemId) continue;
+      final name = entry.itemName.trim();
+      if (name.isNotEmpty) return name;
+    }
+    return 'selected stock item';
+  }
+
+  Future<void> _reloadCurrentQuery() async {
+    final journalState = ref.read(inventoryJournalControllerProvider);
+    await _loadJournal(
+      branchId: journalState.selectedBranchId,
+      stockItemId: journalState.selectedStockItemId,
+      reasonFilter: _selectedReasonFilter,
+    );
+  }
+
+  Future<void> _openFilterModal(
+    BuildContext context, {
+    required List<MapEntry<String, String>> branchOptions,
+    required List<StockItem> stockItems,
+    required String selectedBranchId,
+    required String selectedItemId,
+    required String selectedItemName,
+  }) async {
+    final draft = await _showFilterModal(
+      context,
+      branchOptions: branchOptions,
+      stockItems: stockItems,
+      initialDraft: _JournalFilterDraft(
+        branchId: selectedBranchId,
+        stockItemId: selectedItemId,
+        stockItemName: selectedItemId.isEmpty ? '' : selectedItemName,
+        reasonFilter: _selectedReasonFilter,
+        datePreset: _datePreset,
+        startDate: _startDate,
+        endDate: _endDate,
+      ),
+    );
+    if (draft == null || !mounted) return;
+
+    setState(() {
+      _selectedReasonFilter = draft.reasonFilter;
+      _datePreset = draft.datePreset;
+      _startDate = draft.startDate;
+      _endDate = draft.endDate;
+    });
+
+    await _loadJournal(
+      branchId: draft.branchId,
+      stockItemId: draft.stockItemId.isEmpty ? null : draft.stockItemId,
+      reasonFilter: draft.reasonFilter,
+    );
+  }
+
+  Future<_JournalFilterDraft?> _showFilterModal(
+    BuildContext context, {
+    required List<MapEntry<String, String>> branchOptions,
+    required List<StockItem> stockItems,
+    required _JournalFilterDraft initialDraft,
+  }) {
+    final isSmallScreen = AppBreakpoints.isSmall(
+      MediaQuery.sizeOf(context).width,
+    );
+    if (isSmallScreen) {
+      return _showMobileFullscreenModal<_JournalFilterDraft>(
+        context,
+        child: _JournalFilterSheet(
+          branchOptions: branchOptions,
+          stockItems: stockItems,
+          initialDraft: initialDraft,
+        ),
+      );
+    }
+
+    return showDialog<_JournalFilterDraft>(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        surfaceTintColor: Theme.of(context).scaffoldBackgroundColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        clipBehavior: Clip.antiAlias,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: _JournalFilterSheet(
+              branchOptions: branchOptions,
+              stockItems: stockItems,
+              initialDraft: initialDraft,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<T?> _showMobileFullscreenModal<T>(
+    BuildContext context, {
+    required Widget child,
+  }) {
+    return Navigator.of(context).push<T>(
+      MaterialPageRoute<T>(
+        fullscreenDialog: true,
+        builder: (context) => _JournalMobileModalScaffold(child: child),
+      ),
+    );
+  }
+
+  Future<void> _loadJournal({
+    required String branchId,
+    String? stockItemId,
+    required InventoryJournalReasonFilter? reasonFilter,
+  }) {
+    return ref
+        .read(inventoryJournalControllerProvider.notifier)
+        .load(
+          branchId: branchId == 'all' ? null : branchId,
+          stockItemId: (stockItemId == null || stockItemId.isEmpty)
+              ? null
+              : stockItemId,
+          reason: inventoryJournalReasonFilterToDomainReason(reasonFilter),
+          dateFilter: _currentDateFilter(),
+          limit: _pageSize,
+          accumulatePages: _usesLazyLoading,
+        );
+  }
+
+  Future<void> _loadNextChunk() {
+    final journalState = ref.read(inventoryJournalControllerProvider);
+    return ref
+        .read(inventoryJournalControllerProvider.notifier)
+        .loadNextChunk(
+          branchId: journalState.selectedBranchId == 'all'
+              ? null
+              : journalState.selectedBranchId,
+          stockItemId: journalState.selectedStockItemId.isEmpty
+              ? null
+              : journalState.selectedStockItemId,
+          reason: inventoryJournalReasonFilterToDomainReason(
+            _selectedReasonFilter,
+          ),
+        );
+  }
+
+  Future<void> _goToNextPage() {
+    final journalState = ref.read(inventoryJournalControllerProvider);
+    return ref
+        .read(inventoryJournalControllerProvider.notifier)
+        .goToNextPage(
+          branchId: journalState.selectedBranchId == 'all'
+              ? null
+              : journalState.selectedBranchId,
+          stockItemId: journalState.selectedStockItemId.isEmpty
+              ? null
+              : journalState.selectedStockItemId,
+          reason: inventoryJournalReasonFilterToDomainReason(
+            _selectedReasonFilter,
+          ),
+        )
+        .then((_) => _jumpToTopAfterPageChange());
+  }
+
+  Future<void> _goToPage(int page) {
+    final journalState = ref.read(inventoryJournalControllerProvider);
+    return ref
+        .read(inventoryJournalControllerProvider.notifier)
+        .goToPage(
+          page,
+          branchId: journalState.selectedBranchId == 'all'
+              ? null
+              : journalState.selectedBranchId,
+          stockItemId: journalState.selectedStockItemId.isEmpty
+              ? null
+              : journalState.selectedStockItemId,
+          reason: inventoryJournalReasonFilterToDomainReason(
+            _selectedReasonFilter,
+          ),
+        )
+        .then((_) => _jumpToTopAfterPageChange());
+  }
+
+  Future<void> _goToPreviousPage() {
+    final journalState = ref.read(inventoryJournalControllerProvider);
+    return ref
+        .read(inventoryJournalControllerProvider.notifier)
+        .goToPreviousPage(
+          branchId: journalState.selectedBranchId == 'all'
+              ? null
+              : journalState.selectedBranchId,
+          stockItemId: journalState.selectedStockItemId.isEmpty
+              ? null
+              : journalState.selectedStockItemId,
+          reason: inventoryJournalReasonFilterToDomainReason(
+            _selectedReasonFilter,
+          ),
+        )
+        .then((_) => _jumpToTopAfterPageChange());
+  }
+
+  Future<void> _jumpToTopAfterPageChange() async {
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_pageScrollController.hasClients) return;
+      final position = _pageScrollController.position;
+      if (position.pixels <= 0) return;
+      _pageScrollController.jumpTo(0);
+    });
   }
 
   List<MapEntry<String, String>> _branchOptions(
@@ -306,7 +546,7 @@ class _InventoryJournalPageState extends ConsumerState<InventoryJournalPage> {
     List<BranchListItem> tenantBranches = const <BranchListItem>[],
     List<UserBranch> userBranches = const <UserBranch>[],
   }) {
-    final map = <String, String>{'all': 'All branches'};
+    final map = <String, String>{};
     if (tenantBranches.isNotEmpty) {
       for (final branch in tenantBranches) {
         final id = branch.branchId.trim();
@@ -326,104 +566,273 @@ class _InventoryJournalPageState extends ConsumerState<InventoryJournalPage> {
       }
     }
     for (final entry in entries) {
-      if (entry.branchId.isNotEmpty) {
-        map[entry.branchId] = entry.branchName;
+      final id = entry.branchId.trim();
+      if (id.isEmpty) continue;
+      final entryName = entry.branchName.trim();
+      if (entryName.isNotEmpty || !map.containsKey(id)) {
+        map[id] = entryName.isNotEmpty ? entryName : id;
       }
     }
-    return map.entries.toList()..sort((a, b) => a.value.compareTo(b.value));
+
+    final options = map.entries.toList()
+      ..sort((a, b) => a.value.compareTo(b.value));
+    return [const MapEntry('all', 'All branches'), ...options];
   }
 
-  List<InventoryJournalEntry> _filteredEntries(
-    List<InventoryJournalEntry> entries,
-    String selectedBranchId,
-  ) {
-    return entries.where((entry) {
-      final matchesBranch =
-          selectedBranchId == 'all' || entry.branchId == selectedBranchId;
-      final matchesStart =
-          _startDate == null || !entry.occurredAt.isBefore(_startDate!);
-      final matchesEnd =
-          _endDate == null ||
-          !entry.occurredAt.isAfter(
-            _endDate!
-                .add(const Duration(days: 1))
-                .subtract(const Duration(seconds: 1)),
-          );
-      return matchesBranch && matchesStart && matchesEnd;
-    }).toList();
-  }
-
-  List<InventoryJournalBranchGroup> _groupByBranch(
-    List<InventoryJournalEntry> entries,
-  ) {
-    final byBranch = <String, List<InventoryJournalEntry>>{};
-    final branchNames = <String, String>{};
-    for (final entry in entries) {
-      byBranch.putIfAbsent(entry.branchId, () => []).add(entry);
-      branchNames[entry.branchId] = entry.branchName;
+  String _journalRangeLabel(InventoryJournalState journalState) {
+    if (journalState.entries.isEmpty) {
+      return 'Showing 0 entries';
     }
-
-    final groups =
-        byBranch.entries
-            .map(
-              (e) => InventoryJournalBranchGroup(
-                branchId: e.key,
-                branchName: branchNames[e.key] ?? 'Branch',
-                summaries: _summariesFor(e.value),
-              ),
-            )
-            .where((group) => group.summaries.isNotEmpty)
-            .toList()
-          ..sort((a, b) => a.branchName.compareTo(b.branchName));
-    return groups;
+    return 'Showing ${journalState.visibleRangeStart}-${journalState.visibleRangeEnd} entries';
   }
 
-  List<InventoryJournalDaySummary> _summariesFor(
-    List<InventoryJournalEntry> entries,
-  ) {
-    final Map<DateTime, List<InventoryJournalEntry>> grouped = {};
-    for (final entry in entries) {
-      final dayKey = DateTime(
-        entry.occurredAt.year,
-        entry.occurredAt.month,
-        entry.occurredAt.day,
-      );
-      grouped.putIfAbsent(dayKey, () => []).add(entry);
+  bool get _usesLazyLoading =>
+      AppBreakpoints.isSmall(MediaQuery.sizeOf(context).width);
+
+  void _syncLayoutMode(bool isSmallScreen) {
+    if (_lastIsSmallScreen == null) {
+      _lastIsSmallScreen = isSmallScreen;
+      return;
     }
-    final summaries = grouped.entries.map((e) {
-      final uniqueItems = e.value.map((entry) => entry.itemName).toSet().length;
-      final sortedEntries = [...e.value]
-        ..sort((a, b) => b.occurredAt.compareTo(a.occurredAt));
-      return InventoryJournalDaySummary(
-        date: e.key,
-        itemCount: uniqueItems,
-        activityCount: sortedEntries.length,
-        entries: sortedEntries,
-      );
-    }).toList()..sort((a, b) => b.date.compareTo(a.date));
-    return summaries;
-  }
-
-  Future<void> _pickDate({required bool isStart}) async {
-    final now = DateTime.now();
-    final initial = isStart ? _startDate ?? now : _endDate ?? now;
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: initial,
-      firstDate: DateTime(now.year - 5),
-      lastDate: DateTime(now.year + 5),
-    );
-    if (picked == null) return;
-    setState(() {
-      if (isStart) {
-        _startDate = picked;
-        _startCtrl.text = _formatDate(picked);
-      } else {
-        _endDate = picked;
-        _endCtrl.text = _formatDate(picked);
-      }
+    if (_lastIsSmallScreen == isSmallScreen) return;
+    _lastIsSmallScreen = isSmallScreen;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _reloadCurrentQuery();
     });
   }
 
-  String _formatDate(DateTime date) => formatYyyyMmDd(date);
+  List<InventoryJournalEntry> _entriesWithBranchLabels(
+    List<InventoryJournalEntry> entries,
+    List<MapEntry<String, String>> branchOptions,
+  ) {
+    return entries
+        .map((entry) {
+          if (entry.branchName.trim().isNotEmpty) return entry;
+          final branchId = entry.branchId.trim();
+          if (branchId.isEmpty || branchId == 'all') return entry;
+          return entry.copyWith(
+            branchName: _branchLabel(branchOptions, branchId),
+          );
+        })
+        .toList(growable: false);
+  }
+
+  List<_JournalDateGroup> _groupByDate(List<InventoryJournalEntry> entries) {
+    final grouped = <DateTime, List<InventoryJournalEntry>>{};
+    for (final entry in entries) {
+      final cambodiaOccurredAt = _journalCambodiaDateTime(entry.occurredAt);
+      final dateKey = DateTime(
+        cambodiaOccurredAt.year,
+        cambodiaOccurredAt.month,
+        cambodiaOccurredAt.day,
+      );
+      grouped.putIfAbsent(dateKey, () => <InventoryJournalEntry>[]).add(entry);
+    }
+
+    final groups =
+        grouped.entries
+            .map(
+              (entry) => _JournalDateGroup(
+                date: entry.key,
+                entries: [...entry.value]
+                  ..sort((a, b) => b.occurredAt.compareTo(a.occurredAt)),
+              ),
+            )
+            .toList()
+          ..sort((a, b) => b.date.compareTo(a.date));
+    return groups;
+  }
+
+  String _branchLabel(
+    List<MapEntry<String, String>> branchOptions,
+    String branchId,
+  ) {
+    for (final option in branchOptions) {
+      if (option.key == branchId) {
+        return option.value;
+      }
+    }
+    return branchId;
+  }
+
+  InventoryJournalDateFilter _currentDateFilter() {
+    return resolveInventoryJournalDateFilter(
+      InventoryJournalDateFilter(
+        preset: _datePreset,
+        from: _datePreset == InventoryJournalDatePreset.custom
+            ? _startDate
+            : null,
+        to: _datePreset == InventoryJournalDatePreset.custom ? _endDate : null,
+      ),
+    );
+  }
+}
+
+class _JournalFilterDraft {
+  const _JournalFilterDraft({
+    required this.branchId,
+    required this.stockItemId,
+    required this.stockItemName,
+    required this.reasonFilter,
+    required this.datePreset,
+    required this.startDate,
+    required this.endDate,
+  });
+
+  final String branchId;
+  final String stockItemId;
+  final String stockItemName;
+  final InventoryJournalReasonFilter? reasonFilter;
+  final InventoryJournalDatePreset datePreset;
+  final DateTime startDate;
+  final DateTime endDate;
+}
+
+class _JournalDateGroup {
+  const _JournalDateGroup({required this.date, required this.entries});
+
+  final DateTime date;
+  final List<InventoryJournalEntry> entries;
+}
+
+class _JournalDateRange {
+  const _JournalDateRange({required this.start, required this.end});
+
+  final DateTime start;
+  final DateTime end;
+}
+
+double _filterOverlayMaxHeight(BuildContext context) {
+  final viewportHeight = MediaQuery.sizeOf(context).height;
+  return math.min(220, math.max(160, viewportHeight * 0.28)).toDouble();
+}
+
+_JournalDateRange _rangeForPreset(InventoryJournalDatePreset preset) {
+  final now = DateTime.now();
+  return switch (preset) {
+    InventoryJournalDatePreset.today => _JournalDateRange(
+      start: _startOfDay(now),
+      end: _endOfDay(now),
+    ),
+    InventoryJournalDatePreset.yesterday => _JournalDateRange(
+      start: _startOfDay(now.subtract(const Duration(days: 1))),
+      end: _endOfDay(now.subtract(const Duration(days: 1))),
+    ),
+    InventoryJournalDatePreset.last7Days => _JournalDateRange(
+      start: _startOfDay(now.subtract(const Duration(days: 6))),
+      end: _endOfDay(now),
+    ),
+    InventoryJournalDatePreset.custom => _JournalDateRange(
+      start: _startOfDay(now),
+      end: _endOfDay(now),
+    ),
+  };
+}
+
+_JournalDateRange _rangeFromDateFilter(InventoryJournalDateFilter filter) {
+  final resolved = resolveInventoryJournalDateFilter(filter);
+  return switch (resolved.preset) {
+    InventoryJournalDatePreset.today ||
+    InventoryJournalDatePreset.yesterday => _JournalDateRange(
+      start: _startOfDay(resolved.date!),
+      end: _endOfDay(resolved.date!),
+    ),
+    InventoryJournalDatePreset.last7Days ||
+    InventoryJournalDatePreset.custom => _JournalDateRange(
+      start: _startOfDay(resolved.from!),
+      end: _endOfDay(resolved.to!),
+    ),
+  };
+}
+
+String _presetLabel(InventoryJournalDatePreset preset) {
+  return switch (preset) {
+    InventoryJournalDatePreset.today => 'Today',
+    InventoryJournalDatePreset.yesterday => 'Yesterday',
+    InventoryJournalDatePreset.last7Days => 'Last 7 days',
+    InventoryJournalDatePreset.custom => 'Custom',
+  };
+}
+
+String? _validateCustomRange(DateTime? start, DateTime? end) {
+  if (start == null || end == null) {
+    return 'Select both start date and end date.';
+  }
+  if (_startOfDay(start) == _startOfDay(end)) {
+    return 'Start date and end date cannot be the same.';
+  }
+  if (end.isBefore(start)) {
+    return 'Start date must be before end date.';
+  }
+  final inclusiveDays = end.difference(start).inDays + 1;
+  if (inclusiveDays > 90) {
+    return 'Custom date range cannot exceed 90 days.';
+  }
+  return null;
+}
+
+DateTime _startOfDay(DateTime value) =>
+    DateTime(value.year, value.month, value.day);
+
+DateTime _endOfDay(DateTime value) =>
+    DateTime(value.year, value.month, value.day, 23, 59, 59, 999);
+
+InventoryJournalReasonFilter? _reasonFilterFromDomain(
+  InventoryJournalReason? reason,
+) {
+  return switch (reason) {
+    InventoryJournalReason.restock => InventoryJournalReasonFilter.restock,
+    InventoryJournalReason.add ||
+    InventoryJournalReason.remove => InventoryJournalReasonFilter.adjustment,
+    InventoryJournalReason.sale => InventoryJournalReasonFilter.saleDeduction,
+    InventoryJournalReason.voided => InventoryJournalReasonFilter.voidReversal,
+    InventoryJournalReason.reopen ||
+    InventoryJournalReason.unknown => InventoryJournalReasonFilter.other,
+    null => null,
+  };
+}
+
+String _movementTypeLabel(InventoryJournalEntry entry) {
+  return switch (entry.reason) {
+    InventoryJournalReason.restock => 'RESTOCK',
+    InventoryJournalReason.add || InventoryJournalReason.remove => 'ADJUSTMENT',
+    InventoryJournalReason.sale => 'SALE_DEDUCTION',
+    InventoryJournalReason.voided => 'VOID_REVERSAL',
+    InventoryJournalReason.reopen || InventoryJournalReason.unknown => 'OTHER',
+  };
+}
+
+Color _deltaColor(int delta) {
+  if (delta > 0) return const Color(0xFF1E8E5A);
+  if (delta < 0) return const Color(0xFFD14343);
+  return const Color(0xFF393838);
+}
+
+String _formatDelta(int delta) {
+  final formatter = NumberFormat.decimalPattern();
+  final sign = delta > 0 ? '+' : '';
+  return '$sign${formatter.format(delta)}';
+}
+
+String _formatDeltaWithUnit(
+  InventoryJournalEntry entry,
+  Map<String, String> baseUnitLookup,
+) {
+  final baseUnit = baseUnitLookup[entry.itemId]?.trim() ?? '';
+  if (baseUnit.isEmpty) return _formatDelta(entry.delta);
+  return '${_formatDelta(entry.delta)} $baseUnit';
+}
+
+String _formatDateRange(DateTime start, DateTime end) {
+  final startLabel = DateFormat('MMM d').format(start);
+  final endLabel = DateFormat('MMM d, y').format(end);
+  return '$startLabel - $endLabel';
+}
+
+const Duration _journalCambodiaOffset = Duration(hours: 7);
+
+DateTime _journalCambodiaDateTime(DateTime value) {
+  final utcValue = value.isUtc ? value : value.toUtc();
+  return utcValue.add(_journalCambodiaOffset);
 }

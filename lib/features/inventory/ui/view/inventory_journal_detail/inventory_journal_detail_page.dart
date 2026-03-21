@@ -51,57 +51,73 @@ class _InventoryJournalDetailPageState
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              widget.summary.entries.isNotEmpty
-                  ? 'Branch: ${widget.summary.entries.first.branchName}'
-                  : 'Branch',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).hintColor,
-              ),
-            ),
-            const SizedBox(height: 8),
-            InventoryJournalSearchAutocomplete(
-              initialValue: _searchQuery ?? '',
-              options: _itemOptions,
-              onChanged: (value) => setState(() => _searchQuery = value),
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: InventoryJournalReasonFilter.values
-                  .map(
-                    (filter) => FilterChip(
-                      label: Text(filter.label),
-                      selected: _selectedReasonFilters.contains(filter),
-                      onSelected: (selected) {
-                        setState(() {
-                          if (selected) {
-                            _selectedReasonFilters.add(filter);
-                          } else {
-                            _selectedReasonFilters.remove(filter);
-                          }
-                        });
-                      },
-                    ),
-                  )
-                  .toList(),
-            ),
-            const SizedBox(height: 16),
-            Expanded(
-              child: entries.isEmpty
-                  ? const Center(child: Text('No matching transactions.'))
-                  : ListView.separated(
-                      itemBuilder: (context, index) =>
-                          InventoryJournalEntryCard(entry: entries[index]),
-                      separatorBuilder: (_, __) => const SizedBox(height: 12),
-                      itemCount: entries.length,
-                    ),
-            ),
-          ],
+        child: ListView.separated(
+          itemCount: entries.isEmpty ? 4 : entries.length + 4,
+          separatorBuilder: (_, index) {
+            if (entries.isEmpty) return const SizedBox.shrink();
+            if (index < 3) {
+              return const SizedBox(height: 0);
+            }
+            return const SizedBox(height: 12);
+          },
+          itemBuilder: (context, index) {
+            if (index == 0) {
+              return Text(
+                widget.summary.entries.isNotEmpty
+                    ? 'Branch: ${widget.summary.entries.first.branchName}'
+                    : 'Branch',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Theme.of(context).hintColor,
+                ),
+              );
+            }
+            if (index == 1) {
+              return Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: InventoryJournalSearchAutocomplete(
+                  initialValue: _searchQuery ?? '',
+                  options: _itemOptions,
+                  onChanged: (value) => setState(() => _searchQuery = value),
+                ),
+              );
+            }
+            if (index == 2) {
+              return Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: InventoryJournalReasonFilter.values
+                      .map(
+                        (filter) => FilterChip(
+                          label: Text(filter.label),
+                          selected: _selectedReasonFilters.contains(filter),
+                          onSelected: (selected) {
+                            setState(() {
+                              if (selected) {
+                                _selectedReasonFilters.add(filter);
+                              } else {
+                                _selectedReasonFilters.remove(filter);
+                              }
+                            });
+                          },
+                        ),
+                      )
+                      .toList(),
+                ),
+              );
+            }
+            if (index == 3) {
+              return const SizedBox(height: 4);
+            }
+            if (entries.isEmpty) {
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 48),
+                child: Center(child: Text('No matching transactions.')),
+              );
+            }
+            return InventoryJournalEntryCard(entry: entries[index - 4]);
+          },
         ),
       ),
     );
@@ -145,8 +161,8 @@ class _InventoryJournalDetailPageState
     if (!needsHydrate) return;
 
     final repo = ref.read(stockItemRepositoryProvider);
-    final items = await repo.fetchMasterStockItems();
-    final lookup = {for (final item in items) item.id: item.name};
+    final fetched = await repo.fetchMasterStockItems();
+    final lookup = {for (final item in fetched.items) item.id: item.name};
     setState(() {
       _entries = _entries
           .map(

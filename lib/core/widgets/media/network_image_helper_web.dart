@@ -1,13 +1,11 @@
+import 'dart:ui_web' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:modular_pos/core/widgets/media/network_image_view_type.dart';
 import 'package:web/web.dart' as html;
-import 'dart:ui_web' as ui;
 
 final Set<String> _registeredViewTypes = <String>{};
 
-/// Render a network image using a platform view to bypass CanvasKit CORS texture issues.
-///
-/// Folder: `lib/core/widgets/media/`
 Widget buildAdaptiveNetworkImage(
   String url,
   Widget placeholder, {
@@ -43,10 +41,7 @@ Widget buildAdaptiveNetworkImage(
       fit: StackFit.expand,
       children: [
         placeholder,
-        HtmlElementView(
-          key: ValueKey(viewType),
-          viewType: viewType,
-        ),
+        HtmlElementView(key: ValueKey(viewType), viewType: viewType),
       ],
     ),
   );

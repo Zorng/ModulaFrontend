@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/core/network/api_contract.dart';
+import 'package:modular_pos/features/inventory/data/inventory_paginated_result.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_category.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_journal_entry.dart';
 import 'package:modular_pos/features/inventory/domain/models/on_hand_record.dart';
@@ -32,7 +33,9 @@ class MockInventoryStore {
   List<InventoryCategory> fetchCategories({String status = 'all'}) {
     final normalizedStatus = _normalizeStatus(status);
     return _categories.values
-        .where((category) => _matchesStatus(category.isActive, normalizedStatus))
+        .where(
+          (category) => _matchesStatus(category.isActive, normalizedStatus),
+        )
         .toList(growable: false);
   }
 
@@ -53,7 +56,9 @@ class MockInventoryStore {
       );
     }
     final created = category.copyWith(
-      id: category.id.isNotEmpty ? category.id : _nextId('mock-category', _nextCategoryId++),
+      id: category.id.isNotEmpty
+          ? category.id
+          : _nextId('mock-category', _nextCategoryId++),
       name: normalizedName,
       isActive: category.isActive,
     );
@@ -112,8 +117,42 @@ class MockInventoryStore {
     }
   }
 
-  List<StockItem> fetchMasterStockItems({int pageSize = 200}) {
-    return _items.values.take(pageSize).toList(growable: false);
+  InventoryPaginatedResult<StockItem> fetchMasterStockItems({
+    String status = 'all',
+    String? search,
+    String? categoryId,
+    int pageSize = 200,
+    int offset = 0,
+  }) {
+    final normalizedStatus = status.trim().toLowerCase();
+    final normalizedSearch = search?.trim().toLowerCase() ?? '';
+    final normalizedCategoryId = categoryId?.trim() ?? '';
+    final filtered = _items.values
+        .where((item) {
+          final matchesStatus = switch (normalizedStatus) {
+            'active' => item.isActive,
+            'archived' => !item.isActive,
+            _ => true,
+          };
+          final matchesSearch =
+              normalizedSearch.isEmpty ||
+              item.name.toLowerCase().contains(normalizedSearch);
+          final matchesCategory =
+              normalizedCategoryId.isEmpty ||
+              item.categoryId == normalizedCategoryId;
+          return matchesStatus && matchesSearch && matchesCategory;
+        })
+        .toList(growable: false);
+    final safeOffset = offset.clamp(0, filtered.length).toInt();
+    final end = (safeOffset + pageSize).clamp(0, filtered.length).toInt();
+    final items = filtered.sublist(safeOffset, end);
+    return InventoryPaginatedResult<StockItem>(
+      items: items,
+      limit: pageSize,
+      offset: safeOffset,
+      total: filtered.length,
+      hasMore: end < filtered.length,
+    );
   }
 
   StockItem fetchStockItemById(String id) {
@@ -149,7 +188,9 @@ class MockInventoryStore {
       );
     }
     final categoryId = _sanitizeCategoryId(item.categoryId);
-    final id = item.id.isNotEmpty ? item.id : _nextId('mock-stock-item', _nextStockItemId++);
+    final id = item.id.isNotEmpty
+        ? item.id
+        : _nextId('mock-stock-item', _nextStockItemId++);
     final created = StockItem(
       id: id,
       name: normalizedName,
@@ -161,7 +202,12 @@ class MockInventoryStore {
       onHand: 0,
       minThreshold: item.minThreshold < 0 ? 0 : item.minThreshold,
       isActive: item.isActive,
-      imageUrl: _resolveImageUrl(id: id, current: item.imageUrl, imagePath: imagePath, imageBytes: imageBytes),
+      imageUrl: _resolveImageUrl(
+        id: id,
+        current: item.imageUrl,
+        imagePath: imagePath,
+        imageBytes: imageBytes,
+      ),
     );
     _items[id] = created;
     return created;
@@ -241,42 +287,82 @@ class MockInventoryStore {
     _items[id] = current.copyWith(isActive: true);
   }
 
-  List<StockItem> fetchInventoryStockItems({
+  InventoryPaginatedResult<StockItem> fetchInventoryStockItems({
     String? branchId,
     String status = 'all',
+    String? search,
+    String? categoryId,
+    String stockLevel = 'all',
+    int pageSize = 50,
+    int offset = 0,
   }) {
     final normalizedStatus = _normalizeStatus(status);
     final targetBranch = _normalizeBranch(branchId);
-    if (targetBranch != null) {
-      _ensureValidBranch(targetBranch);
-      return _positions.values
-          .where((position) => position.branchId == targetBranch)
-          .map((position) => _toInventoryItem(position, targetBranch))
-          .where(
-            (item) => _matchesStatus(item.isActive, normalizedStatus),
-          )
-          .toList(growable: false);
-    }
+    final normalizedSearch = search?.trim().toLowerCase() ?? '';
+    final normalizedCategoryId = categoryId?.trim() ?? '';
+    final normalizedStockLevel = _normalizeInventoryStockLevel(stockLevel);
+    final filtered = targetBranch != null
+        ? () {
+            _ensureValidBranch(targetBranch);
+            return _positions.values
+                .where((position) => position.branchId == targetBranch)
+                .map((position) => _toInventoryItem(position, targetBranch))
+                .where(
+                  (item) => _matchesStatus(item.isActive, normalizedStatus),
+                )
+                .where(
+                  (item) => _matchesInventoryQuery(
+                    item,
+                    search: normalizedSearch,
+                    categoryId: normalizedCategoryId,
+                    stockLevel: normalizedStockLevel,
+                  ),
+                )
+                .toList(growable: false);
+          }()
+        : () {
+            final totals = <String, int>{};
+            for (final position in _positions.values) {
+              totals[position.stockItemId] =
+                  (totals[position.stockItemId] ?? 0) + position.onHand;
+            }
+            return totals.entries
+                .map((entry) {
+                  final item = _items[entry.key];
+                  if (item == null) return null;
+                  return item.copyWith(
+                    branchId: '',
+                    branchName: '',
+                    onHand: entry.value,
+                    minThreshold: item.minThreshold,
+                  );
+                })
+                .whereType<StockItem>()
+                .where(
+                  (item) => _matchesStatus(item.isActive, normalizedStatus),
+                )
+                .where(
+                  (item) => _matchesInventoryQuery(
+                    item,
+                    search: normalizedSearch,
+                    categoryId: normalizedCategoryId,
+                    stockLevel: normalizedStockLevel,
+                  ),
+                )
+                .toList(growable: false);
+          }();
 
-    final totals = <String, int>{};
-    for (final position in _positions.values) {
-      totals[position.stockItemId] =
-          (totals[position.stockItemId] ?? 0) + position.onHand;
-    }
-    return totals.entries
-        .map((entry) {
-          final item = _items[entry.key];
-          if (item == null) return null;
-          return item.copyWith(
-            branchId: '',
-            branchName: '',
-            onHand: entry.value,
-            minThreshold: item.minThreshold,
-          );
-        })
-        .whereType<StockItem>()
-        .where((item) => _matchesStatus(item.isActive, normalizedStatus))
-        .toList(growable: false);
+    final safePageSize = pageSize <= 0 ? 50 : pageSize;
+    final safeOffset = offset.clamp(0, filtered.length).toInt();
+    final end = (safeOffset + safePageSize).clamp(0, filtered.length).toInt();
+    final items = filtered.sublist(safeOffset, end);
+    return InventoryPaginatedResult<StockItem>(
+      items: items,
+      limit: safePageSize,
+      offset: safeOffset,
+      total: filtered.length,
+      hasMore: end < filtered.length,
+    );
   }
 
   List<OnHandRecord> fetchOnHand({
@@ -436,11 +522,14 @@ class MockInventoryStore {
     return resultingOnHand;
   }
 
-  List<InventoryJournalEntry> fetchJournal({
+  InventoryPaginatedResult<InventoryJournalEntry> fetchJournal({
     String? branchId,
     bool tenantWide = false,
     String? stockItemId,
     InventoryJournalReason? reason,
+    DateTime? date,
+    DateTime? from,
+    DateTime? to,
     int limit = 50,
     int offset = 0,
   }) {
@@ -448,21 +537,45 @@ class MockInventoryStore {
     if (normalizedBranch != null) {
       _ensureValidBranch(normalizedBranch);
     }
-    final filtered = _journal.where((entry) {
-      if (normalizedBranch != null && entry.branchId != normalizedBranch) {
-        return false;
-      }
-      if (stockItemId != null && stockItemId.isNotEmpty && entry.itemId != stockItemId) {
-        return false;
-      }
-      if (reason != null && entry.reason != reason) {
-        return false;
-      }
-      return true;
-    }).toList(growable: false)
-      ..sort((left, right) => right.occurredAt.compareTo(left.occurredAt));
+    final filtered =
+        _journal
+            .where((entry) {
+              final occurredDate = DateTime(
+                entry.occurredAt.year,
+                entry.occurredAt.month,
+                entry.occurredAt.day,
+              );
+              if (normalizedBranch != null &&
+                  entry.branchId != normalizedBranch) {
+                return false;
+              }
+              if (stockItemId != null &&
+                  stockItemId.isNotEmpty &&
+                  entry.itemId != stockItemId) {
+                return false;
+              }
+              if (reason != null && entry.reason != reason) {
+                return false;
+              }
+              if (date != null) {
+                final targetDate = DateTime(date.year, date.month, date.day);
+                if (occurredDate != targetDate) return false;
+              } else {
+                if (from != null) {
+                  final startDate = DateTime(from.year, from.month, from.day);
+                  if (occurredDate.isBefore(startDate)) return false;
+                }
+                if (to != null) {
+                  final endDate = DateTime(to.year, to.month, to.day);
+                  if (occurredDate.isAfter(endDate)) return false;
+                }
+              }
+              return true;
+            })
+            .toList(growable: false)
+          ..sort((left, right) => right.occurredAt.compareTo(left.occurredAt));
 
-    return _page(filtered, limit: limit, offset: offset);
+    return _paginate(filtered, limit: limit, offset: offset);
   }
 
   List<InventoryJournalEntry> lowStockAlerts({String? branchId}) {
@@ -472,6 +585,7 @@ class MockInventoryStore {
     }
     final now = DateTime.now();
     return fetchInventoryStockItems(branchId: targetBranch, status: 'active')
+        .items
         .where((item) => item.isLowStock)
         .map(
           (item) => InventoryJournalEntry(
@@ -491,7 +605,7 @@ class MockInventoryStore {
         .toList(growable: false);
   }
 
-  List<StockBatch> fetchRestockBatches({
+  InventoryPaginatedResult<StockBatch> fetchRestockBatches({
     String? branchId,
     String status = 'all',
     String? stockItemId,
@@ -503,25 +617,35 @@ class MockInventoryStore {
       _ensureValidBranch(normalizedBranch);
     }
     final normalizedStatus = _normalizeStatus(status);
-    final filtered = _batches.values.where((batch) {
-      if (normalizedBranch != null && batch.branchId != normalizedBranch) {
-        return false;
-      }
-      if (stockItemId != null && stockItemId.isNotEmpty && batch.stockItemId != stockItemId) {
-        return false;
-      }
-      if (normalizedStatus == 'active' && batch.isArchived) return false;
-      if (normalizedStatus == 'archived' && !batch.isArchived) return false;
-      return true;
-    }).toList(growable: false)
-      ..sort((left, right) => right.receivedDate.compareTo(left.receivedDate));
+    final filtered =
+        _batches.values
+            .where((batch) {
+              if (normalizedBranch != null &&
+                  batch.branchId != normalizedBranch) {
+                return false;
+              }
+              if (stockItemId != null &&
+                  stockItemId.isNotEmpty &&
+                  batch.stockItemId != stockItemId) {
+                return false;
+              }
+              if (normalizedStatus == 'active' && batch.isArchived) {
+                return false;
+              }
+              if (normalizedStatus == 'archived' && !batch.isArchived) {
+                return false;
+              }
+              return true;
+            })
+            .toList(growable: false)
+          ..sort(
+            (left, right) => right.receivedDate.compareTo(left.receivedDate),
+          );
 
-    final paged = _page(
-      filtered,
-      limit: limit ?? 50,
-      offset: offset ?? 0,
-    );
-    return paged.map((batch) => batch.toDomain()).toList(growable: false);
+    final mapped = filtered
+        .map((batch) => batch.toDomain())
+        .toList(growable: false);
+    return _paginate(mapped, limit: limit ?? 50, offset: offset ?? 0);
   }
 
   StockBatch updateRestockBatchMetadata({
@@ -549,8 +673,12 @@ class MockInventoryStore {
       );
     }
     final updated = current.copyWith(
-      expiryDate: expiryDate == null ? current.expiryDate : _normalizeOptionalDate(expiryDate),
-      supplierName: supplierName == null ? current.supplierName : _normalizeOptionalText(supplierName),
+      expiryDate: expiryDate == null
+          ? current.expiryDate
+          : _normalizeOptionalDate(expiryDate),
+      supplierName: supplierName == null
+          ? current.supplierName
+          : _normalizeOptionalText(supplierName),
       purchaseCostUsd: purchaseCostUsd ?? current.purchaseCostUsd,
       note: note == null ? current.note : _normalizeOptionalText(note),
     );
@@ -765,7 +893,8 @@ class MockInventoryStore {
   void _ensureValidBranch(String branchId) {
     if (!_branchNames.containsKey(branchId)) {
       throw const ApiClientException(
-        message: 'Selected branch no longer exists. Refresh branches and try again.',
+        message:
+            'Selected branch no longer exists. Refresh branches and try again.',
         code: 'BRANCH_NOT_FOUND',
         statusCode: 404,
       );
@@ -849,7 +978,8 @@ class MockInventoryStore {
   bool _hasStockItemNameConflict(String name, {String? excludeId}) {
     final normalized = name.trim().toLowerCase();
     return _items.values.any(
-      (item) => item.id != excludeId && item.name.trim().toLowerCase() == normalized,
+      (item) =>
+          item.id != excludeId && item.name.trim().toLowerCase() == normalized,
     );
   }
 
@@ -859,6 +989,18 @@ class MockInventoryStore {
       case 'archived':
       case 'all':
         return status.trim().toLowerCase();
+      default:
+        return 'all';
+    }
+  }
+
+  String _normalizeInventoryStockLevel(String level) {
+    switch (level.trim().toLowerCase()) {
+      case 'all':
+      case 'in_stock':
+      case 'low_stock':
+      case 'out_of_stock':
+        return level.trim().toLowerCase();
       default:
         return 'all';
     }
@@ -874,6 +1016,29 @@ class MockInventoryStore {
       default:
         return true;
     }
+  }
+
+  bool _matchesInventoryQuery(
+    StockItem item, {
+    required String search,
+    required String categoryId,
+    required String stockLevel,
+  }) {
+    final matchesSearch =
+        search.isEmpty ||
+        item.name.toLowerCase().contains(search) ||
+        item.baseUnit.toLowerCase().contains(search);
+    final matchesCategory =
+        categoryId.isEmpty ||
+        categoryId == 'all' ||
+        (item.categoryId?.trim() ?? '') == categoryId;
+    final matchesStockLevel = switch (stockLevel) {
+      'in_stock' => item.onHand > item.minThreshold,
+      'low_stock' => item.onHand > 0 && item.onHand <= item.minThreshold,
+      'out_of_stock' => item.onHand <= 0,
+      _ => true,
+    };
+    return matchesSearch && matchesCategory && matchesStockLevel;
   }
 
   String? _normalizeBranch(String? branchId) {
@@ -919,16 +1084,29 @@ class MockInventoryStore {
     return current ?? '';
   }
 
-  List<T> _page<T>(
+  List<T> _page<T>(List<T> items, {required int limit, required int offset}) {
+    final safeLimit = limit <= 0 ? 50 : limit;
+    final safeOffset = offset < 0 ? 0 : offset;
+    if (safeOffset >= items.length) return <T>[];
+    final end = (safeOffset + safeLimit).clamp(0, items.length).toInt();
+    return items.sublist(safeOffset, end);
+  }
+
+  InventoryPaginatedResult<T> _paginate<T>(
     List<T> items, {
     required int limit,
     required int offset,
   }) {
     final safeLimit = limit <= 0 ? 50 : limit;
     final safeOffset = offset < 0 ? 0 : offset;
-    if (safeOffset >= items.length) return <T>[];
-    final end = (safeOffset + safeLimit).clamp(0, items.length);
-    return items.sublist(safeOffset, end);
+    final paged = _page(items, limit: safeLimit, offset: safeOffset);
+    return InventoryPaginatedResult<T>(
+      items: paged,
+      limit: safeLimit,
+      offset: safeOffset,
+      total: items.length,
+      hasMore: safeOffset + paged.length < items.length,
+    );
   }
 
   InventoryJournalReason _reasonFromAdjustment({

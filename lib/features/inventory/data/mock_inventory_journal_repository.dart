@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/features/inventory/data/inventory_journal_repository.dart';
+import 'package:modular_pos/features/inventory/data/inventory_paginated_result.dart';
 import 'package:modular_pos/features/inventory/data/mock_inventory_store.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_journal_entry.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_batch.dart';
@@ -86,11 +87,14 @@ class MockInventoryJournalRepository extends InventoryJournalRepository {
   }
 
   @override
-  Future<List<InventoryJournalEntry>> fetch({
+  Future<InventoryPaginatedResult<InventoryJournalEntry>> fetch({
     String? branchId,
     bool tenantWide = false,
     String? stockItemId,
     InventoryJournalReason? reason,
+    DateTime? date,
+    DateTime? from,
+    DateTime? to,
     int limit = 50,
     int offset = 0,
   }) async {
@@ -99,6 +103,9 @@ class MockInventoryJournalRepository extends InventoryJournalRepository {
       tenantWide: tenantWide,
       stockItemId: stockItemId,
       reason: reason,
+      date: date,
+      from: date == null ? from : null,
+      to: date == null ? to : null,
       limit: limit,
       offset: offset,
     );
@@ -110,7 +117,7 @@ class MockInventoryJournalRepository extends InventoryJournalRepository {
   }
 
   @override
-  Future<List<StockBatch>> fetchRestockBatches({
+  Future<InventoryPaginatedResult<StockBatch>> fetchRestockBatches({
     String? branchId,
     String status = 'all',
     String? stockItemId,

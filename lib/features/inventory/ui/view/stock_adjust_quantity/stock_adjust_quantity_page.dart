@@ -939,9 +939,9 @@ class _RoundedSegmentedControl<T> extends StatelessWidget {
               borderRadius: BorderRadius.circular(999),
               onTap: () => onChanged(option.value),
               child: Padding(
-                padding: const EdgeInsets.symmetric(
+                padding: EdgeInsets.symmetric(
                   horizontal: 16,
-                  vertical: 14,
+                  vertical: isSmall ? 14 : 10,
                 ),
                 child: FittedBox(
                   fit: BoxFit.scaleDown,

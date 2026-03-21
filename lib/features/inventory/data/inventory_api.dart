@@ -10,6 +10,7 @@ import 'package:modular_pos/features/inventory/data/dto/branch_stock_projection_
 import 'package:modular_pos/features/inventory/data/dto/inventory_category_dto.dart';
 import 'package:modular_pos/features/inventory/data/dto/inventory_journal_entry_dto.dart';
 import 'package:modular_pos/features/inventory/data/inventory_api_envelope.dart';
+import 'package:modular_pos/features/inventory/data/inventory_paginated_result.dart';
 import 'package:modular_pos/features/inventory/data/dto/on_hand_record_dto.dart';
 import 'package:modular_pos/features/inventory/data/dto/restock_batch_dto.dart';
 import 'package:modular_pos/features/inventory/data/dto/stock_aggregate_item_dto.dart';
@@ -111,7 +112,7 @@ class InventoryApi {
   }
 
   // Stock items (master)
-  Future<List<StockItemDto>> fetchStockItems({
+  Future<InventoryPaginatedResult<StockItemDto>> fetchStockItems({
     String status = 'all',
     String? search,
     String? categoryId,
@@ -125,15 +126,29 @@ class InventoryApi {
       if (limit != null) 'limit': limit,
       if (offset != null) 'offset': offset,
     };
-    final response = await _dio.get<Map<String, dynamic>>(
-      '$_prefix/items',
-      queryParameters: query,
-    );
-    final list = InventoryApiEnvelope.unwrapDataList(
-      response.data,
-      fallbackMessage: 'Failed to fetch stock items.',
-    );
-    return list.map(StockItemDto.fromJson).toList(growable: false);
+    try {
+      final response = await _getInventoryJson(
+        '$_prefix/items',
+        dio: _dio,
+        queryParameters: query,
+      );
+      final result = InventoryApiEnvelope.unwrapPaginatedDataList(
+        response.data,
+        fallbackMessage: 'Failed to fetch stock items.',
+      );
+      return InventoryPaginatedResult<StockItemDto>(
+        items: result.items.map(StockItemDto.fromJson).toList(growable: false),
+        limit: result.limit,
+        offset: result.offset,
+        total: result.total,
+        hasMore: result.hasMore,
+      );
+    } on DioError catch (error) {
+      throw ApiClientException.fromDio(
+        error,
+        fallbackMessage: 'Failed to fetch stock items.',
+      );
+    }
   }
 
   Future<StockItemDto> fetchStockItemById(String stockItemId) async {
@@ -262,24 +277,34 @@ class InventoryApi {
     }
   }
 
-  Future<List<BranchStockItemDto>> fetchBranchStockItems({
+  Future<InventoryPaginatedResult<BranchStockItemDto>> fetchBranchStockItems({
     required String branchId,
     bool includeArchivedItems = true,
+    int? limit,
+    int? offset,
   }) async {
     final response = await _dio.get<Map<String, dynamic>>(
       '$_prefix/stock/branch',
       queryParameters: <String, dynamic>{
         'branchId': branchId,
         'includeArchivedItems': includeArchivedItems,
+        if (limit != null) 'limit': limit,
+        if (offset != null) 'offset': offset,
       },
     );
-    final list = InventoryApiEnvelope.unwrapDataList(
+    final result = InventoryApiEnvelope.unwrapPaginatedDataList(
       response.data,
       fallbackMessage: 'Failed to fetch branch stock items.',
     );
-    return list
-        .map((json) => BranchStockItemDto.fromJson(json))
-        .toList(growable: false);
+    return InventoryPaginatedResult<BranchStockItemDto>(
+      items: result.items
+          .map((json) => BranchStockItemDto.fromJson(json))
+          .toList(growable: false),
+      limit: result.limit,
+      offset: result.offset,
+      total: result.total,
+      hasMore: result.hasMore,
+    );
   }
 
   Future<void> assignStockItemToBranch({
@@ -296,39 +321,67 @@ class InventoryApi {
     required String branchId,
     bool includeArchivedItems = true,
   }) async {
-    final response = await _dio.get<Map<String, dynamic>>(
-      '$_prefix/stock/branch',
-      queryParameters: <String, dynamic>{
-        'branchId': branchId,
-        'includeArchivedItems': includeArchivedItems,
-      },
-    );
-    final list = InventoryApiEnvelope.unwrapDataList(
-      response.data,
-      fallbackMessage: 'Failed to fetch on-hand projections.',
-    );
-    return list
-        .map((json) => OnHandRecordDto.fromJson(json))
-        .toList(growable: false);
+    const pageSize = 200;
+    var offset = 0;
+    var hasMore = true;
+    final records = <OnHandRecordDto>[];
+
+    while (hasMore) {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '$_prefix/stock/branch',
+        queryParameters: <String, dynamic>{
+          'branchId': branchId,
+          'includeArchivedItems': includeArchivedItems,
+          'limit': pageSize,
+          'offset': offset,
+        },
+      );
+      final result = InventoryApiEnvelope.unwrapPaginatedDataList(
+        response.data,
+        fallbackMessage: 'Failed to fetch on-hand projections.',
+      );
+      records.addAll(
+        result.items.map(
+          (json) => OnHandRecordDto.fromJson(json, branchIdHint: branchId),
+        ),
+      );
+      hasMore = result.hasMore;
+      offset += result.items.length;
+      if (result.items.isEmpty) break;
+    }
+
+    return records;
   }
 
-  Future<List<StockAggregateItemDto>> fetchAggregateStock({
+  Future<InventoryPaginatedResult<StockAggregateItemDto>> fetchAggregateStock({
     bool includeArchivedItems = true,
+    int? limit,
+    int? offset,
   }) async {
     final response = await _dio.get<Map<String, dynamic>>(
       '$_prefix/stock/aggregate',
       queryParameters: <String, dynamic>{
         'includeArchivedItems': includeArchivedItems,
+        if (limit != null) 'limit': limit,
+        if (offset != null) 'offset': offset,
       },
     );
-    final list = InventoryApiEnvelope.unwrapDataList(
+    final result = InventoryApiEnvelope.unwrapPaginatedDataList(
       response.data,
       fallbackMessage: 'Failed to fetch aggregate stock.',
     );
-    return list.map(StockAggregateItemDto.fromJson).toList(growable: false);
+    return InventoryPaginatedResult<StockAggregateItemDto>(
+      items: result.items
+          .map(StockAggregateItemDto.fromJson)
+          .toList(growable: false),
+      limit: result.limit,
+      offset: result.offset,
+      total: result.total,
+      hasMore: result.hasMore,
+    );
   }
 
-  Future<List<RestockBatchDto>> fetchRestockBatches({
+  Future<InventoryPaginatedResult<RestockBatchDto>> fetchRestockBatches({
     String? branchId,
     String status = 'all',
     String? stockItemId,
@@ -347,11 +400,17 @@ class InventoryApi {
       '$_prefix/restock-batches',
       queryParameters: query,
     );
-    final list = InventoryApiEnvelope.unwrapDataList(
+    final result = InventoryApiEnvelope.unwrapPaginatedDataList(
       response.data,
       fallbackMessage: 'Failed to fetch restock batches.',
     );
-    return list.map(RestockBatchDto.fromJson).toList(growable: false);
+    return InventoryPaginatedResult<RestockBatchDto>(
+      items: result.items.map(RestockBatchDto.fromJson).toList(growable: false),
+      limit: result.limit,
+      offset: result.offset,
+      total: result.total,
+      hasMore: result.hasMore,
+    );
   }
 
   Future<InventoryJournalEntryDto?> createRestockBatch({
@@ -548,10 +607,13 @@ class InventoryApi {
     );
   }
 
-  Future<List<InventoryJournalEntryDto>> fetchJournal({
+  Future<InventoryPaginatedResult<InventoryJournalEntryDto>> fetchJournal({
     required String branchId,
     String? stockItemId,
     String? reasonCode,
+    DateTime? date,
+    DateTime? from,
+    DateTime? to,
     int limit = 50,
     int offset = 0,
   }) async {
@@ -561,6 +623,12 @@ class InventoryApi {
         'stockItemId': stockItemId,
       if ((reasonCode ?? '').trim().isNotEmpty)
         'reasonCode': _normalizeInventoryJournalReasonCode(reasonCode!),
+      if (date != null)
+        'date': _formatInventoryJournalQueryDate(date)
+      else ...{
+        if (from != null) 'from': _formatInventoryJournalQueryDate(from),
+        if (to != null) 'to': _formatInventoryJournalQueryDate(to),
+      },
       'limit': limit <= 0 ? 50 : limit,
       'offset': offset < 0 ? 0 : offset,
     };
@@ -568,17 +636,29 @@ class InventoryApi {
       '$_prefix/journal',
       queryParameters: query,
     );
-    final list = InventoryApiEnvelope.unwrapDataList(
+    final result = InventoryApiEnvelope.unwrapPaginatedDataList(
       response.data,
       fallbackMessage: 'Failed to fetch inventory journal.',
     );
-    return list.map(InventoryJournalEntryDto.fromJson).toList(growable: false);
+    return InventoryPaginatedResult<InventoryJournalEntryDto>(
+      items: result.items
+          .map(InventoryJournalEntryDto.fromJson)
+          .toList(growable: false),
+      limit: result.limit,
+      offset: result.offset,
+      total: result.total,
+      hasMore: result.hasMore,
+    );
   }
 
-  Future<List<InventoryJournalEntryDto>> fetchTenantJournal({
+  Future<InventoryPaginatedResult<InventoryJournalEntryDto>>
+  fetchTenantJournal({
     String? branchId,
     String? stockItemId,
     String? reasonCode,
+    DateTime? date,
+    DateTime? from,
+    DateTime? to,
     int limit = 50,
     int offset = 0,
   }) async {
@@ -588,6 +668,12 @@ class InventoryApi {
         'stockItemId': stockItemId,
       if ((reasonCode ?? '').trim().isNotEmpty)
         'reasonCode': _normalizeInventoryJournalReasonCode(reasonCode!),
+      if (date != null)
+        'date': _formatInventoryJournalQueryDate(date)
+      else ...{
+        if (from != null) 'from': _formatInventoryJournalQueryDate(from),
+        if (to != null) 'to': _formatInventoryJournalQueryDate(to),
+      },
       'limit': limit <= 0 ? 50 : limit,
       'offset': offset < 0 ? 0 : offset,
     };
@@ -595,11 +681,19 @@ class InventoryApi {
       '$_prefix/journal/all',
       queryParameters: query,
     );
-    final list = InventoryApiEnvelope.unwrapDataList(
+    final result = InventoryApiEnvelope.unwrapPaginatedDataList(
       response.data,
       fallbackMessage: 'Failed to fetch tenant inventory journal.',
     );
-    return list.map(InventoryJournalEntryDto.fromJson).toList(growable: false);
+    return InventoryPaginatedResult<InventoryJournalEntryDto>(
+      items: result.items
+          .map(InventoryJournalEntryDto.fromJson)
+          .toList(growable: false),
+      limit: result.limit,
+      offset: result.offset,
+      total: result.total,
+      hasMore: result.hasMore,
+    );
   }
 
   Future<List<InventoryJournalEntryDto>> fetchLowStockAlerts({
@@ -615,6 +709,13 @@ class InventoryApi {
     );
     return list.map(InventoryJournalEntryDto.fromJson).toList(growable: false);
   }
+}
+
+String _formatInventoryJournalQueryDate(DateTime value) {
+  final date = DateTime(value.year, value.month, value.day);
+  final month = date.month.toString().padLeft(2, '0');
+  final day = date.day.toString().padLeft(2, '0');
+  return '${date.year}-$month-$day';
 }
 
 int? _extractResultingOnHand(Map<String, dynamic> payload) {
@@ -712,6 +813,35 @@ Options _writeOptions({
   );
 }
 
+Future<Response<Map<String, dynamic>>> _getInventoryJson(
+  String path, {
+  required Dio dio,
+  Map<String, dynamic>? queryParameters,
+}) async {
+  try {
+    return await dio.get<Map<String, dynamic>>(
+      path,
+      queryParameters: queryParameters,
+    );
+  } on DioError catch (error) {
+    if (error.response?.statusCode != 304) rethrow;
+
+    return dio.get<Map<String, dynamic>>(
+      path,
+      queryParameters: {
+        ...?queryParameters,
+        '_': DateTime.now().microsecondsSinceEpoch,
+      },
+      options: Options(
+        headers: const {
+          'Cache-Control': 'no-store, no-cache, max-age=0',
+          'Pragma': 'no-cache',
+        },
+      ),
+    );
+  }
+}
+
 Future<String> _uploadInventoryImage({
   required Dio dio,
   String? imagePath,
@@ -779,10 +909,7 @@ Future<MultipartFile?> _buildImagePart({
   return null;
 }
 
-String? _resolveImageSubtype({
-  String? imagePath,
-  List<int>? imageBytes,
-}) {
+String? _resolveImageSubtype({String? imagePath, List<int>? imageBytes}) {
   final bytes = imageBytes ?? const <int>[];
   if (bytes.length >= 3 &&
       bytes[0] == 0xFF &&

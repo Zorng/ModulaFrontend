@@ -1,15 +1,21 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:modular_pos/features/auth/domain/models/auth_session.dart';
 import 'package:modular_pos/features/auth/domain/models/tenant_membership.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
+import 'package:modular_pos/features/branchV2/domain/models/branch_models.dart';
+import 'package:modular_pos/features/branchV2/ui/viewmodels/branch_controller.dart';
+import 'package:modular_pos/features/branchV2/ui/viewmodels/branch_state.dart';
 import 'package:modular_pos/features/inventory/data/branch_stock_repository.dart';
+import 'package:modular_pos/features/inventory/data/inventory_paginated_result.dart';
 import 'package:modular_pos/features/inventory/data/stock_item_repository.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_category.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_journal_entry.dart';
 import 'package:modular_pos/features/inventory/domain/models/on_hand_record.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_batch.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
+import 'package:modular_pos/features/inventory/ui/models/inventory_journal_date_filter.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/category_controller.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/category_state.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/inventory_journal_controller.dart';
@@ -120,6 +126,21 @@ class FakeLoginController extends LoginController {
   LoginState build() => _state;
 }
 
+class FakeBranchController extends BranchController {
+  FakeBranchController(this._state);
+
+  final BranchState _state;
+
+  @override
+  BranchState build() => _state;
+
+  @override
+  Future<void> loadInitial() async {}
+
+  @override
+  Future<void> refreshBranches() async {}
+}
+
 class FakeCategoryController extends CategoryController {
   FakeCategoryController(this._state);
 
@@ -146,9 +167,27 @@ class FakeCategoryController extends CategoryController {
 }
 
 class FakeStockInventoryController extends StockInventoryController {
-  FakeStockInventoryController(this._state);
+  FakeStockInventoryController(
+    this._state, {
+    this.onGoToInventoryPage,
+    this.onGoToNextInventoryPage,
+    this.onGoToPreviousInventoryPage,
+    this.onLoadMoreInventoryItems,
+    this.onGoToStockItemsPage,
+    this.onGoToNextStockItemsPage,
+    this.onGoToPreviousStockItemsPage,
+    this.onLoadMoreStockItems,
+  });
 
   final StockInventoryState _state;
+  final ValueChanged<int>? onGoToInventoryPage;
+  final VoidCallback? onGoToNextInventoryPage;
+  final VoidCallback? onGoToPreviousInventoryPage;
+  final VoidCallback? onLoadMoreInventoryItems;
+  final ValueChanged<int>? onGoToStockItemsPage;
+  final VoidCallback? onGoToNextStockItemsPage;
+  final VoidCallback? onGoToPreviousStockItemsPage;
+  final VoidCallback? onLoadMoreStockItems;
 
   @override
   StockInventoryState build() => _state;
@@ -157,10 +196,68 @@ class FakeStockInventoryController extends StockInventoryController {
   Future<void> loadStockItems({String status = 'all'}) async {}
 
   @override
+  Future<void> loadStockItemsPage({
+    String status = 'all',
+    String? search,
+    String? categoryId,
+    int limit = 10,
+    int page = 1,
+    bool pageTransition = false,
+    bool accumulatePages = false,
+  }) async {}
+
+  @override
+  Future<void> goToStockItemsPage(int page) async {
+    onGoToStockItemsPage?.call(page);
+  }
+
+  @override
+  Future<void> goToNextStockItemsPage() async {
+    onGoToNextStockItemsPage?.call();
+  }
+
+  @override
+  Future<void> goToPreviousStockItemsPage() async {
+    onGoToPreviousStockItemsPage?.call();
+  }
+
+  @override
+  Future<void> loadMoreStockItems() async {
+    onLoadMoreStockItems?.call();
+  }
+
+  @override
   Future<void> loadInventoryItems({
     String? branchId,
     String status = 'all',
+    String? search,
+    String? categoryId,
+    String stockLevel = 'all',
+    int limit = 10,
+    int page = 1,
+    bool pageTransition = false,
+    bool accumulatePages = false,
   }) async {}
+
+  @override
+  Future<void> goToInventoryPage(int page) async {
+    onGoToInventoryPage?.call(page);
+  }
+
+  @override
+  Future<void> goToNextInventoryPage() async {
+    onGoToNextInventoryPage?.call();
+  }
+
+  @override
+  Future<void> goToPreviousInventoryPage() async {
+    onGoToPreviousInventoryPage?.call();
+  }
+
+  @override
+  Future<void> loadMoreInventoryItems() async {
+    onLoadMoreInventoryItems?.call();
+  }
 
   @override
   Future<StockItem> loadStockItemDetail(String id) async {
@@ -219,9 +316,21 @@ class FakeStockInventoryController extends StockInventoryController {
 }
 
 class FakeInventoryJournalController extends InventoryJournalController {
-  FakeInventoryJournalController(this._state);
+  FakeInventoryJournalController(
+    this._state, {
+    this.onLoad,
+    this.onGoToPage,
+    this.onGoToNextPage,
+    this.onGoToPreviousPage,
+    this.onLoadNextChunk,
+  });
 
   final InventoryJournalState _state;
+  final ValueChanged<FakeInventoryJournalLoadCall>? onLoad;
+  final ValueChanged<int>? onGoToPage;
+  final VoidCallback? onGoToNextPage;
+  final VoidCallback? onGoToPreviousPage;
+  final VoidCallback? onLoadNextChunk;
 
   @override
   InventoryJournalState build() => _state;
@@ -231,10 +340,84 @@ class FakeInventoryJournalController extends InventoryJournalController {
     String? branchId,
     String? stockItemId,
     InventoryJournalReason? reason,
-    int limit = 50,
-    int offset = 0,
-    bool append = false,
-  }) async {}
+    InventoryJournalDateFilter? dateFilter,
+    int limit = 10,
+    int page = 1,
+    bool pageTransition = false,
+    bool accumulatePages = false,
+  }) async {
+    onLoad?.call(
+      FakeInventoryJournalLoadCall(
+        branchId: branchId,
+        stockItemId: stockItemId,
+        reason: reason,
+        dateFilter: dateFilter,
+        limit: limit,
+        page: page,
+        pageTransition: pageTransition,
+        accumulatePages: accumulatePages,
+      ),
+    );
+  }
+
+  @override
+  Future<void> goToPage(
+    int page, {
+    String? branchId,
+    String? stockItemId,
+    InventoryJournalReason? reason,
+  }) async {
+    onGoToPage?.call(page);
+  }
+
+  @override
+  Future<void> goToNextPage({
+    String? branchId,
+    String? stockItemId,
+    InventoryJournalReason? reason,
+  }) async {
+    onGoToNextPage?.call();
+  }
+
+  @override
+  Future<void> goToPreviousPage({
+    String? branchId,
+    String? stockItemId,
+    InventoryJournalReason? reason,
+  }) async {
+    onGoToPreviousPage?.call();
+  }
+
+  @override
+  Future<void> loadNextChunk({
+    String? branchId,
+    String? stockItemId,
+    InventoryJournalReason? reason,
+  }) async {
+    onLoadNextChunk?.call();
+  }
+}
+
+class FakeInventoryJournalLoadCall {
+  const FakeInventoryJournalLoadCall({
+    this.branchId,
+    this.stockItemId,
+    this.reason,
+    this.dateFilter,
+    required this.limit,
+    required this.page,
+    required this.pageTransition,
+    required this.accumulatePages,
+  });
+
+  final String? branchId;
+  final String? stockItemId;
+  final InventoryJournalReason? reason;
+  final InventoryJournalDateFilter? dateFilter;
+  final int limit;
+  final int page;
+  final bool pageTransition;
+  final bool accumulatePages;
 }
 
 class FakeStockItemRepository extends StockItemRepository {
@@ -243,8 +426,42 @@ class FakeStockItemRepository extends StockItemRepository {
   final List<StockItem> _items;
 
   @override
-  Future<List<StockItem>> fetchMasterStockItems({int pageSize = 200}) async {
-    return _items.take(pageSize).toList(growable: false);
+  Future<InventoryPaginatedResult<StockItem>> fetchMasterStockItems({
+    String status = 'all',
+    String? search,
+    String? categoryId,
+    int pageSize = 200,
+    int offset = 0,
+  }) async {
+    final normalizedStatus = status.trim().toLowerCase();
+    final normalizedSearch = search?.trim().toLowerCase() ?? '';
+    final normalizedCategoryId = categoryId?.trim() ?? '';
+    final filtered = _items
+        .where((item) {
+          final matchesStatus = switch (normalizedStatus) {
+            'active' => item.isActive,
+            'archived' => !item.isActive,
+            _ => true,
+          };
+          final matchesSearch =
+              normalizedSearch.isEmpty ||
+              item.name.toLowerCase().contains(normalizedSearch);
+          final matchesCategory =
+              normalizedCategoryId.isEmpty ||
+              item.categoryId == normalizedCategoryId;
+          return matchesStatus && matchesSearch && matchesCategory;
+        })
+        .toList(growable: false);
+    final safeOffset = offset.clamp(0, filtered.length).toInt();
+    final end = (safeOffset + pageSize).clamp(0, filtered.length).toInt();
+    final items = filtered.sublist(safeOffset, end);
+    return InventoryPaginatedResult<StockItem>(
+      items: items,
+      limit: pageSize,
+      offset: safeOffset,
+      total: filtered.length,
+      hasMore: end < filtered.length,
+    );
   }
 
   @override
@@ -306,27 +523,64 @@ class FakeBranchStockRepository extends BranchStockRepository {
   }
 
   @override
-  Future<List<StockItem>> fetchStockItems({
+  Future<InventoryPaginatedResult<StockItem>> fetchStockItems({
     String? branchId,
     String status = 'all',
+    String? search,
+    String? categoryId,
+    String stockLevel = 'all',
+    int pageSize = 50,
+    int offset = 0,
   }) async {
-    final filteredByStatus = _items.where((item) {
-      switch (status.trim().toLowerCase()) {
-        case 'active':
-          return item.isActive;
-        case 'archived':
-          return !item.isActive;
-        case 'all':
-        default:
-          return true;
-      }
-    });
-    if (branchId == null || branchId.isEmpty) {
-      return filteredByStatus.toList(growable: false);
-    }
-    return filteredByStatus
-        .where((item) => item.branchId == branchId)
+    final normalizedSearch = search?.trim().toLowerCase() ?? '';
+    final normalizedCategoryId = categoryId?.trim() ?? '';
+    final normalizedStockLevel = stockLevel.trim().toLowerCase();
+    final filteredByStatus = _items
+        .where((item) {
+          switch (status.trim().toLowerCase()) {
+            case 'active':
+              return item.isActive;
+            case 'archived':
+              return !item.isActive;
+            case 'all':
+            default:
+              return true;
+          }
+        })
         .toList(growable: false);
+    final scoped = (branchId == null || branchId.isEmpty)
+        ? filteredByStatus
+        : filteredByStatus
+              .where((item) => item.branchId == branchId)
+              .toList(growable: false);
+    final filtered = scoped
+        .where((item) {
+          final matchesSearch =
+              normalizedSearch.isEmpty ||
+              item.name.toLowerCase().contains(normalizedSearch) ||
+              item.baseUnit.toLowerCase().contains(normalizedSearch);
+          final matchesCategory =
+              normalizedCategoryId.isEmpty ||
+              (item.categoryId?.trim() ?? '') == normalizedCategoryId;
+          final matchesStockLevel = switch (normalizedStockLevel) {
+            'in_stock' => item.onHand > item.minThreshold,
+            'low_stock' => item.onHand > 0 && item.onHand <= item.minThreshold,
+            'out_of_stock' => item.onHand <= 0,
+            _ => true,
+          };
+          return matchesSearch && matchesCategory && matchesStockLevel;
+        })
+        .toList(growable: false);
+    final safePageSize = pageSize <= 0 ? 50 : pageSize;
+    final safeOffset = offset.clamp(0, filtered.length).toInt();
+    final end = (safeOffset + safePageSize).clamp(0, filtered.length).toInt();
+    return InventoryPaginatedResult<StockItem>(
+      items: filtered.sublist(safeOffset, end),
+      limit: safePageSize,
+      offset: safeOffset,
+      total: filtered.length,
+      hasMore: end < filtered.length,
+    );
   }
 
   @override
@@ -339,10 +593,13 @@ class FakeBranchStockRepository extends BranchStockRepository {
 
 List<Override> inventoryOverrides({
   LoginState? loginState,
+  BranchState? branchState,
   CategoryState? categoryState,
   StockInventoryState? stockInventoryState,
+  StockInventoryController? stockInventoryController,
   List<InventoryJournalEntry>? journalEntries,
   InventoryJournalState? journalState,
+  InventoryJournalController? inventoryJournalController,
   StockItemRepository? stockItemRepository,
   BranchStockRepository? branchStockRepository,
 }) {
@@ -350,28 +607,47 @@ List<Override> inventoryOverrides({
     loginControllerProvider.overrideWith(
       () => FakeLoginController(loginState ?? LoginState(session: testSession)),
     ),
+    branchControllerProvider.overrideWith(
+      () => FakeBranchController(
+        branchState ??
+            const BranchState(
+              branches: <BranchListItem>[
+                BranchListItem(
+                  branchId: 'branch-1',
+                  tenantId: 'tenant-1',
+                  branchName: 'Main Branch',
+                  status: 'ACTIVE',
+                ),
+              ],
+            ),
+      ),
+    ),
     categoryControllerProvider.overrideWith(
       () => FakeCategoryController(
         categoryState ?? CategoryState(categories: testCategories),
       ),
     ),
     stockInventoryControllerProvider.overrideWith(
-      () => FakeStockInventoryController(
-        stockInventoryState ??
-            StockInventoryState(
-              inventoryItems: testStockItems,
-              stockItems: testStockItems,
-              batches: testBatches,
-            ),
-      ),
+      () =>
+          stockInventoryController ??
+          FakeStockInventoryController(
+            stockInventoryState ??
+                StockInventoryState(
+                  inventoryItems: testStockItems,
+                  stockItems: testStockItems,
+                  batches: testBatches,
+                ),
+          ),
     ),
     inventoryJournalControllerProvider.overrideWith(
-      () => FakeInventoryJournalController(
-        journalState ??
-            InventoryJournalState(
-              entries: journalEntries ?? testJournalEntries,
-            ),
-      ),
+      () =>
+          inventoryJournalController ??
+          FakeInventoryJournalController(
+            journalState ??
+                InventoryJournalState(
+                  entries: journalEntries ?? testJournalEntries,
+                ),
+          ),
     ),
     if (stockItemRepository != null)
       stockItemRepositoryProvider.overrideWithValue(stockItemRepository),
