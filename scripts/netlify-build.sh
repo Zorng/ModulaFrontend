@@ -4,7 +4,7 @@ set -euo pipefail
 REPO_ROOT="${PWD}"
 CACHE_ROOT="${NETLIFY_CACHE_DIR:-$HOME/.cache}"
 FLUTTER_CHANNEL="${FLUTTER_CHANNEL:-stable}"
-FLUTTER_VERSION="${FLUTTER_VERSION:-3.41.5}"
+FLUTTER_VERSION="${FLUTTER_VERSION:-3.38.9}"
 FLUTTER_DIR="${CACHE_ROOT}/flutter-sdk-${FLUTTER_VERSION}-${FLUTTER_CHANNEL}"
 FLUTTER_ARCHIVE="/tmp/flutter-${FLUTTER_VERSION}-${FLUTTER_CHANNEL}.tar.xz"
 FLUTTER_URL="https://storage.googleapis.com/flutter_infra_release/releases/${FLUTTER_CHANNEL}/linux/flutter_linux_${FLUTTER_VERSION}-${FLUTTER_CHANNEL}.tar.xz"
@@ -23,7 +23,7 @@ flutter --version
 cd "${REPO_ROOT}"
 
 flutter config --enable-web
-flutter pub get
+flutter pub get --enforce-lockfile
 
 flutter build web --release \
   --dart-define=API_BASE_URL="${API_BASE_URL:-}" \

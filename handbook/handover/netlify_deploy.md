@@ -26,7 +26,7 @@ Current Netlify pin:
 
 ```text
 FLUTTER_CHANNEL=stable
-FLUTTER_VERSION=3.41.5
+FLUTTER_VERSION=3.38.9
 ```
 
 ## Required Netlify environment variables
