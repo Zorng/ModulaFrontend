@@ -64,6 +64,12 @@ List<AppNavigationSection> buildAppNavigationSections({
               route: AppRoute.staff,
               scope: AppNavigationScope.tenant,
             ),
+            AppNavigationDestination(
+              label: 'Discounts',
+              icon: Icons.percent_outlined,
+              route: AppRoute.discount,
+              scope: AppNavigationScope.tenant,
+            ),
           ],
         ),
       ];
