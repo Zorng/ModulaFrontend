@@ -15,6 +15,9 @@ Flutter frontenddd for the Modular POS system (web-first, mobile later).
 1) Install deps: `flutter pub get`
 2) Run (web) with defines:
    - `flutter run -d chrome --dart-define=API_BASE_URL=http://localhost:3000`
+   - or easier:
+     - `cp .env.web.local.example .env.web.local`
+     - `bash scripts/run-web-local.sh`
 3) Optional local fallback: create `.env` from `.env.example` for non-web/dev convenience
 4) See full keys/examples: `handbook/handover/dart_define_run_guide.md`
 

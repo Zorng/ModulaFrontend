@@ -57,6 +57,27 @@ flutter run -d chrome \
   --dart-define=SHOW_DEBUG_ERRORS=true
 ```
 
+## Easier local web run
+
+For local web development, you can keep your run config in an untracked file:
+
+```bash
+cp .env.web.local.example .env.web.local
+```
+
+Then start the app with:
+
+```bash
+bash scripts/run-web-local.sh
+```
+
+This script reads `.env.web.local` and forwards the values as `--dart-define`.
+It also supports extra `flutter run` args, for example:
+
+```bash
+bash scripts/run-web-local.sh --web-port 4000
+```
+
 ## Mobile run command (example)
 
 ```bash

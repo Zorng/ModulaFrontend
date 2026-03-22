@@ -45,6 +45,9 @@ Common keys:
 ### Web (dev)
 - `flutter pub get`
 - `flutter run -d chrome --dart-define=API_BASE_URL=http://localhost:3000`
+- easier local option:
+  - `cp .env.web.local.example .env.web.local`
+  - `bash scripts/run-web-local.sh`
 
 ### Mobile (dev)
 - `flutter pub get`
