@@ -47,6 +47,7 @@ REPORTING_API_PREFIX=/v0/reports
 POLICY_API_PREFIX=/v0/policy
 ATTENDANCE_API_PREFIX=/v0/attendance
 BRANCH_API_PREFIX=/v0/branches
+GOOGLE_MAPS_API_KEY=your-browser-restricted-google-maps-key
 ```
 
 Recommended repository mode flags:

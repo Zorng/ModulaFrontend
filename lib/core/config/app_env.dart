@@ -24,6 +24,9 @@ class AppEnv {
   static const _branchApiPrefixDefine = String.fromEnvironment(
     'BRANCH_API_PREFIX',
   );
+  static const _googleMapsApiKeyDefine = String.fromEnvironment(
+    'GOOGLE_MAPS_API_KEY',
+  );
   static const _showDebugErrorsDefine = String.fromEnvironment(
     'SHOW_DEBUG_ERRORS',
   );
@@ -107,6 +110,12 @@ class AppEnv {
     primary: _branchApiPrefixDefine,
     dotenvKey: 'BRANCH_API_PREFIX',
     defaultValue: '/v0/branches',
+  );
+
+  static String get googleMapsApiKey => _readString(
+    primary: _googleMapsApiKeyDefine,
+    dotenvKey: 'GOOGLE_MAPS_API_KEY',
+    defaultValue: '',
   );
 
   static bool get showDebugErrors {

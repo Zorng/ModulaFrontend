@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:modular_pos/core/bootstrap/google_maps_web_sdk_loader.dart';
+import 'package:modular_pos/core/config/app_env.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:modular_pos/app.dart';
@@ -20,6 +22,9 @@ Future<void> main() async {
   // On web, prefer --dart-define and avoid asset fetch for .env.
   if (!kIsWeb) {
     await dotenv.load(fileName: '.env', isOptional: true);
+  }
+  if (kIsWeb) {
+    await ensureGoogleMapsWebSdkLoaded(apiKey: AppEnv.googleMapsApiKey);
   }
 
   final prefs = await SharedPreferences.getInstance();

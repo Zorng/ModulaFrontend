@@ -36,6 +36,7 @@ flutter build web --release \
   --dart-define=POLICY_API_PREFIX="${POLICY_API_PREFIX:-}" \
   --dart-define=ATTENDANCE_API_PREFIX="${ATTENDANCE_API_PREFIX:-}" \
   --dart-define=BRANCH_API_PREFIX="${BRANCH_API_PREFIX:-}" \
+  --dart-define=GOOGLE_MAPS_API_KEY="${GOOGLE_MAPS_API_KEY:-}" \
   --dart-define=AUTH_REPOSITORY_MODE="${AUTH_REPOSITORY_MODE:-api}" \
   --dart-define=TENANT_REPOSITORY_MODE="${TENANT_REPOSITORY_MODE:-api}" \
   --dart-define=BRANCH_REPOSITORY_MODE="${BRANCH_REPOSITORY_MODE:-api}" \
