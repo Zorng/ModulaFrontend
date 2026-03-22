@@ -70,6 +70,12 @@ List<AppNavigationSection> buildAppNavigationSections({
               route: AppRoute.discount,
               scope: AppNavigationScope.tenant,
             ),
+            AppNavigationDestination(
+              label: 'Reports',
+              icon: Icons.analytics_outlined,
+              route: AppRoute.reporting,
+              scope: AppNavigationScope.tenant,
+            ),
           ],
         ),
       ];
@@ -95,6 +101,20 @@ List<AppNavigationSection> buildAppNavigationSections({
               icon: Icons.point_of_sale,
               route: AppRoute.sale,
               scope: AppNavigationScope.branch,
+            ),
+          ],
+        ),
+      ];
+    case (AuthRole.manager, AppNavigationLayer.tenant):
+      return const [
+        AppNavigationSection(
+          label: 'Tenant',
+          destinations: [
+            AppNavigationDestination(
+              label: 'Reports',
+              icon: Icons.analytics_outlined,
+              route: AppRoute.reporting,
+              scope: AppNavigationScope.tenant,
             ),
           ],
         ),

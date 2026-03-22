@@ -14,6 +14,7 @@ import 'package:modular_pos/core/routing/routes/menu_routes.dart';
 import 'package:modular_pos/core/routing/routes/policy_routes.dart';
 import 'package:modular_pos/core/routing/routes/discount_routes.dart';
 import 'package:modular_pos/core/routing/routes/portal_routes.dart';
+import 'package:modular_pos/core/routing/routes/reporting_routes.dart';
 import 'package:modular_pos/core/routing/routes/sale_routes.dart';
 import 'package:modular_pos/core/routing/routes/staff_routes.dart';
 import 'package:modular_pos/core/theme/app_theme.dart';
@@ -166,6 +167,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           !isManager) {
         return '/404';
       }
+      if (isPathInGroup(path, AppRoute.reporting.path) &&
+          !isManager &&
+          !isAdminOrOwner) {
+        return '/404';
+      }
       if (path == AppRoute.xReport.path && !isAdminOrOwner && !isCashier) {
         return '/404';
       }
@@ -196,6 +202,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ...buildBranchRoutes(),
           ...buildInventoryRoutes(),
           ...buildSaleRoutes(),
+          ...buildReportingRoutes(),
           ...buildCashRoutes(),
           ...buildStaffRoutes(),
         ],

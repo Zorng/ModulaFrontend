@@ -51,6 +51,9 @@ class AppEnv {
   static const _cashSessionRepositoryModeDefine = String.fromEnvironment(
     'CASH_SESSION_REPOSITORY_MODE',
   );
+  static const _reportingRepositoryModeDefine = String.fromEnvironment(
+    'REPORTING_REPOSITORY_MODE',
+  );
 
   static String get apiBaseUrl => _readString(
     primary: _apiBaseUrlDefine,
@@ -185,6 +188,15 @@ class AppEnv {
     final mode = _readString(
       primary: _cashSessionRepositoryModeDefine,
       dotenvKey: 'CASH_SESSION_REPOSITORY_MODE',
+      defaultValue: 'api',
+    );
+    return mode.trim().toLowerCase() == 'mock';
+  }
+
+  static bool get useMockReportingRepository {
+    final mode = _readString(
+      primary: _reportingRepositoryModeDefine,
+      dotenvKey: 'REPORTING_REPOSITORY_MODE',
       defaultValue: 'api',
     );
     return mode.trim().toLowerCase() == 'mock';
