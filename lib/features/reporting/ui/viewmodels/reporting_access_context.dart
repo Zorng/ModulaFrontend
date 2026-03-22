@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/features/auth/domain/active_branch_context_provider.dart';
 import 'package:modular_pos/features/auth/domain/auth_role.dart';
 import 'package:modular_pos/features/auth/domain/auth_tenant_provider.dart';
+import 'package:modular_pos/features/auth/domain/models/tenant_membership.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/reporting/ui/models/reporting_branch_option.dart';
@@ -47,7 +48,10 @@ final reportingAccessContextProvider = Provider<ReportingAccessContext?>((ref) {
           .trim();
   final activeBranchId = (ref.watch(activeBranchContextIdProvider) ?? '')
       .trim();
-  final branches = _buildBranchOptions(session.user.branches);
+  final branches = _buildBranchOptions(
+    tenantBranches: _branchesForTenant(session.memberships, tenantId),
+    sessionBranches: session.user.branches,
+  );
 
   return ReportingAccessContext(
     role: resolveSessionAuthRole(session),
@@ -57,17 +61,42 @@ final reportingAccessContextProvider = Provider<ReportingAccessContext?>((ref) {
   );
 });
 
-List<ReportingBranchOption> _buildBranchOptions(List<UserBranch> branches) {
+List<UserBranch> _branchesForTenant(
+  List<TenantMembership> memberships,
+  String tenantId,
+) {
+  final normalizedTenantId = tenantId.trim();
+  if (normalizedTenantId.isEmpty) return const <UserBranch>[];
+
+  for (final membership in memberships) {
+    if (membership.tenantId.trim() == normalizedTenantId) {
+      return membership.branches;
+    }
+  }
+
+  return const <UserBranch>[];
+}
+
+List<ReportingBranchOption> _buildBranchOptions({
+  required List<UserBranch> tenantBranches,
+  required List<UserBranch> sessionBranches,
+}) {
   final seen = <String>{};
   final options = <ReportingBranchOption>[];
-  for (final branch in branches) {
-    final id = branch.branchId.trim().isNotEmpty
-        ? branch.branchId.trim()
-        : branch.id.trim();
-    final name = branch.name.trim();
-    if (id.isEmpty || name.isEmpty || !seen.add(id)) continue;
-    options.add(ReportingBranchOption(id: id, name: name));
+
+  void addBranches(List<UserBranch> branches) {
+    for (final branch in branches) {
+      final id = branch.branchId.trim().isNotEmpty
+          ? branch.branchId.trim()
+          : branch.id.trim();
+      final name = branch.name.trim();
+      if (id.isEmpty || name.isEmpty || !seen.add(id)) continue;
+      options.add(ReportingBranchOption(id: id, name: name));
+    }
   }
+
+  addBranches(tenantBranches);
+  addBranches(sessionBranches);
   options.sort((a, b) => a.name.compareTo(b.name));
   return options;
 }

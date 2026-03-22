@@ -14,6 +14,26 @@ import '../test_utils/riverpod_test_utils.dart';
 
 void main() {
   group('SalesSummaryController', () {
+    test('defaults admin landing scope to all branches', () {
+      final container = createTestContainer(
+        overrides: [
+          reportingAccessContextProvider.overrideWithValue(
+            const ReportingAccessContext(
+              role: AuthRole.admin,
+              tenantId: 'tenant-1',
+              activeBranchId: 'branch-1',
+              branches: [ReportingBranchOption(id: 'branch-1', name: 'Main')],
+            ),
+          ),
+        ],
+      );
+
+      final state = container.read(salesSummaryControllerProvider);
+
+      expect(state.branchScope, ReportBranchScope.allBranches);
+      expect(state.branchId, isNull);
+    });
+
     test('loads sales summary from the reporting repository', () async {
       final container = createTestContainer(
         overrides: [
@@ -37,7 +57,7 @@ void main() {
       expect(state.errorMessage, isNull);
       expect(state.report, isNotNull);
       expect(state.report!.confirmed.transactionCount, 124);
-      expect(state.report!.scope.branchScope, ReportBranchScope.branch);
+      expect(state.report!.scope.branchScope, ReportBranchScope.allBranches);
     });
 
     test('manager scope stays locked to branch reporting', () async {
@@ -64,6 +84,38 @@ void main() {
 
       expect(state.branchScope, ReportBranchScope.branch);
     });
+
+    test(
+      'switching from all branches to branch restores a branch selection',
+      () async {
+        final container = createTestContainer(
+          overrides: [
+            managementReportingRepositoryProvider.overrideWithValue(
+              const MockManagementReportingRepository(),
+            ),
+            reportingAccessContextProvider.overrideWithValue(
+              const ReportingAccessContext(
+                role: AuthRole.owner,
+                tenantId: 'tenant-1',
+                activeBranchId: 'branch-1',
+                branches: [
+                  ReportingBranchOption(id: 'branch-1', name: 'Main'),
+                  ReportingBranchOption(id: 'branch-2', name: 'North'),
+                ],
+              ),
+            ),
+          ],
+        );
+
+        await container
+            .read(salesSummaryControllerProvider.notifier)
+            .setBranchScope(ReportBranchScope.branch);
+        final state = container.read(salesSummaryControllerProvider);
+
+        expect(state.branchScope, ReportBranchScope.branch);
+        expect(state.branchId, 'branch-1');
+      },
+    );
   });
 
   group('SalesDrillDownController', () {

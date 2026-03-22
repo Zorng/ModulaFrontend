@@ -6,6 +6,7 @@ import 'package:modular_pos/features/reporting/domain/models/report_query.dart';
 import 'package:modular_pos/features/reporting/domain/models/report_scope.dart';
 import 'package:modular_pos/features/reporting/domain/models/sales_reporting.dart';
 import 'package:modular_pos/features/reporting/ui/models/reporting_branch_option.dart';
+import 'package:modular_pos/features/reporting/ui/models/sales_summary_kpi_item.dart';
 import 'package:modular_pos/features/reporting/ui/reporting_formatters.dart';
 import 'package:modular_pos/features/reporting/ui/viewmodels/reporting_access_context.dart';
 
@@ -39,6 +40,45 @@ class SalesSummaryState {
   final bool canUseAllBranches;
 
   bool get usesCustomWindow => window == ReportTimeWindow.custom;
+
+  List<SalesSummaryKpiItem> get kpis {
+    final currentReport = report;
+    return [
+      SalesSummaryKpiItem(
+        title: 'Revenue',
+        value: currentReport == null
+            ? '--'
+            : formatUsdAmount(currentReport.confirmed.totalGrandUsd),
+        secondaryValue: currentReport == null
+            ? null
+            : formatKhrAmountLabel(currentReport.confirmed.totalGrandKhr),
+        icon: Icons.payments_outlined,
+      ),
+      SalesSummaryKpiItem(
+        title: 'Transactions',
+        value: currentReport == null
+            ? '--'
+            : formatInteger(currentReport.confirmed.transactionCount),
+        icon: Icons.receipt_long_outlined,
+        accentColor: const Color(0xFF2563EB),
+      ),
+      SalesSummaryKpiItem(
+        title: 'Average Order',
+        value: _averageTicketValue(currentReport),
+        secondaryValue: _averageTicketSecondaryValue(currentReport),
+        icon: Icons.shopping_bag_outlined,
+        accentColor: const Color(0xFFF59E0B),
+      ),
+      SalesSummaryKpiItem(
+        title: 'Items sold',
+        value: currentReport == null
+            ? '--'
+            : formatInteger(currentReport.confirmed.totalItemsSold),
+        icon: Icons.inventory_2_outlined,
+        accentColor: const Color(0xFF6B7280),
+      ),
+    ];
+  }
 
   SalesSummaryState copyWith({
     bool? isLoading,
@@ -111,6 +151,9 @@ class SalesSummaryController extends Notifier<SalesSummaryState> {
     final access = ref.watch(reportingAccessContextProvider);
     final today = DateTime.now();
     final normalizedToday = DateTime(today.year, today.month, today.day);
+    final defaultBranchScope = access?.canUseAllBranches == true
+        ? ReportBranchScope.allBranches
+        : ReportBranchScope.branch;
 
     return SalesSummaryState(
       isLoading: false,
@@ -122,8 +165,10 @@ class SalesSummaryController extends Notifier<SalesSummaryState> {
         start: normalizedToday,
         end: normalizedToday,
       ),
-      branchScope: ReportBranchScope.branch,
-      branchId: access?.fallbackBranchId,
+      branchScope: defaultBranchScope,
+      branchId: defaultBranchScope == ReportBranchScope.branch
+          ? access?.fallbackBranchId
+          : null,
       topN: 10,
       branches: access?.branches ?? const [],
       canUseAllBranches: access?.canUseAllBranches ?? false,
@@ -201,9 +246,14 @@ class SalesSummaryController extends Notifier<SalesSummaryState> {
     if (!state.canUseAllBranches && value == ReportBranchScope.allBranches) {
       return;
     }
+    final access = ref.read(reportingAccessContextProvider);
     state = state.copyWith(
       branchScope: value,
-      branchId: value == ReportBranchScope.allBranches ? null : state.branchId,
+      branchId: value == ReportBranchScope.allBranches
+          ? null
+          : ((state.branchId ?? '').trim().isNotEmpty
+                ? state.branchId
+                : access?.fallbackBranchId),
     );
     await load();
   }
@@ -220,4 +270,16 @@ class SalesSummaryController extends Notifier<SalesSummaryState> {
     return (message: error.message, code: error.code);
   }
   return (message: error.toString(), code: null);
+}
+
+String _averageTicketValue(SalesSummaryReport? report) {
+  final averageTicketUsd = report?.confirmed.averageTicketUsd;
+  if (averageTicketUsd == null) return formatUsdAmount(0);
+  return formatUsdAmount(averageTicketUsd);
+}
+
+String? _averageTicketSecondaryValue(SalesSummaryReport? report) {
+  final averageTicketKhr = report?.confirmed.averageTicketKhr;
+  if (averageTicketKhr == null) return formatKhrAmountLabel(0);
+  return formatKhrAmountLabel(averageTicketKhr);
 }
