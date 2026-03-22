@@ -23,18 +23,20 @@ Future<void> ensureGoogleMapsWebSdkLoaded({required String apiKey}) {
 
   script.addEventListener(
     'load',
-    ((_) {
+    ((JSAny? _) {
       if (!completer.isCompleted) completer.complete();
+      return true;
     }).toJS,
   );
   script.addEventListener(
     'error',
-    ((_) {
+    ((JSAny? _) {
       if (!completer.isCompleted) {
         completer.completeError(
           StateError('Failed to load Google Maps JavaScript SDK.'),
         );
       }
+      return true;
     }).toJS,
   );
 
