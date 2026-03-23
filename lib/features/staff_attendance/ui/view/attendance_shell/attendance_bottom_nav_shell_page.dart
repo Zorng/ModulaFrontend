@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:modular_pos/core/routing/app_router.dart';
-import 'package:modular_pos/core/widgets/navigation/app_bottom_nav_shell_scaffold.dart';
+import 'package:modular_pos/core/widgets/navigation/branch_workspace_scaffold.dart';
 
 class AttendanceBottomNavShellPage extends StatelessWidget {
   const AttendanceBottomNavShellPage({
@@ -26,14 +25,15 @@ class AttendanceBottomNavShellPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppBottomNavShellScaffold(
-      navigationShell: navigationShell,
-      titles: _titles,
-      items: _items,
-      centerTitle: false,
-      onBackPressed: () => context.go(AppRoute.branchPortal.path),
-      backIcon: Icons.home_outlined,
-      backTooltip: 'Home',
+    return BranchWorkspaceScaffold(
+      title: _titles[navigationShell.currentIndex],
+      body: navigationShell,
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: navigationShell.currentIndex,
+        items: _items,
+        type: BottomNavigationBarType.fixed,
+        onTap: navigationShell.goBranch,
+      ),
     );
   }
 }

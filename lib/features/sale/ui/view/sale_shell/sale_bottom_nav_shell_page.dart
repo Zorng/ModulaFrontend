@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/theme/responsive.dart';
-import 'package:modular_pos/core/widgets/navigation/app_bottom_nav_shell_scaffold.dart';
+import 'package:modular_pos/core/widgets/navigation/branch_workspace_scaffold.dart';
 import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/sale/ui/view/sale_cart/widgets/sale_cart_panel.dart';
@@ -144,32 +144,32 @@ class _SaleBottomNavShellPageState
         if (isWide) {
           final wideItems = <BottomNavigationBarItem>[_items[0], _items[2]];
           final wideIndex = index == 2 ? 1 : 0;
-
           final showCartPanel = index == 0;
           final cartPanelWidth = (constraints.maxWidth * _wideCartWidthFactor)
               .clamp(_wideCartMinWidth, _wideCartMaxWidth);
           final appBarTitle = index == 2 ? _titles[2] : _titles[0];
-          return Scaffold(
-            appBar: AppBar(
-              backgroundColor: Colors.white,
-              title: Text(appBarTitle),
-              centerTitle: false,
-              actions: actionsForIndex(index, context),
-            ),
-            body: Row(
-              children: [
-                Expanded(child: widget.navigationShell),
-                if (showCartPanel) ...[
-                  const VerticalDivider(width: 1),
-                  SizedBox(
-                    width: cartPanelWidth,
-                    child: SaleCartPanel(
-                      key: const ValueKey('wide_cart_panel'),
-                      contentPadding: const EdgeInsets.all(16),
-                    ),
-                  ),
-                ],
-              ],
+          return BranchWorkspaceScaffold(
+            title: appBarTitle,
+            actions: actionsForIndex(index, context),
+            body: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 18, 24, 24),
+                child: Row(
+                  children: [
+                    Expanded(child: widget.navigationShell),
+                    if (showCartPanel) ...[
+                      const VerticalDivider(width: 1),
+                      SizedBox(
+                        width: cartPanelWidth,
+                        child: SaleCartPanel(
+                          key: const ValueKey('wide_cart_panel'),
+                          contentPadding: const EdgeInsets.all(16),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
             ),
             bottomNavigationBar: Material(
               color:
@@ -194,15 +194,16 @@ class _SaleBottomNavShellPageState
           );
         }
 
-        return AppBottomNavShellScaffold(
-          navigationShell: widget.navigationShell,
-          titles: _mobileTitles,
-          items: _items,
-          centerTitle: false,
+        return BranchWorkspaceScaffold(
+          title: _mobileTitles[index],
           actions: actionsForIndex(index, context),
-          onBackPressed: () => context.go(AppRoute.branchPortal.path),
-          backIcon: Icons.home_outlined,
-          backTooltip: 'Home',
+          body: widget.navigationShell,
+          bottomNavigationBar: BottomNavigationBar(
+            currentIndex: index,
+            items: _items,
+            type: BottomNavigationBarType.fixed,
+            onTap: widget.navigationShell.goBranch,
+          ),
         );
       },
     );

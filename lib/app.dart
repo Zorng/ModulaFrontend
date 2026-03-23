@@ -112,9 +112,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           return isWide ? AppRoute.branch.path : AppRoute.portal.path;
         }
         if (isExplicitBranchSwitch) return null;
-        return hasActiveBranchContext
-            ? (isWide ? AppRoute.cashSession.path : AppRoute.branchPortal.path)
-            : null;
+        return hasActiveBranchContext ? AppRoute.cashSession.path : null;
       }
 
       if (isPortal) {
@@ -123,8 +121,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         return null;
       }
 
+      if (isWide && path == AppRoute.saleCart.path) {
+        return AppRoute.sale.path;
+      }
+
       if (isBranchPortal) {
-        if (isWide) return homePath;
         if (!hasActiveBranchContext) {
           return buildBranchScopedRedirectForRole(
             role: role,
@@ -132,7 +133,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             reasonCode: branchContextRequiredReasonCode,
           );
         }
-        return null;
+        return AppRoute.cashSession.path;
       }
 
       if (_isTenantAdminRoute(path) && !isAdminOrOwner) {
@@ -251,7 +252,7 @@ String _homeForRole({
   if (!hasActiveBranchContext) {
     return AppRoute.branchSelection.path;
   }
-  return isWide ? AppRoute.cashSession.path : AppRoute.branchPortal.path;
+  return AppRoute.cashSession.path;
 }
 
 bool _isTenantAdminRoute(String path) {

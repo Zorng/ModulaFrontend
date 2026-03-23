@@ -13,12 +13,19 @@ import 'package:modular_pos/features/menu/domain/models/menu_category.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_composition.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
+import 'package:modular_pos/features/notification/ui/viewmodels/operational_notification_unread_count_controller.dart';
 import 'package:modular_pos/features/discount/ui/view/discount/discount_page.dart';
 import 'package:modular_pos/features/discount/ui/view/discount_rule_detail/discount_rule_detail_page.dart';
 import 'package:modular_pos/features/discount/ui/view/discount_rule_form/discount_rule_form_page.dart';
 import 'package:modular_pos/features/discount/ui/viewmodels/discount_support_providers.dart';
 
 import '../test_utils/pump_app.dart';
+
+class _StaticUnreadCountController
+    extends OperationalNotificationUnreadCountController {
+  @override
+  Future<int> build() async => 0;
+}
 
 class _BranchMenuRepository extends MenuRepository {
   const _BranchMenuRepository();
@@ -252,6 +259,9 @@ void main() {
           menuRepositoryProvider.overrideWithValue(
             const _BranchMenuRepository(),
           ),
+          operationalNotificationUnreadCountControllerProvider.overrideWith(
+            () => _StaticUnreadCountController(),
+          ),
         ],
       );
 
@@ -279,6 +289,9 @@ void main() {
           ),
           discountTenantBranchesProvider.overrideWith(
             (ref) async => _branches(),
+          ),
+          operationalNotificationUnreadCountControllerProvider.overrideWith(
+            () => _StaticUnreadCountController(),
           ),
         ],
       );
@@ -311,6 +324,9 @@ void main() {
           ),
           menuRepositoryProvider.overrideWithValue(
             const _BranchMenuRepository(),
+          ),
+          operationalNotificationUnreadCountControllerProvider.overrideWith(
+            () => _StaticUnreadCountController(),
           ),
         ],
       );
@@ -361,6 +377,9 @@ void main() {
           menuRepositoryProvider.overrideWithValue(
             const _BranchMenuRepository(),
           ),
+          operationalNotificationUnreadCountControllerProvider.overrideWith(
+            () => _StaticUnreadCountController(),
+          ),
         ],
       );
 
@@ -396,6 +415,9 @@ void main() {
           menuRepositoryProvider.overrideWithValue(
             const _BranchMenuRepository(),
           ),
+          operationalNotificationUnreadCountControllerProvider.overrideWith(
+            () => _StaticUnreadCountController(),
+          ),
         ],
       );
 
@@ -423,6 +445,9 @@ void main() {
           discountTenantBranchesProvider.overrideWith(
             (ref) async => _branches(),
           ),
+          operationalNotificationUnreadCountControllerProvider.overrideWith(
+            () => _StaticUnreadCountController(),
+          ),
         ],
       );
 
@@ -444,6 +469,9 @@ void main() {
           ),
           discountTenantBranchesProvider.overrideWith(
             (ref) async => _branches(),
+          ),
+          operationalNotificationUnreadCountControllerProvider.overrideWith(
+            () => _StaticUnreadCountController(),
           ),
         ],
       );

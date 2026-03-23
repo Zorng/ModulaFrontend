@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/core/theme/app_buttons.dart';
+import 'package:modular_pos/core/widgets/layout/bounded_content_frame.dart';
 import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
 import 'package:modular_pos/features/staff_attendance/data/attendance_cache_store.dart';
 import 'package:modular_pos/features/staff_attendance/data/staff_attendance_repository.dart';
@@ -143,38 +144,44 @@ class _AttendanceHistoryPageState extends ConsumerState<AttendanceHistoryPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          if (_errorMessage != null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Text(
-                _errorMessage!,
-                style: TextStyle(color: Colors.red.shade600),
-              ),
-            ),
-          if (_loading && _historyEntries.isEmpty)
-            const Center(child: CircularProgressIndicator())
-          else ...[
-            if (_historyEntries.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 16),
-                child: Text('No attendance history found.'),
-              )
-            else
-              ..._historyEntries.map(
-                (entry) => AttendanceHistoryCard(entry: entry),
-              ),
-            const SizedBox(height: 12),
-            if (_hasMore)
-              FilledButton(
-                style: AppButtons.primary(context),
-                onPressed: _loading ? null : () => _loadHistory(reset: false),
-                child: Text(_loading ? 'Loading...' : 'Load more'),
-              ),
-          ],
-        ],
+      body: SafeArea(
+        child: BoundedContentFrame(
+          maxWidth: 960,
+          child: ListView(
+            children: [
+              if (_errorMessage != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Text(
+                    _errorMessage!,
+                    style: TextStyle(color: Colors.red.shade600),
+                  ),
+                ),
+              if (_loading && _historyEntries.isEmpty)
+                const Center(child: CircularProgressIndicator())
+              else ...[
+                if (_historyEntries.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                    child: Text('No attendance history found.'),
+                  )
+                else
+                  ..._historyEntries.map(
+                    (entry) => AttendanceHistoryCard(entry: entry),
+                  ),
+                const SizedBox(height: 12),
+                if (_hasMore)
+                  FilledButton(
+                    style: AppButtons.primary(context),
+                    onPressed: _loading
+                        ? null
+                        : () => _loadHistory(reset: false),
+                    child: Text(_loading ? 'Loading...' : 'Load more'),
+                  ),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }

@@ -22,31 +22,48 @@ This document defines the **canonical navigation model** for the app. It replace
 - Good: `/sale`, `/reports/x`, `/attendance/manage`
 - Avoid: `/portal/admin/sale`, `/cashier/cash-session`
 
-## Mobile navigation model (feature portal + tabs)
-Mobile uses a **two‑layer** model:
+## Tenant workspace navigation model
+Tenant workspace keeps the older responsive shell split:
 
-1) **Portal** (feature hub)
-   - `AppRoute.portal` is the entry for choosing features.
-   - Portal pages exist **only for mobile**.
+### Non-wide tenant shell
+- `AppRoute.portal` is the entry for choosing tenant-level features.
+- Portal pages exist only for non-wide tenant navigation.
+- Feature root pages may still use feature-local bottom-nav shells where that feature already does so.
+- Bottom nav is for **feature tabs** only, not global app navigation.
 
-2) **Feature root + internal tabs**
-   - Feature root pages (e.g. `/sale`, `/menu`, `/inventory`) use a bottom‑nav shell *only inside that feature*.
-   - Bottom nav is for **feature tabs** (not global app navigation).
-   - Use `IndexedStack` to preserve tab state.
-   - On mobile web, bottom nav can auto‑hide while scrolling (UX rule).
+### Wide tenant shell
+- Wide tenant navigation uses the shared left **NavigationRail** + content area.
+- Content switches inside the rail shell rather than replacing the shell scaffold.
+- **No back button** on wide tenant feature roots; the rail is the primary navigation.
+- Profile header remains display-only; account/settings are destinations, not inline actions.
 
-### Mobile app bar rule
-- Feature root pages show a **Home** icon that returns to the portal.
-- Detail pages use the standard back affordance.
+## Branch workspace navigation model
+Branch workspace no longer follows the tenant portal/rail split.
 
-## Wide screen navigation model (rail + content)
-Wide screens use a **single shell**:
+Across **all breakpoints**, branch workspace uses:
+- app bar
+- hidden drawer opened from the leading menu button
+- content area
 
-- Left **NavigationRail** is always visible.
-- Content switches inside the rail shell (no scaffold replacement).
-- **No back button** on wide‑screen feature roots (rail is primary navigation).
-- Profile header is **display only**; Account/Settings are rail destinations.
-- Branch selector lives **under the Branch section** in the rail.
+Important branch-shell rules:
+- branch workspace does **not** use `NavigationRail`, even on wide screens
+- branch workspace does **not** use the old non-wide branch portal as its home shell
+- shell-level notifications and connectivity live in the branch app bar
+- branch destinations and branch-scoped device context live in the drawer
+- `To tenant` hands off to the existing tenant-level UI/role-aware behavior
+
+### Branch feature roots and tabs
+- Branch features may still use feature-local tabs inside the branch shell.
+- Current examples:
+  - cash session
+  - sale
+  - attendance
+- Those tabs are feature-local only; the branch drawer is the primary workspace navigation.
+
+### Sale layout rule
+- Below `large`, sale keeps the local `Sale / Cart / Fulfillment` tab model.
+- At `large`, sale collapses the cart into the main sale workspace as a side panel.
+- `/sale/cart` should normalize back to `/sale` on wide screens.
 
 ## Destination switching rules
 - Use `context.go(...)` when switching **features** or **rail destinations**.
@@ -62,7 +79,7 @@ Do not create duplicate routes per role; use a single route and **gate the conte
 
 ## Implementation notes
 - Navigation shells should be centralized:
-  - `AppWideNavigationRailShell` for wide screens.
-  - `AppBottomNavShellScaffold` for feature tabs on mobile.
+  - `AppWideNavigationRailShell` for wide **tenant** screens.
+  - `BranchWorkspaceScaffold` for branch workspace chrome across all breakpoints.
+  - `AppBottomNavShellScaffold` for tenant/mobile feature tabs where that shell still applies.
 - Pages should not implement their own global navigation controls.
-

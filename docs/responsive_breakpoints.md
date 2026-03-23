@@ -20,13 +20,29 @@ AppBreakpoints.isLarge(width);  // width >= 1024
 - **Search + Add bar**: uses `AppBreakpoints.compact` to tighten spacing on narrow screens.
 
 ## Navigation behavior by breakpoint
-- **Mobile (small/compact)**:
-  - Portal is the feature hub.
-  - Feature roots use **feature tabs** (bottom nav) for intra‑feature navigation.
-  - Bottom nav may auto‑hide on scroll for mobile web.
-- **Wide (large)**:
-  - Persistent left **NavigationRail** + content area.
-  - No back button on feature roots (rail is primary navigation).
+The breakpoint system is still global, but navigation now differs by **workspace type** as well as width.
+
+- **Tenant workspace**
+  - `small/compact/medium`:
+    - tenant portal remains the feature hub
+    - some tenant feature roots still use feature-local bottom tabs
+  - `large`:
+    - persistent left **NavigationRail** + content area
+    - no back button on tenant feature roots
+
+- **Branch workspace**
+  - all breakpoints:
+    - branch shell uses an app bar + hidden drawer
+    - drawer opens from the app-bar leading slot
+    - branch workspace does **not** switch to a rail on wide screens
+  - branch feature roots may still use feature-local bottom tabs where needed
+
+- **Sale layout**
+  - below `large`:
+    - cart remains a sale tab
+  - `large`:
+    - cart moves into the sale root as a side panel
+    - there is no separate medium-only sale navigation mode
 
 ## How to Apply
 - Import `package:modular_pos/core/theme/responsive.dart`.

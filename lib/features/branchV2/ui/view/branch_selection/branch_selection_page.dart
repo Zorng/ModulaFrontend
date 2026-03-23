@@ -132,9 +132,7 @@ class _BranchSelectionPageState extends ConsumerState<BranchSelectionPage> {
         case BranchSelectionResult.failed:
           return;
         case BranchSelectionResult.success:
-          final target =
-              continuePath ??
-              (isWide ? AppRoute.cashSession.path : AppRoute.branchPortal.path);
+          final target = continuePath ?? AppRoute.cashSession.path;
           context.go(target);
           return;
       }
@@ -160,9 +158,7 @@ class _BranchSelectionPageState extends ConsumerState<BranchSelectionPage> {
           .read(authActiveBranchNameOverrideProvider.notifier)
           .setName(branch.branchName);
 
-      final target =
-          continuePath ??
-          (isWide ? AppRoute.cashSession.path : AppRoute.branchPortal.path);
+      final target = continuePath ?? AppRoute.cashSession.path;
       context.go(target);
     }
 

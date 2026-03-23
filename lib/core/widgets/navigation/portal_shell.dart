@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/widgets/navigation/navigation_layer_back_button.dart';
 import 'package:modular_pos/core/widgets/navigation/tenant_profile_header.dart';
+import 'package:modular_pos/core/widgets/sync/global_sync_status_indicator.dart';
 import 'package:modular_pos/features/notification/ui/components/operational_notification_inbox_action.dart';
 
 class PortalShell extends StatelessWidget {
@@ -74,6 +75,7 @@ class PortalShell extends StatelessWidget {
                 ),
               ),
               const Spacer(),
+              const GlobalSyncStatusIndicator(compact: true),
               const OperationalNotificationInboxAction(),
               if (onProfileTap != null)
                 IconButton(

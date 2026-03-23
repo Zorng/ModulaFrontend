@@ -28,14 +28,17 @@ class AppScaffoldShell extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final isBranchLayer = _isBranchScopedPath(currentPath);
     return LayoutBuilder(
       builder: (context, constraints) {
         final isWide = AppBreakpoints.isLarge(constraints.maxWidth);
-        final shellBody = isWide ? _buildWideShell(context, ref) : child;
+        if (isBranchLayer || !isWide) {
+          return child;
+        }
 
         return Stack(
           children: [
-            shellBody,
+            _buildWideShell(context, ref),
             Positioned.fill(
               child: SafeArea(
                 child: Align(

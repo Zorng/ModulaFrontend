@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/core/feedback/user_error_message.dart';
+import 'package:modular_pos/core/widgets/layout/bounded_content_frame.dart';
+import 'package:modular_pos/core/widgets/navigation/branch_workspace_scaffold.dart';
 import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
 import 'package:modular_pos/features/staff/data/staff_admin_attendance_repository.dart';
 import 'package:modular_pos/features/staff/domain/models/staff_attendance_record.dart';
@@ -79,36 +81,41 @@ class _StaffAttendancePageState extends ConsumerState<StaffAttendancePage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: widget.showAppBar
-          ? AppBar(title: const Text('Attendance'), centerTitle: false)
-          : null,
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          StaffAttendanceDatePickerRow(
-            selectedDate: _selectedDate,
-            onPickDate: _pickDate,
-            enabled: !_loading,
-          ),
-          const SizedBox(height: 16),
-          if (_loading)
-            const Center(child: CircularProgressIndicator())
-          else if (_errorMessage != null)
-            StaffAttendanceMessageCard(message: _errorMessage!)
-          else if (_records.isEmpty)
-            const StaffAttendanceMessageCard(
-              message: 'No attendance records for this date.',
-            )
-          else
-            ..._records.map(
-              (record) => Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: StaffAttendanceRecordCard(record: record),
-              ),
+    final content = SafeArea(
+      child: BoundedContentFrame(
+        maxWidth: 1040,
+        child: ListView(
+          children: [
+            StaffAttendanceDatePickerRow(
+              selectedDate: _selectedDate,
+              onPickDate: _pickDate,
+              enabled: !_loading,
             ),
-        ],
+            const SizedBox(height: 16),
+            if (_loading)
+              const Center(child: CircularProgressIndicator())
+            else if (_errorMessage != null)
+              StaffAttendanceMessageCard(message: _errorMessage!)
+            else if (_records.isEmpty)
+              const StaffAttendanceMessageCard(
+                message: 'No attendance records for this date.',
+              )
+            else
+              ..._records.map(
+                (record) => Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: StaffAttendanceRecordCard(record: record),
+                ),
+              ),
+          ],
+        ),
       ),
     );
+
+    if (!widget.showAppBar) {
+      return Scaffold(body: content);
+    }
+
+    return BranchWorkspaceScaffold(title: 'Attendance', body: content);
   }
 }

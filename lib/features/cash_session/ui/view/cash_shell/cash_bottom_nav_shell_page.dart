@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/theme/app_buttons.dart';
-import 'package:modular_pos/core/widgets/navigation/app_bottom_nav_shell_scaffold.dart';
+import 'package:modular_pos/core/widgets/navigation/branch_workspace_scaffold.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/features/cash_session/ui/viewmodels/unsaved_input_provider.dart';
 import 'package:modular_pos/features/cash_session/ui/viewmodels/modal_form_state_provider.dart';
@@ -93,24 +92,21 @@ class CashBottomNavShellPage extends ConsumerWidget {
         if (didPop) return;
 
         final shouldLeave = await checkUnsavedData();
-        if (shouldLeave && context.mounted) {
-          context.go(AppRoute.branchPortal.path);
+        if (shouldLeave &&
+            context.mounted &&
+            navigationShell.currentIndex != 0) {
+          navigationShell.goBranch(0);
         }
       },
-      child: AppBottomNavShellScaffold(
-        navigationShell: navigationShell,
-        titles: _titles,
-        items: _items,
-        centerTitle: false,
-        onBackPressed: () async {
-          final shouldLeave = await checkUnsavedData();
-          if (shouldLeave && context.mounted) {
-            context.go(AppRoute.branchPortal.path);
-          }
-        },
-        backIcon: Icons.home_outlined,
-        backTooltip: 'Home',
-        actions: const [],
+      child: BranchWorkspaceScaffold(
+        title: _titles[navigationShell.currentIndex],
+        body: navigationShell,
+        bottomNavigationBar: BottomNavigationBar(
+          currentIndex: navigationShell.currentIndex,
+          items: _items,
+          type: BottomNavigationBarType.fixed,
+          onTap: navigationShell.goBranch,
+        ),
       ),
     );
   }

@@ -14,6 +14,7 @@ import 'package:modular_pos/features/discount/data/mock_discount_repository.dart
 import 'package:modular_pos/features/discount/ui/viewmodels/discount_support_providers.dart';
 import 'package:modular_pos/features/menu/data/mock_menu_repository.dart';
 import 'package:modular_pos/features/menu/data/menu_repository.dart';
+import 'package:modular_pos/features/notification/ui/viewmodels/operational_notification_unread_count_controller.dart';
 
 class _StaticLoginController extends LoginController {
   _StaticLoginController(this._session);
@@ -22,6 +23,12 @@ class _StaticLoginController extends LoginController {
 
   @override
   LoginState build() => LoginState(session: _session);
+}
+
+class _StaticUnreadCountController
+    extends OperationalNotificationUnreadCountController {
+  @override
+  Future<int> build() async => 0;
 }
 
 AuthSession _session(String role) {
@@ -109,6 +116,9 @@ ProviderContainer _createContainer(String role) {
       discountRepositoryProvider.overrideWithValue(MockDiscountRepository()),
       discountTenantBranchesProvider.overrideWith((ref) async => _branches()),
       menuRepositoryProvider.overrideWithValue(const MockMenuRepository()),
+      operationalNotificationUnreadCountControllerProvider.overrideWith(
+        () => _StaticUnreadCountController(),
+      ),
     ],
   );
 }

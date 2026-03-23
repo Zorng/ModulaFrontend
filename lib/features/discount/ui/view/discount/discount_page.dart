@@ -5,6 +5,7 @@ import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/core/widgets/buttons/app_add_new_button.dart';
 import 'package:modular_pos/core/widgets/forms/app_search_bar.dart';
+import 'package:modular_pos/core/widgets/navigation/branch_workspace_scaffold.dart';
 import 'package:modular_pos/core/widgets/navigation/app_back_button.dart';
 import 'package:modular_pos/features/auth/domain/active_branch_context_provider.dart';
 import 'package:modular_pos/features/discount/domain/models/discount_rule.dart';
@@ -79,41 +80,46 @@ class _DiscountPageState extends ConsumerState<DiscountPage> {
     _syncSearchController(state.searchQuery);
     _ensureBranchScopedConfig(activeBranchId);
 
-    return Scaffold(
-      body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: controller.refresh,
-          child: _DiscountPageLayout(
-            width: width,
-            isCompact: isCompact,
-            isMedium: isMedium,
-            isLarge: isLarge,
-            title: widget.branchActiveOnly ? 'Active Discounts' : 'Discounts',
-            subtitle: widget.branchActiveOnly
-                ? 'Read-only view of discount rules that currently affect this branch.'
-                : state.subtitle,
-            canManage: canManage,
-            showReadOnlyBanner: showReadOnlyBanner,
-            branchActiveOnly: widget.branchActiveOnly,
-            searchController: _searchController,
-            statusFilter: state.statusFilter,
-            scopeFilter: state.scopeFilter,
-            rules: visibleRules,
-            isLoading: state.isLoading,
-            error: state.error,
-            onBackPressed: _navigateBack,
-            onAddPressed: canManage ? _openCreate : null,
-            onSearchChanged: controller.setSearchQuery,
-            onStatusChanged: controller.setStatusFilter,
-            onScopeChanged: controller.setScopeFilter,
-            onRetry: controller.refresh,
-            onOpenRule: widget.branchActiveOnly ? null : _openDetail,
-            branchNamesById: branchNamesById,
-            itemNamesById: itemNamesById,
-          ),
+    final content = SafeArea(
+      child: RefreshIndicator(
+        onRefresh: controller.refresh,
+        child: _DiscountPageLayout(
+          width: width,
+          isCompact: isCompact,
+          isMedium: isMedium,
+          isLarge: isLarge,
+          title: widget.branchActiveOnly ? 'Active Discounts' : 'Discounts',
+          subtitle: widget.branchActiveOnly
+              ? 'Read-only view of discount rules that currently affect this branch.'
+              : state.subtitle,
+          canManage: canManage,
+          showReadOnlyBanner: showReadOnlyBanner,
+          branchActiveOnly: widget.branchActiveOnly,
+          showLocalHeader: !widget.branchActiveOnly,
+          searchController: _searchController,
+          statusFilter: state.statusFilter,
+          scopeFilter: state.scopeFilter,
+          rules: visibleRules,
+          isLoading: state.isLoading,
+          error: state.error,
+          onBackPressed: _navigateBack,
+          onAddPressed: canManage ? _openCreate : null,
+          onSearchChanged: controller.setSearchQuery,
+          onStatusChanged: controller.setStatusFilter,
+          onScopeChanged: controller.setScopeFilter,
+          onRetry: controller.refresh,
+          onOpenRule: widget.branchActiveOnly ? null : _openDetail,
+          branchNamesById: branchNamesById,
+          itemNamesById: itemNamesById,
         ),
       ),
     );
+
+    if (widget.branchActiveOnly) {
+      return BranchWorkspaceScaffold(title: 'Active Discounts', body: content);
+    }
+
+    return Scaffold(body: content);
   }
 
   Future<void> _loadPage() async {
@@ -192,6 +198,7 @@ class _DiscountPageLayout extends StatelessWidget {
     required this.canManage,
     required this.showReadOnlyBanner,
     required this.branchActiveOnly,
+    required this.showLocalHeader,
     required this.searchController,
     required this.statusFilter,
     required this.scopeFilter,
@@ -218,6 +225,7 @@ class _DiscountPageLayout extends StatelessWidget {
   final bool canManage;
   final bool showReadOnlyBanner;
   final bool branchActiveOnly;
+  final bool showLocalHeader;
   final TextEditingController searchController;
   final String statusFilter;
   final String scopeFilter;
@@ -237,7 +245,9 @@ class _DiscountPageLayout extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final horizontalPadding = _horizontalPadding(width);
-    final contentMaxWidth = isLarge ? 1520.0 : 960.0;
+    final contentMaxWidth = branchActiveOnly
+        ? 1040.0
+        : (isLarge ? 1520.0 : 960.0);
     final isMobile = !isMedium && !isLarge;
 
     final controls = DiscountFilterPanel(
@@ -288,18 +298,19 @@ class _DiscountPageLayout extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 10,
+              if (showLocalHeader)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 10,
+                  ),
+                  decoration: const BoxDecoration(color: Colors.white),
+                  child: Text(
+                    title,
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
                 ),
-                decoration: const BoxDecoration(color: Colors.white),
-                child: Text(
-                  title,
-                  style: Theme.of(context).textTheme.headlineSmall,
-                ),
-              ),
               Expanded(
                 child: Padding(
                   padding: EdgeInsets.fromLTRB(
@@ -346,7 +357,7 @@ class _DiscountPageLayout extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (isMobile)
+            if (isMobile && showLocalHeader)
               _MobileDiscountHeader(onBackPressed: onBackPressed, title: title),
             Expanded(
               child: Padding(
@@ -361,7 +372,7 @@ class _DiscountPageLayout extends StatelessWidget {
                   children: [
                     if (isMobile) ...[
                       const SizedBox(height: 8),
-                    ] else if (isMedium) ...[
+                    ] else if (isMedium && showLocalHeader) ...[
                       DiscountPageHeader(
                         title: title,
                         subtitle: subtitle,

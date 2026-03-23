@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/core/widgets/navigation/app_back_button.dart';
+import 'package:modular_pos/core/widgets/sync/global_sync_status_indicator.dart';
 import 'package:modular_pos/features/notification/ui/components/operational_notification_inbox_action.dart';
 
 class AppBottomNavShellScaffold extends StatelessWidget {
@@ -49,6 +50,8 @@ class AppBottomNavShellScaffold extends StatelessWidget {
             : leading,
         title: Text(titles[index]),
         actions: <Widget>[
+          const GlobalSyncStatusIndicator(compact: true),
+          const SizedBox(width: 4),
           const OperationalNotificationInboxAction(),
           ...(actions ?? const <Widget>[]),
         ],

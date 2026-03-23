@@ -5,6 +5,7 @@ import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/sync/global_sync_status.dart';
 import 'package:modular_pos/core/widgets/navigation/app_navigation_config.dart';
 import 'package:modular_pos/core/widgets/navigation/app_navigation_portal_content.dart';
+import 'package:modular_pos/core/widgets/navigation/branch_workspace_scaffold.dart';
 import 'package:modular_pos/core/widgets/navigation/app_wide_navigation_rail_shell.dart';
 import 'package:modular_pos/core/widgets/navigation/navigation_layer_back_button.dart';
 import 'package:modular_pos/core/widgets/navigation/tenant_profile_header.dart';
@@ -134,6 +135,40 @@ Widget _railHarness({required AuthSession session, required String path}) {
     ],
     child: MaterialApp(
       home: AppScaffoldShell(currentPath: path, child: const SizedBox.shrink()),
+    ),
+  );
+}
+
+Widget _branchHarness({
+  required AuthSession session,
+  required String path,
+  required String title,
+}) {
+  return ProviderScope(
+    overrides: [
+      loginControllerProvider.overrideWith(
+        () => _StaticLoginController(session),
+      ),
+      operationalNotificationRepositoryProvider.overrideWithValue(
+        const _FakeOperationalNotificationRepository(unreadCount: 3),
+      ),
+      globalSyncStatusProvider.overrideWithValue(
+        const GlobalSyncStatus(
+          kind: GlobalSyncStatusKind.online,
+          label: 'Online',
+          detail: 'Workspace is connected.',
+        ),
+      ),
+    ],
+    child: MaterialApp(
+      home: AppScaffoldShell(
+        currentPath: path,
+        child: BranchWorkspaceScaffold(
+          title: title,
+          currentPath: path,
+          body: const SizedBox.shrink(),
+        ),
+      ),
     ),
   );
 }
@@ -293,23 +328,16 @@ void main() {
     addTearDown(() => _resetViewport(tester));
 
     await tester.pumpWidget(
-      _railHarness(
+      _branchHarness(
         session: _session(role: 'admin', branches: activeBranch),
         path: '/cash/session',
+        title: 'Cash Session',
       ),
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('TENANT'), findsNothing);
-    expect(find.text('BRANCH'), findsOneWidget);
-    expect(find.text('Cash Sessions'), findsOneWidget);
-    expect(find.text('Policy'), findsOneWidget);
-    expect(find.text('Sale'), findsOneWidget);
-    expect(find.text('Active Discount'), findsOneWidget);
-    expect(find.text('Branches'), findsNothing);
-    expect(find.byIcon(Icons.arrow_back), findsOneWidget);
-    expect(find.byType(NavigationLayerBackButton), findsOneWidget);
-    expect(find.byType(TenantProfileHeader), findsOneWidget);
+    expect(find.byType(TenantProfileHeader), findsNothing);
+    expect(find.byType(NavigationLayerBackButton), findsNothing);
     expect(find.byType(GlobalSyncStatusIndicator), findsOneWidget);
     expect(
       find.byKey(const Key('operational_notification_inbox_action')),
@@ -319,9 +347,16 @@ void main() {
       find.byKey(const Key('operational_notification_unread_badge')),
       findsOneWidget,
     );
-    expect(find.byIcon(Icons.person_outline), findsNothing);
-    expect(find.byIcon(Icons.settings_outlined), findsNothing);
-    expect(find.text('Branch A'), findsWidgets);
+    await tester.tap(find.byTooltip('Open workspace drawer'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Branch'), findsOneWidget);
+    expect(find.text('Cash Sessions'), findsOneWidget);
+    expect(find.text('Policy'), findsOneWidget);
+    expect(find.text('Sale'), findsOneWidget);
+    expect(find.text('Active Discount'), findsOneWidget);
+    expect(find.text('Branch A'), findsOneWidget);
+    expect(find.text('To tenant'), findsOneWidget);
 
     final cashTile = tester.widget<ListTile>(
       find.widgetWithText(ListTile, 'Cash Sessions'),
@@ -336,15 +371,19 @@ void main() {
     addTearDown(() => _resetViewport(tester));
 
     await tester.pumpWidget(
-      _railHarness(
+      _branchHarness(
         session: _session(role: 'admin', branches: activeBranch),
         path: AppRoute.branchDiscount.path,
+        title: 'Active Discounts',
       ),
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('TENANT'), findsNothing);
-    expect(find.text('BRANCH'), findsOneWidget);
+    expect(find.byType(TenantProfileHeader), findsNothing);
+    await tester.tap(find.byTooltip('Open workspace drawer'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Branch'), findsOneWidget);
     expect(find.text('Active Discount'), findsOneWidget);
     expect(find.text('Branches'), findsNothing);
 
@@ -361,20 +400,25 @@ void main() {
     addTearDown(() => _resetViewport(tester));
 
     await tester.pumpWidget(
-      _railHarness(
+      _branchHarness(
         session: _session(role: 'manager', branches: activeBranch),
         path: '/attendance',
+        title: 'Attendance',
       ),
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('OPERATIONS'), findsOneWidget);
+    expect(find.byType(NavigationLayerBackButton), findsNothing);
+    await tester.tap(find.byTooltip('Open workspace drawer'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Operations'), findsOneWidget);
     expect(find.text('Cash Sessions'), findsOneWidget);
     expect(find.text('Sale'), findsOneWidget);
-    expect(find.text('Attendance'), findsOneWidget);
+    expect(find.widgetWithText(ListTile, 'Attendance'), findsOneWidget);
     expect(find.text('Attendance Management'), findsOneWidget);
     expect(find.text('Branches'), findsNothing);
-    expect(find.byIcon(Icons.arrow_back), findsOneWidget);
+    expect(find.text('To tenant'), findsOneWidget);
   });
 
   testWidgets('wide rail keeps cash history in branch operations layer', (
@@ -384,19 +428,23 @@ void main() {
     addTearDown(() => _resetViewport(tester));
 
     await tester.pumpWidget(
-      _railHarness(
+      _branchHarness(
         session: _session(role: 'manager', branches: activeBranch),
         path: '/cash/session/history',
+        title: 'History',
       ),
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('OPERATIONS'), findsOneWidget);
+    await tester.tap(find.byTooltip('Open workspace drawer'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Operations'), findsOneWidget);
     expect(find.text('Cash Sessions'), findsOneWidget);
     expect(find.text('Sale'), findsOneWidget);
     expect(find.text('Attendance'), findsOneWidget);
     expect(find.text('Branches'), findsNothing);
-    expect(find.byIcon(Icons.arrow_back), findsOneWidget);
+    expect(find.text('To tenant'), findsOneWidget);
 
     final cashTile = tester.widget<ListTile>(
       find.widgetWithText(ListTile, 'Cash Sessions'),
@@ -411,9 +459,10 @@ void main() {
     addTearDown(() => _resetViewport(tester));
 
     await tester.pumpWidget(
-      _railHarness(
+      _branchHarness(
         session: _session(role: 'manager', branches: activeBranch),
         path: '/attendance',
+        title: 'Attendance',
       ),
     );
     await tester.pumpAndSettle();

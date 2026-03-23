@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/core/network/app_connectivity.dart';
 import 'package:modular_pos/core/network/app_connectivity_contract.dart';
 import 'package:modular_pos/core/theme/app_buttons.dart';
+import 'package:modular_pos/core/widgets/layout/bounded_content_frame.dart';
 import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
 import 'package:modular_pos/features/staff/data/repository/staff_shift_repository.dart';
 import 'package:modular_pos/features/staff/domain/models/staff_shift_models.dart';
@@ -257,7 +258,8 @@ class _AttendanceCheckPageState extends ConsumerState<AttendanceCheckPage> {
             attendanceId: clientOpId,
             position: position,
           );
-          if (!mounted || ref.read(attendanceCacheScopeProvider) != cacheScope) {
+          if (!mounted ||
+              ref.read(attendanceCacheScopeProvider) != cacheScope) {
             return;
           }
           ScaffoldMessenger.of(context).showSnackBar(
@@ -286,7 +288,8 @@ class _AttendanceCheckPageState extends ConsumerState<AttendanceCheckPage> {
             attendanceId: clientOpId,
             position: position,
           );
-          if (!mounted || ref.read(attendanceCacheScopeProvider) != cacheScope) {
+          if (!mounted ||
+              ref.read(attendanceCacheScopeProvider) != cacheScope) {
             return;
           }
           ScaffoldMessenger.of(context).showSnackBar(
@@ -427,15 +430,16 @@ class _AttendanceCheckPageState extends ConsumerState<AttendanceCheckPage> {
     List<AttendanceRecord> existingRecords, {
     required AttendanceRecord newRecord,
   }) {
-    final merged = existingRecords
-        .where((record) => record.id != newRecord.id)
-        .toList(growable: true)
-      ..add(newRecord)
-      ..sort((a, b) {
-        final occurredCompare = a.occurredAt.compareTo(b.occurredAt);
-        if (occurredCompare != 0) return occurredCompare;
-        return a.createdAt.compareTo(b.createdAt);
-      });
+    final merged =
+        existingRecords
+            .where((record) => record.id != newRecord.id)
+            .toList(growable: true)
+          ..add(newRecord)
+          ..sort((a, b) {
+            final occurredCompare = a.occurredAt.compareTo(b.occurredAt);
+            if (occurredCompare != 0) return occurredCompare;
+            return a.createdAt.compareTo(b.createdAt);
+          });
     return List<AttendanceRecord>.unmodifiable(merged);
   }
 
@@ -717,114 +721,113 @@ class _AttendanceCheckPageState extends ConsumerState<AttendanceCheckPage> {
             .toList();
 
     return Scaffold(
-      body: Column(
-        children: [
-          if (showNoShiftAlert)
-            Container(
-              width: double.infinity,
-              margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFF7ED),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFFED7AA)),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(
-                    Icons.warning_amber_rounded,
-                    color: Color(0xFFC2410C),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'No Shift Today',
-                          style: Theme.of(context).textTheme.titleSmall
-                              ?.copyWith(
-                                color: const Color(0xFF9A3412),
-                                fontWeight: FontWeight.w700,
-                              ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'You do not have an assigned shift today. You can still record attendance, and the system will capture location evidence normally.',
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: const Color(0xFF9A3412)),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                if (_errorMessage != null)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: Text(
-                      _errorMessage!,
-                      style: TextStyle(color: Colors.red.shade600),
-                    ),
-                  ),
-                Text(
-                  'Check-in/Check-out Info',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: 12),
-                TodayShiftCard(
-                  date: todayLabel,
-                  shift: shiftLabel,
-                  shiftSource: todayShift.sourceLabel,
-                  checkIn: checkInLabel,
-                  checkOut: checkOutLabel,
-                  status: statusLabel,
-                  nextInstanceDate: upcomingInstance?.dateLabel,
-                  nextInstanceShift: upcomingInstance?.timeLabel,
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
+      body: SafeArea(
+        child: BoundedContentFrame(
+          maxWidth: 960,
+          child: ListView(
+            children: [
+              if (showNoShiftAlert) ...[
+                Container(
                   width: double.infinity,
-                  child: FilledButton(
-                    style: AppButtons.primary(context),
-                    onPressed: canTakeAction ? _handleCheckAction : null,
-                    child: Text(_submitting ? 'Please wait...' : buttonLabel),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF7ED),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFFED7AA)),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(
+                        Icons.warning_amber_rounded,
+                        color: Color(0xFFC2410C),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'No Shift Today',
+                              style: Theme.of(context).textTheme.titleSmall
+                                  ?.copyWith(
+                                    color: const Color(0xFF9A3412),
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'You do not have an assigned shift today. You can still record attendance, and the system will capture location evidence normally.',
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(color: const Color(0xFF9A3412)),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                if (_locationResultLabel != null) ...[
-                  const SizedBox(height: 10),
-                  Text(
-                    'Location result: $_locationResultLabel',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ],
-                if (_locationResultMessage != null) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    _locationResultMessage!,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Colors.grey.shade700,
-                    ),
-                  ),
-                ],
                 const SizedBox(height: 12),
-                ShiftInfoCard(
-                  schedule: scheduleRows,
-                  expanded: _shiftExpanded,
-                  loading: _scheduleLoading,
-                  onToggle: () =>
-                      setState(() => _shiftExpanded = !_shiftExpanded),
+              ],
+              if (_errorMessage != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Text(
+                    _errorMessage!,
+                    style: TextStyle(color: Colors.red.shade600),
+                  ),
+                ),
+              Text(
+                'Check-in/Check-out Info',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 12),
+              TodayShiftCard(
+                date: todayLabel,
+                shift: shiftLabel,
+                shiftSource: todayShift.sourceLabel,
+                checkIn: checkInLabel,
+                checkOut: checkOutLabel,
+                status: statusLabel,
+                nextInstanceDate: upcomingInstance?.dateLabel,
+                nextInstanceShift: upcomingInstance?.timeLabel,
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  style: AppButtons.primary(context),
+                  onPressed: canTakeAction ? _handleCheckAction : null,
+                  child: Text(_submitting ? 'Please wait...' : buttonLabel),
+                ),
+              ),
+              if (_locationResultLabel != null) ...[
+                const SizedBox(height: 10),
+                Text(
+                  'Location result: $_locationResultLabel',
+                  style: Theme.of(context).textTheme.bodySmall,
                 ),
               ],
-            ),
+              if (_locationResultMessage != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  _locationResultMessage!,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: Colors.grey.shade700),
+                ),
+              ],
+              const SizedBox(height: 12),
+              ShiftInfoCard(
+                schedule: scheduleRows,
+                expanded: _shiftExpanded,
+                loading: _scheduleLoading,
+                onToggle: () =>
+                    setState(() => _shiftExpanded = !_shiftExpanded),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

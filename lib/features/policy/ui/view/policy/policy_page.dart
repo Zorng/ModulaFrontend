@@ -5,7 +5,8 @@ import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/sync/sync_freshness.dart';
 import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/core/widgets/forms/app_search_bar.dart';
-import 'package:modular_pos/core/widgets/navigation/app_back_button.dart';
+import 'package:modular_pos/core/widgets/layout/bounded_content_frame.dart';
+import 'package:modular_pos/core/widgets/navigation/branch_workspace_scaffold.dart';
 import 'package:modular_pos/core/widgets/sync/sync_freshness_banner.dart';
 import 'package:modular_pos/features/policy/domain/models/policy.dart';
 import 'package:modular_pos/features/policy/data/policy_error_codes.dart';
@@ -171,7 +172,6 @@ class _PolicyPageState extends ConsumerState<PolicyPage> {
 
     final selectorValues = _composeSelectorValues(policyState);
     final isReadOnly = _isReadOnly(loginState);
-    final portalPath = AppRoute.branchPortal.path;
     final branchName = _resolveBranchName(ref);
 
     return LayoutBuilder(
@@ -184,8 +184,6 @@ class _PolicyPageState extends ConsumerState<PolicyPage> {
 
         // Responsive values based on breakpoints
         final horizontalPadding = isLarge ? 32.0 : (isMedium ? 24.0 : 16.0);
-        final showAppBar = !isLarge;
-        final showBackButton = isSmall;
         final freshness = workspaceFreshness.asData?.value;
 
         final filteredSections = _sections
@@ -206,137 +204,82 @@ class _PolicyPageState extends ConsumerState<PolicyPage> {
             .where((section) => section.items.isNotEmpty)
             .toList();
 
-        return Scaffold(
-          appBar: showAppBar
-              ? AppBar(
-                  automaticallyImplyLeading: false,
-                  leading: showBackButton
-                      ? AppBackButton(
-                          icon: Icons.home_outlined,
-                          tooltip: 'Home',
-                          onPressed: () => context.go(portalPath),
-                        )
-                      : null,
-                  backgroundColor: Colors.white,
-                  centerTitle: false,
-                  title: const Text('Policy'),
-                )
-              : null,
-          body: Column(
-            children: [
-              if (isLarge)
-                Container(
-                  width: double.infinity,
-                  color: Theme.of(context).colorScheme.surface,
-                  padding: EdgeInsets.fromLTRB(
-                    horizontalPadding,
-                    24,
-                    horizontalPadding,
-                    24,
+        return BranchWorkspaceScaffold(
+          title: 'Policy',
+          body: BoundedContentFrame(
+            maxWidth: 960,
+            topPadding: isLarge ? 16 : 0,
+            bottomPadding: 24,
+            horizontalPadding: horizontalPadding,
+            child: ListView(
+              children: [
+                if (isLarge) ...[
+                  PolicyBranchBanner(branchName: branchName, isSubtle: false),
+                  const SizedBox(height: 16),
+                ],
+                if (!isLarge) ...[
+                  const SizedBox(height: 8),
+                  PolicyBranchBanner(branchName: branchName, isSubtle: true),
+                  const SizedBox(height: 16),
+                ],
+                AppSearchBar(
+                  hintText: 'Search',
+                  onChanged: (value) =>
+                      setState(() => _search = value.toLowerCase()),
+                ),
+                const SizedBox(height: 16),
+                if (isLoading) const LinearProgressIndicator(minHeight: 2),
+                if (freshness != null) ...[
+                  const SizedBox(height: 8),
+                  SyncFreshnessBanner(freshness: freshness),
+                ],
+                if (isReadOnly)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8, bottom: 4),
+                    child: Text(
+                      'Read-only: contact an admin to update policies.',
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
                   ),
-                  child: Text(
-                    'Policy',
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
+                if (_shouldShowFeatureStatusMessage(policyState, freshness))
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8, bottom: 4),
+                    child: Text(
+                      _statusMessage(policyState),
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 4),
+                ...filteredSections.map(
+                  (section) => Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: PolicySection(
+                      title: section.title,
+                      items: section.items,
+                      isCompact: isCompact || isSmall,
+                      toggleValues: toggleValues,
+                      selectorValues: selectorValues,
+                      readOnly: isReadOnly,
+                      onItemTap: (item, value) =>
+                          _openPolicyDetail(context, item, value),
                     ),
                   ),
                 ),
-              Expanded(
-                child: Padding(
-                  padding: EdgeInsets.fromLTRB(
-                    horizontalPadding,
-                    isLarge ? 16 : 0,
-                    horizontalPadding,
-                    24,
+                if (filteredSections.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 32),
+                    child: Text(
+                      'No settings match "$_search".',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                      textAlign: TextAlign.center,
+                    ),
                   ),
-                  child: ListView(
-                    children: [
-                      if (isLarge) ...[
-                        PolicyBranchBanner(
-                          branchName: branchName,
-                          isSubtle: false,
-                        ),
-                        const SizedBox(height: 16),
-                      ],
-                      if (!isLarge) ...[
-                        const SizedBox(height: 8),
-                        PolicyBranchBanner(
-                          branchName: branchName,
-                          isSubtle: true,
-                        ),
-                        const SizedBox(height: 16),
-                      ],
-                      AppSearchBar(
-                        hintText: 'Search',
-                        onChanged: (value) =>
-                            setState(() => _search = value.toLowerCase()),
-                      ),
-                      const SizedBox(height: 16),
-                      if (isLoading)
-                        const LinearProgressIndicator(minHeight: 2),
-                      if (freshness != null) ...[
-                        const SizedBox(height: 8),
-                        SyncFreshnessBanner(freshness: freshness),
-                      ],
-                      if (isReadOnly && showAppBar)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8, bottom: 4),
-                          child: Text(
-                            'Read-only: contact an admin to update policies.',
-                            style: Theme.of(context).textTheme.labelMedium
-                                ?.copyWith(
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.onSurfaceVariant,
-                                ),
-                          ),
-                        ),
-                      if (_shouldShowFeatureStatusMessage(
-                        policyState,
-                        freshness,
-                      ))
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8, bottom: 4),
-                          child: Text(
-                            _statusMessage(policyState),
-                            style: Theme.of(context).textTheme.labelMedium
-                                ?.copyWith(
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.onSurfaceVariant,
-                                ),
-                          ),
-                        ),
-                      const SizedBox(height: 4),
-                      ...filteredSections.map(
-                        (section) => Padding(
-                          padding: const EdgeInsets.only(bottom: 16),
-                          child: PolicySection(
-                            title: section.title,
-                            items: section.items,
-                            isCompact: isCompact || isSmall,
-                            toggleValues: toggleValues,
-                            selectorValues: selectorValues,
-                            readOnly: isReadOnly,
-                            onItemTap: (item, value) =>
-                                _openPolicyDetail(context, item, value),
-                          ),
-                        ),
-                      ),
-                      if (filteredSections.isEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 32),
-                          child: Text(
-                            'No settings match "$_search".',
-                            style: Theme.of(context).textTheme.bodyMedium,
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       },

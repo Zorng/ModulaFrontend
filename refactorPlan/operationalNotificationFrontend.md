@@ -2,6 +2,18 @@
 
 Goal: implement in-app operational notifications on web/mobile using the existing `/v0/notifications` contract, starting with a stable data layer and then layering unread badge, inbox UI, and SSE.
 
+## Status Note
+
+This tracker reflects the first frontend rollout that was built against the original branch-context notification contract.
+
+Backend direction has now changed:
+- target notification context should move to `(tenantId, accountId)`
+- branch should remain metadata/origin context, not primary inbox scope
+
+So the work below is still valid as the branch-scoped implementation baseline, but it is **not** the final target architecture anymore.
+
+The next notification increment should be treated as a tenant-scope contract cutover, not as a continuation of the old branch-only model.
+
 ## Scope
 - `integration/operational-notification-v0.md`
 - `lib/core/hydration/context_scoped_runtime_resource.dart`
@@ -67,8 +79,17 @@ Manual QA checklist:
 | Phase | Status | Notes |
 |---|---|---|
 | 0 | Complete | Assessment done |
-| 1 | Complete | Models, API, repository, tests landed |
-| 2 | Complete | Unread count + inbox controllers + tests landed |
-| 3 | Complete | Route, inbox page, shared bell/badge, tests landed |
-| 4 | Complete | SSE parser/client, runtime resource binding, reconnect/backoff, live inbox + badge updates |
-| 5 | Complete | Type-to-route action mapping landed; notifications now open source business pages instead of acting as their own detail layer |
+| 1 | Complete | Models, API, repository, tests landed for branch-scoped contract |
+| 2 | Complete | Unread count + inbox controllers + tests landed for branch-scoped contract |
+| 3 | Complete | Route, inbox page, shared bell/badge, tests landed for branch-scoped contract |
+| 4 | Complete | SSE parser/client, runtime resource binding, reconnect/backoff, live inbox + badge updates for branch-scoped contract |
+| 5 | Complete | Type-to-route action mapping landed for branch-scoped contract |
+
+## Follow-up Direction
+
+Next contract-aligned notification work should cover:
+- tenant-level inbox scope
+- tenant-level unread count
+- tenant-level SSE stream
+- `branchName` in notification payloads
+- shell UX that assumes notification visibility everywhere in tenant scope
