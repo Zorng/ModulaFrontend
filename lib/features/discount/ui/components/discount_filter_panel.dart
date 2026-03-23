@@ -14,6 +14,9 @@ class DiscountFilterPanel extends StatelessWidget {
     required this.onScopeChanged,
     required this.isCompact,
     this.onAddPressed,
+    this.showStatusFilter = true,
+    this.showScopeFilter = true,
+    this.searchHintText = 'Search discount rules',
   });
 
   final String statusFilter;
@@ -24,6 +27,9 @@ class DiscountFilterPanel extends StatelessWidget {
   final ValueChanged<String> onScopeChanged;
   final bool isCompact;
   final Future<void> Function()? onAddPressed;
+  final bool showStatusFilter;
+  final bool showScopeFilter;
+  final String searchHintText;
 
   static const _statusOptions = <_DiscountFilterOption>[
     _DiscountFilterOption('ALL', 'All statuses'),
@@ -64,7 +70,7 @@ class DiscountFilterPanel extends StatelessWidget {
             Expanded(
               child: AppSearchBar(
                 controller: searchController,
-                hintText: 'Search discount rules',
+                hintText: searchHintText,
                 onChanged: onSearchChanged,
                 fillColor: Colors.white,
               ),
@@ -81,42 +87,46 @@ class DiscountFilterPanel extends StatelessWidget {
             ],
           ],
         ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: InventoryDropdown<String>(
-                initialValue: statusFilter,
-                entries: _statusOptions
-                    .map(
-                      (option) => DropdownMenuEntry<String>(
-                        value: option.value,
-                        label: option.label,
-                      ),
-                    )
-                    .toList(),
-                onSelected: (value) => onStatusChanged(value ?? 'ALL'),
-                hintText: 'All statuses',
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: InventoryDropdown<String>(
-                initialValue: scopeFilter,
-                entries: _scopeOptions
-                    .map(
-                      (option) => DropdownMenuEntry<String>(
-                        value: option.value,
-                        label: option.label,
-                      ),
-                    )
-                    .toList(),
-                onSelected: (value) => onScopeChanged(value ?? 'ALL'),
-                hintText: 'All scopes',
-              ),
-            ),
-          ],
-        ),
+        if (showStatusFilter || showScopeFilter) ...[
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              if (showStatusFilter)
+                Expanded(
+                  child: InventoryDropdown<String>(
+                    initialValue: statusFilter,
+                    entries: _statusOptions
+                        .map(
+                          (option) => DropdownMenuEntry<String>(
+                            value: option.value,
+                            label: option.label,
+                          ),
+                        )
+                        .toList(),
+                    onSelected: (value) => onStatusChanged(value ?? 'ALL'),
+                    hintText: 'All statuses',
+                  ),
+                ),
+              if (showStatusFilter && showScopeFilter) const SizedBox(width: 8),
+              if (showScopeFilter)
+                Expanded(
+                  child: InventoryDropdown<String>(
+                    initialValue: scopeFilter,
+                    entries: _scopeOptions
+                        .map(
+                          (option) => DropdownMenuEntry<String>(
+                            value: option.value,
+                            label: option.label,
+                          ),
+                        )
+                        .toList(),
+                    onSelected: (value) => onScopeChanged(value ?? 'ALL'),
+                    hintText: 'All scopes',
+                  ),
+                ),
+            ],
+          ),
+        ],
       ],
     );
   }
@@ -132,50 +142,57 @@ class DiscountFilterPanel extends StatelessWidget {
         const SizedBox(height: 12),
         AppSearchBar(
           controller: searchController,
-          hintText: 'Search discount rules',
+          hintText: searchHintText,
           onChanged: onSearchChanged,
         ),
-        const SizedBox(height: 16),
-        Text('Status', style: Theme.of(context).textTheme.labelLarge),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children:
-              const [
-                _DiscountFilterChip(label: 'All', value: 'ALL'),
-                _DiscountFilterChip(label: 'Active', value: 'ACTIVE'),
-                _DiscountFilterChip(label: 'Inactive', value: 'INACTIVE'),
-                _DiscountFilterChip(label: 'Archived', value: 'ARCHIVED'),
-              ].map((chip) {
-                return DiscountFilterChip(
-                  label: chip.label,
-                  value: chip.value,
-                  groupValue: statusFilter,
-                  onSelected: onStatusChanged,
-                );
-              }).toList(),
-        ),
-        const SizedBox(height: 16),
-        Text('Scope', style: Theme.of(context).textTheme.labelLarge),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children:
-              const [
-                _DiscountFilterChip(label: 'All', value: 'ALL'),
-                _DiscountFilterChip(label: 'Item-level', value: 'ITEM'),
-                _DiscountFilterChip(label: 'Branch-wide', value: 'BRANCH_WIDE'),
-              ].map((chip) {
-                return DiscountFilterChip(
-                  label: chip.label,
-                  value: chip.value,
-                  groupValue: scopeFilter,
-                  onSelected: onScopeChanged,
-                );
-              }).toList(),
-        ),
+        if (showStatusFilter) ...[
+          const SizedBox(height: 16),
+          Text('Status', style: Theme.of(context).textTheme.labelLarge),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children:
+                const [
+                  _DiscountFilterChip(label: 'All', value: 'ALL'),
+                  _DiscountFilterChip(label: 'Active', value: 'ACTIVE'),
+                  _DiscountFilterChip(label: 'Inactive', value: 'INACTIVE'),
+                  _DiscountFilterChip(label: 'Archived', value: 'ARCHIVED'),
+                ].map((chip) {
+                  return DiscountFilterChip(
+                    label: chip.label,
+                    value: chip.value,
+                    groupValue: statusFilter,
+                    onSelected: onStatusChanged,
+                  );
+                }).toList(),
+          ),
+        ],
+        if (showScopeFilter) ...[
+          const SizedBox(height: 16),
+          Text('Scope', style: Theme.of(context).textTheme.labelLarge),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children:
+                const [
+                  _DiscountFilterChip(label: 'All', value: 'ALL'),
+                  _DiscountFilterChip(label: 'Item-level', value: 'ITEM'),
+                  _DiscountFilterChip(
+                    label: 'Branch-wide',
+                    value: 'BRANCH_WIDE',
+                  ),
+                ].map((chip) {
+                  return DiscountFilterChip(
+                    label: chip.label,
+                    value: chip.value,
+                    groupValue: scopeFilter,
+                    onSelected: onScopeChanged,
+                  );
+                }).toList(),
+          ),
+        ],
       ],
     );
   }

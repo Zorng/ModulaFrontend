@@ -139,6 +139,9 @@ void main() {
               'issuedAt': '2026-03-10T08:30:00.000Z',
               'saleSnapshot': {
                 'paymentMethod': 'CASH',
+                'subtotalUsd': 5,
+                'discountUsd': 0.5,
+                'vatUsd': 0,
                 'grandTotalUsd': 4.5,
                 'grandTotalKhr': 18000,
               },
@@ -162,6 +165,7 @@ void main() {
       expect(receipt.receiptId, 'RCP-1001');
       expect(receipt.receiptNumber, 'RCP-20260310-0001');
       expect(receipt.saleSnapshot.paymentMethod, 'CASH');
+      expect(receipt.saleSnapshot.discountUsd, 0.5);
       expect(receipt.lines, hasLength(1));
       expect(receipt.lines.single.name, 'Iced Latte');
       verify(

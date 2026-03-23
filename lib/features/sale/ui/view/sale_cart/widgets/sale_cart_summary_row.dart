@@ -12,12 +12,15 @@ class SaleCartSummaryRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final formattedValue = value < 0
+        ? '-\$${value.abs().toStringAsFixed(2)}'
+        : '\$${value.toStringAsFixed(2)}';
     return Row(
       children: [
         Text(label, style: Theme.of(context).textTheme.bodyMedium),
         const Spacer(),
         Text(
-          '\$${value.toStringAsFixed(2)}',
+          formattedValue,
           style: Theme.of(
             context,
           ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),

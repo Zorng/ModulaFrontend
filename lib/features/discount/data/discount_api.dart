@@ -4,10 +4,13 @@ import 'package:modular_pos/core/network/api_contract.dart';
 import 'package:modular_pos/core/network/dio_client.dart';
 import 'package:modular_pos/core/network/idempotency_key_store.dart';
 import 'package:modular_pos/features/discount/data/discount_error_codes.dart';
+import 'package:modular_pos/features/discount/data/dto/discount_eligibility_dto.dart';
 import 'package:modular_pos/features/discount/data/dto/discount_item_preflight_result_dto.dart';
 import 'package:modular_pos/features/discount/data/dto/discount_rule_dto.dart';
 import 'package:modular_pos/features/discount/data/dto/discount_rule_list_envelope.dart';
+import 'package:modular_pos/features/discount/domain/models/discount_eligibility.dart';
 import 'package:modular_pos/features/discount/domain/models/discount_rule.dart';
+import 'package:uuid/uuid.dart';
 
 final discountApiProvider = Provider<DiscountApi>((ref) {
   final dio = ref.watch(dioProvider);
@@ -15,10 +18,11 @@ final discountApiProvider = Provider<DiscountApi>((ref) {
 });
 
 class DiscountApi {
-  DiscountApi(this._dio) : _prefix = '/v0/discount';
+  DiscountApi(this._dio) : _prefix = '/v0/discount', _uuid = const Uuid();
 
   final Dio _dio;
   final String _prefix;
+  final Uuid _uuid;
 
   Future<List<DiscountRuleDto>> getDiscountRules({
     String? status,
@@ -149,6 +153,7 @@ class DiscountApi {
           request: IdempotencyRequest(
             actionKey: 'discount.rules.$path',
             payload: {'ruleId': ruleId, 'status': normalized},
+            intentId: _uuid.v4(),
           ),
         ),
       );
@@ -184,6 +189,41 @@ class DiscountApi {
       throw _mapDiscountDioError(
         error,
         fallbackMessage: 'Failed to validate discount items for branch.',
+      );
+    }
+  }
+
+  Future<List<DiscountEligibilityRuleDto>> resolveDiscountEligibility({
+    required String branchId,
+    required DateTime occurredAt,
+    required List<DiscountEligibilityLineInput> lines,
+  }) async {
+    final payload = <String, dynamic>{
+      'branchId': branchId,
+      'occurredAt': occurredAt.toUtc().toIso8601String(),
+      'lines': [
+        for (final line in lines)
+          {'menuItemId': line.menuItemId, 'quantity': line.quantity},
+      ],
+    };
+    try {
+      final response = await _dio.post<dynamic>(
+        '$_prefix/eligibility/resolve',
+        data: payload,
+      );
+      final data = DiscountRuleListEnvelope.unwrapDataMap(
+        response.data,
+        fallbackMessage: 'Failed to resolve discount eligibility.',
+      );
+      final rules = (data['rules'] as List<dynamic>? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(DiscountEligibilityRuleDto.fromJson)
+          .toList(growable: false);
+      return rules;
+    } on DioError catch (error) {
+      throw _mapDiscountDioError(
+        error,
+        fallbackMessage: 'Failed to resolve discount eligibility.',
       );
     }
   }

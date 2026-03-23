@@ -14,6 +14,7 @@ import 'package:modular_pos/features/discount/ui/components/discount_detail_mess
 import 'package:modular_pos/features/discount/ui/components/discount_detail_sections.dart';
 import 'package:modular_pos/features/discount/ui/viewmodels/discount_detail_controller.dart';
 import 'package:modular_pos/features/discount/ui/viewmodels/discount_detail_state.dart';
+import 'package:modular_pos/features/discount/ui/viewmodels/discount_list_controller.dart';
 import 'package:modular_pos/features/discount/ui/viewmodels/discount_support_providers.dart';
 
 class DiscountRuleDetailPage extends ConsumerStatefulWidget {
@@ -63,6 +64,7 @@ class _DiscountRuleDetailPageState
       ref
           .read(discountDetailControllerProvider.notifier)
           .applyUpdatedRule(saved);
+      ref.read(discountListControllerProvider.notifier).upsertRule(saved);
     }
   }
 
@@ -71,6 +73,7 @@ class _DiscountRuleDetailPageState
         .read(discountDetailControllerProvider.notifier)
         .updateStatus(status);
     if (updated == null || !mounted) return;
+    ref.read(discountListControllerProvider.notifier).upsertRule(updated);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(discountDetailUpdatedStatusMessage(status))),
     );

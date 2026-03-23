@@ -1,6 +1,7 @@
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 import 'package:modular_pos/features/sale/data/sale_checkout_repository_contract.dart';
 import 'package:modular_pos/features/sale/ui/view/sale_item_detail/sale_item_detail_page.dart';
+import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_pricing.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_state.dart';
 
 class SaleCartPayloadBuilder {
@@ -54,35 +55,56 @@ class SaleCartPayloadBuilder {
     );
   }
 
-  static SaleDraftItemInputDto fromLine(CartLine line) {
-    double addonTotalUsd = 0;
-    final entries = line.selectedOptionIds.entries.toList();
-    final modifiers = <SaleDraftModifierInputDto>[];
-    for (var i = 0; i < entries.length; i++) {
-      final entry = entries[i];
-      final options =
-          line.selectedOptions[entry.key] ?? const <ModifierOption>[];
-      final optionSummaries = _optionSummaries(options);
-      final addonTotal = options.fold<double>(0, (sum, opt) => sum + opt.price);
-      addonTotalUsd += addonTotal;
-      modifiers.add(
-        _modifierPayload(
-          groupId: entry.key,
-          optionIds: entry.value,
-          optionSummaries: optionSummaries,
-          addonTotal: addonTotal,
-        ),
-      );
-    }
-
-    final unitPriceUsd = line.item.price + addonTotalUsd;
-    final lineTotalUsdExact = unitPriceUsd * line.quantity;
+  static SaleDraftItemInputDto fromLine(
+    CartLine line, {
+    SaleCartLinePricing? pricing,
+    SaleCartPricing? cartPricing,
+  }) {
+    final addonTotalUsd =
+        pricing?.addonUnitTotalUsd ?? _addonUnitTotalFromLine(line);
+    final unitPriceUsd =
+        pricing?.discountedUnitPriceUsd ?? (line.item.price + addonTotalUsd);
+    final lineTotalUsdExact =
+        pricing?.lineTotalUsd ?? (unitPriceUsd * line.quantity);
     final pricingSnapshot = _pricingSnapshot(
       basePrice: line.item.price,
       addonTotalUsd: addonTotalUsd,
       unitPriceUsd: unitPriceUsd,
       lineTotalUsdExact: lineTotalUsdExact,
+      lineBaseAmountUsd: pricing?.preDiscountLineTotalUsd,
+      itemDiscountUsd: pricing?.itemDiscountUsd,
+      discountResolutionBranchId: cartPricing?.discountResolutionBranchId,
+      appliedItemDiscounts:
+          pricing?.appliedItemRules
+              .map(
+                (rule) => SaleAppliedDiscountSnapshotDto(
+                  ruleId: rule.ruleId,
+                  percentage: rule.percentage,
+                  scope: rule.scope,
+                ),
+              )
+              .toList(growable: false) ??
+          const <SaleAppliedDiscountSnapshotDto>[],
+      cartDiscountSnapshot: cartPricing == null
+          ? null
+          : <String, dynamic>{
+              'preDiscountSubtotalUsd': cartPricing.preDiscountSubtotalUsd,
+              'itemDiscountUsd': cartPricing.itemDiscountUsd,
+              'branchWideDiscountUsd': cartPricing.branchWideDiscountUsd,
+              'discountUsd': cartPricing.discountUsd,
+              'subtotalUsd': cartPricing.subtotalUsd,
+              'branchWideDiscounts': cartPricing.branchWideRules
+                  .map(
+                    (rule) => <String, dynamic>{
+                      'ruleId': rule.ruleId,
+                      'percentage': rule.percentage,
+                      'scope': rule.scope,
+                    },
+                  )
+                  .toList(growable: false),
+            },
     );
+    final modifiers = _buildModifiersFromLine(line, pricingSnapshot);
 
     return SaleDraftItemInputDto(
       menuItemId: line.item.id,
@@ -101,12 +123,23 @@ class SaleCartPayloadBuilder {
     required double addonTotalUsd,
     required double unitPriceUsd,
     required double lineTotalUsdExact,
+    double? lineBaseAmountUsd,
+    double? itemDiscountUsd,
+    String? discountResolutionBranchId,
+    List<SaleAppliedDiscountSnapshotDto> appliedItemDiscounts =
+        const <SaleAppliedDiscountSnapshotDto>[],
+    Map<String, dynamic>? cartDiscountSnapshot,
   }) {
     return SalePricingSnapshotDto(
       baseUnitPriceUsd: basePrice,
       addonTotalUsd: addonTotalUsd,
       unitPriceUsd: unitPriceUsd,
       lineTotalUsdExact: lineTotalUsdExact,
+      lineBaseAmountUsd: lineBaseAmountUsd,
+      itemDiscountUsd: itemDiscountUsd,
+      discountResolutionBranchId: discountResolutionBranchId,
+      appliedItemDiscounts: appliedItemDiscounts,
+      cartDiscountSnapshot: cartDiscountSnapshot,
     );
   }
 
@@ -147,6 +180,39 @@ class SaleCartPayloadBuilder {
           ),
         )
         .toList();
+  }
+
+  static double _addonUnitTotalFromLine(CartLine line) {
+    var addonTotalUsd = 0.0;
+    for (final options in line.selectedOptions.values) {
+      addonTotalUsd += options.fold<double>(0, (sum, opt) => sum + opt.price);
+    }
+    return addonTotalUsd;
+  }
+
+  static List<SaleDraftModifierInputDto> _buildModifiersFromLine(
+    CartLine line,
+    SalePricingSnapshotDto pricingSnapshot,
+  ) {
+    final modifiers = <SaleDraftModifierInputDto>[];
+    final entries = line.selectedOptionIds.entries.toList();
+    for (var i = 0; i < entries.length; i++) {
+      final entry = entries[i];
+      final options =
+          line.selectedOptions[entry.key] ?? const <ModifierOption>[];
+      final optionSummaries = _optionSummaries(options);
+      final addonTotal = options.fold<double>(0, (sum, opt) => sum + opt.price);
+      modifiers.add(
+        _modifierPayload(
+          groupId: entry.key,
+          optionIds: entry.value,
+          optionSummaries: optionSummaries,
+          addonTotal: addonTotal,
+          pricingSnapshot: i == 0 ? pricingSnapshot : null,
+        ),
+      );
+    }
+    return modifiers;
   }
 
   static SaleDraftModifierInputDto _modifierPayload({

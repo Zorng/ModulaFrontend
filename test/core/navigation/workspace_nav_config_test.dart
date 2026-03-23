@@ -16,7 +16,13 @@ void main() {
       layer: AppNavigationLayer.tenant,
     );
 
-    expect(labels(sections), ['Branches', 'Menu', 'Inventory', 'Staff']);
+    expect(labels(sections), [
+      'Branches',
+      'Menu',
+      'Inventory',
+      'Staff',
+      'Discounts',
+    ]);
   });
 
   test('owner/admin branch layer shows branch destinations only', () {
@@ -25,7 +31,12 @@ void main() {
       layer: AppNavigationLayer.branch,
     );
 
-    expect(labels(sections), ['Cash Sessions', 'Policy', 'Sale']);
+    expect(labels(sections), [
+      'Cash Sessions',
+      'Policy',
+      'Sale',
+      'Active Discount',
+    ]);
   });
 
   test('cashier branch layer shows branch operations only', () {
@@ -34,7 +45,12 @@ void main() {
       layer: AppNavigationLayer.branch,
     );
 
-    expect(labels(sections), ['Cash Sessions', 'Sale', 'Attendance']);
+    expect(labels(sections), [
+      'Cash Sessions',
+      'Sale',
+      'Active Discount',
+      'Attendance',
+    ]);
   });
 
   test('manager branch layer includes attendance management', () {
@@ -46,6 +62,7 @@ void main() {
     expect(labels(sections), [
       'Cash Sessions',
       'Sale',
+      'Active Discount',
       'Attendance',
       'Attendance Management',
     ]);

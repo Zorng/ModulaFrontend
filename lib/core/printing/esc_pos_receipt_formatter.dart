@@ -47,6 +47,7 @@ class ThermalReceiptPrintData {
     required this.paymentMethod,
     required this.issuedAt,
     required this.subtotalUsd,
+    this.discountUsd = 0,
     required this.taxUsd,
     required this.totalUsd,
     required this.totalKhr,
@@ -63,6 +64,7 @@ class ThermalReceiptPrintData {
   final String paymentMethod;
   final DateTime issuedAt;
   final double subtotalUsd;
+  final double discountUsd;
   final double taxUsd;
   final double totalUsd;
   final double totalKhr;
@@ -186,6 +188,15 @@ class EscPosReceiptFormatter {
         value: _formatUsd(data.subtotalUsd),
       ),
     );
+    if (data.discountUsd.abs() >= 0.005) {
+      bytes.addAll(
+        _summaryRow(
+          generator,
+          label: 'Discount',
+          value: _formatUsd(-data.discountUsd),
+        ),
+      );
+    }
     bytes.addAll(
       _summaryRow(generator, label: 'Tax', value: _formatUsd(data.taxUsd)),
     );

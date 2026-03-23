@@ -6,16 +6,21 @@ import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/core/widgets/buttons/app_add_new_button.dart';
 import 'package:modular_pos/core/widgets/forms/app_search_bar.dart';
 import 'package:modular_pos/core/widgets/navigation/app_back_button.dart';
+import 'package:modular_pos/features/auth/domain/active_branch_context_provider.dart';
 import 'package:modular_pos/features/discount/domain/models/discount_rule.dart';
+import 'package:modular_pos/features/discount/ui/components/active_discount_board.dart';
 import 'package:modular_pos/features/discount/ui/components/discount_filter_panel.dart';
 import 'package:modular_pos/features/discount/ui/components/discount_page_header.dart';
 import 'package:modular_pos/features/discount/ui/components/discount_rule_collection.dart';
 import 'package:modular_pos/features/discount/ui/viewmodels/discount_list_controller.dart';
 import 'package:modular_pos/features/discount/ui/viewmodels/discount_support_providers.dart';
 import 'package:modular_pos/features/inventory/ui/widgets/inventory_dropdown.dart';
+import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
 
 class DiscountPage extends ConsumerStatefulWidget {
-  const DiscountPage({super.key});
+  const DiscountPage({super.key, this.branchActiveOnly = false});
+
+  final bool branchActiveOnly;
 
   @override
   ConsumerState<DiscountPage> createState() => _DiscountPageState();
@@ -23,13 +28,14 @@ class DiscountPage extends ConsumerStatefulWidget {
 
 class _DiscountPageState extends ConsumerState<DiscountPage> {
   late final TextEditingController _searchController;
+  String? _configuredBranchId;
 
   @override
   void initState() {
     super.initState();
     _searchController = TextEditingController();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(discountListControllerProvider.notifier).load();
+      _loadPage();
     });
   }
 
@@ -41,9 +47,14 @@ class _DiscountPageState extends ConsumerState<DiscountPage> {
 
   @override
   Widget build(BuildContext context) {
+    final activeBranchId = ref.watch(activeBranchContextIdProvider);
     final state = ref.watch(discountListControllerProvider);
     final controller = ref.read(discountListControllerProvider.notifier);
     final branchesAsync = ref.watch(discountTenantBranchesProvider);
+    final AsyncValue<List<MenuItem>> branchMenuItemsAsync =
+        widget.branchActiveOnly && (activeBranchId ?? '').trim().isNotEmpty
+        ? ref.watch(discountBranchMenuItemsProvider(activeBranchId!.trim()))
+        : const AsyncData(<MenuItem>[]);
     final width = MediaQuery.of(context).size.width;
     final isCompact = width < AppBreakpoints.compact;
     final isMedium = AppBreakpoints.isMedium(width);
@@ -52,8 +63,21 @@ class _DiscountPageState extends ConsumerState<DiscountPage> {
       for (final branch in branchesAsync.asData?.value ?? const [])
         branch.branchId: branch.branchName,
     };
+    final Map<String, String> itemNamesById = {
+      for (final item
+          in branchMenuItemsAsync.asData?.value ?? const <MenuItem>[])
+        item.id: item.name,
+    };
+    final canManage = state.canManage && !widget.branchActiveOnly;
+    final showReadOnlyBanner = state.isReadOnly && !widget.branchActiveOnly;
+    final visibleRules = widget.branchActiveOnly
+        ? state.filteredRules
+              .where((rule) => rule.isActive)
+              .toList(growable: false)
+        : state.filteredRules;
 
     _syncSearchController(state.searchQuery);
+    _ensureBranchScopedConfig(activeBranchId);
 
     return Scaffold(
       body: SafeArea(
@@ -64,26 +88,61 @@ class _DiscountPageState extends ConsumerState<DiscountPage> {
             isCompact: isCompact,
             isMedium: isMedium,
             isLarge: isLarge,
-            subtitle: state.subtitle,
-            canManage: state.canManage,
+            title: widget.branchActiveOnly ? 'Active Discounts' : 'Discounts',
+            subtitle: widget.branchActiveOnly
+                ? 'Read-only view of discount rules that currently affect this branch.'
+                : state.subtitle,
+            canManage: canManage,
+            showReadOnlyBanner: showReadOnlyBanner,
+            branchActiveOnly: widget.branchActiveOnly,
             searchController: _searchController,
             statusFilter: state.statusFilter,
             scopeFilter: state.scopeFilter,
-            rules: state.filteredRules,
+            rules: visibleRules,
             isLoading: state.isLoading,
             error: state.error,
             onBackPressed: _navigateBack,
-            onAddPressed: state.canManage ? _openCreate : null,
+            onAddPressed: canManage ? _openCreate : null,
             onSearchChanged: controller.setSearchQuery,
             onStatusChanged: controller.setStatusFilter,
             onScopeChanged: controller.setScopeFilter,
             onRetry: controller.refresh,
-            onOpenRule: _openDetail,
+            onOpenRule: widget.branchActiveOnly ? null : _openDetail,
             branchNamesById: branchNamesById,
+            itemNamesById: itemNamesById,
           ),
         ),
       ),
     );
+  }
+
+  Future<void> _loadPage() async {
+    final controller = ref.read(discountListControllerProvider.notifier);
+    if (widget.branchActiveOnly) {
+      final activeBranchId = (ref.read(activeBranchContextIdProvider) ?? '')
+          .trim();
+      _configuredBranchId = activeBranchId;
+      await controller.loadBranchWorkspace(activeBranchId);
+      return;
+    }
+    _configuredBranchId = null;
+    await controller.loadTenantWorkspace();
+  }
+
+  void _ensureBranchScopedConfig(String? activeBranchId) {
+    if (!widget.branchActiveOnly) return;
+    final normalizedBranchId = (activeBranchId ?? '').trim();
+    if (normalizedBranchId.isEmpty ||
+        normalizedBranchId == _configuredBranchId) {
+      return;
+    }
+    _configuredBranchId = normalizedBranchId;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref
+          .read(discountListControllerProvider.notifier)
+          .loadBranchWorkspace(normalizedBranchId);
+    });
   }
 
   void _syncSearchController(String value) {
@@ -128,8 +187,11 @@ class _DiscountPageLayout extends StatelessWidget {
     required this.isCompact,
     required this.isMedium,
     required this.isLarge,
+    required this.title,
     required this.subtitle,
     required this.canManage,
+    required this.showReadOnlyBanner,
+    required this.branchActiveOnly,
     required this.searchController,
     required this.statusFilter,
     required this.scopeFilter,
@@ -144,14 +206,18 @@ class _DiscountPageLayout extends StatelessWidget {
     required this.onRetry,
     required this.onOpenRule,
     required this.branchNamesById,
+    required this.itemNamesById,
   });
 
   final double width;
   final bool isCompact;
   final bool isMedium;
   final bool isLarge;
+  final String title;
   final String subtitle;
   final bool canManage;
+  final bool showReadOnlyBanner;
+  final bool branchActiveOnly;
   final TextEditingController searchController;
   final String statusFilter;
   final String scopeFilter;
@@ -164,8 +230,9 @@ class _DiscountPageLayout extends StatelessWidget {
   final ValueChanged<String> onStatusChanged;
   final ValueChanged<String> onScopeChanged;
   final Future<void> Function() onRetry;
-  final Future<void> Function(DiscountRule rule) onOpenRule;
+  final Future<void> Function(DiscountRule rule)? onOpenRule;
   final Map<String, String> branchNamesById;
+  final Map<String, String> itemNamesById;
 
   @override
   Widget build(BuildContext context) {
@@ -182,18 +249,36 @@ class _DiscountPageLayout extends StatelessWidget {
       onScopeChanged: onScopeChanged,
       isCompact: isCompact,
       onAddPressed: isMobile && canManage ? onAddPressed : null,
+      showStatusFilter: !branchActiveOnly,
+      showScopeFilter: !branchActiveOnly,
+      searchHintText: branchActiveOnly
+          ? 'Search active discounts'
+          : 'Search discount rules',
     );
 
-    final collection = DiscountRuleCollection(
-      isLoading: isLoading,
-      error: error,
-      rules: rules,
-      width: width,
-      onRetry: onRetry,
-      onOpenCreate: onAddPressed,
-      onOpenRule: onOpenRule,
-      branchNamesById: branchNamesById,
-    );
+    final collection = branchActiveOnly
+        ? ActiveDiscountBoard(
+            isLoading: isLoading,
+            error: error,
+            rules: rules,
+            width: width,
+            onRetry: onRetry,
+            branchNamesById: branchNamesById,
+            itemNamesById: itemNamesById,
+            emptyMessage:
+                'No active discount rules are assigned to this branch.',
+          )
+        : DiscountRuleCollection(
+            isLoading: isLoading,
+            error: error,
+            rules: rules,
+            width: width,
+            onRetry: onRetry,
+            onOpenCreate: onAddPressed,
+            onOpenRule: onOpenRule!,
+            branchNamesById: branchNamesById,
+            emptyMessage: 'No discount rules match the current filters.',
+          );
 
     if (isLarge) {
       return Align(
@@ -211,7 +296,7 @@ class _DiscountPageLayout extends StatelessWidget {
                 ),
                 decoration: const BoxDecoration(color: Colors.white),
                 child: Text(
-                  'Discounts',
+                  title,
                   style: Theme.of(context).textTheme.headlineSmall,
                 ),
               ),
@@ -231,13 +316,17 @@ class _DiscountPageLayout extends StatelessWidget {
                         statusFilter: statusFilter,
                         scopeFilter: scopeFilter,
                         canManage: canManage,
+                        branchActiveOnly: branchActiveOnly,
                         onSearchChanged: onSearchChanged,
                         onStatusChanged: onStatusChanged,
                         onScopeChanged: onScopeChanged,
                         onAddPressed: onAddPressed,
                       ),
                       const SizedBox(height: 16),
-                      _WideInfoBanner(canManage: canManage),
+                      _WideInfoBanner(
+                        canManage: canManage,
+                        branchActiveOnly: branchActiveOnly,
+                      ),
                       const SizedBox(height: 16),
                       Expanded(child: collection),
                     ],
@@ -257,7 +346,8 @@ class _DiscountPageLayout extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (isMobile) _MobileDiscountHeader(onBackPressed: onBackPressed),
+            if (isMobile)
+              _MobileDiscountHeader(onBackPressed: onBackPressed, title: title),
             Expanded(
               child: Padding(
                 padding: EdgeInsets.fromLTRB(
@@ -273,6 +363,7 @@ class _DiscountPageLayout extends StatelessWidget {
                       const SizedBox(height: 8),
                     ] else if (isMedium) ...[
                       DiscountPageHeader(
+                        title: title,
                         subtitle: subtitle,
                         onAddPressed: onAddPressed,
                         onBackPressed: onBackPressed,
@@ -282,7 +373,7 @@ class _DiscountPageLayout extends StatelessWidget {
                     ] else if (!canManage) ...[
                       const SizedBox(height: 4),
                     ],
-                    if (!canManage) ...[
+                    if (showReadOnlyBanner) ...[
                       const _ReadOnlyBanner(),
                       const SizedBox(height: 10),
                     ],
@@ -313,6 +404,7 @@ class _WideDiscountToolbar extends StatelessWidget {
     required this.statusFilter,
     required this.scopeFilter,
     required this.canManage,
+    required this.branchActiveOnly,
     required this.onSearchChanged,
     required this.onStatusChanged,
     required this.onScopeChanged,
@@ -323,6 +415,7 @@ class _WideDiscountToolbar extends StatelessWidget {
   final String statusFilter;
   final String scopeFilter;
   final bool canManage;
+  final bool branchActiveOnly;
   final ValueChanged<String> onSearchChanged;
   final ValueChanged<String> onStatusChanged;
   final ValueChanged<String> onScopeChanged;
@@ -333,43 +426,47 @@ class _WideDiscountToolbar extends StatelessWidget {
     return Row(
       children: [
         Expanded(
-          flex: 6,
+          flex: branchActiveOnly ? 4 : 6,
           child: AppSearchBar(
-            hintText: 'Search discount rules',
+            hintText: branchActiveOnly
+                ? 'Search active discounts'
+                : 'Search discount rules',
             fillColor: Colors.white,
             controller: searchController,
             onChanged: onSearchChanged,
           ),
         ),
-        const SizedBox(width: 16),
-        Expanded(
-          flex: 3,
-          child: InventoryDropdown<String>(
-            initialValue: statusFilter,
-            entries: const [
-              DropdownMenuEntry(value: 'ALL', label: 'All statuses'),
-              DropdownMenuEntry(value: 'ACTIVE', label: 'Active'),
-              DropdownMenuEntry(value: 'INACTIVE', label: 'Inactive'),
-              DropdownMenuEntry(value: 'ARCHIVED', label: 'Archived'),
-            ],
-            onSelected: (value) => onStatusChanged(value ?? 'ALL'),
-            hintText: 'All statuses',
+        if (!branchActiveOnly) ...[
+          const SizedBox(width: 16),
+          Expanded(
+            flex: 3,
+            child: InventoryDropdown<String>(
+              initialValue: statusFilter,
+              entries: const [
+                DropdownMenuEntry(value: 'ALL', label: 'All statuses'),
+                DropdownMenuEntry(value: 'ACTIVE', label: 'Active'),
+                DropdownMenuEntry(value: 'INACTIVE', label: 'Inactive'),
+                DropdownMenuEntry(value: 'ARCHIVED', label: 'Archived'),
+              ],
+              onSelected: (value) => onStatusChanged(value ?? 'ALL'),
+              hintText: 'All statuses',
+            ),
           ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          flex: 3,
-          child: InventoryDropdown<String>(
-            initialValue: scopeFilter,
-            entries: const [
-              DropdownMenuEntry(value: 'ALL', label: 'All scopes'),
-              DropdownMenuEntry(value: 'ITEM', label: 'Item-level'),
-              DropdownMenuEntry(value: 'BRANCH_WIDE', label: 'Branch-wide'),
-            ],
-            onSelected: (value) => onScopeChanged(value ?? 'ALL'),
-            hintText: 'All scopes',
+          const SizedBox(width: 16),
+          Expanded(
+            flex: 3,
+            child: InventoryDropdown<String>(
+              initialValue: scopeFilter,
+              entries: const [
+                DropdownMenuEntry(value: 'ALL', label: 'All scopes'),
+                DropdownMenuEntry(value: 'ITEM', label: 'Item-level'),
+                DropdownMenuEntry(value: 'BRANCH_WIDE', label: 'Branch-wide'),
+              ],
+              onSelected: (value) => onScopeChanged(value ?? 'ALL'),
+              hintText: 'All scopes',
+            ),
           ),
-        ),
+        ],
         if (canManage && onAddPressed != null) ...[
           const SizedBox(width: 16),
           SizedBox(
@@ -386,9 +483,13 @@ class _WideDiscountToolbar extends StatelessWidget {
 }
 
 class _WideInfoBanner extends StatelessWidget {
-  const _WideInfoBanner({required this.canManage});
+  const _WideInfoBanner({
+    required this.canManage,
+    required this.branchActiveOnly,
+  });
 
   final bool canManage;
+  final bool branchActiveOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -407,7 +508,9 @@ class _WideInfoBanner extends StatelessWidget {
           const SizedBox(width: 12),
           Expanded(
             child: Text(
-              canManage
+              branchActiveOnly
+                  ? 'This branch workspace is a read-only operator board. It lists active discount rules for the selected branch without opening rule detail or edit flows.'
+                  : canManage
                   ? 'Each discount rule is assigned to exactly one branch. Configure the rule here, then sales resolve it only within that assigned branch.'
                   : 'Discount rules are assigned to one branch and applied only in that branch. Managers and cashiers can view rules but cannot change them.',
               style: Theme.of(
@@ -442,9 +545,13 @@ class _ReadOnlyBanner extends StatelessWidget {
 }
 
 class _MobileDiscountHeader extends StatelessWidget {
-  const _MobileDiscountHeader({required this.onBackPressed});
+  const _MobileDiscountHeader({
+    required this.onBackPressed,
+    required this.title,
+  });
 
   final VoidCallback onBackPressed;
+  final String title;
 
   @override
   Widget build(BuildContext context) {
@@ -460,7 +567,7 @@ class _MobileDiscountHeader extends StatelessWidget {
               icon: Icons.home_outlined,
               tooltip: 'Home',
             ),
-            Text('Discounts', style: Theme.of(context).textTheme.titleLarge),
+            Text(title, style: Theme.of(context).textTheme.titleLarge),
           ],
         ),
       ),

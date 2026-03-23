@@ -4,12 +4,14 @@ import 'package:modular_pos/core/widgets/navigation/app_back_button.dart';
 class DiscountPageHeader extends StatelessWidget {
   const DiscountPageHeader({
     super.key,
+    required this.title,
     required this.subtitle,
     required this.onBackPressed,
     this.onAddPressed,
     this.compact = false,
   });
 
+  final String title;
   final String subtitle;
   final Future<void> Function()? onAddPressed;
   final VoidCallback onBackPressed;
@@ -39,7 +41,7 @@ class DiscountPageHeader extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Discounts',
+                      title,
                       style: compact
                           ? Theme.of(context).textTheme.headlineSmall?.copyWith(
                               fontWeight: FontWeight.w700,

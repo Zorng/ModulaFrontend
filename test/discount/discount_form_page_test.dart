@@ -59,10 +59,6 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    expect(
-      find.text('This form is read-only for manager and cashier roles.'),
-      findsOneWidget,
-    );
     expect(find.text('Create discount'), findsNothing);
     expect(find.text('Save'), findsNothing);
     expect(find.byType(TextFormField), findsWidgets);

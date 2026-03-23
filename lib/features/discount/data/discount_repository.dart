@@ -1,4 +1,6 @@
+import 'package:modular_pos/features/discount/domain/models/discount_eligibility.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:modular_pos/core/config/app_env.dart';
 import 'package:modular_pos/features/discount/data/discount_api.dart';
 import 'package:modular_pos/features/discount/data/mock_discount_repository.dart';
 import 'package:modular_pos/features/discount/data/remote_discount_repository.dart';
@@ -36,9 +38,17 @@ abstract class DiscountRepository {
     required String branchId,
     required List<String> itemIds,
   });
+
+  Future<List<DiscountEligibilityRule>> resolveDiscountEligibility({
+    required String branchId,
+    required DateTime occurredAt,
+    required List<DiscountEligibilityLineInput> lines,
+  });
 }
 
-final useMockDiscountRepositoryProvider = Provider<bool>((ref) => true);
+final useMockDiscountRepositoryProvider = Provider<bool>(
+  (ref) => AppEnv.useMockDiscountRepository,
+);
 
 final remoteDiscountRepositoryProvider = Provider<DiscountRepository>((ref) {
   final api = ref.watch(discountApiProvider);

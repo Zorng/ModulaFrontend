@@ -8,14 +8,12 @@ import 'package:modular_pos/core/printing/thermal_printer_controller.dart';
 import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/core/formatters/khr_currency_formatter.dart';
 import 'package:modular_pos/core/feedback/user_error_message.dart';
-import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
-import 'package:modular_pos/features/policy/domain/models/policy.dart';
 import 'package:modular_pos/features/policy/ui/viewmodels/policy_viewmodel.dart';
 import 'package:modular_pos/features/sale/data/sale_checkout_repository_contract.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/order_viewmodel.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_access_gate.dart';
-import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_state.dart';
+import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_pricing.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_checkout_error_message.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_viewmodel.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_khqr_states.dart';
@@ -89,6 +87,15 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
                         ),
                       ),
                     const SizedBox(height: 12),
+                    Text(
+                      'Subtotal: \$${receipt.subtotalUsdExact.toStringAsFixed(2)}',
+                    ),
+                    if (receipt.discountUsdExact.abs() >= 0.005)
+                      Text(
+                        'Discount: -\$${receipt.discountUsdExact.toStringAsFixed(2)}',
+                      ),
+                    Text('Tax: \$${receipt.taxUsdExact.toStringAsFixed(2)}'),
+                    const SizedBox(height: 8),
                     Text(
                       'Total: \$${receipt.totalUsdExact.toStringAsFixed(2)}',
                       style: theme.textTheme.titleSmall?.copyWith(
@@ -344,62 +351,6 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
     await cartNotifier.setPaymentMethod(value);
   }
 
-  double _lineTotal(CartLine line, Map<String, ModifierGroup> groupLookup) {
-    double addons = 0;
-    for (final entry in line.selectedOptionIds.entries) {
-      final group = groupLookup[entry.key];
-      if (group == null) continue;
-      for (final optId in entry.value) {
-        final opt = group.options.firstWhere(
-          (o) => o.id == optId,
-          orElse: () => const ModifierOption(id: '', name: '', price: 0),
-        );
-        addons += opt.price;
-      }
-    }
-    return (line.item.price + addons) * line.quantity;
-  }
-
-  double _subtotal(
-    List<CartLine> items,
-    Map<String, ModifierGroup> groupLookup,
-  ) {
-    return items.fold<double>(
-      0,
-      (sum, line) => sum + _lineTotal(line, groupLookup),
-    );
-  }
-
-  double _taxUsd(double subtotal, BranchPolicy branchPolicy) {
-    if (!branchPolicy.saleVatEnabled) {
-      return 0;
-    }
-    final ratePercent = branchPolicy.saleVatRatePercent;
-    if (ratePercent <= 0) {
-      return 0;
-    }
-    return subtotal * (ratePercent / 100);
-  }
-
-  double _grandTotalUsd(double subtotal, {required double taxUsd}) =>
-      subtotal + taxUsd;
-
-  double _grandTotalKhr(
-    double grandTotalUsd, {
-    required double fxRate,
-    required bool roundingEnabled,
-    required String roundingMode,
-    required double roundingGranularity,
-  }) {
-    final baseKhr = grandTotalUsd * fxRate;
-    return _roundKhr(
-      baseKhr,
-      enabled: roundingEnabled,
-      mode: roundingMode,
-      granularity: roundingGranularity,
-    );
-  }
-
   double _tenderedUsd(
     double grandTotalUsd,
     double fxRate, {
@@ -470,25 +421,6 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
         ),
       ),
     );
-  }
-
-  double _roundKhr(
-    double amount, {
-    required bool enabled,
-    required String mode,
-    required double granularity,
-  }) {
-    if (!enabled) return amount;
-    final step = granularity <= 0 ? 100.0 : granularity;
-    final ratio = amount / step;
-    switch (mode.toUpperCase()) {
-      case 'UP':
-        return (ratio).ceil() * step;
-      case 'DOWN':
-        return (ratio).floor() * step;
-      default:
-        return ratio.round() * step;
-    }
   }
 
   @override
@@ -564,27 +496,21 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
     final policyState = ref.watch(policyNotifierProvider);
     final branchPolicy = policyState.branchPolicy;
     final fxRate = branchPolicy.saleFxRateKhrPerUsd;
-    final roundingEnabled = branchPolicy.saleKhrRoundingEnabled;
-    final roundingMode = BranchPolicyRoundingModes.normalize(
-      branchPolicy.saleKhrRoundingMode,
-    );
-    final roundingGranularity = BranchPolicyRoundingGranularities.asAmount(
-      branchPolicy.saleKhrRoundingGranularity,
-    );
     final groupLookup = {
       for (final g in menuState.modifierGroups) g.id: g,
       for (final g in menuState.hydratedModifierGroups.entries) g.key: g.value,
     };
-    final subtotal = _subtotal(items, groupLookup);
-    final taxUsd = _taxUsd(subtotal, branchPolicy);
-    final grandTotalUsd = _grandTotalUsd(subtotal, taxUsd: taxUsd);
-    final grandTotalKhr = _grandTotalKhr(
-      grandTotalUsd,
-      fxRate: fxRate,
-      roundingEnabled: roundingEnabled,
-      roundingMode: roundingMode,
-      roundingGranularity: roundingGranularity,
+    final cartPricing = SaleCartPricingCalculator.calculate(
+      lines: items,
+      groupLookup: groupLookup,
+      branchPolicy: branchPolicy,
+      resolvedDiscounts: cartState.resolvedDiscounts,
     );
+    final subtotal = cartPricing.preDiscountSubtotalUsd;
+    final discountUsd = cartPricing.discountUsd;
+    final taxUsd = cartPricing.taxUsd;
+    final grandTotalUsd = cartPricing.grandTotalUsd;
+    final grandTotalKhr = cartPricing.grandTotalKhr;
     final tenderUsd = _tenderedUsd(
       grandTotalUsd,
       fxRate,
@@ -930,6 +856,7 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
                   usdController: _usdController,
                   khrController: _khrController,
                   subtotal: subtotal,
+                  discountUsd: discountUsd,
                   taxUsd: taxUsd,
                   showTaxBreakdown: branchPolicy.saleVatEnabled,
                   grandTotalUsd: grandTotalUsd,
@@ -943,6 +870,9 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
                   khqrStatus: cartState.khqrStatus,
                   khqrErrorCode: cartState.khqrErrorCode,
                   khqrReceiverConfigured: khqrReceiverConfigured,
+                  linePricings: cartPricing.linePricings,
+                  isResolvingDiscounts: cartState.isResolvingDiscounts,
+                  discountResolutionError: cartState.discountResolutionError,
                 ),
               ],
             ),

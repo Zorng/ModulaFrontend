@@ -157,12 +157,22 @@ class SalePricingSnapshotDto {
     required this.addonTotalUsd,
     required this.unitPriceUsd,
     required this.lineTotalUsdExact,
+    this.lineBaseAmountUsd,
+    this.itemDiscountUsd,
+    this.discountResolutionBranchId,
+    this.appliedItemDiscounts = const <SaleAppliedDiscountSnapshotDto>[],
+    this.cartDiscountSnapshot,
   });
 
   final double baseUnitPriceUsd;
   final double addonTotalUsd;
   final double unitPriceUsd;
   final double lineTotalUsdExact;
+  final double? lineBaseAmountUsd;
+  final double? itemDiscountUsd;
+  final String? discountResolutionBranchId;
+  final List<SaleAppliedDiscountSnapshotDto> appliedItemDiscounts;
+  final Map<String, dynamic>? cartDiscountSnapshot;
 
   Map<String, dynamic> toJson() {
     return {
@@ -170,7 +180,33 @@ class SalePricingSnapshotDto {
       'addonTotalUsd': addonTotalUsd,
       'unitPriceUsd': unitPriceUsd,
       'lineTotalUsdExact': lineTotalUsdExact,
+      if (lineBaseAmountUsd != null) 'lineBaseAmountUsd': lineBaseAmountUsd,
+      if (itemDiscountUsd != null) 'itemDiscountUsd': itemDiscountUsd,
+      if (discountResolutionBranchId != null)
+        'discountResolutionBranchId': discountResolutionBranchId,
+      if (appliedItemDiscounts.isNotEmpty)
+        'appliedItemDiscounts': appliedItemDiscounts
+            .map((item) => item.toJson())
+            .toList(growable: false),
+      if (cartDiscountSnapshot != null)
+        'cartDiscountSnapshot': cartDiscountSnapshot,
     };
+  }
+}
+
+class SaleAppliedDiscountSnapshotDto {
+  const SaleAppliedDiscountSnapshotDto({
+    required this.ruleId,
+    required this.percentage,
+    required this.scope,
+  });
+
+  final String ruleId;
+  final double percentage;
+  final String scope;
+
+  Map<String, dynamic> toJson() {
+    return {'ruleId': ruleId, 'percentage': percentage, 'scope': scope};
   }
 }
 
@@ -1079,6 +1115,7 @@ class SaleReceiptDto {
     required this.receiptNumber,
     required this.paymentMethod,
     required this.subtotalUsdExact,
+    this.discountUsdExact = 0,
     required this.taxUsdExact,
     required this.totalUsdExact,
     required this.totalKhrExact,
@@ -1090,6 +1127,7 @@ class SaleReceiptDto {
   final String receiptNumber;
   final String paymentMethod;
   final double subtotalUsdExact;
+  final double discountUsdExact;
   final double taxUsdExact;
   final double totalUsdExact;
   final double totalKhrExact;

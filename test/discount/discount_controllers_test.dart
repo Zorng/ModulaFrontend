@@ -3,9 +3,13 @@ import 'package:modular_pos/features/auth/data/auth_session_store.dart';
 import 'package:modular_pos/features/auth/domain/models/auth_session.dart';
 import 'package:modular_pos/features/auth/domain/models/tenant_membership.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
+import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/discount/data/discount_error_codes.dart';
 import 'package:modular_pos/features/discount/data/discount_repository.dart';
 import 'package:modular_pos/features/discount/data/mock_discount_repository.dart';
+import 'package:modular_pos/features/discount/domain/models/discount_eligibility.dart';
+import 'package:modular_pos/features/discount/domain/models/discount_item_preflight_result.dart';
+import 'package:modular_pos/features/discount/domain/models/discount_rule.dart';
 import 'package:modular_pos/features/discount/domain/models/discount_scope.dart';
 import 'package:modular_pos/features/discount/domain/models/discount_status.dart';
 import 'package:modular_pos/features/discount/ui/viewmodels/discount_detail_controller.dart';
@@ -13,6 +17,129 @@ import 'package:modular_pos/features/discount/ui/viewmodels/discount_form_contro
 import 'package:modular_pos/features/discount/ui/viewmodels/discount_list_controller.dart';
 
 import '../test_utils/riverpod_test_utils.dart';
+
+class _FetchDiscountRulesCall {
+  const _FetchDiscountRulesCall({
+    this.status,
+    this.scope,
+    this.branchId,
+    this.search,
+    this.limit,
+    this.offset,
+  });
+
+  final String? status;
+  final String? scope;
+  final String? branchId;
+  final String? search;
+  final int? limit;
+  final int? offset;
+}
+
+class _RecordingDiscountRepository implements DiscountRepository {
+  _RecordingDiscountRepository({DiscountRepository? delegate})
+    : _delegate = delegate ?? MockDiscountRepository();
+
+  final DiscountRepository _delegate;
+  final List<_FetchDiscountRulesCall> calls = <_FetchDiscountRulesCall>[];
+
+  @override
+  Future<List<DiscountRule>> fetchDiscountRules({
+    String? status,
+    String? scope,
+    String? branchId,
+    String? search,
+    int? limit,
+    int? offset,
+  }) async {
+    calls.add(
+      _FetchDiscountRulesCall(
+        status: status,
+        scope: scope,
+        branchId: branchId,
+        search: search,
+        limit: limit,
+        offset: offset,
+      ),
+    );
+    return _delegate.fetchDiscountRules(
+      status: status,
+      scope: scope,
+      branchId: branchId,
+      search: search,
+      limit: limit,
+      offset: offset,
+    );
+  }
+
+  @override
+  Future<DiscountRule> fetchDiscountRuleById(String ruleId) {
+    return _delegate.fetchDiscountRuleById(ruleId);
+  }
+
+  @override
+  Future<DiscountRule> createDiscountRule({
+    required DiscountRule rule,
+    bool confirmOverlap = false,
+  }) {
+    return _delegate.createDiscountRule(
+      rule: rule,
+      confirmOverlap: confirmOverlap,
+    );
+  }
+
+  @override
+  Future<DiscountRule> updateDiscountRule({
+    required DiscountRule rule,
+    bool confirmOverlap = false,
+  }) {
+    return _delegate.updateDiscountRule(
+      rule: rule,
+      confirmOverlap: confirmOverlap,
+    );
+  }
+
+  @override
+  Future<DiscountRule> updateDiscountRuleStatus({
+    required String ruleId,
+    required String status,
+  }) {
+    return _delegate.updateDiscountRuleStatus(ruleId: ruleId, status: status);
+  }
+
+  @override
+  Future<DiscountItemPreflightResult> resolveEligibleItemsForBranch({
+    required String branchId,
+    required List<String> itemIds,
+  }) {
+    return _delegate.resolveEligibleItemsForBranch(
+      branchId: branchId,
+      itemIds: itemIds,
+    );
+  }
+
+  @override
+  Future<List<DiscountEligibilityRule>> resolveDiscountEligibility({
+    required String branchId,
+    required DateTime occurredAt,
+    required List<DiscountEligibilityLineInput> lines,
+  }) {
+    return _delegate.resolveDiscountEligibility(
+      branchId: branchId,
+      occurredAt: occurredAt,
+      lines: lines,
+    );
+  }
+}
+
+class _MutableLoginController extends LoginController {
+  @override
+  LoginState build() => LoginState(session: _session('manager'));
+
+  void setRole(String role) {
+    state = LoginState(session: _session(role));
+  }
+}
 
 AuthSession _session(String role) {
   return AuthSession(
@@ -63,6 +190,110 @@ void main() {
     );
 
     test(
+      'list controller forwards backend query filters and debounces search',
+      () async {
+        final repository = _RecordingDiscountRepository();
+        final container = createTestContainer(
+          overrides: [
+            initialAuthSessionProvider.overrideWithValue(_session('manager')),
+            discountRepositoryProvider.overrideWithValue(repository),
+          ],
+        );
+
+        final notifier = container.read(
+          discountListControllerProvider.notifier,
+        );
+
+        await notifier.load();
+        expect(repository.calls, hasLength(1));
+        expect(repository.calls.first.status, 'all');
+        expect(repository.calls.first.scope, 'all');
+        expect(repository.calls.first.search, isNull);
+
+        notifier.setStatusFilter(DiscountStatuses.active);
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        expect(repository.calls, hasLength(2));
+        expect(repository.calls.last.status, 'active');
+        expect(repository.calls.last.scope, 'all');
+
+        notifier.setScopeFilter(DiscountScopes.item);
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        expect(repository.calls, hasLength(3));
+        expect(repository.calls.last.status, 'active');
+        expect(repository.calls.last.scope, 'item');
+
+        notifier.setSearchQuery('coffee');
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        expect(repository.calls, hasLength(3));
+
+        await Future<void>.delayed(const Duration(milliseconds: 200));
+        expect(repository.calls, hasLength(4));
+        expect(repository.calls.last.status, 'active');
+        expect(repository.calls.last.scope, 'item');
+        expect(repository.calls.last.search, 'coffee');
+      },
+    );
+
+    test(
+      'list controller refresh preserves branch workspace filters',
+      () async {
+        final repository = _RecordingDiscountRepository();
+        final container = createTestContainer(
+          overrides: [
+            initialAuthSessionProvider.overrideWithValue(_session('manager')),
+            discountRepositoryProvider.overrideWithValue(repository),
+          ],
+        );
+
+        final notifier = container.read(
+          discountListControllerProvider.notifier,
+        );
+
+        await notifier.loadBranchWorkspace('branch-001');
+        expect(repository.calls, hasLength(1));
+        expect(repository.calls.single.branchId, 'branch-001');
+        expect(repository.calls.single.status, 'active');
+
+        await notifier.refresh();
+        expect(repository.calls, hasLength(2));
+        expect(repository.calls.last.branchId, 'branch-001');
+        expect(repository.calls.last.status, 'active');
+      },
+    );
+
+    test(
+      'list controller can upsert an updated rule into current state',
+      () async {
+        final container = createTestContainer(
+          overrides: [
+            initialAuthSessionProvider.overrideWithValue(_session('manager')),
+            discountRepositoryProvider.overrideWithValue(
+              MockDiscountRepository(),
+            ),
+          ],
+        );
+
+        final notifier = container.read(
+          discountListControllerProvider.notifier,
+        );
+        await notifier.load();
+        notifier.upsertRule(
+          container
+              .read(discountListControllerProvider)
+              .rules
+              .first
+              .copyWith(status: DiscountStatuses.active),
+        );
+
+        final updated = container
+            .read(discountListControllerProvider)
+            .rules
+            .first;
+        expect(updated.status, DiscountStatuses.active);
+      },
+    );
+
+    test(
       'detail controller prevents status updates for read-only roles',
       () async {
         final container = createTestContainer(
@@ -85,6 +316,69 @@ void main() {
         expect(state.isReadOnly, isTrue);
         expect(updated, isNull);
         expect(state.rule?.status, DiscountStatuses.inactive);
+      },
+    );
+
+    test(
+      'detail controller survives later login-state changes without provider error',
+      () async {
+        final container = createTestContainer(
+          overrides: [
+            loginControllerProvider.overrideWith(_MutableLoginController.new),
+            discountRepositoryProvider.overrideWithValue(
+              MockDiscountRepository(),
+            ),
+          ],
+        );
+
+        final detailNotifier = container.read(
+          discountDetailControllerProvider.notifier,
+        );
+        await detailNotifier.load('disc-001');
+        expect(
+          container.read(discountDetailControllerProvider).canManage,
+          false,
+        );
+
+        final loginNotifier =
+            container.read(loginControllerProvider.notifier)
+                as _MutableLoginController;
+        loginNotifier.setRole('admin');
+        await Future<void>.delayed(Duration.zero);
+
+        final state = container.read(discountDetailControllerProvider);
+        expect(state.canManage, false);
+        expect(state.rule?.id, 'disc-001');
+      },
+    );
+
+    test(
+      'form controller survives later login-state changes without provider error',
+      () async {
+        final container = createTestContainer(
+          overrides: [
+            loginControllerProvider.overrideWith(_MutableLoginController.new),
+            discountRepositoryProvider.overrideWithValue(
+              MockDiscountRepository(),
+            ),
+          ],
+        );
+
+        final notifier = container.read(
+          discountFormControllerProvider.notifier,
+        );
+        await notifier.load('disc-001');
+        expect(container.read(discountFormControllerProvider).canManage, false);
+
+        final loginNotifier =
+            container.read(loginControllerProvider.notifier)
+                as _MutableLoginController;
+        loginNotifier.setRole('admin');
+        await Future<void>.delayed(Duration.zero);
+
+        final state = container.read(discountFormControllerProvider);
+        expect(state.canManage, false);
+        expect(state.initialRule?.id, 'disc-001');
       },
     );
 

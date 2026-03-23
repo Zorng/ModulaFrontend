@@ -1,6 +1,7 @@
 import 'package:modular_pos/core/network/api_contract.dart';
 import 'package:modular_pos/features/discount/data/discount_error_codes.dart';
 import 'package:modular_pos/features/discount/data/discount_repository.dart';
+import 'package:modular_pos/features/discount/domain/models/discount_eligibility.dart';
 import 'package:modular_pos/features/discount/domain/models/discount_item_preflight_result.dart';
 import 'package:modular_pos/features/discount/domain/models/discount_rule.dart';
 import 'package:modular_pos/features/discount/domain/models/discount_schedule.dart';
@@ -140,6 +141,43 @@ class MockDiscountRepository implements DiscountRepository {
       invalidItemIds: invalid,
       allEligible: invalid.isEmpty,
     );
+  }
+
+  @override
+  Future<List<DiscountEligibilityRule>> resolveDiscountEligibility({
+    required String branchId,
+    required DateTime occurredAt,
+    required List<DiscountEligibilityLineInput> lines,
+  }) async {
+    final normalizedBranchId = branchId.trim();
+    if (normalizedBranchId.isEmpty || lines.isEmpty) {
+      return const <DiscountEligibilityRule>[];
+    }
+
+    final menuItemIds = {
+      for (final line in lines)
+        if (line.menuItemId.trim().isNotEmpty) line.menuItemId.trim(),
+    };
+    final effectiveAt = occurredAt.toUtc();
+
+    return _rules
+        .where((rule) {
+          if (rule.branchId != normalizedBranchId) return false;
+          if (!rule.isActive || rule.isArchived) return false;
+          if (!rule.schedule.isEffectiveAt(effectiveAt)) return false;
+          if (rule.isBranchWide) return true;
+          return rule.itemIds.any(menuItemIds.contains);
+        })
+        .map(
+          (rule) => DiscountEligibilityRule(
+            ruleId: rule.id,
+            percentage: rule.percentage,
+            scope: rule.scope,
+            itemIds: rule.itemIds,
+            stackingPolicy: rule.stackingPolicy,
+          ),
+        )
+        .toList(growable: false);
   }
 
   @override

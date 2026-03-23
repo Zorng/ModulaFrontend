@@ -9,6 +9,10 @@ class Sale {
     required this.fxRateUsed,
     required this.subtotalUsdExact,
     required this.subtotalKhrExact,
+    this.discountUsdExact = 0,
+    this.discountKhrExact = 0,
+    this.taxUsdExact = 0,
+    this.taxKhrExact = 0,
     required this.totalUsdExact,
     required this.totalKhrExact,
     required this.cashReceivedUsd,
@@ -29,6 +33,10 @@ class Sale {
   final double fxRateUsed;
   final double subtotalUsdExact;
   final double subtotalKhrExact;
+  final double discountUsdExact;
+  final double discountKhrExact;
+  final double taxUsdExact;
+  final double taxKhrExact;
   final double totalUsdExact;
   final double totalKhrExact;
   final double? cashReceivedUsd;
@@ -91,4 +99,3 @@ class SaleCheckoutSummary {
   final double changeGivenUsd;
   final double changeGivenKhr;
 }
-

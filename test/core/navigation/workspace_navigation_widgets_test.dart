@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/sync/global_sync_status.dart';
 import 'package:modular_pos/core/widgets/navigation/app_navigation_config.dart';
 import 'package:modular_pos/core/widgets/navigation/app_navigation_portal_content.dart';
@@ -146,6 +147,7 @@ void main() {
     expect(find.text('Menu'), findsOneWidget);
     expect(find.text('Inventory'), findsOneWidget);
     expect(find.text('Staff'), findsOneWidget);
+    expect(find.text('Discounts'), findsOneWidget);
     expect(find.text('Branch'), findsNothing);
     expect(find.text('Cash Sessions'), findsNothing);
     expect(find.text('Policy'), findsNothing);
@@ -167,6 +169,7 @@ void main() {
     expect(find.text('Cash Sessions'), findsOneWidget);
     expect(find.text('Policy'), findsOneWidget);
     expect(find.text('Sale'), findsOneWidget);
+    expect(find.text('Active Discount'), findsOneWidget);
     expect(find.text('Tenant'), findsNothing);
     expect(find.text('Branches'), findsNothing);
     expect(find.text('Inventory'), findsNothing);
@@ -184,6 +187,7 @@ void main() {
     expect(find.text('Operations'), findsOneWidget);
     expect(find.text('Cash Sessions'), findsOneWidget);
     expect(find.text('Sale'), findsOneWidget);
+    expect(find.text('Active Discount'), findsOneWidget);
     expect(find.text('Attendance'), findsOneWidget);
     expect(find.text('Tenant'), findsNothing);
     expect(find.text('Branch'), findsNothing);
@@ -210,7 +214,9 @@ void main() {
     expect(find.text('Menu'), findsOneWidget);
     expect(find.text('Inventory'), findsOneWidget);
     expect(find.text('Staff'), findsOneWidget);
+    expect(find.text('Discounts'), findsOneWidget);
     expect(find.text('Cash Sessions'), findsNothing);
+    expect(find.text('Active Discount'), findsNothing);
     expect(find.byIcon(Icons.arrow_back), findsOneWidget);
     expect(find.byType(NavigationLayerBackButton), findsOneWidget);
     expect(find.byType(TenantProfileHeader), findsOneWidget);
@@ -245,6 +251,7 @@ void main() {
     expect(find.text('Cash Sessions'), findsOneWidget);
     expect(find.text('Policy'), findsOneWidget);
     expect(find.text('Sale'), findsOneWidget);
+    expect(find.text('Active Discount'), findsOneWidget);
     expect(find.text('Branches'), findsNothing);
     expect(find.byIcon(Icons.arrow_back), findsOneWidget);
     expect(find.byType(NavigationLayerBackButton), findsOneWidget);
@@ -258,6 +265,31 @@ void main() {
       find.widgetWithText(ListTile, 'Cash Sessions'),
     );
     expect(cashTile.selected, isTrue);
+  });
+
+  testWidgets('wide rail keeps active discount in branch layer', (
+    tester,
+  ) async {
+    _setWideViewport(tester);
+    addTearDown(() => _resetViewport(tester));
+
+    await tester.pumpWidget(
+      _railHarness(
+        session: _session(role: 'admin', branches: activeBranch),
+        path: AppRoute.branchDiscount.path,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('TENANT'), findsNothing);
+    expect(find.text('BRANCH'), findsOneWidget);
+    expect(find.text('Active Discount'), findsOneWidget);
+    expect(find.text('Branches'), findsNothing);
+
+    final activeDiscountTile = tester.widget<ListTile>(
+      find.widgetWithText(ListTile, 'Active Discount'),
+    );
+    expect(activeDiscountTile.selected, isTrue);
   });
 
   testWidgets('wide rail shows staff branch operations with branch back', (

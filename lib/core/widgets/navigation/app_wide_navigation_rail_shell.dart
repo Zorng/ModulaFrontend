@@ -497,6 +497,7 @@ bool _isBranchScopedPath(String path) {
       isPathInGroup(path, AppRoute.cashSession.path) ||
       isPathInGroup(path, AppRoute.cashHistory.path) ||
       isPathInGroup(path, AppRoute.policy.path) ||
+      isPathInGroup(path, AppRoute.branchDiscount.path) ||
       isPathInGroup(path, AppRoute.sale.path) ||
       isPathInGroup(path, AppRoute.attendance.path) ||
       isPathInGroup(path, AppRoute.xReport.path) ||
