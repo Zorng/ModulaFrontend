@@ -36,6 +36,7 @@ dependencies:
   drift: 2.19.1+1
   sqlite3: 2.4.5
   fl_chart: ^0.70.0
+  syncfusion_flutter_charts: ^33.1.44
 
 dev_dependencies:
   flutter_test:

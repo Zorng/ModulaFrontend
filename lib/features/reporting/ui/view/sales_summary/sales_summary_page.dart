@@ -10,6 +10,9 @@ import 'package:modular_pos/features/reporting/ui/viewmodels/reporting_access_co
 import 'package:modular_pos/features/reporting/ui/viewmodels/sales_summary_controller.dart';
 import 'package:modular_pos/features/reporting/ui/widgets/reporting_kpi_card.dart';
 import 'package:modular_pos/features/reporting/ui/widgets/reporting_placeholder_panel_card.dart';
+import 'package:modular_pos/features/reporting/ui/widgets/sales_category_breakdown_panel.dart';
+import 'package:modular_pos/features/reporting/ui/widgets/sales_payment_breakdown_panel.dart';
+import 'package:modular_pos/features/reporting/ui/widgets/sales_type_breakdown_panel.dart';
 
 class SalesSummaryPage extends ConsumerStatefulWidget {
   const SalesSummaryPage({super.key});
@@ -109,7 +112,7 @@ class _SalesSummaryPageState extends ConsumerState<SalesSummaryPage> {
                 const SizedBox(height: 24),
                 _buildKpiSection(context, state),
                 const SizedBox(height: 24),
-                _buildSalesSummaryPanels(),
+                _buildSalesSummaryPanels(state),
               ],
             ),
             if (state.isLoading)
@@ -334,28 +337,26 @@ class _SalesSummaryPageState extends ConsumerState<SalesSummaryPage> {
     );
   }
 
-  Widget _buildSalesSummaryPanels() {
+  Widget _buildSalesSummaryPanels(SalesSummaryState state) {
     const wideLeftFlex = 1;
     const wideRightFlex = 1;
-    final wideLeftHeight = (_summaryPanelCardHeight * 2) + _summaryPanelGap;
+    final paymentBreakdownItems = state.report?.paymentBreakdown ?? const [];
+    final categoryBreakdownItems = state.report?.categoryBreakdown ?? const [];
+    final saleTypeBreakdownItems = state.report?.saleTypeBreakdown ?? const [];
 
     return LayoutBuilder(
       builder: (context, constraints) {
         final useWideLayout = constraints.maxWidth >= 980;
         if (!useWideLayout) {
           return Column(
-            children: const [
-              ReportingPlaceholderPanelCard(
-                title: 'Payment breakdown',
-                height: _summaryPanelCardHeight,
-              ),
-              SizedBox(height: _summaryPanelGap),
-              ReportingPlaceholderPanelCard(
-                title: 'Sale type',
-                height: _summaryPanelCardHeight,
-              ),
-              SizedBox(height: _summaryPanelGap),
-              ReportingPlaceholderPanelCard(
+            children: [
+              SalesPaymentBreakdownPanel(items: paymentBreakdownItems),
+              const SizedBox(height: _summaryPanelGap),
+              SalesCategoryBreakdownPanel(categories: categoryBreakdownItems),
+              const SizedBox(height: _summaryPanelGap),
+              SalesTypeBreakdownPanel(items: saleTypeBreakdownItems),
+              const SizedBox(height: _summaryPanelGap),
+              const ReportingPlaceholderPanelCard(
                 title: 'Cash tender',
                 height: _summaryPanelCardHeight,
               ),
@@ -368,33 +369,30 @@ class _SalesSummaryPageState extends ConsumerState<SalesSummaryPage> {
           children: [
             Expanded(
               flex: wideLeftFlex,
-              child: ReportingPlaceholderPanelCard(
-                title: 'Payment breakdown',
-                height: wideLeftHeight,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SalesPaymentBreakdownPanel(items: paymentBreakdownItems),
+                  const SizedBox(height: _summaryPanelGap),
+                  SalesCategoryBreakdownPanel(
+                    categories: categoryBreakdownItems,
+                  ),
+                ],
               ),
             ),
             const SizedBox(width: _summaryPanelGap),
             Expanded(
               flex: wideRightFlex,
-              child: SizedBox(
-                height: wideLeftHeight,
-                child: Column(
-                  children: [
-                    const Expanded(
-                      child: ReportingPlaceholderPanelCard(
-                        title: 'Sale type',
-                        height: double.infinity,
-                      ),
-                    ),
-                    SizedBox(height: _summaryPanelGap),
-                    const Expanded(
-                      child: ReportingPlaceholderPanelCard(
-                        title: 'Cash tender',
-                        height: double.infinity,
-                      ),
-                    ),
-                  ],
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SalesTypeBreakdownPanel(items: saleTypeBreakdownItems),
+                  SizedBox(height: _summaryPanelGap),
+                  const ReportingPlaceholderPanelCard(
+                    title: 'Cash tender',
+                    height: _summaryPanelCardHeight,
+                  ),
+                ],
               ),
             ),
           ],

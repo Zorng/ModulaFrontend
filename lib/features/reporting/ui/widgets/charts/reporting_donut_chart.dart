@@ -20,10 +20,12 @@ class ReportingDonutChart extends StatelessWidget {
     super.key,
     required this.segments,
     this.emptyText = 'No chart data available.',
+    this.showLegend = true,
   });
 
   final List<ReportingDonutChartSegment> segments;
   final String emptyText;
+  final bool showLegend;
 
   @override
   Widget build(BuildContext context) {
@@ -43,14 +45,15 @@ class ReportingDonutChart extends StatelessWidget {
           height: 220,
           child: PieChart(
             PieChartData(
-              centerSpaceRadius: 54,
-              sectionsSpace: 3,
+              centerSpaceRadius: 60,
+              sectionsSpace: 0,
+              
               sections: [
                 for (final segment in segments)
                   PieChartSectionData(
                     color: segment.color,
                     value: segment.value,
-                    radius: 36,
+                    radius: 32,
                     title: total <= 0
                         ? ''
                         : '${((segment.value / total) * 100).round()}%',
@@ -64,19 +67,21 @@ class ReportingDonutChart extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(height: 12),
-        Wrap(
-          spacing: 12,
-          runSpacing: 8,
-          children: [
-            for (final segment in segments)
-              _LegendChip(
-                color: segment.color,
-                label: segment.label,
-                value: segment.legendValue,
-              ),
-          ],
-        ),
+        if (showLegend) ...[
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 12,
+            runSpacing: 8,
+            children: [
+              for (final segment in segments)
+                _LegendChip(
+                  color: segment.color,
+                  label: segment.label,
+                  value: segment.legendValue,
+                ),
+            ],
+          ),
+        ],
       ],
     );
   }
