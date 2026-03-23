@@ -10,7 +10,10 @@ import 'package:modular_pos/features/sale/ui/view/view_carts/widgets/sale_summar
 import 'package:modular_pos/features/sale/ui/view/view_carts/widgets/view_carts_filters.dart';
 
 class ViewCartsPage extends ConsumerStatefulWidget {
-  const ViewCartsPage({super.key});
+  const ViewCartsPage({super.key, this.initialState, this.initialDate});
+
+  final String? initialState;
+  final DateTime? initialDate;
 
   @override
   ConsumerState<ViewCartsPage> createState() => _ViewCartsPageState();
@@ -18,14 +21,27 @@ class ViewCartsPage extends ConsumerStatefulWidget {
 
 class _ViewCartsPageState extends ConsumerState<ViewCartsPage> {
   static const _states = ['PENDING', 'FINALIZED', 'VOID_PENDING', 'VOIDED'];
-  String _selectedState = 'PENDING';
-  DateTime _selectedDate = DateTime.now();
+  late String _selectedState;
+  late DateTime _selectedDate;
   late Future<List<SaleSummary>> _future;
 
   @override
   void initState() {
     super.initState();
+    _selectedState = _resolveInitialState(widget.initialState);
+    _selectedDate = _resolveInitialDate(widget.initialDate);
     _future = _loadSales();
+  }
+
+  String _resolveInitialState(String? rawState) {
+    final normalized = (rawState ?? '').trim().toUpperCase();
+    if (_states.contains(normalized)) return normalized;
+    return 'PENDING';
+  }
+
+  DateTime _resolveInitialDate(DateTime? rawDate) {
+    final date = rawDate ?? DateTime.now();
+    return DateTime(date.year, date.month, date.day);
   }
 
   Future<List<SaleSummary>> _loadSales() async {

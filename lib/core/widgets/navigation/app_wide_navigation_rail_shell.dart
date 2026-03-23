@@ -14,6 +14,7 @@ import 'package:modular_pos/features/auth/domain/auth_role.dart';
 import 'package:modular_pos/features/auth/domain/models/auth_session.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
+import 'package:modular_pos/features/notification/ui/components/operational_notification_inbox_action.dart';
 
 class AppScaffoldShell extends ConsumerWidget {
   const AppScaffoldShell({
@@ -44,7 +45,14 @@ class AppScaffoldShell extends ConsumerWidget {
                       top: isWide ? 16 : 12,
                       right: isWide ? 16 : 12,
                     ),
-                    child: GlobalSyncStatusIndicator(compact: !isWide),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: const [
+                        OperationalNotificationInboxAction(compact: true),
+                        SizedBox(width: 12),
+                        GlobalSyncStatusIndicator(compact: false),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -497,6 +505,7 @@ bool _isBranchScopedPath(String path) {
       isPathInGroup(path, AppRoute.cashSession.path) ||
       isPathInGroup(path, AppRoute.cashHistory.path) ||
       isPathInGroup(path, AppRoute.policy.path) ||
+      isPathInGroup(path, AppRoute.notifications.path) ||
       isPathInGroup(path, AppRoute.branchDiscount.path) ||
       isPathInGroup(path, AppRoute.sale.path) ||
       isPathInGroup(path, AppRoute.attendance.path) ||

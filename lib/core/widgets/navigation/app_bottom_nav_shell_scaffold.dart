@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/core/widgets/navigation/app_back_button.dart';
+import 'package:modular_pos/features/notification/ui/components/operational_notification_inbox_action.dart';
 
 class AppBottomNavShellScaffold extends StatelessWidget {
   const AppBottomNavShellScaffold({
@@ -33,9 +34,7 @@ class AppBottomNavShellScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final index = navigationShell.currentIndex;
-    final isWide = AppBreakpoints.isLarge(
-      MediaQuery.of(context).size.width,
-    );
+    final isWide = AppBreakpoints.isLarge(MediaQuery.of(context).size.width);
     final showBackButton = onBackPressed != null && !isWide;
     return Scaffold(
       appBar: AppBar(
@@ -49,7 +48,10 @@ class AppBottomNavShellScaffold extends StatelessWidget {
               )
             : leading,
         title: Text(titles[index]),
-        actions: actions,
+        actions: <Widget>[
+          const OperationalNotificationInboxAction(),
+          ...(actions ?? const <Widget>[]),
+        ],
       ),
       body: navigationShell,
       bottomNavigationBar: BottomNavigationBar(

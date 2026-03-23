@@ -11,6 +11,7 @@ import 'package:modular_pos/core/routing/routes/cash_routes.dart';
 import 'package:modular_pos/core/routing/routes/core_routes.dart';
 import 'package:modular_pos/core/routing/routes/inventory_routes.dart';
 import 'package:modular_pos/core/routing/routes/menu_routes.dart';
+import 'package:modular_pos/core/routing/routes/notification_routes.dart';
 import 'package:modular_pos/core/routing/routes/policy_routes.dart';
 import 'package:modular_pos/core/routing/routes/discount_routes.dart';
 import 'package:modular_pos/core/routing/routes/portal_routes.dart';
@@ -193,6 +194,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             AppScaffoldShell(currentPath: state.uri.path, child: child),
         routes: [
           ...buildPortalRoutes(ref),
+          ...buildNotificationRoutes(),
           ...buildMenuRoutes(),
           ...buildPolicyRoutes(),
           ...buildDiscountRoutes(),
@@ -266,6 +268,7 @@ bool _isBranchScopedRoute(String path) {
       isPathInGroup(path, AppRoute.cashSession.path) ||
       isPathInGroup(path, AppRoute.cashHistory.path) ||
       isPathInGroup(path, AppRoute.policy.path) ||
+      isPathInGroup(path, AppRoute.notifications.path) ||
       isPathInGroup(path, AppRoute.sale.path) ||
       isPathInGroup(path, AppRoute.branchDiscount.path) ||
       isPathInGroup(path, AppRoute.attendance.path) ||

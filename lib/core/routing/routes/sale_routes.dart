@@ -58,7 +58,10 @@ List<RouteBase> buildSaleRoutes() {
     GoRoute(
       path: AppRoute.saleViewCarts.path,
       name: AppRoute.saleViewCarts.name,
-      builder: (context, state) => const ViewCartsPage(),
+      builder: (context, state) => ViewCartsPage(
+        initialState: state.uri.queryParameters['state'],
+        initialDate: _parseViewCartsDate(state.uri.queryParameters['date']),
+      ),
     ),
     GoRoute(
       path: AppRoute.saleViewCartDetail.path,
@@ -77,4 +80,10 @@ List<RouteBase> buildSaleRoutes() {
       },
     ),
   ];
+}
+
+DateTime? _parseViewCartsDate(String? raw) {
+  final normalized = (raw ?? '').trim();
+  if (normalized.isEmpty) return null;
+  return DateTime.tryParse(normalized);
 }

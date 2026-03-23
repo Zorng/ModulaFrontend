@@ -24,6 +24,9 @@ class AppEnv {
   static const _branchApiPrefixDefine = String.fromEnvironment(
     'BRANCH_API_PREFIX',
   );
+  static const _notificationApiPrefixDefine = String.fromEnvironment(
+    'NOTIFICATION_API_PREFIX',
+  );
   static const _googleMapsApiKeyDefine = String.fromEnvironment(
     'GOOGLE_MAPS_API_KEY',
   );
@@ -113,6 +116,12 @@ class AppEnv {
     primary: _branchApiPrefixDefine,
     dotenvKey: 'BRANCH_API_PREFIX',
     defaultValue: '/v0/branches',
+  );
+
+  static String get notificationApiPrefix => _readString(
+    primary: _notificationApiPrefixDefine,
+    dotenvKey: 'NOTIFICATION_API_PREFIX',
+    defaultValue: '/v0/notifications',
   );
 
   static String get googleMapsApiKey => _readString(

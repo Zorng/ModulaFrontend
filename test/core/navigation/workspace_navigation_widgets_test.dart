@@ -13,6 +13,8 @@ import 'package:modular_pos/features/auth/domain/models/auth_session.dart';
 import 'package:modular_pos/features/auth/domain/models/tenant_membership.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
+import 'package:modular_pos/features/notification/data/operational_notification_repository.dart';
+import 'package:modular_pos/features/notification/domain/models/operational_notification.dart';
 
 class _StaticLoginController extends LoginController {
   _StaticLoginController(this._session);
@@ -21,6 +23,51 @@ class _StaticLoginController extends LoginController {
 
   @override
   LoginState build() => LoginState(session: _session);
+}
+
+class _FakeOperationalNotificationRepository
+    implements OperationalNotificationRepository {
+  const _FakeOperationalNotificationRepository({this.unreadCount = 0});
+
+  final int unreadCount;
+
+  @override
+  Future<int> getUnreadCount() async => unreadCount;
+
+  @override
+  Future<OperationalNotificationInboxPage> listInbox({
+    bool unreadOnly = false,
+    String? type,
+    int limit = 50,
+    int offset = 0,
+  }) async {
+    return const OperationalNotificationInboxPage(
+      items: <OperationalNotificationItem>[],
+      limit: 50,
+      offset: 0,
+      total: 0,
+      hasMore: false,
+    );
+  }
+
+  @override
+  Future<OperationalNotificationItem> getNotificationById(
+    String notificationId,
+  ) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<OperationalNotificationReadResult> markNotificationAsRead(
+    String notificationId,
+  ) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<OperationalNotificationMarkAllReadResult> markAllAsRead() {
+    throw UnimplementedError();
+  }
 }
 
 AuthSession _session({
@@ -73,6 +120,9 @@ Widget _railHarness({required AuthSession session, required String path}) {
     overrides: [
       loginControllerProvider.overrideWith(
         () => _StaticLoginController(session),
+      ),
+      operationalNotificationRepositoryProvider.overrideWithValue(
+        const _FakeOperationalNotificationRepository(unreadCount: 3),
       ),
       globalSyncStatusProvider.overrideWithValue(
         const GlobalSyncStatus(
@@ -222,6 +272,10 @@ void main() {
     expect(find.byType(TenantProfileHeader), findsOneWidget);
     expect(find.byType(GlobalSyncStatusIndicator), findsOneWidget);
     expect(find.text('Online'), findsOneWidget);
+    expect(
+      find.byKey(const Key('operational_notification_inbox_action')),
+      findsNothing,
+    );
     expect(find.byIcon(Icons.person_outline), findsNothing);
     expect(find.byIcon(Icons.settings_outlined), findsNothing);
     expect(find.text('No branch selected'), findsOneWidget);
@@ -257,6 +311,14 @@ void main() {
     expect(find.byType(NavigationLayerBackButton), findsOneWidget);
     expect(find.byType(TenantProfileHeader), findsOneWidget);
     expect(find.byType(GlobalSyncStatusIndicator), findsOneWidget);
+    expect(
+      find.byKey(const Key('operational_notification_inbox_action')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('operational_notification_unread_badge')),
+      findsOneWidget,
+    );
     expect(find.byIcon(Icons.person_outline), findsNothing);
     expect(find.byIcon(Icons.settings_outlined), findsNothing);
     expect(find.text('Branch A'), findsWidgets);
