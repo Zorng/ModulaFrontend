@@ -25,14 +25,35 @@ final discountBranchMenuItemsProvider =
       }
 
       final repository = ref.read(menuRepositoryProvider);
-      final bundle = await repository.fetchMenuData(
+      final activeBundleFuture = repository.fetchMenuData(
         readLane: MenuReadLane.management,
         status: 'active',
         branchIdFilter: normalizedBranchId,
       );
+      final archivedBundleFuture = repository.fetchMenuData(
+        readLane: MenuReadLane.management,
+        status: 'archived',
+        branchIdFilter: normalizedBranchId,
+      );
+      final bundles = await Future.wait<MenuDataBundle>([
+        activeBundleFuture,
+        archivedBundleFuture,
+      ]);
+      final activeBundle = bundles[0];
+      final archivedBundle = bundles[1];
+
+      final itemsById = <String, MenuItem>{};
+      for (final item in activeBundle.items) {
+        if (item.id.trim().isEmpty) continue;
+        itemsById[item.id] = item;
+      }
+      for (final item in archivedBundle.items) {
+        if (item.id.trim().isEmpty) continue;
+        itemsById.putIfAbsent(item.id, () => item);
+      }
 
       final items =
-          bundle.items
+          itemsById.values
               .where((item) {
                 final visibleBranches = item.visibleBranchIds.isNotEmpty
                     ? item.visibleBranchIds

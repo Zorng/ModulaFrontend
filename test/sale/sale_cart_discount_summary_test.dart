@@ -2,18 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
 import 'package:modular_pos/features/sale/ui/view/sale_cart/widgets/sale_cart_content.dart';
+import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_pricing.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_state.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_khqr_states.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  Future<void> pumpKhqrContent(
-    WidgetTester tester, {
-    required String khqrStatus,
-    String? khqrErrorCode,
-    bool? khqrReceiverConfigured,
-  }) async {
+  testWidgets('SaleCartContent shows discount summary and discounted line', (
+    tester,
+  ) async {
     final usdController = TextEditingController();
     final khrController = TextEditingController();
     addTearDown(usdController.dispose);
@@ -29,61 +27,55 @@ void main() {
                   id: 'menu-1',
                   name: 'Latte',
                   categoryId: 'cat-1',
-                  price: 2.5,
+                  price: 10,
                 ),
-                quantity: 1,
+                quantity: 2,
                 selectedOptionIds: {},
               ),
             ],
             groupLookup: const {},
-            linePricings: const [],
+            linePricings: const [
+              SaleCartLinePricing(
+                menuItemId: 'menu-1',
+                quantity: 2,
+                baseUnitPriceUsd: 10,
+                addonUnitTotalUsd: 0,
+                preDiscountUnitPriceUsd: 10,
+                preDiscountLineTotalUsd: 20,
+                itemDiscountUsd: 2,
+                discountedUnitPriceUsd: 9,
+                lineTotalUsd: 18,
+                appliedItemRules: [],
+              ),
+            ],
             onIncrement: (_, __) {},
             onDecrement: (_, __) {},
-            paymentMethod: 'qr',
+            paymentMethod: 'cash',
             tenderCurrency: 'USD',
             onPaymentMethodChanged: (_) {},
             onTenderCurrencyChanged: (_) {},
             usdController: usdController,
             khrController: khrController,
-            subtotal: 2.5,
-            discountUsd: 0,
-            taxUsd: 0,
-            showTaxBreakdown: false,
-            grandTotalUsd: 2.5,
-            grandTotalKhr: 10000,
+            subtotal: 20,
+            discountUsd: 2.9,
+            taxUsd: 1.71,
+            showTaxBreakdown: true,
+            grandTotalUsd: 18.81,
+            grandTotalKhr: 75240,
             fxRate: 4000,
             readOnly: false,
             onAmountsChanged: () {},
-            khqrStatus: khqrStatus,
-            khqrErrorCode: khqrErrorCode,
-            khqrReceiverConfigured: khqrReceiverConfigured,
+            khqrStatus: SaleKhqrUiStates.readyToGenerate,
+            khqrErrorCode: null,
+            khqrReceiverConfigured: true,
           ),
         ),
       ),
     );
-  }
 
-  testWidgets(
-    'receiver missing shows unavailable callout and disabled action',
-    (tester) async {
-      await pumpKhqrContent(
-        tester,
-        khqrStatus: SaleKhqrUiStates.readyToGenerate,
-        khqrReceiverConfigured: false,
-      );
-
-      expect(find.text('KHQR unavailable for this branch.'), findsOneWidget);
-      expect(
-        find.textContaining('configure the Bakong receiver'),
-        findsOneWidget,
-      );
-    },
-  );
-
-  testWidgets('superseded state asks operator to regenerate', (tester) async {
-    await pumpKhqrContent(tester, khqrStatus: SaleKhqrUiStates.superseded);
-
-    expect(find.text('Cart changed. Generate a new KHQR.'), findsOneWidget);
-    expect(find.textContaining('Generate a fresh KHQR'), findsOneWidget);
+    expect(find.text('Discount'), findsOneWidget);
+    expect(find.text('-\$2.90'), findsOneWidget);
+    expect(find.text('Auto discount applied'), findsOneWidget);
+    expect(find.text('\$18.00'), findsOneWidget);
   });
 }

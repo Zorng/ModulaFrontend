@@ -12,15 +12,12 @@ final discountDetailControllerProvider =
     );
 
 class DiscountDetailController extends Notifier<DiscountDetailState> {
-  late final DiscountRepository _repository;
+  DiscountRepository get _repository => ref.read(discountRepositoryProvider);
   String? _ruleId;
 
   @override
   DiscountDetailState build() {
-    _repository = ref.read(discountRepositoryProvider);
-    final session = ref.watch(
-      loginControllerProvider.select((value) => value.session),
-    );
+    final session = ref.read(loginControllerProvider).session;
     return DiscountDetailState(canManage: _canManage(session));
   }
 

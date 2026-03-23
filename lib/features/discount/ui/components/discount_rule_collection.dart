@@ -16,6 +16,7 @@ class DiscountRuleCollection extends StatelessWidget {
     this.onOpenCreate,
     required this.onOpenRule,
     required this.branchNamesById,
+    this.emptyMessage = 'No discount rules match the current filters.',
   });
 
   final bool isLoading;
@@ -26,6 +27,7 @@ class DiscountRuleCollection extends StatelessWidget {
   final Future<void> Function()? onOpenCreate;
   final Future<void> Function(DiscountRule rule) onOpenRule;
   final Map<String, String> branchNamesById;
+  final String emptyMessage;
 
   @override
   Widget build(BuildContext context) {
@@ -46,7 +48,7 @@ class DiscountRuleCollection extends StatelessWidget {
 
     if (rules.isEmpty) {
       return DiscountStateMessage(
-        message: 'No discount rules match the current filters.',
+        message: emptyMessage,
         actionLabel: onOpenCreate == null ? null : 'Add discount',
         onAction: onOpenCreate,
       );

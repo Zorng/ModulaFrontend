@@ -11,6 +11,7 @@ class DiscountListState {
     this.searchQuery = '',
     this.statusFilter = 'ALL',
     this.scopeFilter = 'ALL',
+    this.branchIdFilter,
     this.canManage = false,
   });
 
@@ -21,6 +22,7 @@ class DiscountListState {
   final String searchQuery;
   final String statusFilter;
   final String scopeFilter;
+  final String? branchIdFilter;
   final bool canManage;
 
   bool get isReadOnly => !canManage;
@@ -34,10 +36,13 @@ class DiscountListState {
         .where((rule) {
           final statusOk = statusFilter == 'ALL' || rule.status == statusFilter;
           final scopeOk = scopeFilter == 'ALL' || rule.scope == scopeFilter;
+          final branchOk =
+              (branchIdFilter ?? '').trim().isEmpty ||
+              rule.branchId == branchIdFilter;
           final searchOk =
               normalizedSearch.isEmpty ||
               rule.name.toLowerCase().contains(normalizedSearch);
-          return statusOk && scopeOk && searchOk;
+          return statusOk && scopeOk && branchOk && searchOk;
         })
         .toList(growable: false);
   }
@@ -50,6 +55,7 @@ class DiscountListState {
     String? searchQuery,
     String? statusFilter,
     String? scopeFilter,
+    Object? branchIdFilter = _unset,
     bool? canManage,
   }) {
     return DiscountListState(
@@ -62,6 +68,9 @@ class DiscountListState {
       searchQuery: searchQuery ?? this.searchQuery,
       statusFilter: statusFilter ?? this.statusFilter,
       scopeFilter: scopeFilter ?? this.scopeFilter,
+      branchIdFilter: identical(branchIdFilter, _unset)
+          ? this.branchIdFilter
+          : branchIdFilter as String?,
       canManage: canManage ?? this.canManage,
     );
   }

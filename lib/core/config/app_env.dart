@@ -45,6 +45,9 @@ class AppEnv {
   static const _inventoryRepositoryModeDefine = String.fromEnvironment(
     'INVENTORY_REPOSITORY_MODE',
   );
+  static const _discountRepositoryModeDefine = String.fromEnvironment(
+    'DISCOUNT_REPOSITORY_MODE',
+  );
   static const _policyRepositoryModeDefine = String.fromEnvironment(
     'POLICY_REPOSITORY_MODE',
   );
@@ -167,6 +170,15 @@ class AppEnv {
     final mode = _readString(
       primary: _inventoryRepositoryModeDefine,
       dotenvKey: 'INVENTORY_REPOSITORY_MODE',
+      defaultValue: 'api',
+    );
+    return mode.trim().toLowerCase() == 'mock';
+  }
+
+  static bool get useMockDiscountRepository {
+    final mode = _readString(
+      primary: _discountRepositoryModeDefine,
+      dotenvKey: 'DISCOUNT_REPOSITORY_MODE',
       defaultValue: 'api',
     );
     return mode.trim().toLowerCase() == 'mock';

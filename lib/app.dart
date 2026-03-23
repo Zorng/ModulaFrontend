@@ -80,6 +80,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final isAdminOrOwner = role == AuthRole.admin || role == AuthRole.owner;
       final isCashier = role == AuthRole.cashier;
       final isManager = role == AuthRole.manager;
+      final canReadDiscount = isAdminOrOwner || isCashier || isManager;
       final activeBranchId = ref.read(activeBranchContextIdProvider) ?? '';
       final hasActiveBranchContext = activeBranchId.isNotEmpty;
       final currentTarget = state.uri.toString();
@@ -145,9 +146,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         );
       }
 
-      if ((isPathInGroup(path, AppRoute.policy.path) ||
-              isPathInGroup(path, AppRoute.discount.path)) &&
-          !isAdminOrOwner) {
+      if (isPathInGroup(path, AppRoute.policy.path) && !isAdminOrOwner) {
+        return '/404';
+      }
+      if (_isDiscountReadRoute(path) && !canReadDiscount) {
+        return '/404';
+      }
+      if (_isDiscountManageRoute(path) && !isAdminOrOwner) {
         return '/404';
       }
       if (isPathInGroup(path, AppRoute.branchSubscription.path) &&
@@ -252,8 +257,7 @@ bool _isTenantAdminRoute(String path) {
   return isPathInGroup(path, AppRoute.branch.path) ||
       isPathInGroup(path, AppRoute.adminMenu.path) ||
       isPathInGroup(path, AppRoute.inventory.path) ||
-      isPathInGroup(path, AppRoute.staff.path) ||
-      isPathInGroup(path, AppRoute.discount.path);
+      isPathInGroup(path, AppRoute.staff.path);
 }
 
 bool _isBranchScopedRoute(String path) {
@@ -263,8 +267,18 @@ bool _isBranchScopedRoute(String path) {
       isPathInGroup(path, AppRoute.cashHistory.path) ||
       isPathInGroup(path, AppRoute.policy.path) ||
       isPathInGroup(path, AppRoute.sale.path) ||
+      isPathInGroup(path, AppRoute.branchDiscount.path) ||
       isPathInGroup(path, AppRoute.attendance.path) ||
       isPathInGroup(path, AppRoute.xReport.path) ||
       isPathInGroup(path, AppRoute.zReport.path) ||
       path == AppRoute.attendanceManagement.path;
+}
+
+bool _isDiscountReadRoute(String path) {
+  return isPathInGroup(path, AppRoute.discount.path) &&
+      !_isDiscountManageRoute(path);
+}
+
+bool _isDiscountManageRoute(String path) {
+  return isPathInGroup(path, AppRoute.discountRuleForm.path);
 }

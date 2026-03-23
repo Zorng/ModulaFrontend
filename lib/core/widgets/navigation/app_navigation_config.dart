@@ -96,6 +96,12 @@ List<AppNavigationSection> buildAppNavigationSections({
               route: AppRoute.sale,
               scope: AppNavigationScope.branch,
             ),
+            AppNavigationDestination(
+              label: 'Active Discount',
+              icon: Icons.percent_outlined,
+              route: AppRoute.branchDiscount,
+              scope: AppNavigationScope.branch,
+            ),
           ],
         ),
       ];
@@ -114,6 +120,12 @@ List<AppNavigationSection> buildAppNavigationSections({
               label: 'Sale',
               icon: Icons.point_of_sale,
               route: AppRoute.sale,
+              scope: AppNavigationScope.branch,
+            ),
+            const AppNavigationDestination(
+              label: 'Active Discount',
+              icon: Icons.percent_outlined,
+              route: AppRoute.branchDiscount,
               scope: AppNavigationScope.branch,
             ),
             const AppNavigationDestination(

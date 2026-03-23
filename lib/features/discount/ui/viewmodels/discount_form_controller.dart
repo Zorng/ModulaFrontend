@@ -18,17 +18,14 @@ final discountFormControllerProvider =
     );
 
 class DiscountFormController extends Notifier<DiscountFormState> {
-  late final DiscountRepository _repository;
+  DiscountRepository get _repository => ref.read(discountRepositoryProvider);
   String? _ruleId;
 
   bool get isEditMode => (_ruleId ?? '').trim().isNotEmpty;
 
   @override
   DiscountFormState build() {
-    _repository = ref.read(discountRepositoryProvider);
-    final session = ref.watch(
-      loginControllerProvider.select((value) => value.session),
-    );
+    final session = ref.read(loginControllerProvider).session;
     return DiscountFormState(canManage: _canManage(session));
   }
 

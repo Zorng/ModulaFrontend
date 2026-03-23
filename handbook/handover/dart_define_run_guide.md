@@ -32,6 +32,7 @@ Config values are read in this order (see `lib/core/config/app_env.dart`):
 - `POLICY_API_PREFIX`
 - `ATTENDANCE_API_PREFIX`
 - `BRANCH_API_PREFIX`
+- `DISCOUNT_REPOSITORY_MODE` (`mock` or `api`)
 - `ATTENDANCE_REPOSITORY_MODE` (`mock` or `api`)
 - `SALE_REPOSITORY_MODE` (`mock` or `api`)
 - `SHOW_DEBUG_ERRORS` (`true`/`false`)
@@ -52,6 +53,7 @@ flutter run -d chrome \
   --dart-define=POLICY_API_PREFIX=/v1/policies \
   --dart-define=ATTENDANCE_API_PREFIX=/v1/attendance \
   --dart-define=BRANCH_API_PREFIX=/v1/branches \
+  --dart-define=DISCOUNT_REPOSITORY_MODE=api \
   --dart-define=ATTENDANCE_REPOSITORY_MODE=api \
   --dart-define=SALE_REPOSITORY_MODE=api \
   --dart-define=SHOW_DEBUG_ERRORS=true

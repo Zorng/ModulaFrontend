@@ -3,6 +3,7 @@ import 'package:modular_pos/core/formatters/khr_currency_formatter.dart';
 import 'package:modular_pos/core/input_formatters/khr_text_input_formatter.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 import 'package:modular_pos/features/sale/data/sale_checkout_repository_contract.dart';
+import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_pricing.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_state.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_khqr_states.dart';
 import 'package:modular_pos/core/input_formatters/decimal_text_input_formatter.dart';
@@ -14,6 +15,7 @@ class SaleCartContent extends StatelessWidget {
     super.key,
     required this.items,
     required this.groupLookup,
+    required this.linePricings,
     required this.onIncrement,
     required this.onDecrement,
     required this.paymentMethod,
@@ -23,6 +25,7 @@ class SaleCartContent extends StatelessWidget {
     required this.usdController,
     required this.khrController,
     required this.subtotal,
+    required this.discountUsd,
     required this.taxUsd,
     required this.showTaxBreakdown,
     required this.grandTotalUsd,
@@ -33,10 +36,13 @@ class SaleCartContent extends StatelessWidget {
     required this.khqrStatus,
     required this.khqrErrorCode,
     required this.khqrReceiverConfigured,
+    this.isResolvingDiscounts = false,
+    this.discountResolutionError,
   });
 
   final List<CartLine> items;
   final Map<String, ModifierGroup> groupLookup;
+  final List<SaleCartLinePricing> linePricings;
   final void Function(int, CartLine) onIncrement;
   final void Function(int, CartLine) onDecrement;
   final String paymentMethod;
@@ -46,6 +52,7 @@ class SaleCartContent extends StatelessWidget {
   final TextEditingController usdController;
   final TextEditingController khrController;
   final double subtotal;
+  final double discountUsd;
   final double taxUsd;
   final bool showTaxBreakdown;
   final double grandTotalUsd;
@@ -56,6 +63,8 @@ class SaleCartContent extends StatelessWidget {
   final String khqrStatus;
   final String? khqrErrorCode;
   final bool? khqrReceiverConfigured;
+  final bool isResolvingDiscounts;
+  final String? discountResolutionError;
 
   _KhqrCalloutContent _khqrCalloutContent() {
     final normalizedStatus = SaleKhqrUiStates.normalize(khqrStatus);
@@ -163,6 +172,9 @@ class SaleCartContent extends StatelessWidget {
               if (index > 0) const Divider(height: 1),
               SaleCartItemRow(
                 item: line,
+                pricing: index < linePricings.length
+                    ? linePricings[index]
+                    : null,
                 onIncrement: readOnly ? null : () => onIncrement(index, line),
                 onDecrement: readOnly ? null : () => onDecrement(index, line),
                 groupLookup: groupLookup,
@@ -172,9 +184,27 @@ class SaleCartContent extends StatelessWidget {
         }),
         const Divider(height: 16),
         SaleCartSummaryRow(label: 'Subtotal', value: subtotal),
+        if (discountUsd.abs() >= 0.005) ...[
+          const SizedBox(height: 8),
+          SaleCartSummaryRow(label: 'Discount', value: -discountUsd),
+        ],
         if (showTaxBreakdown) ...[
           const SizedBox(height: 8),
           SaleCartSummaryRow(label: 'Tax', value: taxUsd),
+        ],
+        if (isResolvingDiscounts ||
+            (discountResolutionError?.trim().isNotEmpty ?? false)) ...[
+          const SizedBox(height: 8),
+          Text(
+            isResolvingDiscounts
+                ? 'Resolving active discounts...'
+                : discountResolutionError!.trim(),
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: isResolvingDiscounts
+                  ? Theme.of(context).colorScheme.onSurfaceVariant
+                  : Theme.of(context).colorScheme.error,
+            ),
+          ),
         ],
         const SizedBox(height: 20),
         Text(

@@ -10,6 +10,7 @@ import 'package:modular_pos/features/sale/ui/view/sale_cart/widgets/sale_cart_pa
 import 'package:modular_pos/features/sale/ui/view/sale_shell/widgets/sale_printer_status_action.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/order_viewmodel.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_access_gate.dart';
+import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_viewmodel.dart';
 
 class SaleBottomNavShellPage extends ConsumerStatefulWidget {
   const SaleBottomNavShellPage({super.key, required this.navigationShell});
@@ -99,6 +100,12 @@ class _SaleBottomNavShellPageState
     if (_lastObservedShellIndex != index) {
       final previousIndex = _lastObservedShellIndex;
       _lastObservedShellIndex = index;
+      if (index == 0) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          ref.read(saleCartProvider.notifier).refreshDiscountEligibility();
+        });
+      }
       if (previousIndex != -1 && index == 2) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;

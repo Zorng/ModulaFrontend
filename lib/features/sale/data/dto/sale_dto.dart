@@ -85,6 +85,10 @@ class SaleDto {
     required this.fulfillmentStatus,
     required this.subtotalUsdExact,
     required this.subtotalKhrExact,
+    required this.discountUsdExact,
+    required this.discountKhrExact,
+    required this.taxUsdExact,
+    required this.taxKhrExact,
     required this.totalUsdExact,
     required this.totalKhrExact,
     required this.cashReceivedUsd,
@@ -110,6 +114,10 @@ class SaleDto {
   final String fulfillmentStatus;
   final double subtotalUsdExact;
   final double subtotalKhrExact;
+  final double discountUsdExact;
+  final double discountKhrExact;
+  final double taxUsdExact;
+  final double taxKhrExact;
   final double totalUsdExact;
   final double totalKhrExact;
   final double? cashReceivedUsd;
@@ -156,6 +164,14 @@ class SaleDto {
       subtotalKhrExact: _readDouble(
         json['subtotalKhrExact'] ?? json['subtotalKhr'],
       ),
+      discountUsdExact: _readDouble(
+        json['discountUsdExact'] ?? json['discountUsd'] ?? 0,
+      ),
+      discountKhrExact: _readDouble(
+        json['discountKhrExact'] ?? json['discountKhr'] ?? 0,
+      ),
+      taxUsdExact: _readDouble(json['vatUsdExact'] ?? json['vatUsd'] ?? 0),
+      taxKhrExact: _readDouble(json['vatKhrExact'] ?? json['vatKhr'] ?? 0),
       totalUsdExact: _readDouble(
         json['totalUsdExact'] ?? json['grandTotalUsd'],
       ),
@@ -359,7 +375,11 @@ class SaleReceiptSaleSnapshotDto {
     required this.paymentMethod,
     required this.tenderCurrency,
     required this.subtotalUsd,
+    required this.subtotalKhr,
+    required this.discountUsd,
+    required this.discountKhr,
     required this.vatUsd,
+    required this.vatKhr,
     required this.grandTotalUsd,
     required this.grandTotalKhr,
   });
@@ -367,7 +387,11 @@ class SaleReceiptSaleSnapshotDto {
   final String paymentMethod;
   final String tenderCurrency;
   final double subtotalUsd;
+  final double subtotalKhr;
+  final double discountUsd;
+  final double discountKhr;
   final double vatUsd;
+  final double vatKhr;
   final double grandTotalUsd;
   final double grandTotalKhr;
 
@@ -380,7 +404,15 @@ class SaleReceiptSaleSnapshotDto {
             json['subtotalUsdExact'] ??
             json['grandTotalUsd'],
       ),
+      subtotalKhr: _readDouble(
+        json['subtotalKhr'] ??
+            json['subtotalKhrExact'] ??
+            json['grandTotalKhr'],
+      ),
+      discountUsd: _readDouble(json['discountUsd'] ?? 0),
+      discountKhr: _readDouble(json['discountKhr'] ?? 0),
       vatUsd: _readDouble(json['vatUsd'] ?? json['vatAmountUsd'] ?? 0),
+      vatKhr: _readDouble(json['vatKhr'] ?? json['vatAmountKhr'] ?? 0),
       grandTotalUsd: _readDouble(json['grandTotalUsd']),
       grandTotalKhr: _readDouble(json['grandTotalKhr']),
     );

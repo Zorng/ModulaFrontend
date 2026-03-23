@@ -77,6 +77,7 @@ void main() {
         paymentMethod: 'cash',
         issuedAt: DateTime(2026, 3, 10, 8, 30),
         subtotalUsd: 5.25,
+        discountUsd: 0.75,
         taxUsd: 0,
         totalUsd: 5.25,
         totalKhr: 21000,
@@ -125,6 +126,7 @@ void main() {
     );
     expect(text, contains(r'+$0.75'));
     expect(text, contains('Subtotal'));
+    expect(text, contains('Discount'));
     expect(text, contains('Tax'));
     expect(text, contains('TOTAL'));
     expect(text, contains('Payment method: CASH'));

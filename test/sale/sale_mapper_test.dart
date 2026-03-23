@@ -35,6 +35,75 @@ void main() {
     expect(summary.paymentMethod, 'cash');
   });
 
+  test('maps sale totals including discount and VAT into domain sale', () {
+    final dto = SaleDto.fromJson({
+      'id': 'sale-2',
+      'clientUuid': 'client-2',
+      'tenantId': 'tenant-1',
+      'branchId': 'branch-1',
+      'employeeId': 'user-1',
+      'saleType': 'take_away',
+      'state': 'FINALIZED',
+      'fxRateUsed': 4100,
+      'tenderCurrency': 'USD',
+      'paymentMethod': 'cash',
+      'fulfillmentStatus': 'ready',
+      'subtotalUsd': 10,
+      'subtotalKhr': 41000,
+      'discountUsd': 1.5,
+      'discountKhr': 6150,
+      'vatUsd': 0.85,
+      'vatKhr': 3485,
+      'grandTotalUsd': 9.35,
+      'grandTotalKhr': 38335,
+      'createdAt': '2026-03-07T10:00:00.000Z',
+      'updatedAt': '2026-03-07T10:05:00.000Z',
+      'items': const [],
+    });
+
+    final sale = SaleMappers.toDomainSale(dto);
+
+    expect(sale.discountUsdExact, 1.5);
+    expect(sale.discountKhrExact, 6150);
+    expect(sale.taxUsdExact, 0.85);
+    expect(sale.taxKhrExact, 3485);
+    expect(sale.totalUsdExact, 9.35);
+  });
+
+  test('maps receipt snapshot discount into canonical receipt', () {
+    final receipt = SaleMappers.toCanonicalReceipt(
+      SaleReceiptReadDto.fromJson({
+        'receiptId': 'RCP-1005',
+        'saleId': 'sale-5',
+        'receiptNumber': 'RCP-1005',
+        'statusDisplay': 'NORMAL',
+        'issuedAt': '2026-03-10T08:30:00.000Z',
+        'saleSnapshot': {
+          'paymentMethod': 'CASH',
+          'tenderCurrency': 'USD',
+          'subtotalUsd': 10,
+          'discountUsd': 1.5,
+          'vatUsd': 0.85,
+          'grandTotalUsd': 9.35,
+          'grandTotalKhr': 38335,
+        },
+        'lines': const [
+          {
+            'menuItemNameSnapshot': 'Iced Latte',
+            'quantity': 2,
+            'unitPrice': 4.25,
+            'lineTotalAmount': 8.5,
+          },
+        ],
+      }),
+    );
+
+    expect(receipt.subtotalUsdExact, 10);
+    expect(receipt.discountUsdExact, 1.5);
+    expect(receipt.taxUsdExact, 0.85);
+    expect(receipt.totalUsdExact, 9.35);
+  });
+
   test('maps KHQR initiate response into checkout attempt dto', () {
     final attempt = SaleMappers.toKhqrAttempt(
       command: const SaleGenerateKhqrAttemptCommand(

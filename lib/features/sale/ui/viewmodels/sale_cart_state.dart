@@ -2,6 +2,7 @@ import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 import 'package:modular_pos/core/printing/esc_pos_receipt_formatter.dart';
 import 'package:modular_pos/features/sale/data/sale_checkout_repository_contract.dart';
+import 'package:modular_pos/features/sale/domain/models/sale_resolved_discount.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_khqr_states.dart';
 
 class CartLine {
@@ -93,6 +94,9 @@ class SaleCartState {
     this.khqrErrorMessage,
     this.khqrErrorCode,
     this.isKhqrLoading = false,
+    this.resolvedDiscounts,
+    this.isResolvingDiscounts = false,
+    this.discountResolutionError,
   });
 
   final String? saleId;
@@ -127,6 +131,9 @@ class SaleCartState {
   final String? khqrErrorMessage;
   final String? khqrErrorCode;
   final bool isKhqrLoading;
+  final SaleResolvedDiscountSet? resolvedDiscounts;
+  final bool isResolvingDiscounts;
+  final String? discountResolutionError;
 
   String? get normalizedCheckoutErrorCode =>
       SaleCheckoutReasonCodes.normalize(checkoutErrorCode);
@@ -196,6 +203,9 @@ class SaleCartState {
     Object? khqrErrorMessage = _unset,
     Object? khqrErrorCode = _unset,
     bool? isKhqrLoading,
+    Object? resolvedDiscounts = _unset,
+    bool? isResolvingDiscounts,
+    Object? discountResolutionError = _unset,
   }) {
     return SaleCartState(
       saleId: saleId == _unset ? this.saleId : saleId as String?,
@@ -272,6 +282,13 @@ class SaleCartState {
           ? this.khqrErrorCode
           : khqrErrorCode as String?,
       isKhqrLoading: isKhqrLoading ?? this.isKhqrLoading,
+      resolvedDiscounts: resolvedDiscounts == _unset
+          ? this.resolvedDiscounts
+          : resolvedDiscounts as SaleResolvedDiscountSet?,
+      isResolvingDiscounts: isResolvingDiscounts ?? this.isResolvingDiscounts,
+      discountResolutionError: discountResolutionError == _unset
+          ? this.discountResolutionError
+          : discountResolutionError as String?,
     );
   }
 

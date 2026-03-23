@@ -12,6 +12,11 @@ List<RouteBase> buildDiscountRoutes() {
       builder: (context, state) => const DiscountPage(),
     ),
     GoRoute(
+      path: AppRoute.branchDiscount.path,
+      name: AppRoute.branchDiscount.name,
+      builder: (context, state) => const DiscountPage(branchActiveOnly: true),
+    ),
+    GoRoute(
       path: AppRoute.discountRuleForm.path,
       name: AppRoute.discountRuleForm.name,
       builder: (context, state) => DiscountRuleFormPage(

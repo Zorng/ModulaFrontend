@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:modular_pos/core/widgets/media/product_image.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 import 'package:modular_pos/features/sale/ui/components/quantity_stepper.dart';
+import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_pricing.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_state.dart';
 
 class SaleCartItemRow extends StatelessWidget {
@@ -9,6 +10,7 @@ class SaleCartItemRow extends StatelessWidget {
     super.key,
     required this.item,
     required this.groupLookup,
+    this.pricing,
     this.onIncrement,
     this.onDecrement,
   });
@@ -17,9 +19,13 @@ class SaleCartItemRow extends StatelessWidget {
   final VoidCallback? onIncrement;
   final VoidCallback? onDecrement;
   final Map<String, ModifierGroup> groupLookup;
+  final SaleCartLinePricing? pricing;
 
   double _lineTotal() {
-    double addons = 0;
+    if (pricing != null) {
+      return pricing!.lineTotalUsd;
+    }
+    var addons = 0.0;
     item.selectedOptionIds.forEach((groupId, optionIds) {
       final group = groupLookup[groupId];
       if (group == null) return;
@@ -32,6 +38,13 @@ class SaleCartItemRow extends StatelessWidget {
       }
     });
     return (item.item.price + addons) * item.quantity;
+  }
+
+  double? _originalLineTotal() {
+    if (pricing == null || !pricing!.hasDiscount) {
+      return null;
+    }
+    return pricing!.preDiscountLineTotalUsd;
   }
 
   @override
@@ -48,6 +61,8 @@ class SaleCartItemRow extends StatelessWidget {
         if (opt.id.isNotEmpty) optionNames.add(opt.name);
       }
     });
+    final originalLineTotal = _originalLineTotal();
+    final hasDiscount = originalLineTotal != null;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
@@ -100,12 +115,28 @@ class SaleCartItemRow extends StatelessWidget {
                 onIncrement: onIncrement,
               ),
               const SizedBox(height: 4),
+              if (hasDiscount)
+                Text(
+                  '\$${originalLineTotal.toStringAsFixed(2)}',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    decoration: TextDecoration.lineThrough,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
               Text(
                 '\$${_lineTotal().toStringAsFixed(2)}',
                 style: Theme.of(
                   context,
                 ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
               ),
+              if (hasDiscount)
+                Text(
+                  'Auto discount applied',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  textAlign: TextAlign.end,
+                ),
             ],
           ),
         ],

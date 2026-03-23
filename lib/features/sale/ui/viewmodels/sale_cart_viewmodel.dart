@@ -22,13 +22,16 @@ import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
 import 'package:modular_pos/features/policy/domain/models/policy.dart';
 import 'package:modular_pos/features/policy/ui/viewmodels/policy_viewmodel.dart';
 import 'package:modular_pos/features/sale/data/sale_checkout_repository_contract.dart';
+import 'package:modular_pos/features/sale/data/sale_discount_resolver.dart';
 import 'package:modular_pos/features/sale/data/sale_offline_cash_queue.dart';
 import 'package:modular_pos/features/sale/data/sale_outage_store.dart';
 import 'package:modular_pos/features/sale/data/sale_repository.dart';
 import 'package:modular_pos/features/sale/domain/models/sale.dart';
+import 'package:modular_pos/features/sale/domain/models/sale_resolved_discount.dart';
 import 'package:modular_pos/features/sale/domain/models/sale_outage_order.dart';
 import 'package:modular_pos/features/sale/ui/view/sale_item_detail/sale_item_detail_page.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_access_gate.dart';
+import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_pricing.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_payload_builder.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_state.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_khqr_states.dart';
@@ -117,8 +120,12 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
   SaleCartNotifier();
 
   late final SaleCartRepository _repo = ref.read(saleCartRepositoryProvider);
+  late final SaleDiscountResolver _discountResolver = ref.read(
+    saleDiscountResolverProvider,
+  );
   final Uuid _uuid = const Uuid();
   static const String _cartStorageKey = 'sale_cart_state';
+  int _discountResolutionEpoch = 0;
 
   void _logIgnoredError(String context, Object error, StackTrace stackTrace) {
     AppLog.e(
@@ -150,6 +157,7 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
           AppLog.d(
             '[SaleCartNotifier] Cart restored with ${restoredState.lines.length} items',
           );
+          _scheduleDiscountRefresh();
         }
       }
     } catch (e, st) {
@@ -171,6 +179,88 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
         )
         .toList(growable: false);
     return restoredState.copyWith(saleId: null, lines: sanitizedLines);
+  }
+
+  String _activeBranchIdForDiscountResolution() {
+    final activeBranchId =
+        (ref.read(activeBranchContextIdProvider) ??
+                ref.read(saleAccessGateProvider).branchId ??
+                '')
+            .trim();
+    return activeBranchId;
+  }
+
+  List<SaleDiscountResolveLine> _buildDiscountResolveLines(
+    List<CartLine> lines,
+  ) {
+    final quantitiesByMenuItem = <String, int>{};
+    for (final line in lines) {
+      final menuItemId = line.item.id.trim();
+      if (menuItemId.isEmpty || line.quantity <= 0) continue;
+      quantitiesByMenuItem.update(
+        menuItemId,
+        (quantity) => quantity + line.quantity,
+        ifAbsent: () => line.quantity,
+      );
+    }
+    return quantitiesByMenuItem.entries
+        .map(
+          (entry) => SaleDiscountResolveLine(
+            menuItemId: entry.key,
+            quantity: entry.value,
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  void _scheduleDiscountRefresh() {
+    unawaited(refreshDiscountEligibility());
+  }
+
+  Future<void> refreshDiscountEligibility() async {
+    final session = ref.read(loginControllerProvider).session;
+    final branchId = _activeBranchIdForDiscountResolution();
+    final lines = _buildDiscountResolveLines(state.lines);
+    final requestEpoch = ++_discountResolutionEpoch;
+
+    if (session == null ||
+        !session.hasEstablishedTenantContext ||
+        branchId.isEmpty ||
+        lines.isEmpty) {
+      state = state.copyWith(
+        resolvedDiscounts: null,
+        isResolvingDiscounts: false,
+        discountResolutionError: null,
+      );
+      return;
+    }
+
+    state = state.copyWith(
+      isResolvingDiscounts: true,
+      discountResolutionError: null,
+    );
+
+    try {
+      final resolvedDiscounts = await _discountResolver.resolveForCart(
+        branchId: branchId,
+        occurredAt: DateTime.now().toUtc(),
+        lines: lines,
+      );
+      if (requestEpoch != _discountResolutionEpoch) return;
+      state = state.copyWith(
+        resolvedDiscounts: resolvedDiscounts,
+        isResolvingDiscounts: false,
+        discountResolutionError: null,
+      );
+    } catch (error, stackTrace) {
+      _logIgnoredError('refreshDiscountEligibility', error, stackTrace);
+      if (requestEpoch != _discountResolutionEpoch) return;
+      state = state.copyWith(
+        isResolvingDiscounts: false,
+        discountResolutionError:
+            'Failed to resolve active discounts for this cart.',
+      );
+    }
   }
 
   Future<void> _persistCart(SaleCartState cartState) async {
@@ -226,37 +316,18 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
     return labels;
   }
 
-  double _lineTotalUsd(CartLine line, Map<String, ModifierGroup> groupLookup) {
-    var addonTotal = 0.0;
-    for (final entry in line.selectedOptionIds.entries) {
-      final group = groupLookup[entry.key];
-      if (group == null) continue;
-      for (final optionId in entry.value) {
-        final option = group.options.where(
-          (candidate) => candidate.id == optionId,
-        );
-        if (option.isNotEmpty) {
-          addonTotal += option.first.price;
-        }
-      }
-    }
-    return (line.item.price + addonTotal) * line.quantity;
-  }
-
-  double _subtotalUsd(
-    List<CartLine> lines,
-    Map<String, ModifierGroup> groupLookup,
-  ) {
-    return lines.fold<double>(
-      0,
-      (sum, line) => sum + _lineTotalUsd(line, groupLookup),
+  SaleCartPricing _cartPricingForState(
+    SaleCartState cartState, {
+    Map<String, ModifierGroup>? groupLookup,
+    BranchPolicy? branchPolicy,
+  }) {
+    return SaleCartPricingCalculator.calculate(
+      lines: cartState.lines,
+      groupLookup: groupLookup ?? _groupLookup(),
+      branchPolicy:
+          branchPolicy ?? ref.read(policyNotifierProvider).branchPolicy,
+      resolvedDiscounts: cartState.resolvedDiscounts,
     );
-  }
-
-  double _taxUsd(double subtotal, BranchPolicy branchPolicy) {
-    if (!branchPolicy.saleVatEnabled) return 0;
-    if (branchPolicy.saleVatRatePercent <= 0) return 0;
-    return subtotal * (branchPolicy.saleVatRatePercent / 100);
   }
 
   void _assertCanCreateDraftSale() {
@@ -548,6 +619,7 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
         );
         state = newState;
         await _persistCart(newState);
+        _scheduleDiscountRefresh();
         return;
       }
     }
@@ -567,6 +639,7 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
     );
     state = newState;
     await _persistCart(newState);
+    _scheduleDiscountRefresh();
   }
 
   Future<void> setTenderCurrency(String currency) async {
@@ -606,6 +679,7 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
     );
     state = newState;
     _persistCart(newState);
+    _scheduleDiscountRefresh();
   }
 
   Future<void> setSaleType(String saleType) async {
@@ -638,6 +712,7 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
       );
       state = newState;
       await _persistCart(newState);
+      _scheduleDiscountRefresh();
       return;
     }
     lines[index] = target.copyWith(quantity: quantity);
@@ -646,9 +721,11 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
     );
     state = newState;
     await _persistCart(newState);
+    _scheduleDiscountRefresh();
   }
 
   void clear() {
+    _discountResolutionEpoch++;
     state = const SaleCartState();
     _clearPersistedCart();
   }
@@ -938,23 +1015,63 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
   List<SaleOutageLineSnapshot> _buildOutageLineSnapshots(
     List<CartLine> lines,
     Map<String, ModifierGroup> groupLookup,
+    SaleCartPricing cartPricing,
   ) {
     return lines
+        .asMap()
+        .entries
         .map(
-          (line) => SaleOutageLineSnapshot(
-            menuItemId: line.item.id,
-            name: line.item.name,
-            quantity: line.quantity,
+          (entry) => SaleOutageLineSnapshot(
+            menuItemId: entry.value.item.id,
+            name: entry.value.item.name,
+            quantity: entry.value.quantity,
             selectedOptionIds: {
-              for (final entry in line.selectedOptionIds.entries)
-                entry.key: List<String>.from(entry.value),
+              for (final selected in entry.value.selectedOptionIds.entries)
+                selected.key: List<String>.from(selected.value),
             },
-            modifierLabels: _modifierLabels(line, groupLookup),
-            unitPriceUsd: line.item.price,
-            lineTotalUsdExact: _lineTotalUsd(line, groupLookup),
+            modifierLabels: _modifierLabels(entry.value, groupLookup),
+            unitPriceUsd: cartPricing
+                .pricingForIndex(entry.key)
+                .discountedUnitPriceUsd,
+            lineTotalUsdExact: cartPricing
+                .pricingForIndex(entry.key)
+                .lineTotalUsd,
           ),
         )
         .toList(growable: false);
+  }
+
+  Map<String, dynamic> _cartDiscountSnapshot(
+    SaleCartPricing cartPricing, {
+    required double subtotalKhr,
+    required double discountKhr,
+    required double taxKhr,
+  }) {
+    return <String, dynamic>{
+      'subtotalUsd': cartPricing.preDiscountSubtotalUsd,
+      'subtotalAfterDiscountUsd': cartPricing.subtotalUsd,
+      'itemDiscountUsd': cartPricing.itemDiscountUsd,
+      'branchWideDiscountUsd': cartPricing.branchWideDiscountUsd,
+      'discountUsd': cartPricing.discountUsd,
+      'subtotalKhr': subtotalKhr,
+      'discountKhr': discountKhr,
+      'vatUsd': cartPricing.taxUsd,
+      'vatKhr': taxKhr,
+      'grandTotalUsd': cartPricing.grandTotalUsd,
+      'grandTotalKhr': cartPricing.grandTotalKhr,
+      if ((cartPricing.discountResolutionBranchId ?? '').trim().isNotEmpty)
+        'discountResolutionBranchId': cartPricing.discountResolutionBranchId,
+      if (cartPricing.branchWideRules.isNotEmpty)
+        'branchWideDiscounts': cartPricing.branchWideRules
+            .map(
+              (rule) => <String, dynamic>{
+                'ruleId': rule.ruleId,
+                'percentage': rule.percentage,
+                'scope': rule.scope,
+              },
+            )
+            .toList(growable: false),
+    };
   }
 
   Future<SaleOfflineCaptureResult> _captureOfflineOutageOrder({
@@ -1020,11 +1137,18 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
 
     final groupLookup = _groupLookup();
     final branchPolicy = ref.read(policyNotifierProvider).branchPolicy;
-    final subtotalUsd = _subtotalUsd(currentState.lines, groupLookup);
-    final taxUsd = _taxUsd(subtotalUsd, branchPolicy);
-    final totalUsd = subtotalUsd + taxUsd;
-    final totalKhr = _roundKhr(
-      totalUsd * _fxRate(),
+    final cartPricing = _cartPricingForState(
+      currentState,
+      groupLookup: groupLookup,
+      branchPolicy: branchPolicy,
+    );
+    final subtotalUsd = cartPricing.preDiscountSubtotalUsd;
+    final discountUsd = cartPricing.discountUsd;
+    final taxUsd = cartPricing.taxUsd;
+    final totalUsd = cartPricing.grandTotalUsd;
+    final totalKhr = cartPricing.grandTotalKhr;
+    final subtotalKhr = _roundKhr(
+      subtotalUsd * _fxRate(),
       enabled: branchPolicy.saleKhrRoundingEnabled,
       mode: BranchPolicyRoundingModes.normalize(
         branchPolicy.saleKhrRoundingMode,
@@ -1033,8 +1157,8 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
         branchPolicy.saleKhrRoundingGranularity,
       ),
     );
-    final subtotalKhr = _roundKhr(
-      subtotalUsd * _fxRate(),
+    final discountKhr = _roundKhr(
+      discountUsd * _fxRate(),
       enabled: branchPolicy.saleKhrRoundingEnabled,
       mode: BranchPolicyRoundingModes.normalize(
         branchPolicy.saleKhrRoundingMode,
@@ -1069,7 +1193,11 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
         ? cashReceivedKhr
         : cashReceivedUsd;
     final replayItems = (enqueueCashReplay || enqueueManualClaimCapture)
-        ? _buildOfflineCashReplayItems(currentState.lines, groupLookup)
+        ? _buildOfflineCashReplayItems(
+            currentState.lines,
+            groupLookup,
+            cartPricing,
+          )
         : const <Map<String, dynamic>>[];
 
     final record = SaleOutageOrderRecord(
@@ -1085,7 +1213,11 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
       cashReceivedKhr: cashReceivedKhr,
       totalUsd: totalUsd,
       totalKhr: totalKhr,
-      lines: _buildOutageLineSnapshots(currentState.lines, groupLookup),
+      lines: _buildOutageLineSnapshots(
+        currentState.lines,
+        groupLookup,
+        cartPricing,
+      ),
       state: enqueueCashReplay
           ? SaleOutageOrderStates.awaitingSettlement
           : SaleOutageOrderStates.localOpenOrderCaptured,
@@ -1108,12 +1240,12 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
             'tenderCurrency': normalizedTenderCurrency,
             'cashReceivedTenderAmount': cashReceivedTenderAmount,
             'pricingSnapshot': <String, dynamic>{
-              'subtotalUsd': subtotalUsd,
-              'subtotalKhr': subtotalKhr,
-              'vatUsd': taxUsd,
-              'vatKhr': taxKhr,
-              'grandTotalUsd': totalUsd,
-              'grandTotalKhr': totalKhr,
+              ..._cartDiscountSnapshot(
+                cartPricing,
+                subtotalKhr: subtotalKhr,
+                discountKhr: discountKhr,
+                taxKhr: taxKhr,
+              ),
               'saleFxRateKhrPerUsd': branchPolicy.saleFxRateKhrPerUsd,
               'saleKhrRoundingEnabled': branchPolicy.saleKhrRoundingEnabled,
               'saleKhrRoundingMode': branchPolicy.saleKhrRoundingMode,
@@ -1132,6 +1264,12 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
           final replayPayload = <String, dynamic>{
             'orderId': _uuid.v4(),
             'items': replayItems,
+            'pricingSnapshot': _cartDiscountSnapshot(
+              cartPricing,
+              subtotalKhr: subtotalKhr,
+              discountKhr: discountKhr,
+              taxKhr: taxKhr,
+            ),
           };
           await replayQueue.enqueueManualExternalPaymentClaimCapture(
             scope: scope,
@@ -1370,6 +1508,7 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
       paymentMethod: receipt.paymentMethod,
       issuedAt: receipt.issuedAt,
       subtotalUsd: receipt.subtotalUsdExact,
+      discountUsd: receipt.discountUsdExact,
       taxUsd: receipt.taxUsdExact,
       totalUsd: receipt.totalUsdExact,
       totalKhr: receipt.totalKhrExact,
@@ -1512,6 +1651,7 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
       paymentMethod: paymentMethod == 'qr' ? 'khqr' : paymentMethod,
       issuedAt: issuedAt,
       subtotalUsd: totals.subtotalUsd,
+      discountUsd: totals.discountUsd,
       taxUsd: totals.taxUsd,
       totalUsd: totals.totalUsd,
       totalKhr: totals.totalKhr,
@@ -1534,17 +1674,29 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
         ? finalizeResult.receiptId!.trim()
         : resolvedSaleId;
     final totals = _checkoutCartTotals(previousState);
+    final cartPricing = _cartPricingForState(previousState);
 
     return SaleReceiptDto(
       saleId: resolvedSaleId,
       receiptNumber: receiptNumber,
       paymentMethod: previousState.paymentMethod,
       subtotalUsdExact: totals.subtotalUsd,
+      discountUsdExact: totals.discountUsd,
       taxUsdExact: totals.taxUsd,
       totalUsdExact: totals.totalUsd,
       totalKhrExact: totals.totalKhr,
       issuedAt: issuedAt,
-      lines: previousState.lines.map(_toCachedReceiptLine).toList(),
+      lines: previousState.lines
+          .asMap()
+          .entries
+          .map(
+            (entry) => _toCachedReceiptLine(
+              entry.value,
+              linePricing: cartPricing.pricingForIndex(entry.key),
+              cartPricing: cartPricing,
+            ),
+          )
+          .toList(growable: false),
     );
   }
 
@@ -1592,8 +1744,16 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
     ];
   }
 
-  SaleReceiptLineDto _toCachedReceiptLine(CartLine line) {
-    final payload = SaleCartPayloadBuilder.fromLine(line);
+  SaleReceiptLineDto _toCachedReceiptLine(
+    CartLine line, {
+    required SaleCartLinePricing linePricing,
+    required SaleCartPricing cartPricing,
+  }) {
+    final payload = SaleCartPayloadBuilder.fromLine(
+      line,
+      pricing: linePricing,
+      cartPricing: cartPricing,
+    );
     return SaleReceiptLineDto(
       name: _receiptLineName(line),
       quantity: line.quantity,
@@ -1626,53 +1786,21 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
     return '${line.item.name} (${optionNames.join(', ')})';
   }
 
-  double _cartSubtotalUsd(SaleCartState state) {
-    return state.lines.fold<double>(
-      0,
-      (sum, line) =>
-          sum + (SaleCartPayloadBuilder.fromLine(line).lineTotalUsdExact ?? 0),
-    );
-  }
-
-  ({double subtotalUsd, double taxUsd, double totalUsd, double totalKhr})
+  ({
+    double subtotalUsd,
+    double discountUsd,
+    double taxUsd,
+    double totalUsd,
+    double totalKhr,
+  })
   _checkoutCartTotals(SaleCartState state) {
-    final branchPolicy = ref.read(policyNotifierProvider).branchPolicy;
-    final subtotalUsd = _cartSubtotalUsd(state);
-    final taxUsd = _cartTaxUsd(subtotalUsd, branchPolicy);
-    final totalUsd = subtotalUsd + taxUsd;
-    final totalKhr = _cartGrandTotalKhr(totalUsd, branchPolicy);
+    final cartPricing = _cartPricingForState(state);
     return (
-      subtotalUsd: subtotalUsd,
-      taxUsd: taxUsd,
-      totalUsd: totalUsd,
-      totalKhr: totalKhr,
-    );
-  }
-
-  double _cartTaxUsd(double subtotalUsd, BranchPolicy branchPolicy) {
-    if (!branchPolicy.saleVatEnabled) {
-      return 0;
-    }
-    final ratePercent = branchPolicy.saleVatRatePercent;
-    if (ratePercent <= 0) {
-      return 0;
-    }
-    return subtotalUsd * (ratePercent / 100);
-  }
-
-  double _cartGrandTotalKhr(double totalUsd, BranchPolicy branchPolicy) {
-    final roundingMode = BranchPolicyRoundingModes.normalize(
-      branchPolicy.saleKhrRoundingMode,
-    );
-    final roundingGranularity = BranchPolicyRoundingGranularities.asAmount(
-      branchPolicy.saleKhrRoundingGranularity,
-    );
-    final baseKhr = totalUsd * branchPolicy.saleFxRateKhrPerUsd;
-    return _roundKhr(
-      baseKhr,
-      enabled: branchPolicy.saleKhrRoundingEnabled,
-      mode: roundingMode,
-      granularity: roundingGranularity,
+      subtotalUsd: cartPricing.preDiscountSubtotalUsd,
+      discountUsd: cartPricing.discountUsd,
+      taxUsd: cartPricing.taxUsd,
+      totalUsd: cartPricing.grandTotalUsd,
+      totalKhr: cartPricing.grandTotalKhr,
     );
   }
 
@@ -1988,35 +2116,53 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
   }
 
   List<SaleCartLineInputDto> _buildCommandLines(List<CartLine> lines) {
-    return lines.map((line) {
-      final payload = SaleCartPayloadBuilder.fromLine(line);
-      final modifiers = payload.modifiers
-          .map(
-            (entry) => SaleCartModifierInputDto(
-              groupId: entry.groupId,
-              optionIds: entry.optionIds,
-            ),
-          )
-          .toList();
-      return SaleCartLineInputDto(
-        menuItemId: line.item.id,
-        quantity: line.quantity,
-        modifiers: modifiers,
-        unitPriceUsd: payload.unitPriceUsd,
-        lineTotalUsdExact: payload.lineTotalUsdExact,
-        addonTotalUsd: payload.addonTotalUsd,
-        pricingSnapshot: payload.pricingSnapshot?.toJson(),
-      );
-    }).toList();
+    final cartPricing = _cartPricingForState(state.copyWith(lines: lines));
+    return lines
+        .asMap()
+        .entries
+        .map((entry) {
+          final line = entry.value;
+          final payload = SaleCartPayloadBuilder.fromLine(
+            line,
+            pricing: cartPricing.pricingForIndex(entry.key),
+            cartPricing: cartPricing,
+          );
+          final modifiers = payload.modifiers
+              .map(
+                (entry) => SaleCartModifierInputDto(
+                  groupId: entry.groupId,
+                  optionIds: entry.optionIds,
+                ),
+              )
+              .toList();
+          return SaleCartLineInputDto(
+            menuItemId: line.item.id,
+            quantity: line.quantity,
+            modifiers: modifiers,
+            unitPriceUsd: payload.unitPriceUsd,
+            lineTotalUsdExact: payload.lineTotalUsdExact,
+            addonTotalUsd: payload.addonTotalUsd,
+            pricingSnapshot: payload.pricingSnapshot?.toJson(),
+          );
+        })
+        .toList(growable: false);
   }
 
   List<Map<String, dynamic>> _buildOfflineCashReplayItems(
     List<CartLine> lines,
     Map<String, ModifierGroup> groupLookup,
+    SaleCartPricing cartPricing,
   ) {
     return lines
-        .map((line) {
-          final payload = SaleCartPayloadBuilder.fromLine(line);
+        .asMap()
+        .entries
+        .map((entry) {
+          final line = entry.value;
+          final payload = SaleCartPayloadBuilder.fromLine(
+            line,
+            pricing: cartPricing.pricingForIndex(entry.key),
+            cartPricing: cartPricing,
+          );
           final modifierSelections = payload.modifiers
               .map(
                 (entry) => <String, dynamic>{

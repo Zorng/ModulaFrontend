@@ -10,9 +10,13 @@ class DiscountRuleListEnvelope {
     final raw = ApiContract.asJsonMap(body);
     _throwIfFailure(raw, fallbackMessage: fallbackMessage);
     final data = ApiContract.unwrapData(raw);
-    if (data is! List) return const <Map<String, dynamic>>[];
+    final items = switch (data) {
+      List<dynamic> rows => rows,
+      Map<dynamic, dynamic> map when map['items'] is List => map['items'] as List,
+      _ => const <dynamic>[],
+    };
 
-    return data
+    return items
         .whereType<Map>()
         .map((entry) => ApiContract.asJsonMap(entry))
         .toList(growable: false);
