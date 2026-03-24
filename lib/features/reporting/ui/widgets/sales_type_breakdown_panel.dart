@@ -32,8 +32,9 @@ class SalesTypeBreakdownPanel extends StatelessWidget {
             for (var i = 0; i < items.length; i++) ...[
               _SaleTypeLegendItem(
                 label: formatSalesTypeLabel(items[i].saleType),
-                usdTotal: formatUsdAmount(items[i].totalUsd),
-                khrTotal: formatKhrAmountLabel(items[i].totalKhr),
+                salesCountLabel: _salesCountLabel(items[i].transactionCount),
+                itemsSoldLabel:
+                    'Items ${formatInteger(items[i].totalItemsSold)}',
                 color: _segmentColor(theme, items[i].saleType),
               ),
               if (i != items.length - 1) const SizedBox(height: 12),
@@ -49,8 +50,8 @@ class SalesTypeBreakdownPanel extends StatelessWidget {
         .map((item) {
           return ReportingDonutChartSegment(
             label: formatSalesTypeLabel(item.saleType),
-            value: item.totalUsd,
-            legendValue: formatUsdAmount(item.totalUsd),
+            value: item.transactionCount.toDouble(),
+            legendValue: _salesCountLabel(item.transactionCount),
             color: _segmentColor(theme, item.saleType),
           );
         })
@@ -74,14 +75,14 @@ class SalesTypeBreakdownPanel extends StatelessWidget {
 class _SaleTypeLegendItem extends StatelessWidget {
   const _SaleTypeLegendItem({
     required this.label,
-    required this.usdTotal,
-    required this.khrTotal,
+    required this.salesCountLabel,
+    required this.itemsSoldLabel,
     required this.color,
   });
 
   final String label;
-  final String usdTotal;
-  final String khrTotal;
+  final String salesCountLabel;
+  final String itemsSoldLabel;
   final Color color;
 
   @override
@@ -126,7 +127,7 @@ class _SaleTypeLegendItem extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                usdTotal,
+                salesCountLabel,
                 style: theme.textTheme.titleSmall?.copyWith(
                   fontWeight: FontWeight.w700,
                   fontSize: 16,
@@ -134,7 +135,7 @@ class _SaleTypeLegendItem extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                khrTotal,
+                itemsSoldLabel,
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: Colors.grey.shade700,
                   fontWeight: FontWeight.w600,
@@ -147,4 +148,9 @@ class _SaleTypeLegendItem extends StatelessWidget {
       ),
     );
   }
+}
+
+String _salesCountLabel(int count) {
+  final suffix = count == 1 ? 'sale' : 'sales';
+  return '${formatInteger(count)} $suffix';
 }

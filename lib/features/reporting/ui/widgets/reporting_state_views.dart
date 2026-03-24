@@ -22,6 +22,7 @@ class ReportingMessageStateView extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 36, color: color),
           const SizedBox(height: 12),

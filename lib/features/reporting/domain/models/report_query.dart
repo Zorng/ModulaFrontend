@@ -2,6 +2,20 @@ import 'package:modular_pos/features/reporting/domain/models/report_scope.dart';
 
 enum ReportTimeWindow { day, week, month, custom }
 
+ReportTimeWindow reportTimeWindowFromApi(String? raw) {
+  switch ((raw ?? '').trim().toLowerCase()) {
+    case 'week':
+      return ReportTimeWindow.week;
+    case 'month':
+      return ReportTimeWindow.month;
+    case 'custom':
+      return ReportTimeWindow.custom;
+    case 'day':
+    default:
+      return ReportTimeWindow.day;
+  }
+}
+
 String reportTimeWindowToApi(ReportTimeWindow value) {
   switch (value) {
     case ReportTimeWindow.day:

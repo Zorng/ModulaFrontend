@@ -46,14 +46,14 @@ class ReportingDonutChart extends StatelessWidget {
           child: PieChart(
             PieChartData(
               centerSpaceRadius: 60,
-              sectionsSpace: 0,
+              sectionsSpace: 4,
               
               sections: [
                 for (final segment in segments)
                   PieChartSectionData(
                     color: segment.color,
                     value: segment.value,
-                    radius: 32,
+                    radius: 36,
                     title: total <= 0
                         ? ''
                         : '${((segment.value / total) * 100).round()}%',

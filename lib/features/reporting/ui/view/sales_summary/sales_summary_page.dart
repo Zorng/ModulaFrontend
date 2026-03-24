@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/features/branchV2/domain/models/branch_models.dart';
 import 'package:modular_pos/features/branchV2/ui/viewmodels/branch_controller.dart';
 import 'package:modular_pos/features/inventory/ui/widgets/inventory_dropdown.dart';
 import 'package:modular_pos/features/reporting/domain/models/report_query.dart';
 import 'package:modular_pos/features/reporting/domain/models/report_scope.dart';
+import 'package:modular_pos/features/reporting/ui/models/sales_drill_down_route_args.dart';
 import 'package:modular_pos/features/reporting/ui/reporting_formatters.dart';
 import 'package:modular_pos/features/reporting/ui/viewmodels/reporting_access_context.dart';
 import 'package:modular_pos/features/reporting/ui/viewmodels/sales_summary_controller.dart';
+import 'package:modular_pos/features/reporting/ui/widgets/sales_cash_tender_breakdown_panel.dart';
 import 'package:modular_pos/features/reporting/ui/widgets/reporting_kpi_card.dart';
-import 'package:modular_pos/features/reporting/ui/widgets/reporting_placeholder_panel_card.dart';
 import 'package:modular_pos/features/reporting/ui/widgets/sales_category_breakdown_panel.dart';
 import 'package:modular_pos/features/reporting/ui/widgets/sales_payment_breakdown_panel.dart';
 import 'package:modular_pos/features/reporting/ui/widgets/sales_type_breakdown_panel.dart';
@@ -23,7 +26,6 @@ class SalesSummaryPage extends ConsumerStatefulWidget {
 
 class _SalesSummaryPageState extends ConsumerState<SalesSummaryPage> {
   static const String _allBranchesValue = '__all_branches__';
-  static const double _summaryPanelCardHeight = 180;
   static const double _summaryPanelGap = 16;
 
   @override
@@ -113,6 +115,22 @@ class _SalesSummaryPageState extends ConsumerState<SalesSummaryPage> {
                 _buildKpiSection(context, state),
                 const SizedBox(height: 24),
                 _buildSalesSummaryPanels(state),
+                if (state.report != null && access != null) ...[
+                  const SizedBox(height: 24),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: FilledButton.icon(
+                      onPressed: () => _openDrillDown(
+                        context,
+                        state,
+                        access,
+                        tenantBranches,
+                      ),
+                      icon: const Icon(Icons.list_alt_outlined),
+                      label: const Text('View Sales Details'),
+                    ),
+                  ),
+                ],
               ],
             ),
             if (state.isLoading)
@@ -341,6 +359,8 @@ class _SalesSummaryPageState extends ConsumerState<SalesSummaryPage> {
     const wideLeftFlex = 1;
     const wideRightFlex = 1;
     final paymentBreakdownItems = state.report?.paymentBreakdown ?? const [];
+    final cashTenderBreakdownItems =
+        state.report?.cashTenderBreakdown ?? const [];
     final categoryBreakdownItems = state.report?.categoryBreakdown ?? const [];
     final saleTypeBreakdownItems = state.report?.saleTypeBreakdown ?? const [];
 
@@ -356,10 +376,7 @@ class _SalesSummaryPageState extends ConsumerState<SalesSummaryPage> {
               const SizedBox(height: _summaryPanelGap),
               SalesTypeBreakdownPanel(items: saleTypeBreakdownItems),
               const SizedBox(height: _summaryPanelGap),
-              const ReportingPlaceholderPanelCard(
-                title: 'Cash tender',
-                height: _summaryPanelCardHeight,
-              ),
+              SalesCashTenderBreakdownPanel(items: cashTenderBreakdownItems),
             ],
           );
         }
@@ -388,9 +405,8 @@ class _SalesSummaryPageState extends ConsumerState<SalesSummaryPage> {
                 children: [
                   SalesTypeBreakdownPanel(items: saleTypeBreakdownItems),
                   SizedBox(height: _summaryPanelGap),
-                  const ReportingPlaceholderPanelCard(
-                    title: 'Cash tender',
-                    height: _summaryPanelCardHeight,
+                  SalesCashTenderBreakdownPanel(
+                    items: cashTenderBreakdownItems,
                   ),
                 ],
               ),
@@ -398,6 +414,34 @@ class _SalesSummaryPageState extends ConsumerState<SalesSummaryPage> {
           ],
         );
       },
+    );
+  }
+
+  void _openDrillDown(
+    BuildContext context,
+    SalesSummaryState state,
+    ReportingAccessContext access,
+    List<BranchListItem> tenantBranches,
+  ) {
+    final scope = state.toScopeQuery(fallbackBranchId: access.fallbackBranchId);
+    final selectedBranchName = scope.branchScope == ReportBranchScope.branch
+        ? tenantBranches
+                  .where((branch) => branch.branchId == scope.branchId)
+                  .map((branch) => branch.branchName)
+                  .firstOrNull ??
+              access.branches
+                  .where((branch) => branch.id == scope.branchId)
+                  .map((branch) => branch.name)
+                  .firstOrNull
+        : null;
+    final args = SalesDrillDownRouteArgs(
+      scope: scope,
+      branchName: selectedBranchName,
+    );
+    context.pushNamed(
+      AppRoute.reportingSalesDrillDown.name,
+      extra: args,
+      queryParameters: args.toQueryParameters(),
     );
   }
 }

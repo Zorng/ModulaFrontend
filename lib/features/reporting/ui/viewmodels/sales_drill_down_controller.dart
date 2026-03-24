@@ -1,9 +1,13 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/core/network/api_contract.dart';
 import 'package:modular_pos/features/reporting/data/management_reporting_repository.dart';
 import 'package:modular_pos/features/reporting/domain/models/report_query.dart';
+import 'package:modular_pos/features/reporting/domain/models/report_scope.dart';
 import 'package:modular_pos/features/reporting/domain/models/sales_reporting.dart';
+import 'package:modular_pos/features/reporting/ui/reporting_formatters.dart';
 import 'package:modular_pos/features/reporting/ui/models/sales_drill_down_route_args.dart';
+import 'package:modular_pos/features/reporting/ui/viewmodels/reporting_access_context.dart';
 
 class SalesDrillDownState {
   static const _unset = Object();
@@ -27,6 +31,12 @@ class SalesDrillDownState {
   final SalesDrillDownStatusFilter statusFilter;
 
   bool get isInitialized => scope != null;
+  bool get usesCustomWindow => window == ReportTimeWindow.custom;
+  ReportTimeWindow get window => scope?.window ?? ReportTimeWindow.day;
+  ReportBranchScope get branchScope =>
+      scope?.branchScope ?? ReportBranchScope.branch;
+  String? get branchId => scope?.branchId;
+  DateTimeRange get selectedDateRange => _dateRangeForScope(scope);
 
   SalesDrillDownState copyWith({
     bool? isLoading,
@@ -78,9 +88,10 @@ class SalesDrillDownController extends Notifier<SalesDrillDownState> {
   }
 
   Future<void> initialize(SalesDrillDownRouteArgs args) async {
-    if (_sameScope(state.scope, args.scope) && state.report != null) return;
+    final scope = _normalizeScope(args.scope);
+    if (_sameScope(state.scope, scope) && state.report != null) return;
     state = state.copyWith(
-      scope: args.scope,
+      scope: scope,
       report: null,
       errorMessage: null,
       errorCode: null,
@@ -94,6 +105,120 @@ class SalesDrillDownController extends Notifier<SalesDrillDownState> {
   Future<void> setStatusFilter(SalesDrillDownStatusFilter value) async {
     if (state.statusFilter == value) return;
     state = state.copyWith(statusFilter: value);
+    await _load();
+  }
+
+  Future<void> applyFilters({
+    required ReportTimeWindow window,
+    required DateTimeRange selectedDateRange,
+    required ReportBranchScope branchScope,
+    required String? branchId,
+    required SalesDrillDownStatusFilter statusFilter,
+  }) async {
+    if (state.scope == null) return;
+
+    final access = ref.read(reportingAccessContextProvider);
+    final effectiveBranchScope =
+        branchScope == ReportBranchScope.allBranches &&
+            access?.canUseAllBranches != true
+        ? ReportBranchScope.branch
+        : branchScope;
+    final nextScope = _normalizeScope(
+      ReportScopeQuery(
+        window: window,
+        from: window == ReportTimeWindow.custom
+            ? formatReportQueryDate(selectedDateRange.start)
+            : null,
+        to: window == ReportTimeWindow.custom
+            ? formatReportQueryDate(selectedDateRange.end)
+            : null,
+        branchScope: effectiveBranchScope,
+        branchId: effectiveBranchScope == ReportBranchScope.allBranches
+            ? null
+            : branchId,
+      ),
+    );
+
+    if (_sameScope(state.scope, nextScope) &&
+        state.statusFilter == statusFilter) {
+      return;
+    }
+
+    state = state.copyWith(scope: nextScope, statusFilter: statusFilter);
+    await _load();
+  }
+
+  Future<void> setWindow(ReportTimeWindow value) async {
+    if (state.scope == null || state.window == value) return;
+    if (value == ReportTimeWindow.custom) return;
+
+    state = state.copyWith(
+      scope: _normalizeScope(
+        ReportScopeQuery(
+          window: value,
+          branchScope: state.branchScope,
+          branchId: state.branchId,
+        ),
+      ),
+    );
+    await _load();
+  }
+
+  Future<void> setDateRange(DateTimeRange value) async {
+    if (state.scope == null) return;
+    state = state.copyWith(
+      scope: _normalizeScope(
+        ReportScopeQuery(
+          window: ReportTimeWindow.custom,
+          from: formatReportQueryDate(value.start),
+          to: formatReportQueryDate(value.end),
+          branchScope: state.branchScope,
+          branchId: state.branchId,
+        ),
+      ),
+    );
+    await _load();
+  }
+
+  Future<void> setBranchScope(ReportBranchScope value) async {
+    if (state.scope == null) return;
+    final access = ref.read(reportingAccessContextProvider);
+    if (access?.canUseAllBranches != true &&
+        value == ReportBranchScope.allBranches) {
+      return;
+    }
+
+    state = state.copyWith(
+      scope: _normalizeScope(
+        ReportScopeQuery(
+          window: state.window,
+          from: state.usesCustomWindow ? state.scope?.from : null,
+          to: state.usesCustomWindow ? state.scope?.to : null,
+          branchScope: value,
+          branchId: value == ReportBranchScope.allBranches
+              ? null
+              : ((state.branchId ?? '').trim().isNotEmpty
+                    ? state.branchId
+                    : access?.fallbackBranchId),
+        ),
+      ),
+    );
+    await _load();
+  }
+
+  Future<void> setBranchId(String? value) async {
+    if (state.scope == null || state.branchId == value) return;
+    state = state.copyWith(
+      scope: _normalizeScope(
+        ReportScopeQuery(
+          window: state.window,
+          from: state.usesCustomWindow ? state.scope?.from : null,
+          to: state.usesCustomWindow ? state.scope?.to : null,
+          branchScope: ReportBranchScope.branch,
+          branchId: value,
+        ),
+      ),
+    );
     await _load();
   }
 
@@ -143,6 +268,19 @@ class SalesDrillDownController extends Notifier<SalesDrillDownState> {
 
   Future<void> _load() async {
     if (state.scope == null) return;
+    final scope = _normalizeScope(state.scope!);
+    if (!_sameScope(state.scope, scope)) {
+      state = state.copyWith(scope: scope);
+    }
+    if (scope.branchScope == ReportBranchScope.branch &&
+        (scope.branchId ?? '').trim().isEmpty) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: 'A branch must be selected before loading this report.',
+        errorCode: 'REPORT_BRANCH_REQUIRED',
+      );
+      return;
+    }
     state = state.copyWith(
       isLoading: true,
       errorMessage: null,
@@ -151,10 +289,7 @@ class SalesDrillDownController extends Notifier<SalesDrillDownState> {
 
     try {
       final report = await _repository.getSalesDrillDown(
-        SalesDrillDownReportQuery(
-          scope: state.scope!,
-          status: state.statusFilter,
-        ),
+        SalesDrillDownReportQuery(scope: scope, status: state.statusFilter),
       );
       state = state.copyWith(
         isLoading: false,
@@ -170,6 +305,27 @@ class SalesDrillDownController extends Notifier<SalesDrillDownState> {
         errorCode: mapped.code,
       );
     }
+  }
+
+  ReportScopeQuery _normalizeScope(ReportScopeQuery scope) {
+    final access = ref.read(reportingAccessContextProvider);
+    final effectiveBranchId = scope.branchScope == ReportBranchScope.branch
+        ? ((scope.branchId ?? '').trim().isNotEmpty
+              ? scope.branchId!.trim()
+              : (access?.fallbackBranchId ?? '').trim())
+        : null;
+
+    return ReportScopeQuery(
+      window: scope.window,
+      from: scope.window == ReportTimeWindow.custom
+          ? _normalizedQueryDate(scope.from)
+          : null,
+      to: scope.window == ReportTimeWindow.custom
+          ? _normalizedQueryDate(scope.to)
+          : null,
+      branchScope: scope.branchScope,
+      branchId: effectiveBranchId?.isEmpty == true ? null : effectiveBranchId,
+    );
   }
 }
 
@@ -187,4 +343,32 @@ bool _sameScope(ReportScopeQuery? left, ReportScopeQuery? right) {
     return (message: error.message, code: error.code);
   }
   return (message: error.toString(), code: null);
+}
+
+DateTimeRange _dateRangeForScope(ReportScopeQuery? scope) {
+  if (scope != null && scope.window == ReportTimeWindow.custom) {
+    final start = _parseQueryDate(scope.from);
+    final end = _parseQueryDate(scope.to);
+    if (start != null && end != null) {
+      return DateTimeRange(start: start, end: end);
+    }
+  }
+
+  final today = DateTime.now();
+  final normalizedToday = DateTime(today.year, today.month, today.day);
+  return DateTimeRange(start: normalizedToday, end: normalizedToday);
+}
+
+DateTime? _parseQueryDate(String? value) {
+  final normalized = _normalizedQueryDate(value);
+  if (normalized == null) return null;
+  return DateTime.tryParse(normalized);
+}
+
+String? _normalizedQueryDate(String? value) {
+  final trimmed = value?.trim();
+  if (trimmed == null || trimmed.isEmpty) {
+    return null;
+  }
+  return trimmed;
 }
