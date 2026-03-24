@@ -7,8 +7,6 @@ abstract class OperationalNotificationStreamClient {
 
   Future<OperationalNotificationStreamConnection> connect({
     required String accessToken,
-    required String tenantId,
-    required String branchId,
   });
 }
 

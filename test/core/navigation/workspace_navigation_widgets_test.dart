@@ -3,16 +3,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/sync/global_sync_status.dart';
+import 'package:modular_pos/core/widgets/navigation/account_shell_action.dart';
 import 'package:modular_pos/core/widgets/navigation/app_navigation_config.dart';
 import 'package:modular_pos/core/widgets/navigation/app_navigation_portal_content.dart';
 import 'package:modular_pos/core/widgets/navigation/branch_workspace_scaffold.dart';
 import 'package:modular_pos/core/widgets/navigation/app_wide_navigation_rail_shell.dart';
 import 'package:modular_pos/core/widgets/navigation/navigation_layer_back_button.dart';
+import 'package:modular_pos/core/widgets/navigation/tenant_workspace_app_bar_actions.dart';
 import 'package:modular_pos/core/widgets/navigation/tenant_profile_header.dart';
 import 'package:modular_pos/core/widgets/sync/global_sync_status_indicator.dart';
 import 'package:modular_pos/features/auth/domain/models/auth_session.dart';
 import 'package:modular_pos/features/auth/domain/models/tenant_membership.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
+import 'package:modular_pos/features/auth/ui/portals/admin_portal.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/notification/data/operational_notification_repository.dart';
 import 'package:modular_pos/features/notification/domain/models/operational_notification.dart';
@@ -39,6 +42,8 @@ class _FakeOperationalNotificationRepository
   Future<OperationalNotificationInboxPage> listInbox({
     bool unreadOnly = false,
     String? type,
+    String? tenantId,
+    String? branchId,
     int limit = 50,
     int offset = 0,
   }) async {
@@ -116,7 +121,11 @@ Widget _portalHarness({
   );
 }
 
-Widget _railHarness({required AuthSession session, required String path}) {
+Widget _railHarness({
+  required AuthSession session,
+  required String path,
+  Widget child = const SizedBox.shrink(),
+}) {
   return ProviderScope(
     overrides: [
       loginControllerProvider.overrideWith(
@@ -134,7 +143,7 @@ Widget _railHarness({required AuthSession session, required String path}) {
       ),
     ],
     child: MaterialApp(
-      home: AppScaffoldShell(currentPath: path, child: const SizedBox.shrink()),
+      home: AppScaffoldShell(currentPath: path, child: child),
     ),
   );
 }
@@ -168,6 +177,59 @@ Widget _branchHarness({
           currentPath: path,
           body: const SizedBox.shrink(),
         ),
+      ),
+    ),
+  );
+}
+
+Widget _adminPortalShellHarness({
+  required AuthSession session,
+  required AppNavigationLayer layer,
+}) {
+  return ProviderScope(
+    overrides: [
+      loginControllerProvider.overrideWith(
+        () => _StaticLoginController(session),
+      ),
+      operationalNotificationRepositoryProvider.overrideWithValue(
+        const _FakeOperationalNotificationRepository(unreadCount: 3),
+      ),
+      globalSyncStatusProvider.overrideWithValue(
+        const GlobalSyncStatus(
+          kind: GlobalSyncStatusKind.online,
+          label: 'Online',
+          detail: 'Workspace is connected.',
+        ),
+      ),
+    ],
+    child: MaterialApp(home: AdminPortal(layer: layer)),
+  );
+}
+
+Widget _widePortalAppShellHarness({
+  required AuthSession session,
+  required AppNavigationLayer layer,
+}) {
+  return ProviderScope(
+    overrides: [
+      loginControllerProvider.overrideWith(
+        () => _StaticLoginController(session),
+      ),
+      operationalNotificationRepositoryProvider.overrideWithValue(
+        const _FakeOperationalNotificationRepository(unreadCount: 3),
+      ),
+      globalSyncStatusProvider.overrideWithValue(
+        const GlobalSyncStatus(
+          kind: GlobalSyncStatusKind.online,
+          label: 'Online',
+          detail: 'Workspace is connected.',
+        ),
+      ),
+    ],
+    child: MaterialApp(
+      home: AppScaffoldShell(
+        currentPath: AppRoute.portal.path,
+        child: AdminPortal(layer: layer),
       ),
     ),
   );
@@ -305,13 +367,13 @@ void main() {
     expect(find.byIcon(Icons.arrow_back), findsOneWidget);
     expect(find.byType(NavigationLayerBackButton), findsOneWidget);
     expect(find.byType(TenantProfileHeader), findsOneWidget);
-    expect(find.byType(GlobalSyncStatusIndicator), findsOneWidget);
-    expect(find.text('Online'), findsOneWidget);
+    expect(find.byType(GlobalSyncStatusIndicator), findsNothing);
+    expect(find.text('Online'), findsNothing);
     expect(
       find.byKey(const Key('operational_notification_inbox_action')),
       findsNothing,
     );
-    expect(find.byIcon(Icons.person_outline), findsNothing);
+    expect(find.byKey(AccountShellAction.actionKey), findsNothing);
     expect(find.byIcon(Icons.settings_outlined), findsNothing);
     expect(find.text('No branch selected'), findsOneWidget);
 
@@ -320,6 +382,31 @@ void main() {
     );
     expect(branchesTile.selected, isTrue);
   });
+
+  testWidgets(
+    'wide notifications route behaves like utility page, not branch page',
+    (tester) async {
+      _setWideViewport(tester);
+      addTearDown(() => _resetViewport(tester));
+
+      await tester.pumpWidget(
+        _railHarness(
+          session: _session(role: 'admin', branches: noActiveBranches),
+          path: AppRoute.notifications.path,
+          child: const Text('Notifications body'),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Notifications body'), findsOneWidget);
+      expect(find.byType(NavigationLayerBackButton), findsNothing);
+
+      final branchesTile = tester.widget<ListTile>(
+        find.widgetWithText(ListTile, 'Branches'),
+      );
+      expect(branchesTile.selected, isFalse);
+    },
+  );
 
   testWidgets('wide rail shows branch layer only for owner/admin', (
     tester,
@@ -343,6 +430,7 @@ void main() {
       find.byKey(const Key('operational_notification_inbox_action')),
       findsOneWidget,
     );
+    expect(find.byKey(AccountShellAction.actionKey), findsOneWidget);
     expect(
       find.byKey(const Key('operational_notification_unread_badge')),
       findsOneWidget,
@@ -450,6 +538,54 @@ void main() {
       find.widgetWithText(ListTile, 'Cash Sessions'),
     );
     expect(cashTile.selected, isTrue);
+  });
+
+  testWidgets('tenant portal shell shows account action without settings', (
+    tester,
+  ) async {
+    _setWideViewport(tester);
+    addTearDown(() => _resetViewport(tester));
+
+    await tester.pumpWidget(
+      _adminPortalShellHarness(
+        session: _session(role: 'admin', branches: noActiveBranches),
+        layer: AppNavigationLayer.tenant,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(AccountShellAction.actionKey), findsOneWidget);
+    expect(find.byType(TenantWorkspaceAppBarActions), findsOneWidget);
+    expect(
+      find.byKey(const Key('operational_notification_inbox_action')),
+      findsOneWidget,
+    );
+    expect(find.byIcon(Icons.settings_outlined), findsNothing);
+    expect(find.byType(GlobalSyncStatusIndicator), findsOneWidget);
+  });
+
+  testWidgets('wide tenant portal does not duplicate shell utility icons', (
+    tester,
+  ) async {
+    _setWideViewport(tester);
+    addTearDown(() => _resetViewport(tester));
+
+    await tester.pumpWidget(
+      _widePortalAppShellHarness(
+        session: _session(role: 'admin', branches: noActiveBranches),
+        layer: AppNavigationLayer.tenant,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(AccountShellAction.actionKey), findsOneWidget);
+    expect(find.byType(TenantWorkspaceAppBarActions), findsOneWidget);
+    expect(
+      find.byKey(const Key('operational_notification_inbox_action')),
+      findsOneWidget,
+    );
+    expect(find.byType(GlobalSyncStatusIndicator), findsOneWidget);
+    expect(find.text('Online'), findsOneWidget);
   });
 
   testWidgets('mobile shell shows global sync indicator without wide rail', (

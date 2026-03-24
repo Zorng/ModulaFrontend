@@ -41,12 +41,6 @@ class AdminPortal extends ConsumerWidget {
       tenantBackTooltip: layer == AppNavigationLayer.branch
           ? 'Back to tenant'
           : 'Back to tenant selection',
-      onProfileTap: layer == AppNavigationLayer.branch
-          ? () => context.go(AppRoute.account.path)
-          : null,
-      onSettingsTap: layer == AppNavigationLayer.branch
-          ? () => context.go(AppRoute.settings.path)
-          : null,
     );
   }
 }

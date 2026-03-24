@@ -3,12 +3,72 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:modular_pos/core/feedback/user_error_message.dart';
+import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/features/notification/domain/models/operational_notification.dart';
 import 'package:modular_pos/features/notification/ui/viewmodels/operational_notification_inbox_controller.dart';
 import 'package:modular_pos/features/notification/ui/viewmodels/operational_notification_navigation.dart';
 
+const operationalNotificationInboxDialogKey = Key(
+  'operational_notification_inbox_dialog',
+);
+const operationalNotificationInboxBottomSheetKey = Key(
+  'operational_notification_inbox_bottom_sheet',
+);
+
+Future<void> showOperationalNotificationInboxModal(BuildContext context) {
+  final isWide = AppBreakpoints.isLarge(MediaQuery.of(context).size.width);
+
+  if (isWide) {
+    return showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return Dialog(
+          key: operationalNotificationInboxDialogKey,
+          backgroundColor: Colors.white,
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 24,
+            vertical: 32,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 920, maxHeight: 760),
+            child: const OperationalNotificationInboxPage(
+              modalPresentation: true,
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  return showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    backgroundColor: Colors.white,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    builder: (sheetContext) {
+      final height = MediaQuery.of(sheetContext).size.height * 0.92;
+      return SizedBox(
+        key: operationalNotificationInboxBottomSheetKey,
+        height: height,
+        child: const OperationalNotificationInboxPage(modalPresentation: true),
+      );
+    },
+  );
+}
+
 class OperationalNotificationInboxPage extends ConsumerWidget {
-  const OperationalNotificationInboxPage({super.key});
+  const OperationalNotificationInboxPage({
+    super.key,
+    this.modalPresentation = false,
+  });
+
+  final bool modalPresentation;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -20,8 +80,11 @@ class OperationalNotificationInboxPage extends ConsumerWidget {
     );
 
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
+        automaticallyImplyLeading: modalPresentation,
         backgroundColor: Colors.white,
+        leading: modalPresentation ? const CloseButton() : null,
         title: const Text('Notifications'),
         actions: [
           asyncState.maybeWhen(
@@ -103,6 +166,7 @@ class OperationalNotificationInboxPage extends ConsumerWidget {
                             context,
                             controller,
                             notification,
+                            closeModalOnNavigate: modalPresentation,
                           ),
                           onMarkRead: notification.isUnread
                               ? () {
@@ -145,13 +209,20 @@ class OperationalNotificationInboxPage extends ConsumerWidget {
 Future<void> _openNotification(
   BuildContext context,
   OperationalNotificationInboxController controller,
-  OperationalNotificationItem notification,
-) async {
+  OperationalNotificationItem notification, {
+  required bool closeModalOnNavigate,
+}) async {
   if (notification.isUnread) {
     await controller.markAsRead(notification);
   }
   if (!context.mounted) return;
-  context.go(operationalNotificationLocation(notification));
+  final router = GoRouter.of(context);
+  if (closeModalOnNavigate) {
+    Navigator.of(context).pop();
+    router.go(operationalNotificationLocation(notification));
+    return;
+  }
+  router.go(operationalNotificationLocation(notification));
 }
 
 class _Toolbar extends StatelessWidget {
@@ -196,6 +267,8 @@ class _NotificationCard extends StatelessWidget {
     final createdAtLabel = DateFormat(
       'dd MMM yyyy, HH:mm',
     ).format(notification.createdAt.toLocal());
+    final tenantLabel = _tenantLabel(notification);
+    final branchLabel = _branchLabel(notification);
 
     return Card(
       color: Colors.white,
@@ -235,6 +308,10 @@ class _NotificationCard extends StatelessWidget {
                 spacing: 16,
                 runSpacing: 8,
                 children: [
+                  if (tenantLabel != null)
+                    _MetaText(label: 'Tenant', value: tenantLabel),
+                  if (branchLabel != null)
+                    _MetaText(label: 'Branch', value: branchLabel),
                   _MetaText(label: 'Created', value: createdAtLabel),
                   _MetaText(
                     label: 'Subject',
@@ -248,8 +325,11 @@ class _NotificationCard extends StatelessWidget {
               ),
               if (notification.isUnread) ...[
                 const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
+                Wrap(
+                  alignment: WrapAlignment.end,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 8,
+                  runSpacing: 8,
                   children: [
                     TextButton(
                       onPressed: onOpen,
@@ -257,7 +337,6 @@ class _NotificationCard extends StatelessWidget {
                         operationalNotificationActionLabel(notification),
                       ),
                     ),
-                    const SizedBox(width: 8),
                     TextButton.icon(
                       onPressed: isMarkingRead ? null : onMarkRead,
                       icon: isMarkingRead
@@ -289,6 +368,19 @@ class _NotificationCard extends StatelessWidget {
       ),
     );
   }
+}
+
+String? _tenantLabel(OperationalNotificationItem notification) {
+  final tenantName = notification.tenantName.trim();
+  return tenantName.isEmpty ? null : tenantName;
+}
+
+String? _branchLabel(OperationalNotificationItem notification) {
+  final branchName = (notification.branchName ?? '').trim();
+  if (branchName.isNotEmpty) return branchName;
+  final branchId = notification.branchId.trim();
+  if (branchId.isNotEmpty) return branchId;
+  return null;
 }
 
 class _TypeChip extends StatelessWidget {
@@ -390,7 +482,7 @@ class _EmptyState extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'New operational notifications will appear here for the current branch.',
+              'New operational notifications will appear here for your current tenant inbox.',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium,
             ),

@@ -18,8 +18,6 @@ class _StubOperationalNotificationStreamClient
   @override
   Future<OperationalNotificationStreamConnection> connect({
     required String accessToken,
-    required String tenantId,
-    required String branchId,
   }) async {
     return const _StubOperationalNotificationStreamConnection();
   }

@@ -201,6 +201,7 @@ class PolicyDetailScaffold extends StatelessWidget {
     this.onSave,
     this.canSave = true,
     this.breadcrumb = 'Policy',
+    this.showEditAction = true,
   });
 
   final String title;
@@ -210,6 +211,7 @@ class PolicyDetailScaffold extends StatelessWidget {
   final VoidCallback? onSave;
   final bool canSave;
   final String breadcrumb;
+  final bool showEditAction;
 
   @override
   Widget build(BuildContext context) {
@@ -228,12 +230,14 @@ class PolicyDetailScaffold extends StatelessWidget {
                   titleSpacing: 0,
                   centerTitle: false,
                   title: Text(title),
-                  actions: [
-                    TextButton(
-                      onPressed: onEditToggle,
-                      child: Text(isEditing ? 'Cancel' : 'Edit'),
-                    ),
-                  ],
+                  actions: showEditAction
+                      ? [
+                          TextButton(
+                            onPressed: onEditToggle,
+                            child: Text(isEditing ? 'Cancel' : 'Edit'),
+                          ),
+                        ]
+                      : const [],
                 ),
           body: SafeArea(
             child: isLarge
@@ -283,10 +287,11 @@ class PolicyDetailScaffold extends StatelessWidget {
               const AppBackButton(),
               const SizedBox(width: 8),
               Expanded(child: Text(title, style: textTheme.headlineSmall)),
-              TextButton(
-                onPressed: onEditToggle,
-                child: Text(isEditing ? 'Cancel' : 'Edit'),
-              ),
+              if (showEditAction)
+                TextButton(
+                  onPressed: onEditToggle,
+                  child: Text(isEditing ? 'Cancel' : 'Edit'),
+                ),
             ],
           ),
         ),

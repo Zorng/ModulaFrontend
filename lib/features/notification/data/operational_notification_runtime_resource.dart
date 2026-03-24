@@ -66,6 +66,12 @@ class OperationalNotificationRuntimeResource
   bool _shouldRefreshInboxOnNextReady = false;
 
   @override
+  bool get requiresTenantContext => false;
+
+  @override
+  bool get requiresBranchContext => false;
+
+  @override
   Future<void> onContextCleared() async {
     _generation += 1;
     _accessToken = null;
@@ -97,19 +103,30 @@ class OperationalNotificationRuntimeResource
   }) async {
     if (!_client.isSupported) return;
 
+    final nextAccessToken = accessToken.trim();
+    final nextTenantId = tenantId.trim();
+    final nextBranchId = branchId.trim();
+    final identityChanged =
+        nextAccessToken != (_accessToken ?? '') ||
+        nextTenantId != (_tenantId ?? '') ||
+        nextBranchId != (_branchId ?? '');
+
+    if (!identityChanged &&
+        ((_connection != null) || (_reconnectTimer?.isActive ?? false))) {
+      return;
+    }
+
     _generation += 1;
-    _accessToken = accessToken.trim();
-    _tenantId = tenantId.trim();
-    _branchId = branchId.trim();
+    _accessToken = nextAccessToken;
+    _tenantId = nextTenantId;
+    _branchId = nextBranchId;
     _reconnectAttempt = 0;
     _shouldRefreshInboxOnNextReady = false;
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
     await _closeActiveConnection();
 
-    if (_accessToken!.isEmpty || _tenantId!.isEmpty || _branchId!.isEmpty) {
-      return;
-    }
+    if (_accessToken!.isEmpty) return;
 
     await _connect(generation: _generation);
   }
@@ -122,23 +139,12 @@ class OperationalNotificationRuntimeResource
 
   Future<void> _connect({required int generation}) async {
     final accessToken = _accessToken;
-    final tenantId = _tenantId;
-    final branchId = _branchId;
-    if (accessToken == null ||
-        tenantId == null ||
-        branchId == null ||
-        accessToken.isEmpty ||
-        tenantId.isEmpty ||
-        branchId.isEmpty) {
+    if (accessToken == null || accessToken.isEmpty) {
       return;
     }
 
     try {
-      final connection = await _client.connect(
-        accessToken: accessToken,
-        tenantId: tenantId,
-        branchId: branchId,
-      );
+      final connection = await _client.connect(accessToken: accessToken);
       if (generation != _generation) {
         await connection.close();
         return;
@@ -210,9 +216,7 @@ class OperationalNotificationRuntimeResource
   void _scheduleReconnect({required int generation}) {
     if (!_client.isSupported) return;
     if (generation != _generation) return;
-    if ((_accessToken ?? '').isEmpty ||
-        (_tenantId ?? '').isEmpty ||
-        (_branchId ?? '').isEmpty) {
+    if ((_accessToken ?? '').isEmpty) {
       return;
     }
 

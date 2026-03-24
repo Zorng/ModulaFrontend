@@ -27,6 +27,8 @@ class OperationalNotificationApi {
   Future<OperationalNotificationInboxPageDto> listInbox({
     bool unreadOnly = false,
     String? type,
+    String? tenantId,
+    String? branchId,
     int limit = 50,
     int offset = 0,
   }) async {
@@ -36,6 +38,8 @@ class OperationalNotificationApi {
         queryParameters: {
           'unreadOnly': unreadOnly,
           if ((type ?? '').trim().isNotEmpty) 'type': type!.trim(),
+          if ((tenantId ?? '').trim().isNotEmpty) 'tenantId': tenantId!.trim(),
+          if ((branchId ?? '').trim().isNotEmpty) 'branchId': branchId!.trim(),
           'limit': limit,
           'offset': offset,
         },

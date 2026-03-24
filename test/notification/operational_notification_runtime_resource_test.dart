@@ -31,6 +31,8 @@ class _FakeOperationalNotificationRepository
   Future<OperationalNotificationInboxPage> listInbox({
     bool unreadOnly = false,
     String? type,
+    String? tenantId,
+    String? branchId,
     int limit = 50,
     int offset = 0,
   }) async {
@@ -88,8 +90,6 @@ class _FakeOperationalNotificationStreamClient
   @override
   Future<OperationalNotificationStreamConnection> connect({
     required String accessToken,
-    required String tenantId,
-    required String branchId,
   }) async {
     connectCalls += 1;
     final connection = _FakeOperationalNotificationStreamConnection();
@@ -176,7 +176,9 @@ OperationalNotificationItem _notification({
   return OperationalNotificationItem(
     id: id,
     tenantId: 'tenant-1',
+    tenantName: 'Tenant 1',
     branchId: 'branch-1',
+    branchName: 'Main Branch',
     type: type,
     subjectType: OperationalNotificationSubjectTypes.sale,
     subjectId: 'sale-$id',
@@ -260,6 +262,45 @@ void main() {
       );
       expect(inbox.items, hasLength(1));
       expect(inbox.items.single.id, 'notif-1');
+      expect(inbox.items.single.tenantName, 'Tenant 1');
+    },
+  );
+
+  test(
+    'runtime resource reconnects when tenant or branch context changes',
+    () async {
+      final repository = _FakeOperationalNotificationRepository(
+        items: const <OperationalNotificationItem>[],
+        unreadCount: 0,
+      );
+      final streamClient = _FakeOperationalNotificationStreamClient();
+      final container = createTestContainer(
+        overrides: [
+          initialAuthSessionProvider.overrideWithValue(_session()),
+          operationalNotificationRepositoryProvider.overrideWithValue(
+            repository,
+          ),
+          operationalNotificationStreamClientProvider.overrideWithValue(
+            streamClient,
+          ),
+        ],
+      );
+
+      final resource =
+          container.read(operationalNotificationRuntimeResourceProvider)
+              as OperationalNotificationRuntimeResource;
+      await resource.onContextChanged(
+        accessToken: 'access-token',
+        tenantId: '',
+        branchId: '',
+      );
+      await resource.onContextChanged(
+        accessToken: 'access-token',
+        tenantId: 'tenant-1',
+        branchId: 'branch-1',
+      );
+
+      expect(streamClient.connectCalls, 2);
     },
   );
 

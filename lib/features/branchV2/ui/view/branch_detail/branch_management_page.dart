@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:modular_pos/core/feedback/user_error_message.dart';
 import 'package:modular_pos/core/network/api_contract.dart';
+import 'package:modular_pos/core/widgets/navigation/tenant_workspace_app_bar_actions.dart';
 import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/branchV2/data/branch_repository.dart';
@@ -114,8 +115,9 @@ class _BranchManagementPageState extends ConsumerState<BranchManagementPage> {
             Expanded(
               child: Text(
                 'Edit Branch Profile',
-                style: Theme.of(dialogContext).textTheme.titleMedium
-                    ?.copyWith(fontWeight: FontWeight.bold),
+                style: Theme.of(
+                  dialogContext,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
               ),
             ),
             IconButton(
@@ -236,8 +238,9 @@ class _BranchManagementPageState extends ConsumerState<BranchManagementPage> {
             Expanded(
               child: Text(
                 'Update KHQR Receiver',
-                style: Theme.of(dialogContext).textTheme.titleMedium
-                    ?.copyWith(fontWeight: FontWeight.bold),
+                style: Theme.of(
+                  dialogContext,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
               ),
             ),
             IconButton(
@@ -334,8 +337,9 @@ class _BranchManagementPageState extends ConsumerState<BranchManagementPage> {
             Expanded(
               child: Text(
                 'Attendance Location',
-                style: Theme.of(dialogContext).textTheme.titleMedium
-                    ?.copyWith(fontWeight: FontWeight.bold),
+                style: Theme.of(
+                  dialogContext,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
               ),
             ),
             IconButton(
@@ -356,13 +360,12 @@ class _BranchManagementPageState extends ConsumerState<BranchManagementPage> {
                 // Verification mode
                 Text(
                   'Verification mode',
-                  style: Theme.of(
-                    dialogContext,
-                  ).textTheme.labelMedium?.copyWith(
-                    color: Theme.of(
-                      dialogContext,
-                    ).colorScheme.onSurfaceVariant,
-                  ),
+                  style: Theme.of(dialogContext).textTheme.labelMedium
+                      ?.copyWith(
+                        color: Theme.of(
+                          dialogContext,
+                        ).colorScheme.onSurfaceVariant,
+                      ),
                 ),
                 const SizedBox(height: 6),
                 ValueListenableBuilder<String>(
@@ -374,10 +377,7 @@ class _BranchManagementPageState extends ConsumerState<BranchManagementPage> {
                       if (selected != null) mode.value = selected;
                     },
                     dropdownMenuEntries: const [
-                      DropdownMenuEntry(
-                        value: 'disabled',
-                        label: 'Disabled',
-                      ),
+                      DropdownMenuEntry(value: 'disabled', label: 'Disabled'),
                       DropdownMenuEntry(
                         value: 'checkin_only',
                         label: 'Check-in only',
@@ -404,13 +404,14 @@ class _BranchManagementPageState extends ConsumerState<BranchManagementPage> {
                               children: [
                                 Text(
                                   'Workplace location',
-                                  style: Theme.of(
-                                    dialogContext,
-                                  ).textTheme.labelMedium?.copyWith(
-                                    color: Theme.of(
-                                      dialogContext,
-                                    ).colorScheme.onSurfaceVariant,
-                                  ),
+                                  style: Theme.of(dialogContext)
+                                      .textTheme
+                                      .labelMedium
+                                      ?.copyWith(
+                                        color: Theme.of(
+                                          dialogContext,
+                                        ).colorScheme.onSurfaceVariant,
+                                      ),
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
@@ -441,8 +442,9 @@ class _BranchManagementPageState extends ConsumerState<BranchManagementPage> {
                               );
                               if (result != null) {
                                 pickedLocation.value = result.latLng;
-                                radiusController.text =
-                                    result.radiusMeters.round().toString();
+                                radiusController.text = result.radiusMeters
+                                    .round()
+                                    .toString();
                               }
                             },
                           ),
@@ -454,9 +456,7 @@ class _BranchManagementPageState extends ConsumerState<BranchManagementPage> {
                           listenable: radiusController,
                           builder: (context, _) {
                             final radius =
-                                double.tryParse(
-                                  radiusController.text.trim(),
-                                ) ??
+                                double.tryParse(radiusController.text.trim()) ??
                                 200;
                             return ClipRRect(
                               borderRadius: BorderRadius.circular(10),
@@ -541,8 +541,9 @@ class _BranchManagementPageState extends ConsumerState<BranchManagementPage> {
                   alignment: Alignment.centerLeft,
                   child: TextButton.icon(
                     style: TextButton.styleFrom(
-                      foregroundColor:
-                          Theme.of(dialogContext).colorScheme.error,
+                      foregroundColor: Theme.of(
+                        dialogContext,
+                      ).colorScheme.error,
                       padding: EdgeInsets.zero,
                     ),
                     icon: const Icon(Icons.clear, size: 16),
@@ -566,7 +567,8 @@ class _BranchManagementPageState extends ConsumerState<BranchManagementPage> {
                 final hasLocation = picked != null;
                 final text = radiusController.text.trim();
                 final parsed = double.tryParse(text);
-                final radiusValid = !hasLocation ||
+                final radiusValid =
+                    !hasLocation ||
                     (text.isNotEmpty &&
                         parsed != null &&
                         parsed >= 10 &&
@@ -630,9 +632,7 @@ class _BranchManagementPageState extends ConsumerState<BranchManagementPage> {
     }
     final radiusMeters = double.tryParse(radius);
     if (radiusMeters == null) {
-      throw const ApiClientException(
-        message: 'Radius must be a valid number.',
-      );
+      throw const ApiClientException(message: 'Radius must be a valid number.');
     }
     return BranchWorkplaceLocation(
       latitude: picked.latitude,
@@ -685,6 +685,7 @@ class _BranchManagementPageState extends ConsumerState<BranchManagementPage> {
           icon: const Icon(Icons.arrow_back),
         ),
         title: const Text('Branch Management'),
+        actions: const [TenantWorkspaceAppBarActions()],
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())

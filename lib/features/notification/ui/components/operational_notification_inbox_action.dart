@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
-import 'package:modular_pos/core/routing/app_router.dart';
-import 'package:modular_pos/features/auth/domain/active_branch_context_provider.dart';
 import 'package:modular_pos/features/notification/ui/viewmodels/operational_notification_unread_count_controller.dart';
+import 'package:modular_pos/features/notification/ui/view/operational_notification_inbox/operational_notification_inbox_page.dart';
 
 class OperationalNotificationInboxAction extends ConsumerWidget {
   const OperationalNotificationInboxAction({super.key, this.compact = false});
@@ -12,12 +10,6 @@ class OperationalNotificationInboxAction extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final activeBranchId = (ref.watch(activeBranchContextIdProvider) ?? '')
-        .trim();
-    if (activeBranchId.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
     final unreadAsync = ref.watch(
       operationalNotificationUnreadCountControllerProvider,
     );
@@ -29,7 +21,7 @@ class OperationalNotificationInboxAction extends ConsumerWidget {
     return IconButton(
       key: const Key('operational_notification_inbox_action'),
       tooltip: 'Notifications',
-      onPressed: () => context.push(AppRoute.notifications.path),
+      onPressed: () => showOperationalNotificationInboxModal(context),
       icon: _NotificationBellIcon(unreadCount: unreadCount, compact: compact),
     );
   }

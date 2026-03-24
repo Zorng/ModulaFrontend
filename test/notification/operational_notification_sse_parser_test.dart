@@ -17,7 +17,7 @@ void main() {
     final secondChunk = parser.addChunk(
       '"serverTime":"2026-03-23T10:00:00.000Z"}\n\n'
       'event: notification.created\n'
-      'data: {"notificationId":"notif-1","tenantId":"tenant-1","branchId":"branch-1",'
+      'data: {"notificationId":"notif-1","tenantId":"tenant-1","tenantName":"Tenant 1","branchId":"branch-1","branchName":"Main Branch",'
       '"notificationType":"VOID_APPROVAL_NEEDED","subjectType":"SALE","subjectId":"sale-1",'
       '"title":"Void approval needed","body":"Sale requires approval.",'
       '"payload":{"saleId":"sale-1"},"createdAt":"2026-03-23T10:01:00.000Z","unreadCount":3}\n\n',
@@ -36,6 +36,8 @@ void main() {
       created.notification.type,
       OperationalNotificationTypes.voidApprovalNeeded,
     );
+    expect(created.notification.tenantName, 'Tenant 1');
+    expect(created.notification.branchName, 'Main Branch');
     expect(created.notification.payload, {'saleId': 'sale-1'});
   });
 }

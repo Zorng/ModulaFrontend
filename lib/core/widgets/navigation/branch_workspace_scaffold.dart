@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
+import 'package:modular_pos/core/widgets/navigation/account_shell_action.dart';
 import 'package:modular_pos/core/widgets/navigation/app_navigation_config.dart';
 import 'package:modular_pos/core/widgets/sync/global_sync_status_indicator.dart';
 import 'package:modular_pos/features/auth/domain/active_branch_context_provider.dart';
@@ -46,10 +47,12 @@ class BranchWorkspaceScaffold extends ConsumerWidget {
         ),
         title: Text(title),
         actions: <Widget>[
-          const GlobalSyncStatusIndicator(compact: true),
-          const SizedBox(width: 4),
-          const OperationalNotificationInboxAction(compact: true),
           ...(actions ?? const <Widget>[]),
+          if ((actions ?? const <Widget>[]).isNotEmpty)
+            const SizedBox(width: 4),
+          const OperationalNotificationInboxAction(compact: true),
+          const GlobalSyncStatusIndicator(compact: true),
+          const AccountShellAction(),
           const SizedBox(width: 4),
         ],
       ),
@@ -244,10 +247,7 @@ class _DrawerDevicePlaceholder extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            Icons.print_outlined,
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
+          Icon(Icons.print_outlined, color: theme.colorScheme.onSurfaceVariant),
           const SizedBox(width: 12),
           Expanded(
             child: Column(

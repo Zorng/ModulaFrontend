@@ -31,8 +31,6 @@ class _WebOperationalNotificationStreamClient
   @override
   Future<OperationalNotificationStreamConnection> connect({
     required String accessToken,
-    required String tenantId,
-    required String branchId,
   }) async {
     final abortController = html.AbortController();
     final eventsController =

@@ -4,7 +4,9 @@ class OperationalNotificationItemDto {
   const OperationalNotificationItemDto({
     required this.id,
     required this.tenantId,
+    required this.tenantName,
     required this.branchId,
+    this.branchName,
     required this.type,
     required this.subjectType,
     required this.subjectId,
@@ -21,7 +23,9 @@ class OperationalNotificationItemDto {
     return OperationalNotificationItemDto(
       id: json['id']?.toString() ?? '',
       tenantId: json['tenantId']?.toString() ?? '',
+      tenantName: json['tenantName']?.toString() ?? '',
       branchId: json['branchId']?.toString() ?? '',
+      branchName: _asNullableString(json['branchName']),
       type: json['type']?.toString() ?? '',
       subjectType: json['subjectType']?.toString() ?? '',
       subjectId: json['subjectId']?.toString() ?? '',
@@ -37,7 +41,9 @@ class OperationalNotificationItemDto {
 
   final String id;
   final String tenantId;
+  final String tenantName;
   final String branchId;
+  final String? branchName;
   final String type;
   final String subjectType;
   final String subjectId;
@@ -54,6 +60,11 @@ class OperationalNotificationItemDto {
     if (map.isEmpty) return null;
     return map;
   }
+}
+
+String? _asNullableString(dynamic value) {
+  final normalized = value?.toString().trim() ?? '';
+  return normalized.isEmpty ? null : normalized;
 }
 
 class OperationalNotificationInboxPageDto {

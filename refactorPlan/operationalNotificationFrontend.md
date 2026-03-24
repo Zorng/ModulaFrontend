@@ -4,15 +4,18 @@ Goal: implement in-app operational notifications on web/mobile using the existin
 
 ## Status Note
 
-This tracker reflects the first frontend rollout that was built against the original branch-context notification contract.
+The original frontend rollout was built against the branch-context contract.
 
-Backend direction has now changed:
-- target notification context should move to `(tenantId, accountId)`
-- branch should remain metadata/origin context, not primary inbox scope
+That earlier cutover is now superseded.
 
-So the work below is still valid as the branch-scoped implementation baseline, but it is **not** the final target architecture anymore.
+The live target contract is now complete and implemented:
+- inbox/unread/detail/read/read-all are account scoped
+- stream/runtime binding is account scoped
+- tenant and branch remain metadata/origin context and optional filter dimensions
+- notification reads work before tenant selection
 
-The next notification increment should be treated as a tenant-scope contract cutover, not as a continuation of the old branch-only model.
+See:
+- `refactorPlan/accountScopedNotificationCutover.md`
 
 ## Scope
 - `integration/operational-notification-v0.md`
@@ -75,6 +78,21 @@ Manual QA checklist:
 - [x] `CASH_SESSION_CLOSED` opens closed-session detail when `sessionId` is available, otherwise cash history list
 - [x] Opening a notification still marks it read and lets the destination page remain authoritative
 
+## Phase 6 — Account-Scope Contract Cutover
+- [x] Remove tenant-selection requirements from unread count and inbox
+- [x] Carry `tenantName` + `branchName` through DTO/domain/SSE parsing
+- [x] Rebind runtime stream without tenant selection and keep one stream per authenticated shell session
+- [x] Allow `/notifications` before tenant selection
+- [x] Add account-scope controller/runtime/page regressions
+
+## Next Direction
+
+The next major notification increment is no longer scope migration.
+
+It is:
+- explicit tenant/branch handoff when notification actions open branch-scoped business pages
+- optional account-level tenant/branch filters in the inbox UI
+
 ## Tracking
 | Phase | Status | Notes |
 |---|---|---|
@@ -84,12 +102,4 @@ Manual QA checklist:
 | 3 | Complete | Route, inbox page, shared bell/badge, tests landed for branch-scoped contract |
 | 4 | Complete | SSE parser/client, runtime resource binding, reconnect/backoff, live inbox + badge updates for branch-scoped contract |
 | 5 | Complete | Type-to-route action mapping landed for branch-scoped contract |
-
-## Follow-up Direction
-
-Next contract-aligned notification work should cover:
-- tenant-level inbox scope
-- tenant-level unread count
-- tenant-level SSE stream
-- `branchName` in notification payloads
-- shell UX that assumes notification visibility everywhere in tenant scope
+| 6 | Complete | Tenant-scope contract cutover landed for reads, badge, inbox, and realtime binding |

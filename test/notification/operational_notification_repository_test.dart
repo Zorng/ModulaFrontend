@@ -15,6 +15,8 @@ void main() {
       () => api.listInbox(
         unreadOnly: any(named: 'unreadOnly'),
         type: any(named: 'type'),
+        tenantId: any(named: 'tenantId'),
+        branchId: any(named: 'branchId'),
         limit: any(named: 'limit'),
         offset: any(named: 'offset'),
       ),
@@ -24,7 +26,9 @@ void main() {
           OperationalNotificationItemDto(
             id: 'notif-1',
             tenantId: 'tenant-1',
+            tenantName: 'Tenant 1',
             branchId: 'branch-1',
+            branchName: 'Main Branch',
             type: 'VOID_APPROVED',
             subjectType: 'SALE',
             subjectId: 'sale-1',
@@ -50,7 +54,9 @@ void main() {
       (_) async => const OperationalNotificationItemDto(
         id: 'notif-1',
         tenantId: 'tenant-1',
+        tenantName: 'Tenant 1',
         branchId: 'branch-1',
+        branchName: 'Main Branch',
         type: 'VOID_APPROVED',
         subjectType: 'SALE',
         subjectId: 'sale-1',
@@ -90,6 +96,8 @@ void main() {
       OperationalNotificationSubjectTypes.sale,
     );
     expect(page.items.single.payload, {'saleId': 'sale-1'});
+    expect(page.items.single.tenantName, 'Tenant 1');
+    expect(page.items.single.branchName, 'Main Branch');
     expect(unreadCount, 2);
     expect(detail.id, 'notif-1');
     expect(readResult.isRead, isTrue);

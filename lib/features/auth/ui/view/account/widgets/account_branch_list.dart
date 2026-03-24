@@ -3,9 +3,14 @@ import 'package:modular_pos/features/auth/domain/models/user.dart';
 import 'package:modular_pos/features/policy/ui/widgets/policy_detail_controls.dart';
 
 class AccountBranchList extends StatelessWidget {
-  const AccountBranchList({super.key, required this.branches});
+  const AccountBranchList({
+    super.key,
+    required this.branches,
+    this.title = 'Branch access',
+  });
 
   final List<UserBranch> branches;
+  final String title;
 
   @override
   Widget build(BuildContext context) {
@@ -13,7 +18,7 @@ class AccountBranchList extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: 16),
-        Text('Branches', style: Theme.of(context).textTheme.bodyMedium),
+        Text(title, style: Theme.of(context).textTheme.bodyMedium),
         const SizedBox(height: 8),
         PolicySettingGroup(
           children: branches
@@ -30,4 +35,3 @@ class AccountBranchList extends StatelessWidget {
     );
   }
 }
-

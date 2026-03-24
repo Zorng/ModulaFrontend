@@ -136,7 +136,26 @@ class _AppHydrationListenerState extends ConsumerState<AppHydrationListener> {
     final accountId = session.user.id.trim();
 
     if (token == null || token.isEmpty) return;
-    if (tenantId == null || tenantId.isEmpty) return;
+    if (tenantId == null || tenantId.isEmpty) {
+      final previousTenantId = (_lastHydrationTenantId ?? '').trim();
+      final needsReset =
+          _lastHydrationBranchId != null ||
+          _lastHydrationToken != token ||
+          previousTenantId.isNotEmpty;
+      _lastHydrationToken = token;
+      _lastHydrationTenantId = '';
+      _lastHydrationBranchId = null;
+      if (!needsReset) return;
+
+      ref.read(policyNotifierProvider.notifier).reset();
+      ref.read(cashSessionViewModelProvider.notifier).reset();
+      _notifyContextChangedResources(
+        accessToken: token,
+        tenantId: '',
+        branchId: '',
+      );
+      return;
+    }
 
     if (branchId == null || branchId.isEmpty) {
       final needsReset =
@@ -150,7 +169,11 @@ class _AppHydrationListenerState extends ConsumerState<AppHydrationListener> {
 
       ref.read(policyNotifierProvider.notifier).reset();
       ref.read(cashSessionViewModelProvider.notifier).reset();
-      _notifyContextClearedResources();
+      _notifyContextChangedResources(
+        accessToken: token,
+        tenantId: tenantId,
+        branchId: '',
+      );
       return;
     }
 
@@ -435,18 +458,27 @@ class _AppHydrationListenerState extends ConsumerState<AppHydrationListener> {
     required String branchId,
   }) {
     final resources = ref.read(contextScopedRuntimeResourcesProvider);
+    final hasTenantContext = tenantId.trim().isNotEmpty;
+    final hasBranchContext = branchId.trim().isNotEmpty;
     for (final resource in resources) {
+      final bindResource =
+          (hasTenantContext || !resource.requiresTenantContext) &&
+          (hasBranchContext || !resource.requiresBranchContext);
       unawaited(
         Future<void>.sync(
-          () => resource.onContextChanged(
-            accessToken: accessToken,
-            tenantId: tenantId,
-            branchId: branchId,
-          ),
+          () => bindResource
+              ? resource.onContextChanged(
+                  accessToken: accessToken,
+                  tenantId: tenantId,
+                  branchId: branchId,
+                )
+              : resource.onContextCleared(),
         ).catchError((error, stack) {
           final stackTrace = stack is StackTrace ? stack : null;
           AppLog.e(
-            'Failed to rebind context-scoped runtime resource',
+            bindResource
+                ? 'Failed to rebind context-scoped runtime resource'
+                : 'Failed to clear context-scoped runtime resource',
             error: error,
             stackTrace: stackTrace,
           );

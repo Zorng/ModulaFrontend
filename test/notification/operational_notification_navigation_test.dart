@@ -7,6 +7,7 @@ void main() {
     final item = OperationalNotificationItem(
       id: 'notif-1',
       tenantId: 'tenant-1',
+      tenantName: 'Tenant 1',
       branchId: 'branch-1',
       type: OperationalNotificationTypes.voidApprovalNeeded,
       subjectType: OperationalNotificationSubjectTypes.sale,
@@ -29,6 +30,7 @@ void main() {
     final item = OperationalNotificationItem(
       id: 'notif-2',
       tenantId: 'tenant-1',
+      tenantName: 'Tenant 1',
       branchId: 'branch-1',
       type: OperationalNotificationTypes.cashSessionClosed,
       subjectType: OperationalNotificationSubjectTypes.cashSession,

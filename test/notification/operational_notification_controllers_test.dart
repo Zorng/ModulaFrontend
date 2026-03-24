@@ -31,6 +31,8 @@ class _FakeOperationalNotificationRepository
   Future<OperationalNotificationInboxPage> listInbox({
     bool unreadOnly = false,
     String? type,
+    String? tenantId,
+    String? branchId,
     int limit = 50,
     int offset = 0,
   }) async {
@@ -154,7 +156,9 @@ OperationalNotificationItem _notification({
   return OperationalNotificationItem(
     id: id,
     tenantId: 'tenant-1',
+    tenantName: 'Tenant 1',
     branchId: 'branch-1',
+    branchName: 'Main Branch',
     type: type,
     subjectType: OperationalNotificationSubjectTypes.sale,
     subjectId: 'sale-$id',
@@ -185,6 +189,31 @@ void main() {
     expect(unreadCount, 3);
   });
 
+  test('pre-tenant session still loads unread count from repository', () async {
+    final repository = _FakeOperationalNotificationRepository(unreadCount: 2);
+    final baseSession = _session();
+    final preTenantSession = baseSession.copyWith(
+      activeTenantId: null,
+      tenantSelectionToken: 'selection-token',
+      user: baseSession.user.copyWith(
+        tenantId: '',
+        branches: const <UserBranch>[],
+      ),
+    );
+    final container = createTestContainer(
+      overrides: [
+        initialAuthSessionProvider.overrideWithValue(preTenantSession),
+        operationalNotificationRepositoryProvider.overrideWithValue(repository),
+      ],
+    );
+
+    final unreadCount = await container.read(
+      operationalNotificationUnreadCountControllerProvider.future,
+    );
+
+    expect(unreadCount, 2);
+  });
+
   test('inbox controller loads notifications from repository', () async {
     final repository = _FakeOperationalNotificationRepository(
       items: [
@@ -207,6 +236,33 @@ void main() {
     expect(repository.listCalls, 1);
     expect(state.items, hasLength(2));
     expect(state.total, 2);
+  });
+
+  test('pre-tenant session still loads account-scoped inbox', () async {
+    final repository = _FakeOperationalNotificationRepository(
+      items: [_notification(id: '1')],
+      unreadCount: 1,
+    );
+    final session = _session();
+    final preTenantSession = session.copyWith(
+      activeTenantId: null,
+      tenantSelectionToken: 'selection-token',
+      user: session.user.copyWith(tenantId: '', branches: const <UserBranch>[]),
+    );
+    final container = createTestContainer(
+      overrides: [
+        initialAuthSessionProvider.overrideWithValue(preTenantSession),
+        operationalNotificationRepositoryProvider.overrideWithValue(repository),
+      ],
+    );
+
+    final state = await container.read(
+      operationalNotificationInboxControllerProvider.future,
+    );
+
+    expect(state.items, hasLength(1));
+    expect(state.items.single.tenantName, 'Tenant 1');
+    expect(state.items.single.branchName, 'Main Branch');
   });
 
   test('refresh keeps stale data and exposes inlineError on failure', () async {

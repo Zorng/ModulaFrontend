@@ -34,28 +34,32 @@ So the shell model we are designing toward is:
 - branch workspace operational signals:
   - devices / peripherals
 
-### 2) Notification scope model is tenant-level
+### 2) Notification scope target is now account-level
 
-Backend confirmed that current notification implementation is strictly branch-context scoped today, but the accepted target direction is now **tenant-level notification context**, not the earlier hybrid model.
+Backend and frontend have now aligned that the cleaner long-term direction is **account-scoped notifications**, not tenant-scoped notifications, if the bell is meant to behave as a true shell/account utility.
 
-Locked target model:
+Accepted long-term target:
 - inbox/unread/stream/read state should move to:
-  - `(tenantId, accountId)`
-- branch remains:
+  - `(accountId)`
+- tenant and branch become:
   - origin metadata
-  - filter dimension
-  - deep-link context for resolution
+  - optional filter dimensions
+  - action/deep-link context
 
 Authorization boundary remains strict:
-- tenant-level does **not** mean unrestricted cross-branch visibility
+- account scope does **not** mean unrestricted visibility
 - an account only sees notifications for which it has an authorized recipient row
 - recipient resolution still follows business rules at emit time
 
-Practical frontend implication:
-- the shell bell can stay globally visible everywhere in tenant scope
-- shell-level notification UX no longer needs to pretend it is branch-local
-- branch context is entered only when resolving a branch-specific notification action
-- notification payloads should include `branchId` and `branchName` so frontend does not need extra branch lookups
+Required payload metadata:
+- `tenantId`
+- `tenantName`
+- `branchId`
+- `branchName`
+
+Interim reality:
+- the currently implemented contract is still tenant-scoped
+- frontend should avoid continuing to treat that tenant-scoped behavior as if it were already a true account-global utility model
 
 ### 3) Sale medium-breakpoint problem remains part of the same rework
 
@@ -141,8 +145,9 @@ Not locked yet:
 - Must respect [responsive_breakpoints.md](/Users/mac/flutterProjects/modular/docs/responsive_breakpoints.md)
 - Must preserve `go_router` navigation model
 - Must keep source business pages authoritative; notifications must not become a parallel truth layer
-- Must respect the accepted tenant-level notification model:
-  - notification inbox/unread/stream/read state is tenant/account scoped
+- Must respect the accepted long-term notification direction:
+  - current live implementation is tenant-scoped
+  - long-term target is account-scoped
   - branch remains origin metadata and action context, not primary inbox scope
 - Must work with the existing shell surfaces:
   - [app_wide_navigation_rail_shell.dart](/Users/mac/flutterProjects/modular/lib/core/widgets/navigation/app_wide_navigation_rail_shell.dart)
@@ -159,4 +164,4 @@ We should consider this rework successful when:
 
 ## Next Step
 
-Next prompt should define the shell/navigation solution against this locked problem statement and the accepted tenant-level notification scope.
+Next prompt should define the shell/navigation solution against this locked problem statement and the accepted account-scoped notification target, while respecting the interim tenant-scoped implementation boundary.

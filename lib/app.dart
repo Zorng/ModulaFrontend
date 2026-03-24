@@ -56,6 +56,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final isOtpVerification = path == AppRoute.otpVerification.path;
       final isTenantSelection = path == AppRoute.tenantSelection.path;
       final isInvitationInbox = path == AppRoute.invitationInbox.path;
+      final isNotifications = path == AppRoute.notifications.path;
+      final isAccount = path == AppRoute.account.path;
+      final isSettings = path == AppRoute.settings.path;
       final isBranchSelection = path == AppRoute.branchSelection.path;
       final isPortal = path == AppRoute.portal.path;
       final isBranchPortal = path == AppRoute.branchPortal.path;
@@ -72,7 +75,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       }
 
       if (session.requiresTenantSelection) {
-        return (isTenantSelection || isInvitationInbox)
+        return (isTenantSelection ||
+                isInvitationInbox ||
+                isNotifications ||
+                isAccount ||
+                isSettings)
             ? null
             : AppRoute.tenantSelection.path;
       }
@@ -269,7 +276,6 @@ bool _isBranchScopedRoute(String path) {
       isPathInGroup(path, AppRoute.cashSession.path) ||
       isPathInGroup(path, AppRoute.cashHistory.path) ||
       isPathInGroup(path, AppRoute.policy.path) ||
-      isPathInGroup(path, AppRoute.notifications.path) ||
       isPathInGroup(path, AppRoute.sale.path) ||
       isPathInGroup(path, AppRoute.branchDiscount.path) ||
       isPathInGroup(path, AppRoute.attendance.path) ||

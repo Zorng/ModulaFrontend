@@ -80,7 +80,9 @@ class OperationalNotificationSseParser {
     final dto = OperationalNotificationItemDto.fromJson({
       'id': json['notificationId'],
       'tenantId': json['tenantId'],
+      'tenantName': json['tenantName'],
       'branchId': json['branchId'],
+      'branchName': json['branchName'],
       'type': json['notificationType'],
       'subjectType': json['subjectType'],
       'subjectId': json['subjectId'],
@@ -95,7 +97,9 @@ class OperationalNotificationSseParser {
     return OperationalNotificationItem(
       id: dto.id,
       tenantId: dto.tenantId,
+      tenantName: dto.tenantName,
       branchId: dto.branchId,
+      branchName: dto.branchName,
       type: OperationalNotificationTypes.normalize(dto.type),
       subjectType: OperationalNotificationSubjectTypes.normalize(
         dto.subjectType,

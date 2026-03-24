@@ -1,5 +1,4 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:modular_pos/features/auth/domain/active_branch_context_provider.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/notification/data/operational_notification_repository.dart';
 
@@ -15,15 +14,13 @@ class OperationalNotificationUnreadCountController extends AsyncNotifier<int> {
   @override
   Future<int> build() async {
     final accessToken = _watchAccessToken();
-    final branchId = _watchBranchId();
-    if (accessToken == null || branchId == null) return 0;
+    if (accessToken == null) return 0;
     return _repository.getUnreadCount();
   }
 
   Future<void> refresh() async {
     final accessToken = _readAccessToken();
-    final branchId = _readBranchId();
-    if (accessToken == null || branchId == null) {
+    if (accessToken == null) {
       state = const AsyncData(0);
       return;
     }
@@ -51,28 +48,13 @@ class OperationalNotificationUnreadCountController extends AsyncNotifier<int> {
     return _normalizeAccessToken(token);
   }
 
-  String? _watchBranchId() {
-    final branchId = ref.watch(activeBranchContextIdProvider);
-    return _normalizeBranchId(branchId);
-  }
-
   String? _readAccessToken() {
     final token = ref.read(loginControllerProvider).session?.accessToken;
     return _normalizeAccessToken(token);
   }
 
-  String? _readBranchId() {
-    final branchId = ref.read(activeBranchContextIdProvider);
-    return _normalizeBranchId(branchId);
-  }
-
   String? _normalizeAccessToken(String? token) {
     final normalized = (token ?? '').trim();
-    return normalized.isEmpty ? null : normalized;
-  }
-
-  String? _normalizeBranchId(String? branchId) {
-    final normalized = (branchId ?? '').trim();
     return normalized.isEmpty ? null : normalized;
   }
 }

@@ -39,7 +39,9 @@ class OperationalNotificationItem {
   const OperationalNotificationItem({
     required this.id,
     required this.tenantId,
+    required this.tenantName,
     required this.branchId,
+    this.branchName,
     required this.type,
     required this.subjectType,
     required this.subjectId,
@@ -54,7 +56,9 @@ class OperationalNotificationItem {
 
   final String id;
   final String tenantId;
+  final String tenantName;
   final String branchId;
+  final String? branchName;
   final String type;
   final String subjectType;
   final String subjectId;
@@ -71,7 +75,9 @@ class OperationalNotificationItem {
   OperationalNotificationItem copyWith({
     String? id,
     String? tenantId,
+    String? tenantName,
     String? branchId,
+    Object? branchName = _unset,
     String? type,
     String? subjectType,
     String? subjectId,
@@ -86,7 +92,11 @@ class OperationalNotificationItem {
     return OperationalNotificationItem(
       id: id ?? this.id,
       tenantId: tenantId ?? this.tenantId,
+      tenantName: tenantName ?? this.tenantName,
       branchId: branchId ?? this.branchId,
+      branchName: identical(branchName, _unset)
+          ? this.branchName
+          : branchName as String?,
       type: type == null
           ? this.type
           : OperationalNotificationTypes.normalize(type),
@@ -103,6 +113,8 @@ class OperationalNotificationItem {
       readAt: readAt ?? this.readAt,
     );
   }
+
+  static const Object _unset = Object();
 }
 
 class OperationalNotificationInboxPage {

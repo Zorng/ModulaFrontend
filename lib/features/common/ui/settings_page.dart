@@ -15,6 +15,7 @@ class SettingsPage extends StatelessWidget {
       title: 'Settings',
       isEditing: false,
       onEditToggle: () {},
+      showEditAction: false,
       child: PolicySettingGroup(
         children: items
             .map(

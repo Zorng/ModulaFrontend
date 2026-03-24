@@ -1,6 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/core/network/api_contract.dart';
-import 'package:modular_pos/features/auth/domain/active_branch_context_provider.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/notification/data/operational_notification_repository.dart';
 import 'package:modular_pos/features/notification/domain/models/operational_notification.dart';
@@ -105,8 +104,7 @@ class OperationalNotificationInboxController
   @override
   Future<OperationalNotificationInboxState> build() async {
     final accessToken = _watchAccessToken();
-    final branchId = _watchBranchId();
-    if (accessToken == null || branchId == null) {
+    if (accessToken == null) {
       return const OperationalNotificationInboxState.empty();
     }
     return _load(
@@ -117,9 +115,8 @@ class OperationalNotificationInboxController
 
   Future<void> refresh() async {
     final accessToken = _readAccessToken();
-    final branchId = _readBranchId();
     final current = _currentState;
-    if (accessToken == null || branchId == null) {
+    if (accessToken == null) {
       state = const AsyncData(OperationalNotificationInboxState.empty());
       return;
     }
@@ -154,7 +151,6 @@ class OperationalNotificationInboxController
 
   Future<void> applyFilters({bool? unreadOnly, String? type}) async {
     final accessToken = _readAccessToken();
-    final branchId = _readBranchId();
     final current =
         _currentState ?? const OperationalNotificationInboxState.empty();
     final nextState = current.copyWith(
@@ -163,7 +159,7 @@ class OperationalNotificationInboxController
       isRefreshing: true,
       clearInlineError: true,
     );
-    if (accessToken == null || branchId == null) {
+    if (accessToken == null) {
       state = AsyncData(
         nextState.copyWith(
           items: const <OperationalNotificationItem>[],
@@ -193,9 +189,8 @@ class OperationalNotificationInboxController
 
   Future<void> loadMore() async {
     final accessToken = _readAccessToken();
-    final branchId = _readBranchId();
     final current = _currentState;
-    if (accessToken == null || branchId == null || current == null) return;
+    if (accessToken == null || current == null) return;
     if (!current.hasMore || current.isLoadingMore || current.isRefreshing) {
       return;
     }
@@ -373,28 +368,13 @@ class OperationalNotificationInboxController
     return _normalizeAccessToken(token);
   }
 
-  String? _watchBranchId() {
-    final branchId = ref.watch(activeBranchContextIdProvider);
-    return _normalizeBranchId(branchId);
-  }
-
   String? _readAccessToken() {
     final token = ref.read(loginControllerProvider).session?.accessToken;
     return _normalizeAccessToken(token);
   }
 
-  String? _readBranchId() {
-    final branchId = ref.read(activeBranchContextIdProvider);
-    return _normalizeBranchId(branchId);
-  }
-
   String? _normalizeAccessToken(String? token) {
     final normalized = (token ?? '').trim();
-    return normalized.isEmpty ? null : normalized;
-  }
-
-  String? _normalizeBranchId(String? branchId) {
-    final normalized = (branchId ?? '').trim();
     return normalized.isEmpty ? null : normalized;
   }
 

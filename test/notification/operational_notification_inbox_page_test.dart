@@ -38,6 +38,8 @@ class _FakeOperationalNotificationRepository
   Future<OperationalNotificationInboxPage> listInbox({
     bool unreadOnly = false,
     String? type,
+    String? tenantId,
+    String? branchId,
     int limit = 50,
     int offset = 0,
   }) async {
@@ -143,6 +145,59 @@ AuthSession _session() {
   );
 }
 
+AuthSession _tenantOnlySession() {
+  return AuthSession(
+    user: User(
+      id: 'user-1',
+      name: 'Tester',
+      role: 'ADMIN',
+      tenantId: 'tenant-1',
+      branches: const <UserBranch>[],
+    ),
+    memberships: const <TenantMembership>[
+      TenantMembership(
+        membershipId: 'membership-1',
+        tenantId: 'tenant-1',
+        tenantName: 'Tenant 1',
+        role: 'ADMIN',
+        branches: <UserBranch>[],
+      ),
+    ],
+    activeTenantId: 'tenant-1',
+    accessToken: 'access-token',
+    refreshToken: 'refresh-token',
+    accessTokenExpiresAt: DateTime.now().toUtc().add(const Duration(hours: 1)),
+    refreshTokenExpiresAt: DateTime.now().toUtc().add(const Duration(days: 1)),
+  );
+}
+
+AuthSession _accountScopedSessionWithoutTenantSelection() {
+  return AuthSession(
+    user: User(
+      id: 'user-1',
+      name: 'Tester',
+      role: 'ADMIN',
+      tenantId: '',
+      branches: const <UserBranch>[],
+    ),
+    memberships: const <TenantMembership>[
+      TenantMembership(
+        membershipId: 'membership-1',
+        tenantId: 'tenant-1',
+        tenantName: 'Tenant 1',
+        role: 'ADMIN',
+        branches: <UserBranch>[],
+      ),
+    ],
+    activeTenantId: null,
+    accessToken: 'access-token',
+    refreshToken: 'refresh-token',
+    accessTokenExpiresAt: DateTime.now().toUtc().add(const Duration(hours: 1)),
+    refreshTokenExpiresAt: DateTime.now().toUtc().add(const Duration(days: 1)),
+    tenantSelectionToken: 'selection-token',
+  );
+}
+
 OperationalNotificationItem _notification({
   required String id,
   String type = OperationalNotificationTypes.voidApprovalNeeded,
@@ -154,7 +209,9 @@ OperationalNotificationItem _notification({
   return OperationalNotificationItem(
     id: id,
     tenantId: 'tenant-1',
+    tenantName: 'Tenant 1',
     branchId: 'branch-1',
+    branchName: 'Main Branch',
     type: type,
     subjectType: subjectType,
     subjectId: subjectId ?? 'sale-$id',
@@ -168,13 +225,17 @@ OperationalNotificationItem _notification({
   );
 }
 
-Widget _pageHarness(OperationalNotificationRepository repository) {
+Widget _pageHarness(
+  OperationalNotificationRepository repository, {
+  AuthSession? session,
+}) {
+  final resolvedSession = session ?? _session();
   return ProviderScope(
     overrides: [
       loginControllerProvider.overrideWith(
-        () => _StaticLoginController(_session()),
+        () => _StaticLoginController(resolvedSession),
       ),
-      initialAuthSessionProvider.overrideWithValue(_session()),
+      initialAuthSessionProvider.overrideWithValue(resolvedSession),
       operationalNotificationRepositoryProvider.overrideWithValue(repository),
     ],
     child: const MaterialApp(
@@ -183,7 +244,11 @@ Widget _pageHarness(OperationalNotificationRepository repository) {
   );
 }
 
-Widget _actionRouterHarness(OperationalNotificationRepository repository) {
+Widget _actionRouterHarness(
+  OperationalNotificationRepository repository, {
+  AuthSession? session,
+}) {
+  final resolvedSession = session ?? _session();
   final router = GoRouter(
     initialLocation: '/shell',
     routes: [
@@ -226,13 +291,28 @@ Widget _actionRouterHarness(OperationalNotificationRepository repository) {
   return ProviderScope(
     overrides: [
       loginControllerProvider.overrideWith(
-        () => _StaticLoginController(_session()),
+        () => _StaticLoginController(resolvedSession),
       ),
-      initialAuthSessionProvider.overrideWithValue(_session()),
+      initialAuthSessionProvider.overrideWithValue(resolvedSession),
       operationalNotificationRepositoryProvider.overrideWithValue(repository),
     ],
     child: MaterialApp.router(routerConfig: router),
   );
+}
+
+void _setWideSurface(WidgetTester tester) {
+  tester.view.devicePixelRatio = 1.0;
+  tester.view.physicalSize = const Size(1280, 1000);
+}
+
+void _setSmallSurface(WidgetTester tester) {
+  tester.view.devicePixelRatio = 1.0;
+  tester.view.physicalSize = const Size(390, 844);
+}
+
+void _resetSurface(WidgetTester tester) {
+  tester.view.resetPhysicalSize();
+  tester.view.resetDevicePixelRatio();
 }
 
 void main() {
@@ -280,9 +360,12 @@ void main() {
     expect(find.text('Notification 2'), findsNothing);
   });
 
-  testWidgets('notification action shows badge and opens inbox route', (
+  testWidgets('notification action shows badge and opens wide dialog', (
     tester,
   ) async {
+    _setWideSurface(tester);
+    addTearDown(() => _resetSurface(tester));
+
     await tester.pumpWidget(
       _actionRouterHarness(
         _FakeOperationalNotificationRepository(
@@ -308,9 +391,93 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    expect(
+      find.byKey(notification_view.operationalNotificationInboxDialogKey),
+      findsOneWidget,
+    );
     expect(find.text('Notifications'), findsWidgets);
     expect(find.text('Notification 1'), findsOneWidget);
   });
+
+  testWidgets('notification action opens bottom sheet on small screens', (
+    tester,
+  ) async {
+    _setSmallSurface(tester);
+    addTearDown(() => _resetSurface(tester));
+
+    await tester.pumpWidget(
+      _actionRouterHarness(
+        _FakeOperationalNotificationRepository(
+          items: [_notification(id: '1')],
+          unreadCount: 1,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.byKey(const Key('operational_notification_inbox_action')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(notification_view.operationalNotificationInboxBottomSheetKey),
+      findsOneWidget,
+    );
+    expect(find.text('Notification 1'), findsOneWidget);
+  });
+
+  testWidgets(
+    'notification action remains visible without an active branch context',
+    (tester) async {
+      await tester.pumpWidget(
+        _actionRouterHarness(
+          _FakeOperationalNotificationRepository(
+            items: [_notification(id: '1')],
+            unreadCount: 2,
+          ),
+          session: _tenantOnlySession(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('operational_notification_inbox_action')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('operational_notification_unread_badge')),
+        findsOneWidget,
+      );
+      expect(find.text('2'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'notifications page loads account-level inbox before tenant selection',
+    (tester) async {
+      await tester.pumpWidget(
+        _pageHarness(
+          _FakeOperationalNotificationRepository(
+            items: [_notification(id: '1')],
+            unreadCount: 1,
+          ),
+          session: _accountScopedSessionWithoutTenantSelection(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Notification 1'), findsOneWidget);
+      expect(
+        find.textContaining('Tenant 1', findRichText: true),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('Main Branch', findRichText: true),
+        findsOneWidget,
+      );
+    },
+  );
 
   testWidgets('open action routes void notifications to sale carts', (
     tester,

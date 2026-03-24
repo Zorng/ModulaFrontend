@@ -106,6 +106,12 @@ class _TestContextScopedResource implements ContextScopedRuntimeResource {
   final List<(String token, String tenantId, String branchId)> rebinds = [];
 
   @override
+  bool get requiresTenantContext => true;
+
+  @override
+  bool get requiresBranchContext => true;
+
+  @override
   Future<void> onContextCleared() async {
     clearedCount += 1;
   }
@@ -119,6 +125,14 @@ class _TestContextScopedResource implements ContextScopedRuntimeResource {
     reboundCount += 1;
     rebinds.add((accessToken, tenantId, branchId));
   }
+}
+
+class _TenantOptionalContextScopedResource extends _TestContextScopedResource {
+  @override
+  bool get requiresTenantContext => false;
+
+  @override
+  bool get requiresBranchContext => false;
 }
 
 class _TestSyncPullTriggerController extends SyncPullTriggerController {
@@ -402,6 +416,34 @@ AuthSession _buildSession({
   );
 }
 
+AuthSession _buildPreTenantSession({required String accessToken}) {
+  final user = User(
+    id: 'user-1',
+    name: 'Test User',
+    role: 'admin',
+    tenantId: '',
+    branches: const <UserBranch>[],
+  );
+
+  return AuthSession(
+    user: user,
+    memberships: const [
+      TenantMembership(
+        tenantId: 'tenant-1',
+        tenantName: 'Tenant',
+        role: 'admin',
+        branches: <UserBranch>[],
+      ),
+    ],
+    activeTenantId: null,
+    accessToken: accessToken,
+    refreshToken: 'refresh',
+    accessTokenExpiresAt: DateTime.now().add(const Duration(hours: 1)),
+    refreshTokenExpiresAt: DateTime.now().add(const Duration(days: 7)),
+    tenantSelectionToken: 'selection-token',
+  );
+}
+
 void main() {
   testWidgets(
     'hydrates token/tenant and refreshes policy/cash session per branch',
@@ -617,6 +659,66 @@ void main() {
     expect(policy.resetCount, greaterThanOrEqualTo(2));
     expect(cash.resetCount, greaterThanOrEqualTo(2));
   });
+
+  testWidgets(
+    'rebinds tenant-optional runtime resources before tenant selection',
+    (tester) async {
+      final runtimeResource = _TenantOptionalContextScopedResource();
+      final triggerController = _TestSyncPullTriggerController();
+      final saleOutageRecoveryController = _TestSaleOutageRecoveryController();
+      final container = createTestContainer(
+        overrides: [
+          loginControllerProvider.overrideWith(_TestLoginController.new),
+          policyNotifierProvider.overrideWith(_TestPolicyNotifier.new),
+          cashSessionViewModelProvider.overrideWith(
+            _TestCashSessionViewModel.new,
+          ),
+          contextScopedRuntimeResourcesProvider.overrideWithValue([
+            runtimeResource,
+          ]),
+          syncResolvedDeviceIdProvider.overrideWith((ref) async => 'device-1'),
+          syncPullTriggerControllerProvider.overrideWithValue(
+            triggerController,
+          ),
+          saleOutageRecoveryControllerProvider.overrideWithValue(
+            saleOutageRecoveryController,
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        _TestHarness(
+          container: container,
+          child: const AppHydrationListener(child: SizedBox.shrink()),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 1));
+
+      final policy =
+          container.read(policyNotifierProvider.notifier)
+              as _TestPolicyNotifier;
+      final cash =
+          container.read(cashSessionViewModelProvider.notifier)
+              as _TestCashSessionViewModel;
+      final login =
+          container.read(loginControllerProvider.notifier)
+              as _TestLoginController;
+
+      login.setSession(_buildPreTenantSession(accessToken: 'token-1'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(container.read(authAccessTokenProvider), 'token-1');
+      expect(container.read(authTenantIdProvider), isNull);
+      expect(policy.loadCount, 0);
+      expect(cash.loadCount, 0);
+      expect(runtimeResource.reboundCount, 1);
+      expect(runtimeResource.rebinds, [('token-1', '', '')]);
+      expect(triggerController.calls, isEmpty);
+      expect(saleOutageRecoveryController.calls, isEmpty);
+    },
+  );
 
   testWidgets('treats tenant change as tenantSwitch trigger', (tester) async {
     final triggerController = _TestSyncPullTriggerController();

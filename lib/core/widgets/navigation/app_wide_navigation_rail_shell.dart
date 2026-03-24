@@ -7,14 +7,12 @@ import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/core/widgets/navigation/app_navigation_config.dart';
 import 'package:modular_pos/core/widgets/navigation/navigation_layer_back_button.dart';
 import 'package:modular_pos/core/widgets/navigation/tenant_profile_header.dart';
-import 'package:modular_pos/core/widgets/sync/global_sync_status_indicator.dart';
 import 'package:modular_pos/features/auth/domain/active_branch_context_provider.dart';
 import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
 import 'package:modular_pos/features/auth/domain/auth_role.dart';
 import 'package:modular_pos/features/auth/domain/models/auth_session.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
-import 'package:modular_pos/features/notification/ui/components/operational_notification_inbox_action.dart';
 
 class AppScaffoldShell extends ConsumerWidget {
   const AppScaffoldShell({
@@ -35,33 +33,7 @@ class AppScaffoldShell extends ConsumerWidget {
         if (isBranchLayer || !isWide) {
           return child;
         }
-
-        return Stack(
-          children: [
-            _buildWideShell(context, ref),
-            Positioned.fill(
-              child: SafeArea(
-                child: Align(
-                  alignment: Alignment.topRight,
-                  child: Padding(
-                    padding: EdgeInsets.only(
-                      top: isWide ? 16 : 12,
-                      right: isWide ? 16 : 12,
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: const [
-                        OperationalNotificationInboxAction(compact: true),
-                        SizedBox(width: 12),
-                        GlobalSyncStatusIndicator(compact: false),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        );
+        return _buildWideShell(context, ref);
       },
     );
   }
@@ -183,7 +155,8 @@ AppRoute _defaultRoute({
 
 bool _shouldUseFallbackSelection(String currentPath) {
   return currentPath != AppRoute.account.path &&
-      currentPath != AppRoute.settings.path;
+      currentPath != AppRoute.settings.path &&
+      currentPath != AppRoute.notifications.path;
 }
 
 String? _resolveLayerBackTarget({
@@ -192,7 +165,8 @@ String? _resolveLayerBackTarget({
   required bool isBranchLayer,
 }) {
   if (currentPath == AppRoute.account.path ||
-      currentPath == AppRoute.settings.path) {
+      currentPath == AppRoute.settings.path ||
+      currentPath == AppRoute.notifications.path) {
     return null;
   }
   if (role == AuthRole.admin || role == AuthRole.owner) {
@@ -209,7 +183,8 @@ String? _resolveLayerBackTooltip({
   required bool isBranchLayer,
 }) {
   if (currentPath == AppRoute.account.path ||
-      currentPath == AppRoute.settings.path) {
+      currentPath == AppRoute.settings.path ||
+      currentPath == AppRoute.notifications.path) {
     return null;
   }
   if (role == AuthRole.admin || role == AuthRole.owner) {
@@ -508,7 +483,6 @@ bool _isBranchScopedPath(String path) {
       isPathInGroup(path, AppRoute.cashSession.path) ||
       isPathInGroup(path, AppRoute.cashHistory.path) ||
       isPathInGroup(path, AppRoute.policy.path) ||
-      isPathInGroup(path, AppRoute.notifications.path) ||
       isPathInGroup(path, AppRoute.branchDiscount.path) ||
       isPathInGroup(path, AppRoute.sale.path) ||
       isPathInGroup(path, AppRoute.attendance.path) ||

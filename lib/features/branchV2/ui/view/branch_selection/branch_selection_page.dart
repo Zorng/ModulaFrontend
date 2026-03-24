@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/routing/workspace_route_guard.dart';
 import 'package:modular_pos/core/theme/responsive.dart';
+import 'package:modular_pos/core/widgets/navigation/tenant_workspace_app_bar_actions.dart';
 import 'package:modular_pos/features/auth/data/auth_repository.dart';
 import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
@@ -116,12 +117,6 @@ class _BranchSelectionPageState extends ConsumerState<BranchSelectionPage> {
     final isWide = AppBreakpoints.isLarge(MediaQuery.of(context).size.width);
     final isLoading = isSelectionMode ? loginState.isLoading : state.isLoading;
 
-    Future<void> signOut() async {
-      await loginController.logout();
-      if (!context.mounted) return;
-      context.go(AppRoute.login.path);
-    }
-
     Future<void> onBranchTap(String branchId) async {
       final result = await branchController.onBranchTileTap(branchId: branchId);
       if (!context.mounted) return;
@@ -206,19 +201,14 @@ class _BranchSelectionPageState extends ConsumerState<BranchSelectionPage> {
                 ],
               )
             : Text(appBarTitle),
-        actions: [
-          IconButton(
-            tooltip: 'Sign out',
-            onPressed: isLoading ? null : signOut,
-            icon: const Icon(Icons.logout),
-          ),
-        ],
+        actions: const [TenantWorkspaceAppBarActions()],
       ),
       body: LayoutBuilder(
         builder: (context, constraints) {
           final isSmall = AppBreakpoints.isSmall(constraints.maxWidth);
-          final searchQuery =
-              isSelectionMode ? _selectionSearchQuery : state.searchQuery;
+          final searchQuery = isSelectionMode
+              ? _selectionSearchQuery
+              : state.searchQuery;
 
           final searchField = TextField(
             controller: _searchController,
@@ -287,10 +277,7 @@ class _BranchSelectionPageState extends ConsumerState<BranchSelectionPage> {
                         searchField,
                         if (!isSelectionMode && state.canManageTenant) ...[
                           const SizedBox(height: 12),
-                          SizedBox(
-                            width: double.infinity,
-                            child: createButton,
-                          ),
+                          SizedBox(width: double.infinity, child: createButton),
                         ],
                       ] else
                         Row(
@@ -354,28 +341,25 @@ class _BranchSelectionPageState extends ConsumerState<BranchSelectionPage> {
                       mainAxisSpacing: 8,
                       mainAxisExtent: 230,
                     ),
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                        final branch = branches[index];
-                        final displayBranch =
-                            !isSelectionMode &&
-                                activeBranchId.isNotEmpty &&
-                                branch.branchId == activeBranchId
-                            ? branch.copyWith(shouldHighlight: true)
-                            : branch;
-                        return BranchSelectionTile(
-                          branch: displayBranch,
-                          enabled: !isLoading,
-                          onTap: () => isSelectionMode
-                              ? onSelectionBranchTap(branch)
-                              : onBranchTap(branch.branchId),
-                          onManage: !isSelectionMode && state.canManageTenant
-                              ? () => onManageBranch(branch)
-                              : null,
-                        );
-                      },
-                      childCount: branches.length,
-                    ),
+                    delegate: SliverChildBuilderDelegate((context, index) {
+                      final branch = branches[index];
+                      final displayBranch =
+                          !isSelectionMode &&
+                              activeBranchId.isNotEmpty &&
+                              branch.branchId == activeBranchId
+                          ? branch.copyWith(shouldHighlight: true)
+                          : branch;
+                      return BranchSelectionTile(
+                        branch: displayBranch,
+                        enabled: !isLoading,
+                        onTap: () => isSelectionMode
+                            ? onSelectionBranchTap(branch)
+                            : onBranchTap(branch.branchId),
+                        onManage: !isSelectionMode && state.canManageTenant
+                            ? () => onManageBranch(branch)
+                            : null,
+                      );
+                    }, childCount: branches.length),
                   ),
                 ),
             ],

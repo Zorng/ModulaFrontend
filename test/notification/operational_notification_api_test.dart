@@ -33,6 +33,7 @@ void main() {
                   {
                     'id': 'notif-1',
                     'tenantId': 'tenant-1',
+                    'tenantName': 'Tenant 1',
                     'branchId': 'branch-1',
                     'type': 'VOID_APPROVAL_NEEDED',
                     'subjectType': 'SALE',
@@ -59,6 +60,8 @@ void main() {
         final page = await api.listInbox(
           unreadOnly: true,
           type: 'VOID_APPROVAL_NEEDED',
+          tenantId: 'tenant-1',
+          branchId: 'branch-1',
           limit: 20,
           offset: 0,
         );
@@ -69,6 +72,8 @@ void main() {
             queryParameters: {
               'unreadOnly': true,
               'type': 'VOID_APPROVAL_NEEDED',
+              'tenantId': 'tenant-1',
+              'branchId': 'branch-1',
               'limit': 20,
               'offset': 0,
             },
@@ -76,6 +81,7 @@ void main() {
         ).called(1);
         expect(page.items, hasLength(1));
         expect(page.items.single.id, 'notif-1');
+        expect(page.items.single.tenantName, 'Tenant 1');
         expect(page.items.single.payload, {'saleId': 'sale-1'});
         expect(page.total, 1);
       },

@@ -6,6 +6,8 @@ abstract class OperationalNotificationRepository {
   Future<OperationalNotificationInboxPage> listInbox({
     bool unreadOnly = false,
     String? type,
+    String? tenantId,
+    String? branchId,
     int limit = 50,
     int offset = 0,
   });
@@ -39,12 +41,16 @@ class RemoteOperationalNotificationRepository
   Future<OperationalNotificationInboxPage> listInbox({
     bool unreadOnly = false,
     String? type,
+    String? tenantId,
+    String? branchId,
     int limit = 50,
     int offset = 0,
   }) async {
     final dto = await _api.listInbox(
       unreadOnly: unreadOnly,
       type: type,
+      tenantId: tenantId,
+      branchId: branchId,
       limit: limit,
       offset: offset,
     );
@@ -95,7 +101,9 @@ class RemoteOperationalNotificationRepository
     return OperationalNotificationItem(
       id: dto.id,
       tenantId: dto.tenantId,
+      tenantName: dto.tenantName,
       branchId: dto.branchId,
+      branchName: dto.branchName,
       type: OperationalNotificationTypes.normalize(dto.type),
       subjectType: OperationalNotificationSubjectTypes.normalize(
         dto.subjectType,

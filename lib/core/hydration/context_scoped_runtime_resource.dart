@@ -6,6 +6,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 ///
 /// Example consumers: SSE notification client, sync workers, live subscriptions.
 abstract class ContextScopedRuntimeResource {
+  bool get requiresTenantContext => true;
+
+  bool get requiresBranchContext => true;
+
   FutureOr<void> onContextCleared();
 
   FutureOr<void> onContextChanged({
