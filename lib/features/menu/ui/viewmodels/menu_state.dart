@@ -2,7 +2,9 @@ import 'package:flutter/foundation.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_branch.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_category.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_composition.dart';
+import 'package:modular_pos/features/menu/domain/models/menu_item_detail.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
+import 'package:modular_pos/features/menu/domain/models/menu_modifier_option_effect.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 
 const _unset = Object();
@@ -16,6 +18,14 @@ class MenuState {
     this.categories = const [],
     this.modifierGroups = const [],
     this.branches = const [],
+    this.detailByItemId = const {},
+    this.detailLoadingByItemId = const {},
+    this.detailErrorsByItemId = const {},
+    this.baseCompositionByItemId = const {},
+    this.modifierOptionEffectsByItemId = const {},
+    this.modifierOptionEffectsLoadingByItemId = const {},
+    this.modifierOptionEffectsErrorsByItemId = const {},
+    this.evaluatedCompositionByItemId = const {},
     this.hydratedItems = const {},
     this.hydratedModifierGroups = const {},
     this.hydrationErrors = const {},
@@ -39,6 +49,16 @@ class MenuState {
   final List<MenuCategory> categories;
   final List<ModifierGroup> modifierGroups;
   final List<MenuBranch> branches;
+
+  // Explicit detail/effect state for the new menu contract direction.
+  final Map<String, MenuItemDetail> detailByItemId;
+  final Map<String, bool> detailLoadingByItemId;
+  final Map<String, String> detailErrorsByItemId;
+  final Map<String, List<MenuComponent>> baseCompositionByItemId;
+  final Map<String, List<MenuModifierOptionEffect>> modifierOptionEffectsByItemId;
+  final Map<String, bool> modifierOptionEffectsLoadingByItemId;
+  final Map<String, String> modifierOptionEffectsErrorsByItemId;
+  final Map<String, MenuCompositionEvaluate> evaluatedCompositionByItemId;
   final Map<String, MenuItem> hydratedItems;
   final Map<String, ModifierGroup> hydratedModifierGroups;
   final Map<String, String> hydrationErrors;
@@ -62,6 +82,14 @@ class MenuState {
     List<MenuCategory>? categories,
     List<ModifierGroup>? modifierGroups,
     List<MenuBranch>? branches,
+    Map<String, MenuItemDetail>? detailByItemId,
+    Map<String, bool>? detailLoadingByItemId,
+    Map<String, String>? detailErrorsByItemId,
+    Map<String, List<MenuComponent>>? baseCompositionByItemId,
+    Map<String, List<MenuModifierOptionEffect>>? modifierOptionEffectsByItemId,
+    Map<String, bool>? modifierOptionEffectsLoadingByItemId,
+    Map<String, String>? modifierOptionEffectsErrorsByItemId,
+    Map<String, MenuCompositionEvaluate>? evaluatedCompositionByItemId,
     Map<String, MenuItem>? hydratedItems,
     Map<String, ModifierGroup>? hydratedModifierGroups,
     Map<String, String>? hydrationErrors,
@@ -85,6 +113,23 @@ class MenuState {
       categories: categories ?? this.categories,
       modifierGroups: modifierGroups ?? this.modifierGroups,
       branches: branches ?? this.branches,
+      detailByItemId: detailByItemId ?? this.detailByItemId,
+      detailLoadingByItemId:
+          detailLoadingByItemId ?? this.detailLoadingByItemId,
+      detailErrorsByItemId: detailErrorsByItemId ?? this.detailErrorsByItemId,
+      baseCompositionByItemId:
+          baseCompositionByItemId ?? this.baseCompositionByItemId,
+      modifierOptionEffectsByItemId:
+          modifierOptionEffectsByItemId ??
+          this.modifierOptionEffectsByItemId,
+      modifierOptionEffectsLoadingByItemId:
+          modifierOptionEffectsLoadingByItemId ??
+          this.modifierOptionEffectsLoadingByItemId,
+      modifierOptionEffectsErrorsByItemId:
+          modifierOptionEffectsErrorsByItemId ??
+          this.modifierOptionEffectsErrorsByItemId,
+      evaluatedCompositionByItemId:
+          evaluatedCompositionByItemId ?? this.evaluatedCompositionByItemId,
       hydratedItems: hydratedItems ?? this.hydratedItems,
       hydratedModifierGroups:
           hydratedModifierGroups ?? this.hydratedModifierGroups,

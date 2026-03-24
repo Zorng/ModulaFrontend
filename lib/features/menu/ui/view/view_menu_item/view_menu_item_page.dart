@@ -7,6 +7,7 @@ import 'package:modular_pos/core/widgets/media/product_image.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_controller.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_composition.dart';
+import 'package:modular_pos/features/menu/domain/models/menu_item_detail.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 import 'package:modular_pos/features/menu/ui/view/view_menu_item/view_menu_item_utils.dart';
@@ -27,11 +28,11 @@ class ViewMenuItemPage extends ConsumerWidget {
     final menuState = ref.watch(menuViewModelProvider);
     final menuVm = ref.read(menuViewModelProvider.notifier);
     final inventoryState = ref.watch(stockInventoryControllerProvider);
-    final hydratedItem = menuState.hydratedItems[menuItem.id];
-    final hydrationError = menuState.hydrationErrors[menuItem.id];
+    final detail = menuState.detailByItemId[menuItem.id];
+    final detailError = menuState.detailErrorsByItemId[menuItem.id];
 
-    if (hydratedItem == null) {
-      menuVm.loadItemWithModifiers(menuItem.id);
+    if (detail == null) {
+      menuVm.loadMenuItemDetail(menuItem.id);
       return Scaffold(
         appBar: AppBar(
           centerTitle: false,
@@ -45,28 +46,22 @@ class ViewMenuItemPage extends ConsumerWidget {
           title: Text(menuItem.name.isNotEmpty ? menuItem.name : 'Menu Item'),
         ),
         body: Center(
-          child: hydrationError != null
-              ? Text('Failed to load item details.\n$hydrationError')
+          child: detailError != null
+              ? Text('Failed to load item details.\n$detailError')
               : const CircularProgressIndicator(),
         ),
       );
     }
 
-    final latestItem = hydratedItem;
-    final categoryName = resolveCategoryName(
-      menuState.categories,
-      latestItem.categoryId,
-    );
-    final modifiers = latestItem.modifierGroupIds
-        .map((id) => menuState.hydratedModifierGroups[id])
-        .whereType<ModifierGroup>()
-        .toList();
+    final latestItem = detail.item;
+    final categoryName =
+        detail.categoryName ??
+        resolveCategoryName(menuState.categories, latestItem.categoryId);
+    final modifiers = detail.modifierGroups;
     final branches = menuState.branches
         .where((branch) => latestItem.branchIds.contains(branch.id))
         .toList();
-    final stockItems = inventoryState.stockItems
-        .where((item) => item.isActive)
-        .toList(growable: false)
+    final stockItems = inventoryState.stockItems.toList(growable: false)
       ..sort((a, b) => a.name.compareTo(b.name));
     final compositionLoaded =
         menuState.compositionLoadedByItem[latestItem.id] == true;
@@ -81,8 +76,8 @@ class ViewMenuItemPage extends ConsumerWidget {
       ref.read(stockInventoryControllerProvider.notifier).loadStockItems();
     }
 
-    final composition =
-        menuState.compositionByItem[latestItem.id] ?? const <MenuComponent>[];
+    final composition = menuState.baseCompositionByItemId[latestItem.id] ??
+        const <MenuComponent>[];
 
     return Scaffold(
       appBar: AppBar(
@@ -103,7 +98,7 @@ class ViewMenuItemPage extends ConsumerWidget {
                 extra: latestItem,
               );
               if (updated != null && context.mounted) {
-                await menuVm.loadItemWithModifiers(updated.id);
+                await menuVm.loadMenuItemDetail(updated.id);
               }
             },
             child: const Text('Edit'),
@@ -312,7 +307,7 @@ String _stockItemLabel(List<StockItem> stockItems, String stockItemId) {
       return unit.isEmpty ? item.name.toString() : '${item.name} ($unit)';
     }
   }
-  return stockItemId;
+  return 'Unknown stock item';
 }
 
 String _formatQuantity(double value) {

@@ -57,5 +57,6 @@ app.*.map.json
 
 # documents
 /flow-docs
+/flow-docs/menu-api-migration-report.md
 /flow-implementation
 /integration

@@ -36,6 +36,13 @@ class AppTableTheme {
     color: Color(0xFF696969),
   );
 
+  // Filter pill
+  static const Color filterPillBackground = headerBackground;
+  static const Color filterPillBorder = divider;
+  static const Color filterPillLabelColor = Color(0xFF6B7280);
+  static const Color filterPillValueColor = Color(0xFF2B2B2B);
+  static const Color filterPillIconColor = Color(0xFF9CA3AF);
+
   // Status pill – healthy
   static const BoxDecoration healthyDecoration = BoxDecoration(
     color: Color(0xFFE3F8ED),

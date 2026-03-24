@@ -329,6 +329,13 @@ class _AddModifierGroupPageState extends ConsumerState<AddModifierGroupPage> {
               elevation: 0,
               shadowColor: Colors.transparent,
               children: [
+                Text(
+                  'Modifier groups define reusable option structure, selection rules, and shared price deltas. Item-specific component effects are configured on each menu item.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).hintColor,
+                  ),
+                ),
+                const SizedBox(height: 12),
                 AbsorbPointer(
                   absorbing: !_isEditing,
                   child: Column(
@@ -400,8 +407,8 @@ class _AddModifierGroupPageState extends ConsumerState<AddModifierGroupPage> {
               children: [
                 Text(
                   _isSingleSelection
-                      ? 'Choose at least one option and set a default if needed.'
-                      : 'Choose at least one option for this modifier group.',
+                      ? 'Choose reusable options and set a default if needed.'
+                      : 'Choose reusable options for this modifier group.',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: Theme.of(context).hintColor,
                   ),

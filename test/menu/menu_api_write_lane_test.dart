@@ -5,6 +5,8 @@ import 'package:mocktail/mocktail.dart';
 import 'package:modular_pos/core/network/idempotency_key_store.dart';
 import 'package:modular_pos/features/menu/data/menu_api.dart';
 import 'package:modular_pos/features/menu/data/dto/menu_composition_dto.dart';
+import 'package:modular_pos/features/menu/data/dto/menu_modifier_option_effect_dto.dart';
+import 'package:modular_pos/features/menu/data/dto/modifier_group_dto.dart';
 
 class _MockDio extends Mock implements Dio {}
 
@@ -622,6 +624,61 @@ void main() {
     );
 
     test(
+      'explicit detail endpoint maps GET /v0/menu/items/:menuItemId',
+      () async {
+        final dio = _MockDio();
+        final api = MenuApi.real(dio);
+
+        when(
+          () => dio.get<dynamic>('/v0/menu/items/item-1'),
+        ).thenAnswer(
+          (_) async => Response<dynamic>(
+            data: {
+              'success': true,
+              'data': {
+                ..._menuItemJson(id: 'item-1'),
+                'categoryName': 'Coffee',
+                'baseComponents': [
+                  {
+                    'stockItemId': 'stock-1',
+                    'quantityInBaseUnit': 250,
+                    'trackingMode': 'TRACKED',
+                  },
+                ],
+                'modifierOptionEffects': [
+                  {
+                    'modifierOptionId': 'opt-1',
+                    'components': [
+                      {
+                        'stockItemId': 'stock-2',
+                        'quantityDeltaInBaseUnit': 50,
+                        'trackingMode': 'TRACKED',
+                      },
+                    ],
+                  },
+                ],
+                'modifierGroups': [
+                  _modifierGroupJson(id: 'group-1', name: 'Size'),
+                ],
+              },
+            },
+            requestOptions: RequestOptions(path: '/v0/menu/items/item-1'),
+          ),
+        );
+
+        final detail = await api.fetchMenuItemDetail('item-1');
+
+        verify(() => dio.get<dynamic>('/v0/menu/items/item-1')).called(1);
+        expect(detail.item.id, 'item-1');
+        expect(detail.categoryName, 'Coffee');
+        expect(detail.baseComponents, hasLength(1));
+        expect(detail.baseComponents.first.stockItemId, 'stock-1');
+        expect(detail.modifierOptionEffects, hasLength(1));
+        expect(detail.modifierOptionEffects.first.modifierOptionId, 'opt-1');
+      },
+    );
+
+    test(
       'composition upsert uses idempotency and evaluate remains read-only call',
       () async {
         final dio = _MockDio();
@@ -720,6 +777,70 @@ void main() {
         );
         expect(evaluated.menuItemId, 'item-1');
         expect(evaluated.components, hasLength(1));
+      },
+    );
+
+    test(
+      'modifier option effects upsert uses explicit endpoint and idempotency',
+      () async {
+        final dio = _MockDio();
+        final api = MenuApi.real(dio);
+
+        when(
+          () => dio.put<void>(
+            '/v0/menu/items/item-1/modifier-option-effects',
+            data: any(named: 'data'),
+            options: any(named: 'options'),
+          ),
+        ).thenAnswer(
+          (_) async => Response<void>(
+            requestOptions: RequestOptions(
+              path: '/v0/menu/items/item-1/modifier-option-effects',
+            ),
+          ),
+        );
+
+        await api.upsertMenuItemModifierOptionEffects(
+          menuItemId: 'item-1',
+          effects: const [
+            MenuModifierOptionEffectDto(
+              modifierOptionId: 'opt-1',
+              components: [
+                ModifierDeltaDto(
+                  stockItemId: 'stock-2',
+                  quantityDeltaInBaseUnit: 50,
+                  trackingMode: 'TRACKED',
+                ),
+              ],
+            ),
+          ],
+        );
+
+        final captured = verify(
+          () => dio.put<void>(
+            '/v0/menu/items/item-1/modifier-option-effects',
+            data: captureAny(named: 'data'),
+            options: captureAny(named: 'options'),
+          ),
+        ).captured;
+        final body = Map<String, dynamic>.from(captured[0] as Map);
+        final options = captured[1] as Options;
+        final request = _idempotencyRequest(options);
+
+        expect(body['modifierOptionEffects'], [
+          {
+            'modifierOptionId': 'opt-1',
+            'components': [
+              {
+                'stockItemId': 'stock-2',
+                'quantityDeltaInBaseUnit': 50.0,
+                'trackingMode': 'TRACKED',
+              },
+            ],
+          },
+        ]);
+        expect(request.actionKey, 'menu.modifierOptionEffects.upsert');
+        expect(request.payload, {'menuItemId': 'item-1', ...body});
       },
     );
   });

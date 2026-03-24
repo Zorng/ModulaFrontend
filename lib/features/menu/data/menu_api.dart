@@ -6,7 +6,9 @@ import 'package:modular_pos/core/network/idempotency_key_store.dart';
 import 'package:modular_pos/features/menu/data/dto/menu_branch_dto.dart';
 import 'package:modular_pos/features/menu/data/dto/menu_category_dto.dart';
 import 'package:modular_pos/features/menu/data/dto/menu_composition_dto.dart';
+import 'package:modular_pos/features/menu/data/dto/menu_item_detail_dto.dart';
 import 'package:modular_pos/features/menu/data/dto/menu_item_dto.dart';
+import 'package:modular_pos/features/menu/data/dto/menu_modifier_option_effect_dto.dart';
 import 'package:modular_pos/features/menu/data/dto/menu_item_with_modifiers_dto.dart';
 import 'package:modular_pos/features/menu/data/dto/modifier_group_dto.dart';
 import 'package:modular_pos/features/menu/data/menu_api_helpers.dart';
@@ -144,11 +146,21 @@ class MenuApi {
   Future<MenuItemWithModifiersDto> fetchMenuItemWithModifiers(
     String menuItemId,
   ) async {
+    final detail = await fetchMenuItemDetail(menuItemId);
+    return MenuItemWithModifiersDto(
+      item: detail.item,
+      modifierGroups: detail.modifierGroups,
+      categoryName: detail.categoryName,
+      baseComponents: detail.baseComponents,
+    );
+  }
+
+  Future<MenuItemDetailDto> fetchMenuItemDetail(String menuItemId) async {
     final dio = _requireDio();
     try {
       final response = await dio.get<dynamic>('$_menuPrefix/items/$menuItemId');
       final raw = MenuApiHelpers.unwrap(response.data);
-      return MenuItemWithModifiersDto.fromJson(raw);
+      return MenuItemDetailDto.fromJson(raw);
     } on DioError catch (error) {
       throw MenuApiException.fromDio(error);
     }
@@ -191,6 +203,28 @@ class MenuApi {
       );
       final raw = MenuApiHelpers.unwrap(response.data);
       return MenuCompositionEvaluateDto.fromJson(raw);
+    } on DioError catch (error) {
+      throw MenuApiException.fromDio(error);
+    }
+  }
+
+  Future<void> upsertMenuItemModifierOptionEffects({
+    required String menuItemId,
+    required List<MenuModifierOptionEffectDto> effects,
+  }) async {
+    final dio = _requireDio();
+    final body = MenuModifierOptionEffectsUpsertRequestDto(
+      effects: effects,
+    ).toJson();
+    try {
+      await dio.put<void>(
+        '$_menuPrefix/items/$menuItemId/modifier-option-effects',
+        data: body,
+        options: _writeOptions(
+          actionKey: 'menu.modifierOptionEffects.upsert',
+          payload: {'menuItemId': menuItemId, ...body},
+        ),
+      );
     } on DioError catch (error) {
       throw MenuApiException.fromDio(error);
     }

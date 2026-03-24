@@ -1,12 +1,16 @@
 import 'package:flutter/foundation.dart';
 import 'package:modular_pos/core/logging/app_log.dart';
+import 'package:modular_pos/features/menu/data/dto/modifier_group_dto.dart';
 import 'package:modular_pos/features/menu/data/menu_api.dart';
 import 'package:modular_pos/features/menu/data/dto/menu_composition_dto.dart';
+import 'package:modular_pos/features/menu/data/dto/menu_modifier_option_effect_dto.dart';
 import 'package:modular_pos/features/menu/data/menu_mappers.dart';
 import 'package:modular_pos/features/menu/data/menu_repository.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_category.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_composition.dart';
+import 'package:modular_pos/features/menu/domain/models/menu_item_detail.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
+import 'package:modular_pos/features/menu/domain/models/menu_modifier_option_effect.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 
 class RemoteMenuRepository extends MenuRepository {
@@ -100,42 +104,40 @@ class RemoteMenuRepository extends MenuRepository {
   }
 
   @override
+  Future<MenuItemDetail> fetchMenuItemDetail(String menuItemId) async {
+    final dto = await _api.fetchMenuItemDetail(menuItemId);
+    return MenuMappers.toItemDetail(dto);
+  }
+
+  @override
+  Future<List<MenuModifierOptionEffect>> fetchMenuItemModifierOptionEffects(
+    String menuItemId,
+  ) async {
+    final detail = await fetchMenuItemDetail(menuItemId);
+    return detail.modifierOptionEffects;
+  }
+
+  @override
   Future<(MenuItem, List<ModifierGroup>)> fetchItemWithModifiers(
     String menuItemId, {
     bool retrying = false,
   }) async {
-    final response = await _api.fetchMenuItemWithModifiers(menuItemId);
-    final itemDto = response.item;
-    if (itemDto.id.isEmpty) {
+    final detail = await fetchMenuItemDetail(menuItemId);
+    if (detail.item.id.isEmpty) {
       return (
         const MenuItem(id: '', name: '', categoryId: '', price: 0),
         <ModifierGroup>[],
       );
     }
-
-    final modifiers = response.modifierGroups
-        .map(MenuMappers.toGroup)
-        .toList(growable: false);
-    final item = MenuMappers.toItem(
-      itemDto.copyWith(
-        modifierGroupIds: modifiers
-            .map((m) => m.id)
-            .where((id) => id.isNotEmpty)
-            .toList(),
-      ),
-    );
-
-    return (item, modifiers);
+    return (detail.item, detail.modifierGroups);
   }
 
   @override
   Future<List<MenuComponent>> fetchMenuItemComposition(
     String menuItemId,
   ) async {
-    final response = await _api.fetchMenuItemWithModifiers(menuItemId);
-    return response.baseComponents
-        .map(MenuMappers.toCompositionComponent)
-        .toList(growable: false);
+    final detail = await fetchMenuItemDetail(menuItemId);
+    return detail.baseComponents;
   }
 
   @override
@@ -151,6 +153,33 @@ class RemoteMenuRepository extends MenuRepository {
               stockItemId: component.stockItemId,
               quantityInBaseUnit: component.quantityInBaseUnit,
               trackingMode: component.trackingMode,
+            ),
+          )
+          .toList(growable: false),
+    );
+  }
+
+  @override
+  Future<void> upsertMenuItemModifierOptionEffects({
+    required String menuItemId,
+    required List<MenuModifierOptionEffect> effects,
+  }) {
+    return _api.upsertMenuItemModifierOptionEffects(
+      menuItemId: menuItemId,
+      effects: effects
+          .map(
+            (effect) => MenuModifierOptionEffectDto(
+              modifierOptionId: effect.modifierOptionId,
+              components: effect.components
+                  .map(
+                    (component) => ModifierDeltaDto(
+                      stockItemId: component.stockItemId,
+                      quantityDeltaInBaseUnit:
+                          component.quantityDeltaInBaseUnit,
+                      trackingMode: component.trackingMode,
+                    ),
+                  )
+                  .toList(growable: false),
             ),
           )
           .toList(growable: false),

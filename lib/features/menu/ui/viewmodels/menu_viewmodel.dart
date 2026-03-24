@@ -10,7 +10,9 @@ import 'package:modular_pos/features/menu/data/menu_repository.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_branch.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_category.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_composition.dart';
+import 'package:modular_pos/features/menu/domain/models/menu_item_detail.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
+import 'package:modular_pos/features/menu/domain/models/menu_modifier_option_effect.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_state.dart';
 
@@ -79,6 +81,10 @@ class MenuViewModel extends Notifier<MenuState> {
 
   void _setCompositionLoading(String menuItemId, bool isLoading) {
     state = state.copyWith(
+      detailLoadingByItemId: {
+        ...state.detailLoadingByItemId,
+        menuItemId: isLoading,
+      },
       compositionLoadingByItem: {
         ...state.compositionLoadingByItem,
         menuItemId: isLoading,
@@ -96,6 +102,10 @@ class MenuViewModel extends Notifier<MenuState> {
       compositionErrorCodes[menuItemId] = normalizedCode;
     }
     state = state.copyWith(
+      detailErrorsByItemId: {
+        ...state.detailErrorsByItemId,
+        menuItemId: mapped.message,
+      },
       compositionErrors: {
         ...state.compositionErrors,
         menuItemId: mapped.message,
@@ -105,6 +115,27 @@ class MenuViewModel extends Notifier<MenuState> {
         menuItemId: true,
       },
       compositionErrorCodes: compositionErrorCodes,
+      error: mapped.message,
+      errorCode: mapped.code,
+    );
+  }
+
+  void _setModifierOptionEffectsLoading(String menuItemId, bool isLoading) {
+    state = state.copyWith(
+      modifierOptionEffectsLoadingByItemId: {
+        ...state.modifierOptionEffectsLoadingByItemId,
+        menuItemId: isLoading,
+      },
+    );
+  }
+
+  void _setModifierOptionEffectsError(String menuItemId, Object error) {
+    final mapped = _mapCompositionError(error);
+    state = state.copyWith(
+      modifierOptionEffectsErrorsByItemId: {
+        ...state.modifierOptionEffectsErrorsByItemId,
+        menuItemId: mapped.message,
+      },
       error: mapped.message,
       errorCode: mapped.code,
     );
@@ -202,27 +233,8 @@ class MenuViewModel extends Notifier<MenuState> {
           : bundle.categories;
       final branches = userBranches.isNotEmpty ? userBranches : bundle.branches;
 
-      // Preserve modifier attachments if bulk fetch doesn't carry them.
-      final previousItems = state.allItems;
-      final mergedItems = bundle.items.map((item) {
-        if (item.modifierGroupIds.isNotEmpty) return item;
-        final prev = previousItems.firstWhere(
-          (it) => it.id == item.id,
-          orElse: () => item,
-        );
-        return prev.id == item.id
-            ? item.copyWith(modifierGroupIds: prev.modifierGroupIds)
-            : item;
-      }).toList();
-
-      // Merge modifier groups by id to retain options if bundle lacks them.
-      final groupMap = {
-        for (final g in state.modifierGroups) g.id: g,
-        for (final g in bundle.modifierGroups) g.id: g,
-      };
-      final mergedGroups = groupMap.values.toList();
       final filteredItems = _applyFilters(
-        items: mergedItems,
+        items: bundle.items,
         categoryId: selectedCategoryId,
         branchId: selectedBranch,
         query: searchQuery,
@@ -230,10 +242,10 @@ class MenuViewModel extends Notifier<MenuState> {
 
       state = state.copyWith(
         isLoading: false,
-        allItems: mergedItems,
+        allItems: bundle.items,
         filteredItems: filteredItems,
         categories: categories,
-        modifierGroups: mergedGroups,
+        modifierGroups: bundle.modifierGroups,
         branches: branches,
         hydratedItems: state.hydratedItems,
         hydratedModifierGroups: state.hydratedModifierGroups,
@@ -267,13 +279,26 @@ class MenuViewModel extends Notifier<MenuState> {
     int retries = 2,
     Duration retryDelay = const Duration(milliseconds: 200),
   }) async {
+    final detail = await loadMenuItemDetail(
+      menuItemId,
+      retries: retries,
+      retryDelay: retryDelay,
+    );
+    return (detail.item, detail.modifierGroups);
+  }
+
+  Future<MenuItemDetail> loadMenuItemDetail(
+    String menuItemId, {
+    int retries = 2,
+    Duration retryDelay = const Duration(milliseconds: 200),
+  }) async {
     int attempt = 0;
     while (true) {
       attempt++;
       try {
-        final result = await _menuRepository.fetchItemWithModifiers(menuItemId);
-        final item = result.$1;
-        final groups = result.$2;
+        final detail = await _menuRepository.fetchMenuItemDetail(menuItemId);
+        final item = detail.item;
+        final groups = detail.modifierGroups;
         if (item.id.isEmpty) {
           throw Exception('Empty menu item returned for $menuItemId');
         }
@@ -282,14 +307,11 @@ class MenuViewModel extends Notifier<MenuState> {
             if (existing.id == item.id) item else existing,
           if (state.allItems.every((it) => it.id != item.id)) item,
         ];
-        // Merge/replace modifier groups by id.
         final groupMap = {
           for (final g in state.modifierGroups) g.id: g,
           for (final g in state.hydratedModifierGroups.values) g.id: g,
+          for (final g in groups) g.id: g,
         };
-        for (final g in groups) {
-          groupMap[g.id] = g;
-        }
         final mergedGroups = groupMap.values.toList();
         final hydratedItems = Map<String, MenuItem>.from(state.hydratedItems)
           ..[item.id] = item;
@@ -301,19 +323,52 @@ class MenuViewModel extends Notifier<MenuState> {
         }
         final hydrationErrors = Map<String, String>.from(state.hydrationErrors)
           ..remove(menuItemId);
+        final detailByItemId = Map<String, MenuItemDetail>.from(
+          state.detailByItemId,
+        )..[item.id] = detail;
+        final detailErrorsByItemId = Map<String, String>.from(
+          state.detailErrorsByItemId,
+        )..remove(menuItemId);
+        final baseCompositionByItemId = Map<String, List<MenuComponent>>.from(
+          state.baseCompositionByItemId,
+        )..[item.id] = detail.baseComponents;
+        final preservedEffects =
+            detail.modifierOptionEffects.isNotEmpty ||
+                !state.modifierOptionEffectsByItemId.containsKey(item.id)
+            ? detail.modifierOptionEffects
+            : state.modifierOptionEffectsByItemId[item.id] ??
+                  const <MenuModifierOptionEffect>[];
+        final modifierOptionEffectsByItemId =
+            Map<String, List<MenuModifierOptionEffect>>.from(
+              state.modifierOptionEffectsByItemId,
+            )..[item.id] = preservedEffects;
+        final modifierOptionEffectsErrorsByItemId = Map<String, String>.from(
+          state.modifierOptionEffectsErrorsByItemId,
+        )..remove(menuItemId);
         state = state.copyWith(
           allItems: updatedItems,
           filteredItems: _applyFilters(items: updatedItems),
           modifierGroups: mergedGroups,
+          detailByItemId: detailByItemId,
+          detailErrorsByItemId: detailErrorsByItemId,
+          baseCompositionByItemId: baseCompositionByItemId,
+          modifierOptionEffectsByItemId: modifierOptionEffectsByItemId,
+          modifierOptionEffectsErrorsByItemId:
+              modifierOptionEffectsErrorsByItemId,
           hydratedItems: hydratedItems,
           hydratedModifierGroups: hydratedModifierGroups,
           hydrationErrors: hydrationErrors,
+          compositionByItem: baseCompositionByItemId,
         );
-        return (item, groups);
+        return detail;
       } catch (e) {
         if (attempt > retries) {
           final mapped = _mapError(e);
           state = state.copyWith(
+            detailErrorsByItemId: {
+              ...state.detailErrorsByItemId,
+              menuItemId: mapped.message,
+            },
             hydrationErrors: {
               ...state.hydrationErrors,
               menuItemId: mapped.message,
@@ -341,6 +396,10 @@ class MenuViewModel extends Notifier<MenuState> {
         state.compositionErrorCodes,
       )..remove(menuItemId);
       state = state.copyWith(
+        baseCompositionByItemId: {
+          ...state.baseCompositionByItemId,
+          menuItemId: baseComponents,
+        },
         compositionByItem: {
           ...state.compositionByItem,
           menuItemId: baseComponents,
@@ -377,6 +436,10 @@ class MenuViewModel extends Notifier<MenuState> {
         state.compositionErrorCodes,
       )..remove(menuItemId);
       state = state.copyWith(
+        baseCompositionByItemId: {
+          ...state.baseCompositionByItemId,
+          menuItemId: baseComponents,
+        },
         compositionByItem: {
           ...state.compositionByItem,
           menuItemId: baseComponents,
@@ -393,6 +456,48 @@ class MenuViewModel extends Notifier<MenuState> {
       rethrow;
     } finally {
       _setCompositionLoading(menuItemId, false);
+    }
+  }
+
+  Future<void> upsertItemModifierOptionEffects({
+    required String menuItemId,
+    required List<MenuModifierOptionEffect> effects,
+  }) async {
+    _setModifierOptionEffectsLoading(menuItemId, true);
+    try {
+      await _menuRepository.upsertMenuItemModifierOptionEffects(
+        menuItemId: menuItemId,
+        effects: effects,
+      );
+      final nextEffects = {
+        ...state.modifierOptionEffectsByItemId,
+        menuItemId: effects,
+      };
+      final effectErrors = Map<String, String>.from(
+        state.modifierOptionEffectsErrorsByItemId,
+      )..remove(menuItemId);
+      final currentDetail = state.detailByItemId[menuItemId];
+      state = state.copyWith(
+        modifierOptionEffectsByItemId: nextEffects,
+        modifierOptionEffectsErrorsByItemId: effectErrors,
+        detailByItemId: currentDetail == null
+            ? state.detailByItemId
+            : {
+                ...state.detailByItemId,
+                menuItemId: MenuItemDetail(
+                  item: currentDetail.item,
+                  modifierGroups: currentDetail.modifierGroups,
+                  baseComponents: currentDetail.baseComponents,
+                  modifierOptionEffects: effects,
+                  categoryName: currentDetail.categoryName,
+                ),
+              },
+      );
+    } catch (e) {
+      _setModifierOptionEffectsError(menuItemId, e);
+      rethrow;
+    } finally {
+      _setModifierOptionEffectsLoading(menuItemId, false);
     }
   }
 
@@ -413,6 +518,10 @@ class MenuViewModel extends Notifier<MenuState> {
         state.compositionErrorCodes,
       )..remove(menuItemId);
       state = state.copyWith(
+        evaluatedCompositionByItemId: {
+          ...state.evaluatedCompositionByItemId,
+          menuItemId: evaluation,
+        },
         compositionEvaluationByItem: {
           ...state.compositionEvaluationByItem,
           menuItemId: evaluation,
@@ -719,10 +828,10 @@ class MenuViewModel extends Notifier<MenuState> {
     final branchId = state.selectedBranchId == 'all'
         ? null
         : state.selectedBranchId;
-    final previous = state.allItems.firstWhere(
-      (existing) => existing.id == item.id,
-      orElse: () => item,
-    );
+    final previous = state.allItems.cast<MenuItem?>().firstWhere(
+          (existing) => existing?.id == item.id,
+          orElse: () => state.detailByItemId[item.id]?.item,
+        );
     try {
       final updated = await _menuRepository.updateMenuItem(
         item,
@@ -752,6 +861,7 @@ class MenuViewModel extends Notifier<MenuState> {
         ? null
         : state.selectedBranchId;
     final currentItem =
+        state.detailByItemId[menuItemId]?.item ??
         state.hydratedItems[menuItemId] ??
         state.allItems.firstWhere(
           (item) => item.id == menuItemId,
@@ -787,6 +897,7 @@ class MenuViewModel extends Notifier<MenuState> {
         ? null
         : state.selectedBranchId;
     final currentItem =
+        state.detailByItemId[menuItemId]?.item ??
         state.hydratedItems[menuItemId] ??
         state.allItems.firstWhere(
           (item) => item.id == menuItemId,

@@ -11,7 +11,9 @@ import 'package:modular_pos/features/discount/data/mock_discount_repository.dart
 import 'package:modular_pos/features/menu/data/menu_repository.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_category.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_composition.dart';
+import 'package:modular_pos/features/menu/domain/models/menu_item_detail.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
+import 'package:modular_pos/features/menu/domain/models/menu_modifier_option_effect.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 import 'package:modular_pos/features/discount/ui/view/discount/discount_page.dart';
 import 'package:modular_pos/features/discount/ui/view/discount_rule_detail/discount_rule_detail_page.dart';
@@ -66,6 +68,15 @@ class _BranchMenuRepository extends MenuRepository {
       throw UnimplementedError();
 
   @override
+  Future<MenuItemDetail> fetchMenuItemDetail(String menuItemId) async =>
+      throw UnimplementedError();
+
+  @override
+  Future<List<MenuModifierOptionEffect>> fetchMenuItemModifierOptionEffects(
+    String menuItemId,
+  ) async => throw UnimplementedError();
+
+  @override
   Future<(MenuItem, List<ModifierGroup>)> fetchItemWithModifiers(
     String menuItemId, {
     bool retrying = false,
@@ -80,6 +91,12 @@ class _BranchMenuRepository extends MenuRepository {
   Future<void> upsertMenuItemComposition({
     required String menuItemId,
     required List baseComponents,
+  }) async => throw UnimplementedError();
+
+  @override
+  Future<void> upsertMenuItemModifierOptionEffects({
+    required String menuItemId,
+    required List<MenuModifierOptionEffect> effects,
   }) async => throw UnimplementedError();
 
   @override

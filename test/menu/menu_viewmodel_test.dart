@@ -11,6 +11,7 @@ import 'package:modular_pos/features/menu/data/menu_repository.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_composition.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_category.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
+import 'package:modular_pos/features/menu/domain/models/menu_modifier_option_effect.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_state.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
@@ -31,6 +32,7 @@ class _FixedAuthTenantIdNotifier extends AuthTenantIdNotifier {
 void main() {
   setUpAll(() {
     registerFallbackValue(const <MenuComponent>[]);
+    registerFallbackValue(const <MenuModifierOptionEffect>[]);
   });
 
   group('MenuViewModel', () {
@@ -479,6 +481,11 @@ void main() {
 
       final state = container.read(menuViewModelProvider);
       expect(state.compositionLoadedByItem['item-1'], isTrue);
+      expect(state.baseCompositionByItemId['item-1'], hasLength(1));
+      expect(
+        state.baseCompositionByItemId['item-1']!.first.stockItemId,
+        'stock-1',
+      );
       expect(state.compositionByItem['item-1'], hasLength(1));
       expect(state.compositionByItem['item-1']!.first.stockItemId, 'stock-1');
       expect(state.compositionErrors.containsKey('item-1'), isFalse);
@@ -566,6 +573,7 @@ void main() {
       expect(evaluated.components, hasLength(1));
       final state = container.read(menuViewModelProvider);
       expect(state.compositionEvaluationByItem['item-1'], isNotNull);
+      expect(state.evaluatedCompositionByItemId['item-1'], isNotNull);
       expect(
         state
             .compositionEvaluationByItem['item-1']!
@@ -574,6 +582,54 @@ void main() {
             .stockItemId,
         'stock-1',
       );
+    });
+
+    test('upsertItemModifierOptionEffects stores explicit effect state', () async {
+      final repo = _MockMenuRepository();
+      when(
+        () => repo.upsertMenuItemModifierOptionEffects(
+          menuItemId: 'item-1',
+          effects: any(named: 'effects'),
+        ),
+      ).thenAnswer((_) async {});
+
+      final container = createTestContainer(
+        overrides: [menuRepositoryProvider.overrideWithValue(repo)],
+      );
+      final notifier = container.read(menuViewModelProvider.notifier);
+
+      await notifier.upsertItemModifierOptionEffects(
+        menuItemId: 'item-1',
+        effects: const [
+          MenuModifierOptionEffect(
+            modifierOptionId: 'opt-1',
+            components: [
+              ModifierDelta(
+                stockItemId: 'stock-2',
+                quantityDeltaInBaseUnit: -50,
+                trackingMode: 'TRACKED',
+              ),
+            ],
+          ),
+        ],
+      );
+
+      final state = container.read(menuViewModelProvider);
+      expect(state.modifierOptionEffectsByItemId['item-1'], hasLength(1));
+      expect(
+        state.modifierOptionEffectsByItemId['item-1']!.first.modifierOptionId,
+        'opt-1',
+      );
+      expect(
+        state.modifierOptionEffectsErrorsByItemId.containsKey('item-1'),
+        isFalse,
+      );
+      verify(
+        () => repo.upsertMenuItemModifierOptionEffects(
+          menuItemId: 'item-1',
+          effects: any(named: 'effects'),
+        ),
+      ).called(1);
     });
   });
 }

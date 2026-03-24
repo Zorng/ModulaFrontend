@@ -2,7 +2,9 @@ import 'package:modular_pos/features/menu/data/menu_repository.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_branch.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_category.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_composition.dart';
+import 'package:modular_pos/features/menu/domain/models/menu_item_detail.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
+import 'package:modular_pos/features/menu/domain/models/menu_modifier_option_effect.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 
 class MockMenuRepository extends MenuRepository {
@@ -32,6 +34,23 @@ class MockMenuRepository extends MenuRepository {
   }
 
   @override
+  Future<MenuItemDetail> fetchMenuItemDetail(String menuItemId) async {
+    return MenuItemDetail(
+      item: MenuItem(id: menuItemId, name: 'Mock Item', categoryId: '', price: 0),
+      modifierGroups: const <ModifierGroup>[],
+      baseComponents: const <MenuComponent>[],
+      modifierOptionEffects: const <MenuModifierOptionEffect>[],
+    );
+  }
+
+  @override
+  Future<List<MenuModifierOptionEffect>> fetchMenuItemModifierOptionEffects(
+    String menuItemId,
+  ) async {
+    return const <MenuModifierOptionEffect>[];
+  }
+
+  @override
   Future<(MenuItem, List<ModifierGroup>)> fetchItemWithModifiers(
     String menuItemId, {
     bool retrying = false,
@@ -53,6 +72,12 @@ class MockMenuRepository extends MenuRepository {
   Future<void> upsertMenuItemComposition({
     required String menuItemId,
     required List<MenuComponent> baseComponents,
+  }) async {}
+
+  @override
+  Future<void> upsertMenuItemModifierOptionEffects({
+    required String menuItemId,
+    required List<MenuModifierOptionEffect> effects,
   }) async {}
 
   @override
