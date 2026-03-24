@@ -74,125 +74,86 @@ class _SalesDrillDownPageState extends ConsumerState<SalesDrillDownPage> {
             branchEntries: branchEntries,
           );
 
-          return Column(
+          return ListView(
+            padding: EdgeInsets.fromLTRB(
+              horizontalPadding,
+              16,
+              horizontalPadding,
+              20,
+            ),
             children: [
-              Padding(
-                padding: EdgeInsets.fromLTRB(
-                  horizontalPadding,
-                  16,
-                  horizontalPadding,
-                  12,
+              header,
+              const SizedBox(height: 16),
+              _buildFilterContainer(
+                context,
+                filterStatusItems: filterStatusItems,
+                hasFiltersApplied: _hasFiltersApplied(state),
+                onFilterPressed: () => _openFilterModal(
+                  context,
+                  state,
+                  branchEntries: branchEntries,
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    header,
-                    const SizedBox(height: 16),
-                    _buildFilterContainer(
-                      context,
-                      filterStatusItems: filterStatusItems,
-                      hasFiltersApplied: _hasFiltersApplied(state),
-                      onFilterPressed: () => _openFilterModal(
-                        context,
-                        state,
-                        branchEntries: branchEntries,
-                      ),
+              ),
+              const SizedBox(height: 20),
+              if (state.isLoading && state.report == null)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 40),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else if (state.errorMessage != null && state.report == null)
+                ReportingMessageStateView(
+                  icon: Icons.receipt_long_outlined,
+                  title: 'Sales details unavailable',
+                  message: state.errorMessage!,
+                  actionLabel: 'Retry',
+                  onAction: controller.refresh,
+                )
+              else if (items.isEmpty)
+                const ReportingMessageStateView(
+                  icon: Icons.receipt_long_outlined,
+                  title: 'No sales found',
+                  message: 'No sales match the current filters.',
+                )
+              else ...[
+                for (var i = 0; i < items.length; i++) ...[
+                  _SalesDrillDownRecordCard(
+                    item: items[i],
+                    branchName:
+                        branchNames[items[i].branchId] ??
+                        _routeBranchNameForItem(items[i], state),
+                  ),
+                  if (i != items.length - 1) const SizedBox(height: 12),
+                ],
+                const SizedBox(height: 16),
+                if (state.report!.hasMore || state.isLoadingMore)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: FilledButton(
+                      onPressed: state.isLoadingMore
+                          ? null
+                          : controller.loadMore,
+                      child: state.isLoadingMore
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text('Load more'),
                     ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: Builder(
-                  builder: (context) {
-                    if (state.isLoading && state.report == null) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-
-                    if (state.errorMessage != null && state.report == null) {
-                      return Center(
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: horizontalPadding,
-                          ),
-                          child: ReportingMessageStateView(
-                            icon: Icons.receipt_long_outlined,
-                            title: 'Sales details unavailable',
-                            message: state.errorMessage!,
-                            actionLabel: 'Retry',
-                            onAction: controller.refresh,
-                          ),
-                        ),
-                      );
-                    }
-
-                    if (items.isEmpty) {
-                      return Center(
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: horizontalPadding,
-                          ),
-                          child: const ReportingMessageStateView(
-                            icon: Icons.receipt_long_outlined,
-                            title: 'No sales found',
-                            message: 'No sales match the current filters.',
-                          ),
-                        ),
-                      );
-                    }
-
-                    return ListView(
-                      padding: EdgeInsets.fromLTRB(
-                        horizontalPadding,
-                        0,
-                        horizontalPadding,
-                        20,
-                      ),
-                      children: [
-                        for (var i = 0; i < items.length; i++) ...[
-                          _SalesDrillDownRecordCard(
-                            item: items[i],
-                            branchName:
-                                branchNames[items[i].branchId] ??
-                                _routeBranchNameForItem(items[i], state),
-                          ),
-                          if (i != items.length - 1) const SizedBox(height: 12),
-                        ],
-                        const SizedBox(height: 16),
-                        if (state.report!.hasMore || state.isLoadingMore)
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: FilledButton(
-                              onPressed: state.isLoadingMore
-                                  ? null
-                                  : controller.loadMore,
-                              child: state.isLoadingMore
-                                  ? const SizedBox(
-                                      width: 16,
-                                      height: 16,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: Colors.white,
-                                      ),
-                                    )
-                                  : const Text('Load more'),
-                            ),
-                          ),
-                        if (state.errorMessage != null &&
-                            state.report != null) ...[
-                          const SizedBox(height: 12),
-                          Text(
-                            state.errorMessage!,
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(
-                                  color: Theme.of(context).colorScheme.error,
-                                ),
-                          ),
-                        ],
-                      ],
-                    );
-                  },
-                ),
-              ),
+                  ),
+                if (state.errorMessage != null && state.report != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    state.errorMessage!,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                ],
+              ],
             ],
           );
         },

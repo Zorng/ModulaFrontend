@@ -11,7 +11,6 @@ import 'package:modular_pos/features/reporting/ui/models/sales_drill_down_route_
 import 'package:modular_pos/features/reporting/ui/reporting_formatters.dart';
 import 'package:modular_pos/features/reporting/ui/viewmodels/reporting_access_context.dart';
 import 'package:modular_pos/features/reporting/ui/viewmodels/sales_summary_controller.dart';
-import 'package:modular_pos/features/reporting/ui/widgets/sales_cash_tender_breakdown_panel.dart';
 import 'package:modular_pos/features/reporting/ui/widgets/reporting_kpi_card.dart';
 import 'package:modular_pos/features/reporting/ui/widgets/sales_category_breakdown_panel.dart';
 import 'package:modular_pos/features/reporting/ui/widgets/sales_payment_breakdown_panel.dart';
@@ -370,13 +369,14 @@ class _SalesSummaryPageState extends ConsumerState<SalesSummaryPage> {
         if (!useWideLayout) {
           return Column(
             children: [
-              SalesPaymentBreakdownPanel(items: paymentBreakdownItems),
+              SalesPaymentBreakdownPanel(
+                items: paymentBreakdownItems,
+                cashTenderItems: cashTenderBreakdownItems,
+              ),
               const SizedBox(height: _summaryPanelGap),
               SalesCategoryBreakdownPanel(categories: categoryBreakdownItems),
               const SizedBox(height: _summaryPanelGap),
               SalesTypeBreakdownPanel(items: saleTypeBreakdownItems),
-              const SizedBox(height: _summaryPanelGap),
-              SalesCashTenderBreakdownPanel(items: cashTenderBreakdownItems),
             ],
           );
         }
@@ -389,7 +389,10 @@ class _SalesSummaryPageState extends ConsumerState<SalesSummaryPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  SalesPaymentBreakdownPanel(items: paymentBreakdownItems),
+                  SalesPaymentBreakdownPanel(
+                    items: paymentBreakdownItems,
+                    cashTenderItems: cashTenderBreakdownItems,
+                  ),
                   const SizedBox(height: _summaryPanelGap),
                   SalesCategoryBreakdownPanel(
                     categories: categoryBreakdownItems,
@@ -404,10 +407,6 @@ class _SalesSummaryPageState extends ConsumerState<SalesSummaryPage> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   SalesTypeBreakdownPanel(items: saleTypeBreakdownItems),
-                  SizedBox(height: _summaryPanelGap),
-                  SalesCashTenderBreakdownPanel(
-                    items: cashTenderBreakdownItems,
-                  ),
                 ],
               ),
             ),

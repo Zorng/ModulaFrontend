@@ -414,8 +414,32 @@ class _InventoryReportingSummaryPageState
   void _openDrillDown(BuildContext context, RestockSpendSummaryState state) {
     final access = ref.read(reportingAccessContextProvider);
     if (access == null) return;
+    String? selectedBranchName;
+    if (state.branchScope == ReportBranchScope.branch) {
+      final branchId = state.branchId?.trim();
+      if (branchId != null && branchId.isNotEmpty) {
+        final tenantBranches = ref.read(
+          branchControllerProvider.select((state) => state.branches),
+        );
+        for (final branch in tenantBranches) {
+          if (branch.branchId == branchId) {
+            selectedBranchName = branch.branchName;
+            break;
+          }
+        }
+        if (selectedBranchName == null) {
+          for (final branch in access.branches) {
+            if (branch.id == branchId) {
+              selectedBranchName = branch.name;
+              break;
+            }
+          }
+        }
+      }
+    }
     final args = RestockSpendDrillDownRouteArgs(
       scope: state.toScopeQuery(fallbackBranchId: access.fallbackBranchId),
+      branchName: selectedBranchName,
     );
     context.pushNamed(
       AppRoute.reportingInventoryDrillDown.name,

@@ -12,6 +12,58 @@ import 'package:modular_pos/features/reporting/ui/view/sales_drill_down/sales_dr
 import 'package:modular_pos/features/reporting/ui/viewmodels/reporting_access_context.dart';
 
 void main() {
+  testWidgets('scrolls the filter container with the sales list', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(430, 520);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          managementReportingRepositoryProvider.overrideWithValue(
+            const MockManagementReportingRepository(),
+          ),
+          reportingAccessContextProvider.overrideWithValue(
+            const ReportingAccessContext(
+              role: AuthRole.admin,
+              tenantId: 'tenant-1',
+              activeBranchId: 'branch-mock',
+              branches: [
+                ReportingBranchOption(id: 'branch-mock', name: 'Main Branch'),
+              ],
+            ),
+          ),
+        ],
+        child: const MaterialApp(
+          home: SalesDrillDownPage(
+            args: SalesDrillDownRouteArgs(
+              scope: ReportScopeQuery(
+                branchScope: ReportBranchScope.branch,
+                branchId: 'branch-1',
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    final currentFilterFinder = find.text('Current filter');
+    final beforeScroll = tester.getTopLeft(currentFilterFinder).dy;
+
+    await tester.drag(find.byType(ListView), const Offset(0, -180));
+    await tester.pumpAndSettle();
+
+    final afterScroll = tester.getTopLeft(currentFilterFinder).dy;
+    expect(afterScroll, lessThan(beforeScroll));
+  });
+
   testWidgets('renders sales drill-down records from reporting state', (
     tester,
   ) async {

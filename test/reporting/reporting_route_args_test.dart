@@ -36,6 +36,7 @@ void main() {
         window: ReportTimeWindow.week,
         branchScope: ReportBranchScope.allBranches,
       ),
+      branchName: 'Main Branch',
     );
 
     final restored = RestockSpendDrillDownRouteArgs.fromQueryParameters(
@@ -46,6 +47,7 @@ void main() {
     expect(restored!.scope.window, ReportTimeWindow.week);
     expect(restored.scope.branchScope, ReportBranchScope.allBranches);
     expect(restored.scope.branchId, isNull);
+    expect(restored.branchName, 'Main Branch');
   });
 
   test('branch-scoped drill-down args require a branch id', () {
