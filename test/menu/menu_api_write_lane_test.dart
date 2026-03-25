@@ -827,10 +827,11 @@ void main() {
         final options = captured[1] as Options;
         final request = _idempotencyRequest(options);
 
-        expect(body['modifierOptionEffects'], [
+        expect(body['effects'], [
           {
             'modifierOptionId': 'opt-1',
-            'components': [
+            'priceDelta': 0.0,
+            'componentDeltas': [
               {
                 'stockItemId': 'stock-2',
                 'quantityDeltaInBaseUnit': 50.0,

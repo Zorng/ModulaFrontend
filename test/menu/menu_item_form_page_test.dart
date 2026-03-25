@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_controller.dart';
@@ -60,6 +61,11 @@ void main() {
   testWidgets(
     'MenuItemFormPage renders base composition and item-scoped modifier effects from explicit state',
     (tester) async {
+      tester.view.physicalSize = const Size(1440, 2200);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
       const item = MenuItem(
         id: 'item-1',
         name: 'Latte',
@@ -170,13 +176,15 @@ void main() {
 
       await tester.pump();
       await tester.pump();
+      await tester.pumpAndSettle();
 
       expect(find.text('Composition'), findsOneWidget);
       expect(find.text('Espresso (ml)'), findsOneWidget);
       expect(find.text('Quantity: 250'), findsOneWidget);
       expect(find.text('Modifier option effects'), findsOneWidget);
-      expect(find.text('Oat Milk'), findsAtLeastNWidgets(2));
-      expect(find.text('Group: Milk'), findsOneWidget);
+      await tester.tap(find.widgetWithText(ExpansionTile, 'Milk'));
+      await tester.pumpAndSettle();
+      expect(find.text('Oat Milk'), findsOneWidget);
       expect(find.text('Delta: +50'), findsOneWidget);
     },
   );
@@ -184,6 +192,11 @@ void main() {
   testWidgets(
     'MenuItemFormPage create mode shows gated helper text for composition and modifier effects',
     (tester) async {
+      tester.view.physicalSize = const Size(1440, 2200);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
       await pumpApp(
         tester,
         const MenuItemFormPage(),
@@ -204,16 +217,17 @@ void main() {
       );
 
       await tester.pump();
+      await tester.pumpAndSettle();
 
       expect(
         find.text(
-          'Save the item first, then open it again to configure base components.',
+          'Optional. Save the item first, then open it again if you want to configure base components.',
         ),
         findsOneWidget,
       );
       expect(
         find.text(
-          'Save the item first, then open it again to configure item-scoped modifier effects.',
+          'Optional. Save the item first, then open it again if you want to configure item-scoped modifier effects.',
         ),
         findsOneWidget,
       );

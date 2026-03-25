@@ -15,10 +15,21 @@ import 'package:modular_pos/features/menu/domain/models/menu_modifier_option_eff
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_state.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
+import 'package:sqlite3/sqlite3.dart' as sqlite3;
 
 import '../test_utils/riverpod_test_utils.dart';
 
 class _MockMenuRepository extends Mock implements MenuRepository {}
+
+final _sqliteAvailable = () {
+  try {
+    final db = sqlite3.sqlite3.openInMemory();
+    db.dispose();
+    return true;
+  } catch (_) {
+    return false;
+  }
+}();
 
 class _FixedAuthTenantIdNotifier extends AuthTenantIdNotifier {
   _FixedAuthTenantIdNotifier(this._tenantId);
@@ -36,211 +47,217 @@ void main() {
   });
 
   group('MenuViewModel', () {
-    test(
-      'loadMenu shows cached bundle while remote refresh is in flight',
-      () async {
-        final repo = _MockMenuRepository();
-        final database = AppDatabase(NativeDatabase.memory());
-        addTearDown(database.close);
-        final cacheStore = DriftMenuCacheStore(database);
-        const scope = MenuCacheQuery(
-          tenantId: 'tenant-1',
-          scopeKey: 'management|active|all',
-          readLane: MenuReadLane.management,
-          status: 'active',
-        );
-        await cacheStore.write(
-          scope: scope,
-          bundle: const MenuDataBundle(
-            items: [
-              MenuItem(
-                id: 'item-1',
-                name: 'Latte',
-                categoryId: 'cat-1',
-                price: 2.5,
+    group(
+      'with sqlite cache store',
+      () {
+        test(
+          'loadMenu shows cached bundle while remote refresh is in flight',
+          () async {
+            final repo = _MockMenuRepository();
+            final database = AppDatabase(NativeDatabase.memory());
+            addTearDown(database.close);
+            final cacheStore = DriftMenuCacheStore(database);
+            const scope = MenuCacheQuery(
+              tenantId: 'tenant-1',
+              scopeKey: 'management|active|all',
+              readLane: MenuReadLane.management,
+              status: 'active',
+            );
+            await cacheStore.write(
+              scope: scope,
+              bundle: const MenuDataBundle(
+                items: [
+                  MenuItem(
+                    id: 'item-1',
+                    name: 'Latte',
+                    categoryId: 'cat-1',
+                    price: 2.5,
+                  ),
+                ],
+                categories: [MenuCategory(id: 'cat-1', name: 'Coffee')],
+                modifierGroups: [
+                  ModifierGroup(
+                    id: 'group-1',
+                    name: 'Milk',
+                    selectionType: 'single',
+                    pricingBehavior: 'addon',
+                    options: [],
+                  ),
+                ],
+                branches: [],
               ),
-            ],
-            categories: [MenuCategory(id: 'cat-1', name: 'Coffee')],
-            modifierGroups: [
-              ModifierGroup(
-                id: 'group-1',
-                name: 'Milk',
-                selectionType: 'single',
-                pricingBehavior: 'addon',
-                options: [],
+            );
+
+            final completer = Completer<MenuDataBundle>();
+            when(
+              () => repo.fetchMenuData(
+                readLane: MenuReadLane.management,
+                status: 'active',
+                branchIdFilter: null,
               ),
-            ],
-            branches: [],
-          ),
+            ).thenAnswer((_) => completer.future);
+
+            final container = createTestContainer(
+              overrides: [
+                appDatabaseProvider.overrideWithValue(database),
+                menuRepositoryProvider.overrideWithValue(repo),
+                authTenantIdProvider.overrideWith(
+                  () => _FixedAuthTenantIdNotifier('tenant-1'),
+                ),
+              ],
+            );
+
+            final notifier = container.read(menuViewModelProvider.notifier);
+            final loadFuture = notifier.loadMenu();
+            await Future<void>.delayed(Duration.zero);
+
+            final loadingState = container.read(menuViewModelProvider);
+            expect(loadingState.isLoading, isTrue);
+            expect(loadingState.allItems.single.id, 'item-1');
+            expect(loadingState.categories.single.id, 'cat-1');
+
+            completer.complete(
+              const MenuDataBundle(
+                items: [
+                  MenuItem(
+                    id: 'item-2',
+                    name: 'Mocha',
+                    categoryId: 'cat-2',
+                    price: 3,
+                  ),
+                ],
+                categories: [MenuCategory(id: 'cat-2', name: 'Coffee 2')],
+                modifierGroups: [],
+                branches: [],
+              ),
+            );
+            await loadFuture;
+
+            final state = container.read(menuViewModelProvider);
+            expect(state.isLoading, isFalse);
+            expect(state.allItems.single.id, 'item-2');
+          },
         );
 
-        final completer = Completer<MenuDataBundle>();
-        when(
-          () => repo.fetchMenuData(
-            readLane: MenuReadLane.management,
-            status: 'active',
-            branchIdFilter: null,
-          ),
-        ).thenAnswer((_) => completer.future);
-
-        final container = createTestContainer(
-          overrides: [
-            appDatabaseProvider.overrideWithValue(database),
-            menuRepositoryProvider.overrideWithValue(repo),
-            authTenantIdProvider.overrideWith(
-              () => _FixedAuthTenantIdNotifier('tenant-1'),
+        test('loadMenu keeps cached bundle when refresh fails', () async {
+          final repo = _MockMenuRepository();
+          final database = AppDatabase(NativeDatabase.memory());
+          addTearDown(database.close);
+          final cacheStore = DriftMenuCacheStore(database);
+          await cacheStore.write(
+            scope: const MenuCacheQuery(
+              tenantId: 'tenant-1',
+              scopeKey: 'management|active|all',
+              readLane: MenuReadLane.management,
+              status: 'active',
             ),
-          ],
-        );
+            bundle: const MenuDataBundle(
+              items: [
+                MenuItem(
+                  id: 'item-1',
+                  name: 'Latte',
+                  categoryId: 'cat-1',
+                  price: 2.5,
+                ),
+              ],
+              categories: [],
+              modifierGroups: [],
+              branches: [],
+            ),
+          );
+          when(
+            () => repo.fetchMenuData(
+              readLane: MenuReadLane.management,
+              status: 'active',
+              branchIdFilter: null,
+            ),
+          ).thenThrow(
+            const ApiClientException(
+              message: 'offline',
+              code: 'OFFLINE_UNREACHABLE',
+            ),
+          );
 
-        final notifier = container.read(menuViewModelProvider.notifier);
-        final loadFuture = notifier.loadMenu();
-        await Future<void>.delayed(Duration.zero);
-
-        final loadingState = container.read(menuViewModelProvider);
-        expect(loadingState.isLoading, isTrue);
-        expect(loadingState.allItems.single.id, 'item-1');
-        expect(loadingState.categories.single.id, 'cat-1');
-
-        completer.complete(
-          const MenuDataBundle(
-            items: [
-              MenuItem(
-                id: 'item-2',
-                name: 'Mocha',
-                categoryId: 'cat-2',
-                price: 3,
+          final container = createTestContainer(
+            overrides: [
+              appDatabaseProvider.overrideWithValue(database),
+              menuRepositoryProvider.overrideWithValue(repo),
+              authTenantIdProvider.overrideWith(
+                () => _FixedAuthTenantIdNotifier('tenant-1'),
               ),
             ],
-            categories: [MenuCategory(id: 'cat-2', name: 'Coffee 2')],
-            modifierGroups: [],
-            branches: [],
-          ),
-        );
-        await loadFuture;
+          );
 
-        final state = container.read(menuViewModelProvider);
-        expect(state.isLoading, isFalse);
-        expect(state.allItems.single.id, 'item-2');
+          final notifier = container.read(menuViewModelProvider.notifier);
+          await notifier.loadMenu();
+
+          final state = container.read(menuViewModelProvider);
+          expect(state.allItems.single.id, 'item-1');
+          expect(state.errorCode, 'OFFLINE_UNREACHABLE');
+          expect(state.isLoading, isFalse);
+        });
+
+        test(
+          'loadMenu stops loading and keeps cached bundle when refresh times out',
+          () async {
+            final repo = _MockMenuRepository();
+            final database = AppDatabase(NativeDatabase.memory());
+            addTearDown(database.close);
+            final cacheStore = DriftMenuCacheStore(database);
+            await cacheStore.write(
+              scope: const MenuCacheQuery(
+                tenantId: 'tenant-1',
+                scopeKey: 'management|active|all',
+                readLane: MenuReadLane.management,
+                status: 'active',
+              ),
+              bundle: const MenuDataBundle(
+                items: [
+                  MenuItem(
+                    id: 'item-1',
+                    name: 'Latte',
+                    categoryId: 'cat-1',
+                    price: 2.5,
+                  ),
+                ],
+                categories: [],
+                modifierGroups: [],
+                branches: [],
+              ),
+            );
+            final completer = Completer<MenuDataBundle>();
+            when(
+              () => repo.fetchMenuData(
+                readLane: MenuReadLane.management,
+                status: 'active',
+                branchIdFilter: null,
+              ),
+            ).thenAnswer((_) => completer.future);
+
+            final container = createTestContainer(
+              overrides: [
+                appDatabaseProvider.overrideWithValue(database),
+                menuRepositoryProvider.overrideWithValue(repo),
+                authTenantIdProvider.overrideWith(
+                  () => _FixedAuthTenantIdNotifier('tenant-1'),
+                ),
+                menuRequestTimeoutProvider.overrideWithValue(
+                  const Duration(milliseconds: 10),
+                ),
+              ],
+            );
+
+            final notifier = container.read(menuViewModelProvider.notifier);
+            await notifier.loadMenu();
+
+            final state = container.read(menuViewModelProvider);
+            expect(state.isLoading, isFalse);
+            expect(state.allItems.single.id, 'item-1');
+            expect(state.errorCode, 'OFFLINE_UNREACHABLE');
+          },
+        );
       },
-    );
-
-    test('loadMenu keeps cached bundle when refresh fails', () async {
-      final repo = _MockMenuRepository();
-      final database = AppDatabase(NativeDatabase.memory());
-      addTearDown(database.close);
-      final cacheStore = DriftMenuCacheStore(database);
-      await cacheStore.write(
-        scope: const MenuCacheQuery(
-          tenantId: 'tenant-1',
-          scopeKey: 'management|active|all',
-          readLane: MenuReadLane.management,
-          status: 'active',
-        ),
-        bundle: const MenuDataBundle(
-          items: [
-            MenuItem(
-              id: 'item-1',
-              name: 'Latte',
-              categoryId: 'cat-1',
-              price: 2.5,
-            ),
-          ],
-          categories: [],
-          modifierGroups: [],
-          branches: [],
-        ),
-      );
-      when(
-        () => repo.fetchMenuData(
-          readLane: MenuReadLane.management,
-          status: 'active',
-          branchIdFilter: null,
-        ),
-      ).thenThrow(
-        const ApiClientException(
-          message: 'offline',
-          code: 'OFFLINE_UNREACHABLE',
-        ),
-      );
-
-      final container = createTestContainer(
-        overrides: [
-          appDatabaseProvider.overrideWithValue(database),
-          menuRepositoryProvider.overrideWithValue(repo),
-          authTenantIdProvider.overrideWith(
-            () => _FixedAuthTenantIdNotifier('tenant-1'),
-          ),
-        ],
-      );
-
-      final notifier = container.read(menuViewModelProvider.notifier);
-      await notifier.loadMenu();
-
-      final state = container.read(menuViewModelProvider);
-      expect(state.allItems.single.id, 'item-1');
-      expect(state.errorCode, 'OFFLINE_UNREACHABLE');
-      expect(state.isLoading, isFalse);
-    });
-
-    test(
-      'loadMenu stops loading and keeps cached bundle when refresh times out',
-      () async {
-        final repo = _MockMenuRepository();
-        final database = AppDatabase(NativeDatabase.memory());
-        addTearDown(database.close);
-        final cacheStore = DriftMenuCacheStore(database);
-        await cacheStore.write(
-          scope: const MenuCacheQuery(
-            tenantId: 'tenant-1',
-            scopeKey: 'management|active|all',
-            readLane: MenuReadLane.management,
-            status: 'active',
-          ),
-          bundle: const MenuDataBundle(
-            items: [
-              MenuItem(
-                id: 'item-1',
-                name: 'Latte',
-                categoryId: 'cat-1',
-                price: 2.5,
-              ),
-            ],
-            categories: [],
-            modifierGroups: [],
-            branches: [],
-          ),
-        );
-        final completer = Completer<MenuDataBundle>();
-        when(
-          () => repo.fetchMenuData(
-            readLane: MenuReadLane.management,
-            status: 'active',
-            branchIdFilter: null,
-          ),
-        ).thenAnswer((_) => completer.future);
-
-        final container = createTestContainer(
-          overrides: [
-            appDatabaseProvider.overrideWithValue(database),
-            menuRepositoryProvider.overrideWithValue(repo),
-            authTenantIdProvider.overrideWith(
-              () => _FixedAuthTenantIdNotifier('tenant-1'),
-            ),
-            menuRequestTimeoutProvider.overrideWithValue(
-              const Duration(milliseconds: 10),
-            ),
-          ],
-        );
-
-        final notifier = container.read(menuViewModelProvider.notifier);
-        await notifier.loadMenu();
-
-        final state = container.read(menuViewModelProvider);
-        expect(state.isLoading, isFalse);
-        expect(state.allItems.single.id, 'item-1');
-        expect(state.errorCode, 'OFFLINE_UNREACHABLE');
-      },
+      skip: _sqliteAvailable ? false : 'sqlite3.dll not available for Drift tests on this machine',
     );
 
     test(
