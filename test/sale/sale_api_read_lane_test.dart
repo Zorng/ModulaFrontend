@@ -30,8 +30,10 @@ void main() {
               'items': [
                 {
                   'id': 'order-1',
-                  'status': 'OPEN',
-                  'sourceMode': 'STANDARD',
+                  'saleId': 'sale-1',
+                  'saleStatus': 'FINALIZED',
+                  'status': 'CHECKED_OUT',
+                  'sourceMode': 'DIRECT_CHECKOUT',
                   'fulfillmentStatus': 'PREPARING',
                   'totalUsdExact': 5,
                   'linesPreview': [
@@ -41,8 +43,8 @@ void main() {
                       'modifierLabels': ['Less ice'],
                     },
                   ],
-                  'checkedOutAt': null,
-                  'paymentMethod': null,
+                  'checkedOutAt': '2026-03-10T08:30:30.000Z',
+                  'paymentMethod': 'CASH',
                   'manualPaymentClaimId': null,
                   'manualPaymentClaimStatus': null,
                   'createdAt': '2026-03-10T08:30:00.000Z',
@@ -63,9 +65,12 @@ void main() {
 
       expect(page.items, hasLength(1));
       expect(page.items.single.orderId, 'order-1');
-      expect(page.items.single.status, 'OPEN');
-      expect(page.items.single.sourceMode, 'STANDARD');
+      expect(page.items.single.saleId, 'sale-1');
+      expect(page.items.single.saleStatus, 'FINALIZED');
+      expect(page.items.single.status, 'CHECKED_OUT');
+      expect(page.items.single.sourceMode, 'DIRECT_CHECKOUT');
       expect(page.items.single.fulfillmentStatus, 'PREPARING');
+      expect(page.items.single.paymentMethod, 'CASH');
       expect(page.items.single.totalUsdExact, 5);
       expect(
         page.items.single.linesPreview.single.menuItemNameSnapshot,
@@ -185,8 +190,11 @@ void main() {
               'tenantId': 'tenant-1',
               'branchId': 'branch-1',
               'openedByAccountId': 'user-1',
-              'status': 'OPEN',
+              'status': 'CHECKED_OUT',
               'sourceMode': 'STANDARD',
+              'saleId': 'sale-1',
+              'saleStatus': 'FINALIZED',
+              'paymentMethod': 'CASH',
               'createdAt': '2026-03-10T08:30:00.000Z',
               'updatedAt': '2026-03-10T08:31:00.000Z',
               'lines': [
@@ -212,7 +220,10 @@ void main() {
       final detail = await api.getOrderDetail('order-1');
 
       expect(detail.orderId, 'order-1');
-      expect(detail.status, 'OPEN');
+      expect(detail.saleId, 'sale-1');
+      expect(detail.saleStatus, 'FINALIZED');
+      expect(detail.paymentMethod, 'CASH');
+      expect(detail.status, 'CHECKED_OUT');
       expect(detail.lines.single.menuItemNameSnapshot, 'Iced Latte');
       verify(
         () => dio.get<Map<String, dynamic>>('/v0/orders/order-1'),

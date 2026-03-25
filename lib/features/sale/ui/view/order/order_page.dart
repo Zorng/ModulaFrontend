@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/core/widgets/navigation/responsive_detail_modal.dart';
 import 'package:modular_pos/features/sale/ui/view/order/order_utils.dart';
@@ -90,6 +92,15 @@ class _OrderPageState extends ConsumerState<OrderPage> {
     );
   }
 
+  void _openSaleDetail(Order order) {
+    final saleId = order.finalizedSaleId;
+    if (saleId.isEmpty) return;
+    context.pushNamed(
+      AppRoute.saleDetail.name,
+      pathParameters: {'saleId': saleId},
+    );
+  }
+
   List<OrderCardAction> _buildCardActions(
     Order order,
     FulfillmentWorkspaceTab workspaceTab,
@@ -103,6 +114,19 @@ class _OrderPageState extends ConsumerState<OrderPage> {
         onSelected: () => _openOrderDetail(order),
       ),
     ];
+    if (workspaceTab == FulfillmentWorkspaceTab.kitchen &&
+        order.canOpenSaleDetail) {
+      final opensVoidWorkflow = order.canOpenVoidWorkflow;
+      actions.add(
+        OrderCardAction(
+          label: opensVoidWorkflow ? 'Void workflow' : 'Sale detail',
+          icon: opensVoidWorkflow
+              ? Icons.do_not_disturb_on_outlined
+              : Icons.receipt_long_outlined,
+          onSelected: () => _openSaleDetail(order),
+        ),
+      );
+    }
     if (workspaceTab == FulfillmentWorkspaceTab.kitchen &&
         !order.isLocalOutageOrder) {
       actions.add(

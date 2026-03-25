@@ -169,8 +169,10 @@ void main() {
       'items': [
         {
           'id': 'order-1',
-          'status': 'OPEN',
-          'sourceMode': 'STANDARD',
+          'saleId': 'sale-1',
+          'saleStatus': 'FINALIZED',
+          'status': 'CHECKED_OUT',
+          'sourceMode': 'DIRECT_CHECKOUT',
           'fulfillmentStatus': 'PREPARING',
           'totalUsdExact': 5,
           'linesPreview': [
@@ -180,8 +182,8 @@ void main() {
               'modifierLabels': ['Less ice'],
             },
           ],
-          'checkedOutAt': null,
-          'paymentMethod': null,
+          'checkedOutAt': '2026-03-18T09:03:00.000Z',
+          'paymentMethod': 'CASH',
           'manualPaymentClaimId': null,
           'manualPaymentClaimStatus': null,
           'createdAt': '2026-03-18T09:00:00.000Z',
@@ -196,8 +198,11 @@ void main() {
 
     expect(dto.items, hasLength(1));
     expect(dto.items.single.orderId, 'order-1');
-    expect(dto.items.single.status, 'OPEN');
+    expect(dto.items.single.saleId, 'sale-1');
+    expect(dto.items.single.saleStatus, 'FINALIZED');
+    expect(dto.items.single.status, 'CHECKED_OUT');
     expect(dto.items.single.fulfillmentStatus, 'PREPARING');
+    expect(dto.items.single.paymentMethod, 'CASH');
     expect(dto.items.single.totalUsdExact, 5);
     expect(dto.items.single.linesPreview.single.modifierLabels, ['Less ice']);
     expect(dto.limit, 20);
@@ -211,8 +216,11 @@ void main() {
       'tenantId': 'tenant-1',
       'branchId': 'branch-1',
       'openedByAccountId': 'user-1',
-      'status': 'OPEN',
+      'status': 'CHECKED_OUT',
       'sourceMode': 'STANDARD',
+      'saleId': 'sale-1',
+      'saleStatus': 'FINALIZED',
+      'paymentMethod': 'CASH',
       'createdAt': '2026-03-18T09:00:00.000Z',
       'updatedAt': '2026-03-18T09:05:00.000Z',
       'lines': [
@@ -252,6 +260,9 @@ void main() {
     });
 
     expect(dto.orderId, 'order-1');
+    expect(dto.saleId, 'sale-1');
+    expect(dto.saleStatus, 'FINALIZED');
+    expect(dto.paymentMethod, 'CASH');
     expect(dto.lines.single.menuItemNameSnapshot, 'Iced Latte');
     expect(dto.fulfillmentBatches.single.status, 'PREPARING');
     expect(dto.manualPaymentClaims.single.claimId, 'claim-1');

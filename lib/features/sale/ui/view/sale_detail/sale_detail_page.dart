@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:modular_pos/core/feedback/user_error_message.dart';
+import 'package:modular_pos/features/auth/domain/auth_role.dart';
+import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/sale/data/sale_checkout_repository_contract.dart';
 import 'package:modular_pos/features/sale/data/sale_repository.dart';
 import 'package:modular_pos/features/sale/ui/components/view_carts/view_carts_formatters.dart';
@@ -22,6 +24,7 @@ class SaleDetailPage extends ConsumerStatefulWidget {
 
 class _SaleDetailPageState extends ConsumerState<SaleDetailPage> {
   Future<_SaleDetailPageData>? _future;
+  bool _isSubmittingVoidRequest = false;
 
   @override
   void initState() {
@@ -46,9 +49,55 @@ class _SaleDetailPageState extends ConsumerState<SaleDetailPage> {
     });
   }
 
+  Future<void> _requestVoid(SaleDetailReadDto sale) async {
+    final reason = await _promptVoidReason(context);
+    if (reason == null || reason.trim().isEmpty) return;
+
+    setState(() {
+      _isSubmittingVoidRequest = true;
+    });
+
+    final repo = ref.read(saleRepositoryProvider);
+    try {
+      await repo.requestSaleVoid(
+        SaleRequestVoidCommand(
+          saleId: sale.saleId,
+          reason: reason.trim(),
+          clientOpId: 'sale-void-request-${DateTime.now().microsecondsSinceEpoch}',
+        ),
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Void request submitted')),
+      );
+      setState(() {
+        _isSubmittingVoidRequest = false;
+        _future = _load();
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _isSubmittingVoidRequest = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            UserErrorMessage.build(
+              context: 'Failed to request void',
+              error: error,
+            ),
+          ),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final normalizedSaleId = widget.saleId.trim();
+    final currentRole = resolveSessionAuthRole(
+      ref.watch(loginControllerProvider).session,
+    );
     if (normalizedSaleId.isEmpty) {
       return Scaffold(
         appBar: AppBar(
@@ -100,6 +149,10 @@ class _SaleDetailPageState extends ConsumerState<SaleDetailPage> {
 
           final data = snapshot.data!;
           final sale = data.sale;
+          final canRequestVoid =
+              currentRole == AuthRole.cashier &&
+              sale.status.trim().toUpperCase() == 'FINALIZED' &&
+              data.voidRequest == null;
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
@@ -218,6 +271,32 @@ class _SaleDetailPageState extends ConsumerState<SaleDetailPage> {
                         label: 'Change given (KHR)',
                         value: viewCartsFormatKhr(sale.changeGivenKhr!),
                       ),
+                  ],
+                ),
+              ],
+              if (canRequestVoid) ...[
+                const SizedBox(height: 16),
+                _DetailSectionCard(
+                  title: 'Void Workflow',
+                  children: [
+                    Text(
+                      'This finalized sale can be submitted for manager review before it is voided.',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: _isSubmittingVoidRequest
+                            ? null
+                            : () => _requestVoid(sale),
+                        child: Text(
+                          _isSubmittingVoidRequest
+                              ? 'Submitting...'
+                              : 'Request void',
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ],
@@ -478,4 +557,44 @@ String _paymentMethodLabel(String raw) {
 
 String _formatDateTime(DateTime value) {
   return DateFormat('MMM d, y • h:mm a').format(value);
+}
+
+Future<String?> _promptVoidReason(BuildContext context) async {
+  final controller = TextEditingController();
+  return showDialog<String>(
+    context: context,
+    builder: (context) {
+      return StatefulBuilder(
+        builder: (context, setState) {
+          final reason = controller.text.trim();
+          return AlertDialog(
+            title: const Text('Request void'),
+            content: TextField(
+              controller: controller,
+              autofocus: true,
+              minLines: 3,
+              maxLines: 5,
+              decoration: const InputDecoration(
+                hintText: 'Enter the reason for this void request',
+                border: OutlineInputBorder(),
+              ),
+              onChanged: (_) => setState(() {}),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: reason.isEmpty
+                    ? null
+                    : () => Navigator.of(context).pop(reason),
+                child: const Text('Submit'),
+              ),
+            ],
+          );
+        },
+      );
+    },
+  );
 }

@@ -407,6 +407,26 @@ class SaleApi {
     }
   }
 
+  Future<SaleVoidRequestDto> requestSaleVoid(
+    String saleId,
+    Map<String, dynamic> body, {
+    required IdempotencyRequest idempotency,
+  }) async {
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        '$_prefix/$saleId/void/request',
+        data: body,
+        options: withIdempotency(request: idempotency),
+      );
+      return SaleVoidRequestDto.fromJson(_unwrap(response.data));
+    } on DioError catch (error) {
+      throw _mapSaleDioError(
+        error,
+        fallbackMessage: 'Failed to request sale void.',
+      );
+    }
+  }
+
   Future<List<SaleDto>> listSales({
     String? status,
     DateTime? startDate,

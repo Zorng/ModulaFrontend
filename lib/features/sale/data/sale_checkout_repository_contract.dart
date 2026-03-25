@@ -622,6 +622,26 @@ class SaleFinalizeSaleResultDto {
   final String? reasonMessage;
 }
 
+class SaleRequestVoidCommand {
+  const SaleRequestVoidCommand({
+    required this.saleId,
+    required this.reason,
+    required this.clientOpId,
+  });
+
+  final String saleId;
+  final String reason;
+  final String clientOpId;
+
+  Map<String, dynamic> toJson() {
+    return {
+      'sale_id': saleId,
+      'reason': reason,
+      'client_op_id': clientOpId,
+    };
+  }
+}
+
 class SaleImmediateReceiptDto {
   const SaleImmediateReceiptDto({
     required this.receiptId,
@@ -993,6 +1013,7 @@ class SaleOrderSummaryDto {
     required this.totalKhrExact,
     required this.placedAt,
     this.linesPreview = const <SaleOrderLinePreviewDto>[],
+    this.saleStatus,
     this.openedByDisplayName,
     this.checkedOutAt,
     this.paymentMethod,
@@ -1013,6 +1034,7 @@ class SaleOrderSummaryDto {
   final double totalKhrExact;
   final DateTime placedAt;
   final List<SaleOrderLinePreviewDto> linesPreview;
+  final String? saleStatus;
   final String? openedByDisplayName;
   final DateTime? checkedOutAt;
   final String? paymentMethod;
@@ -1072,6 +1094,9 @@ class SaleOpenTicketDetailDto {
     required this.lineCount,
     required this.payableUsdExact,
     required this.payableKhrExact,
+    this.saleId,
+    this.saleStatus,
+    this.paymentMethod,
   });
 
   final String openTicketId;
@@ -1081,6 +1106,9 @@ class SaleOpenTicketDetailDto {
   final int lineCount;
   final double payableUsdExact;
   final double payableKhrExact;
+  final String? saleId;
+  final String? saleStatus;
+  final String? paymentMethod;
 }
 
 class SaleReceiptLineDto {
@@ -1293,6 +1321,8 @@ abstract class SaleCheckoutRepository implements SaleCartRepository {
   Future<SaleDetailReadDto> getSaleDetail({required String saleId});
 
   Future<SaleVoidRequestReadDto?> getSaleVoidRequest({required String saleId});
+
+  Future<SaleVoidRequestReadDto> requestSaleVoid(SaleRequestVoidCommand command);
 
   Future<SaleCheckoutSummary> preCheckout({
     required String saleId,

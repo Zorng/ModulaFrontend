@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/features/sale/domain/models/sale_outage_order.dart';
 import 'package:modular_pos/features/sale/ui/view/order/order_page.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/order_viewmodel.dart';
@@ -187,6 +188,99 @@ void main() {
 
     expect(notifier.updatedIdentityKey, 'order:order-1');
     expect(notifier.updatedStatus, 'ready');
+  });
+
+  testWidgets('OrderPage kebab can open void workflow from kitchen rows', (
+    tester,
+  ) async {
+    final order = Order(
+      id: 'order-1',
+      saleId: 'sale-1',
+      saleStatus: 'FINALIZED',
+      number: 'ORDER-001',
+      status: 'pending',
+      ticketStatus: 'PAID',
+      placedAt: DateTime(2026, 3, 18, 10),
+      orderType: 'take_away',
+      paymentMethod: 'cash',
+      totalUsd: 4,
+      totalKhr: 16400,
+      tenderCurrency: 'usd',
+      tenderAmount: 4,
+      changeAmount: 0,
+      lines: const [OrderLine(name: 'Mocha', modifiers: [], quantity: 1)],
+      sourceMode: 'DIRECT_CHECKOUT',
+    );
+    final router = GoRouter(
+      routes: [
+        GoRoute(path: '/', builder: (context, state) => const OrderPage()),
+        GoRoute(
+          name: AppRoute.saleDetail.name,
+          path: '/sale/detail/:saleId',
+          builder: (context, state) => Scaffold(
+            body: Text('sale:${state.pathParameters['saleId'] ?? ''}'),
+          ),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ordersProvider.overrideWith(() => _StaticOrdersNotifier([order])),
+        ],
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Order actions').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Void workflow').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('sale:sale-1'), findsOneWidget);
+  });
+
+  testWidgets('OrderPage shows sale detail action when sale is not void-eligible', (
+    tester,
+  ) async {
+    final order = Order(
+      id: 'order-1',
+      saleId: 'sale-1',
+      saleStatus: 'SETTLING',
+      number: 'ORDER-001',
+      status: 'pending',
+      ticketStatus: 'PAID',
+      placedAt: DateTime(2026, 3, 18, 10),
+      orderType: 'take_away',
+      paymentMethod: 'cash',
+      totalUsd: 4,
+      totalKhr: 16400,
+      tenderCurrency: 'usd',
+      tenderAmount: 4,
+      changeAmount: 0,
+      lines: const [OrderLine(name: 'Mocha', modifiers: [], quantity: 1)],
+      sourceMode: 'DIRECT_CHECKOUT',
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ordersProvider.overrideWith(() => _StaticOrdersNotifier([order])),
+        ],
+        child: const MaterialApp(home: OrderPage()),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Order actions').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Sale detail'), findsOneWidget);
+    expect(find.text('Void workflow'), findsNothing);
   });
 
   testWidgets('OrderPage switches to the external claims queue', (

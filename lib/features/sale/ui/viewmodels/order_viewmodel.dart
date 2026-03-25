@@ -414,6 +414,7 @@ class OrdersNotifier extends Notifier<List<Order>> {
       saleId: localOrder.saleId.isNotEmpty
           ? localOrder.saleId
           : remoteOrder.saleId,
+      saleStatus: remoteOrder.saleStatus,
       number: localOrder.number,
       status: remoteOrder.status,
       ticketStatus: remoteOrder.ticketStatus,
@@ -1186,6 +1187,7 @@ class Order {
     required this.tenderAmount,
     required this.changeAmount,
     required this.lines,
+    this.saleStatus,
     this.sourceMode,
     this.openTicketId,
     this.isLocalOutageOrder = false,
@@ -1215,6 +1217,7 @@ class Order {
 
   final String id;
   final String saleId;
+  final String? saleStatus;
   final String number;
   final String status;
   final String ticketStatus;
@@ -1256,6 +1259,22 @@ class Order {
   String get orderId => id.trim();
 
   String get finalizedSaleId => saleId.trim();
+
+  String get normalizedSaleStatus => (saleStatus ?? '').trim().toUpperCase();
+
+  bool get canOpenSaleDetail => finalizedSaleId.isNotEmpty;
+
+  bool get canOpenVoidWorkflow {
+    if (!canOpenSaleDetail) return false;
+    switch (normalizedSaleStatus) {
+      case 'FINALIZED':
+      case 'VOID_PENDING':
+      case 'VOIDED':
+        return true;
+      default:
+        return false;
+    }
+  }
 
   String get identityKey {
     final localIntentId = (localOutageIntentId ?? '').trim();
@@ -1387,6 +1406,7 @@ class Order {
     return Order(
       id: sale.id,
       saleId: sale.id,
+      saleStatus: sale.state,
       number: sale.id,
       status: sale.fulfillmentStatus.isEmpty
           ? 'in_prep'
@@ -1414,6 +1434,7 @@ class Order {
     return Order(
       id: summary.orderId,
       saleId: summary.saleId,
+      saleStatus: summary.saleStatus,
       number: summary.orderId,
       status: normalizedStatus,
       ticketStatus: ticketStatus,
@@ -1468,6 +1489,7 @@ class Order {
           ? materializedOrderId
           : record.localIntentId,
       saleId: '',
+      saleStatus: null,
       number: record.orderNumber,
       status: 'pending',
       ticketStatus: isQueueBackedOfflineCash ? 'PAID' : 'UNPAID',

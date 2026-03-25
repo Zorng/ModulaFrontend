@@ -222,6 +222,38 @@ class SaleRepository implements SaleCheckoutRepository {
   }
 
   @override
+  Future<SaleVoidRequestReadDto> requestSaleVoid(
+    SaleRequestVoidCommand command,
+  ) async {
+    final normalizedSaleId = command.saleId.trim();
+    final normalizedReason = command.reason.trim();
+    if (normalizedSaleId.isEmpty || normalizedReason.isEmpty) {
+      throw const SaleCheckoutRepositoryException(
+        reasonCode: SaleCheckoutReasonCodes.invalidRequest,
+        message: 'Sale id and reason are required before requesting void.',
+      );
+    }
+
+    final payload = <String, dynamic>{'reason': normalizedReason};
+    try {
+      final request = await _api.requestSaleVoid(
+        normalizedSaleId,
+        payload,
+        idempotency: IdempotencyRequest(
+          actionKey: 'sale.void.request',
+          intentId: command.clientOpId.trim().isEmpty
+              ? _randomUuid()
+              : command.clientOpId.trim(),
+          payload: {'saleId': normalizedSaleId, ...payload},
+        ),
+      );
+      return SaleMappers.toSaleVoidRequestRead(request);
+    } on ApiClientException catch (error) {
+      throw _toSaleRepoException(error);
+    }
+  }
+
+  @override
   Future<void> voidSale(String saleId, {required String reason}) async {
     await _api.voidSale(saleId, reason: reason);
   }
@@ -827,10 +859,11 @@ class SaleRepository implements SaleCheckoutRepository {
             paymentMethod: item.paymentMethod,
           );
           return SaleOrderSummaryDto(
-            saleId: '',
+            saleId: item.saleId,
             orderId: item.orderId,
             sourceMode: item.sourceMode,
             openedByAccountId: item.openedByAccountId,
+            saleStatus: item.saleStatus,
             ticketStatus: _mapOrderTicketStatus(
               orderStatus: item.status,
               isCheckedOutLike: isCheckedOutLike,
@@ -911,6 +944,9 @@ class SaleRepository implements SaleCheckoutRepository {
         payableKhrExact: _estimateOrderTotalKhrFromCurrentPolicy(
           totalUsdExact: payableUsdExact,
         ),
+        saleId: data.saleId,
+        saleStatus: data.saleStatus,
+        paymentMethod: data.paymentMethod,
       );
     } on ApiClientException catch (error) {
       throw _toSaleRepoException(error);

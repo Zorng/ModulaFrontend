@@ -40,6 +40,7 @@ void main() {
           items: [
             SaleOrderListItemResponseDto(
               orderId: 'order-open',
+              saleId: '',
               status: 'OPEN',
               sourceMode: 'STANDARD',
               openedByAccountId: 'staff-1',
@@ -65,11 +66,13 @@ void main() {
             ),
             SaleOrderListItemResponseDto(
               orderId: 'order-paid',
+              saleId: 'sale-paid',
               status: 'CHECKED_OUT',
               sourceMode: 'STANDARD',
               openedByAccountId: 'staff-2',
               openedByDisplayName: 'Staff Two',
               fulfillmentStatus: 'PREPARING',
+              saleStatus: 'FINALIZED',
               totalUsdExact: 5,
               linesPreview: const [
                 SaleOrderListLinePreviewResponseDto(
@@ -117,7 +120,8 @@ void main() {
       final paid = result.items.firstWhere(
         (item) => item.orderId == 'order-paid',
       );
-      expect(paid.saleId, isEmpty);
+      expect(paid.saleId, 'sale-paid');
+      expect(paid.saleStatus, 'FINALIZED');
       expect(paid.ticketStatus, 'PAID');
       expect(paid.fulfillmentStatus, 'in_prep');
       expect(paid.totalUsdExact, 5);
@@ -163,11 +167,13 @@ void main() {
           items: [
             SaleOrderListItemResponseDto(
               orderId: 'order-direct-checkout',
+              saleId: 'sale-direct-checkout',
               status: 'CHECKED_OUT',
               sourceMode: 'DIRECT_CHECKOUT',
               openedByAccountId: 'staff-1',
               openedByDisplayName: 'Staff One',
               fulfillmentStatus: null,
+              saleStatus: 'FINALIZED',
               totalUsdExact: 5,
               linesPreview: const [
                 SaleOrderListLinePreviewResponseDto(
@@ -194,6 +200,8 @@ void main() {
       final result = await repository.getOrders(const SaleOrdersQueryDto());
 
       expect(result.items, hasLength(1));
+      expect(result.items.single.saleId, 'sale-direct-checkout');
+      expect(result.items.single.saleStatus, 'FINALIZED');
       expect(result.items.single.ticketStatus, 'PAID');
       expect(result.items.single.fulfillmentStatus, 'pending');
       expect(result.items.single.paymentMethod, 'CASH');
@@ -220,11 +228,13 @@ void main() {
           items: [
             SaleOrderListItemResponseDto(
               orderId: 'order-direct-open',
+              saleId: 'sale-direct-open',
               status: 'OPEN',
               sourceMode: 'DIRECT_CHECKOUT',
               openedByAccountId: 'staff-2',
               openedByDisplayName: 'Staff Two',
               fulfillmentStatus: 'PENDING',
+              saleStatus: 'FINALIZED',
               totalUsdExact: 5,
               linesPreview: const [
                 SaleOrderListLinePreviewResponseDto(
@@ -251,6 +261,8 @@ void main() {
       final result = await repository.getOrders(const SaleOrdersQueryDto());
 
       expect(result.items, hasLength(1));
+      expect(result.items.single.saleId, 'sale-direct-open');
+      expect(result.items.single.saleStatus, 'FINALIZED');
       expect(result.items.single.ticketStatus, 'PAID');
       expect(result.items.single.fulfillmentStatus, 'pending');
       expect(result.items.single.paymentMethod, 'CASH');
@@ -319,8 +331,12 @@ void main() {
           'tenantId': 'tenant-1',
           'branchId': 'branch-1',
           'openedByAccountId': 'account-1',
-          'status': 'OPEN',
+          'status': 'CHECKED_OUT',
           'sourceMode': 'STANDARD',
+          'saleId': 'sale-1',
+          'saleStatus': 'FINALIZED',
+          'paymentMethod': 'CASH',
+          'checkedOutAt': '2026-03-19T10:06:00.000Z',
           'createdAt': '2026-03-19T10:00:00.000Z',
           'updatedAt': '2026-03-19T10:05:00.000Z',
           'lines': [
@@ -352,11 +368,14 @@ void main() {
 
       expect(detail.openTicketId, 'order-1');
       expect(detail.orderId, 'order-1');
-      expect(detail.status, 'UNPAID');
+      expect(detail.status, 'PAID');
       expect(detail.lineCount, 2);
       expect(detail.payableUsdExact, 8);
       expect(detail.payableKhrExact, 32800);
       expect(detail.batches, isEmpty);
+      expect(detail.saleId, 'sale-1');
+      expect(detail.saleStatus, 'FINALIZED');
+      expect(detail.paymentMethod, 'CASH');
       verify(() => api.getOrderDetail('order-1')).called(1);
     },
   );
@@ -381,6 +400,7 @@ void main() {
           items: [
             SaleOrderListItemResponseDto(
               orderId: 'order-open',
+              saleId: '',
               status: 'OPEN',
               sourceMode: 'STANDARD',
               openedByAccountId: 'staff-3',

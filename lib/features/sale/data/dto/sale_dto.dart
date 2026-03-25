@@ -897,6 +897,7 @@ class SaleRejectManualPaymentClaimResponseDto {
 class SaleOrderListItemResponseDto {
   const SaleOrderListItemResponseDto({
     required this.orderId,
+    required this.saleId,
     required this.status,
     required this.sourceMode,
     required this.openedByAccountId,
@@ -906,6 +907,7 @@ class SaleOrderListItemResponseDto {
     required this.linesPreview,
     required this.createdAt,
     required this.updatedAt,
+    this.saleStatus,
     this.checkedOutAt,
     this.paymentMethod,
     this.manualPaymentClaimId,
@@ -916,6 +918,7 @@ class SaleOrderListItemResponseDto {
   });
 
   final String orderId;
+  final String saleId;
   final String status;
   final String sourceMode;
   final String openedByAccountId;
@@ -923,6 +926,7 @@ class SaleOrderListItemResponseDto {
   final String? fulfillmentStatus;
   final double totalUsdExact;
   final List<SaleOrderListLinePreviewResponseDto> linesPreview;
+  final String? saleStatus;
   final DateTime? checkedOutAt;
   final String? paymentMethod;
   final String? manualPaymentClaimId;
@@ -936,12 +940,14 @@ class SaleOrderListItemResponseDto {
   factory SaleOrderListItemResponseDto.fromJson(Map<String, dynamic> json) {
     return SaleOrderListItemResponseDto(
       orderId: _readString(json['orderId'] ?? json['id']),
+      saleId: _readString(json['saleId']),
       status: _readString(json['status']),
       sourceMode: _readString(json['sourceMode']),
       openedByAccountId: _readString(json['openedByAccountId']),
       openedByDisplayName: _readNullableString(json['openedByDisplayName']),
       fulfillmentStatus: _readNullableString(json['fulfillmentStatus']),
       totalUsdExact: _readDouble(json['totalUsdExact']),
+      saleStatus: _readNullableString(json['saleStatus']),
       linesPreview: _readTypedList(
         json['linesPreview'],
         SaleOrderListLinePreviewResponseDto.fromJson,
@@ -1174,6 +1180,9 @@ class SaleOrderDetailResponseDto {
     required this.lines,
     required this.fulfillmentBatches,
     required this.manualPaymentClaims,
+    this.saleId,
+    this.saleStatus,
+    this.paymentMethod,
     this.checkedOutAt,
     this.checkedOutByAccountId,
     this.cancelledAt,
@@ -1187,6 +1196,9 @@ class SaleOrderDetailResponseDto {
   final String openedByAccountId;
   final String status;
   final String sourceMode;
+  final String? saleId;
+  final String? saleStatus;
+  final String? paymentMethod;
   final DateTime createdAt;
   final DateTime updatedAt;
   final DateTime? checkedOutAt;
@@ -1206,6 +1218,9 @@ class SaleOrderDetailResponseDto {
       openedByAccountId: _readString(json['openedByAccountId']),
       status: _readString(json['status']),
       sourceMode: _readString(json['sourceMode']),
+      saleId: _readNullableString(json['saleId']),
+      saleStatus: _readNullableString(json['saleStatus']),
+      paymentMethod: _readNullableString(json['paymentMethod']),
       createdAt: _readDateTime(json['createdAt']),
       updatedAt: _readDateTime(json['updatedAt']),
       checkedOutAt: _readNullableDateTime(json['checkedOutAt']),

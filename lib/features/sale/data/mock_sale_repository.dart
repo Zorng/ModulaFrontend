@@ -27,6 +27,8 @@ class MockSaleRepository implements SaleCheckoutRepository {
       <String, _MockFinalizedSale>{};
   final Map<String, _MockFinalizedSale> _voidedSales =
       <String, _MockFinalizedSale>{};
+  final Map<String, _MockSaleVoidRequest> _voidRequestsBySaleId =
+      <String, _MockSaleVoidRequest>{};
   final Map<String, _MockOpenTicket> _openTicketsById =
       <String, _MockOpenTicket>{};
   final Map<String, String> _openTicketIdBySaleId = <String, String>{};
@@ -86,6 +88,7 @@ class MockSaleRepository implements SaleCheckoutRepository {
     _drafts.clear();
     _finalizedSales.clear();
     _voidedSales.clear();
+    _voidRequestsBySaleId.clear();
     _openTicketsById.clear();
     _openTicketIdBySaleId.clear();
     _manualClaimsById.clear();
@@ -387,7 +390,89 @@ class MockSaleRepository implements SaleCheckoutRepository {
   Future<SaleVoidRequestReadDto?> getSaleVoidRequest({
     required String saleId,
   }) async {
-    return null;
+    final request = _voidRequestsBySaleId[saleId.trim()];
+    if (request == null) return null;
+    return SaleVoidRequestReadDto(
+      requestId: request.requestId,
+      saleId: request.saleId,
+      status: request.status,
+      reason: request.reason,
+      reviewNote: request.reviewNote,
+      requestedAt: request.requestedAt,
+      reviewedAt: request.reviewedAt,
+      requestedByAccountId: request.requestedByAccountId,
+      reviewedByAccountId: request.reviewedByAccountId,
+    );
+  }
+
+  @override
+  Future<SaleVoidRequestReadDto> requestSaleVoid(
+    SaleRequestVoidCommand command,
+  ) async {
+    final normalizedSaleId = command.saleId.trim();
+    final normalizedReason = command.reason.trim();
+    if (normalizedSaleId.isEmpty || normalizedReason.isEmpty) {
+      throw const SaleCheckoutRepositoryException(
+        reasonCode: SaleCheckoutReasonCodes.invalidRequest,
+        message: 'Sale id and reason are required before requesting void.',
+      );
+    }
+
+    final finalized = _finalizedSales[normalizedSaleId];
+    if (finalized == null) {
+      throw const SaleCheckoutRepositoryException(
+        reasonCode: SaleCheckoutReasonCodes.invalidRequest,
+        message: 'Only finalized sales can request void.',
+      );
+    }
+
+    if (finalized.state.trim().toUpperCase() != 'FINALIZED') {
+      throw const SaleCheckoutRepositoryException(
+        reasonCode: SaleCheckoutReasonCodes.invalidRequest,
+        message: 'Only finalized sales can request void.',
+      );
+    }
+
+    final existing = _voidRequestsBySaleId[normalizedSaleId];
+    if (existing != null) {
+      return SaleVoidRequestReadDto(
+        requestId: existing.requestId,
+        saleId: existing.saleId,
+        status: existing.status,
+        reason: existing.reason,
+        reviewNote: existing.reviewNote,
+        requestedAt: existing.requestedAt,
+        reviewedAt: existing.reviewedAt,
+        requestedByAccountId: existing.requestedByAccountId,
+        reviewedByAccountId: existing.reviewedByAccountId,
+      );
+    }
+
+    final now = _now();
+    finalized.state = 'VOID_PENDING';
+    finalized.updatedAt = now;
+
+    final request = _MockSaleVoidRequest(
+      requestId: _nextId('void_request'),
+      saleId: normalizedSaleId,
+      status: 'PENDING',
+      reason: normalizedReason,
+      requestedAt: now,
+      requestedByAccountId: 'mock-account-001',
+    );
+    _voidRequestsBySaleId[normalizedSaleId] = request;
+
+    return SaleVoidRequestReadDto(
+      requestId: request.requestId,
+      saleId: request.saleId,
+      status: request.status,
+      reason: request.reason,
+      reviewNote: request.reviewNote,
+      requestedAt: request.requestedAt,
+      reviewedAt: request.reviewedAt,
+      requestedByAccountId: request.requestedByAccountId,
+      reviewedByAccountId: request.reviewedByAccountId,
+    );
   }
 
   @override
@@ -1315,6 +1400,7 @@ class MockSaleRepository implements SaleCheckoutRepository {
           orderId: ticket.openTicketId,
           sourceMode: 'STANDARD',
           openedByAccountId: 'mock-account-1',
+          saleStatus: null,
           ticketStatus: ticket.status,
           fulfillmentStatus: ticket.status == 'PAID' ? 'in_prep' : 'pending',
           totalUsdExact: ticket.payableUsdExact,
@@ -1331,6 +1417,7 @@ class MockSaleRepository implements SaleCheckoutRepository {
           orderId: finalized.saleId,
           sourceMode: 'DIRECT_CHECKOUT',
           openedByAccountId: 'mock-account-1',
+          saleStatus: finalized.state.trim().toUpperCase(),
           ticketStatus: 'PAID',
           fulfillmentStatus: finalized.fulfillmentStatus,
           totalUsdExact: finalized.totalUsdExact,
@@ -1426,6 +1513,9 @@ class MockSaleRepository implements SaleCheckoutRepository {
       ),
       payableUsdExact: ticket.payableUsdExact,
       payableKhrExact: ticket.payableKhrExact,
+      saleId: ticket.status == 'PAID' ? ticket.saleId : null,
+      saleStatus: ticket.status == 'PAID' ? 'FINALIZED' : null,
+      paymentMethod: ticket.status == 'PAID' ? 'CASH' : null,
     );
   }
 
@@ -2149,6 +2239,27 @@ class _MockManualPaymentClaim {
   DateTime? reviewedAt;
   String? reviewNote;
   String? saleId;
+}
+
+class _MockSaleVoidRequest {
+  _MockSaleVoidRequest({
+    required this.requestId,
+    required this.saleId,
+    required this.status,
+    required this.reason,
+    required this.requestedAt,
+    this.requestedByAccountId,
+  });
+
+  final String requestId;
+  final String saleId;
+  String status;
+  final String reason;
+  String? reviewNote;
+  final DateTime requestedAt;
+  DateTime? reviewedAt;
+  String? requestedByAccountId;
+  String? reviewedByAccountId;
 }
 
 class _MockKhqrAttempt {

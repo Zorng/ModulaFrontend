@@ -333,11 +333,11 @@ Output:
 - authoritative sale detail page exists
 
 ## Phase 4 — Cashier Void Request Flow
-- [ ] add `Request void` for eligible finalized sales
-- [ ] collect reason
-- [ ] submit command
-- [ ] refresh and show `VOID_PENDING`
-- [ ] add tests
+- [x] add `Request void` for eligible finalized sales
+- [x] collect reason
+- [x] submit command
+- [x] refresh and show `VOID_PENDING`
+- [x] add tests
 
 Output:
 - cashier request flow works
@@ -380,7 +380,7 @@ Output:
 | 1 | Not started |  |
 | 2 | Completed | Canonical workflow route is sale-keyed; fulfillment can be the entry surface only if order summaries preserve `saleId` and do not require an order-detail discovery hop. |
 | 3 | Completed | Read-only sale detail page now exists as a sale-keyed route with sale + void-request reads and focused page tests. |
-| 4 | Not started |  |
+| 4 | Completed | Cashier can request void from sale detail, submit a reason through `void/request`, and the page refreshes into `VOID_PENDING` with focused page/repository/widget coverage. |
 | 5 | Not started |  |
 | 6 | Not started |  |
 | 7 | Not started |  |
