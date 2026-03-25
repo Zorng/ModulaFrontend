@@ -28,8 +28,10 @@ class StockItemCard extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        onTap: () =>
-            context.push(AppRoute.inventoryStockDetail.path, extra: item),
+        onTap: () => context.pushNamed(
+          AppRoute.inventoryStockDetail.name,
+          extra: item,
+        ),
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Row(
