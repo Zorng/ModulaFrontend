@@ -411,8 +411,20 @@ class RemoteMenuRepository extends MenuRepository {
     List<int>? imageBytes,
     MenuItem? previous,
   }) async {
+    final payload = _menuItemPayload(item, previous: previous);
+    final hasImageUpload =
+        (imagePath ?? '').trim().isNotEmpty ||
+        (imageBytes != null && imageBytes.isNotEmpty);
+    if (!hasImageUpload && payload.length <= 1) {
+      final fallback = previous ?? item;
+      return fallback.copyWith(
+        visibleBranchIds: item.visibleBranchIds,
+        branchIds: item.visibleBranchIds,
+        modifierGroupIds: item.modifierGroupIds,
+      );
+    }
     final dto = await _api.updateMenuItem(
-      _menuItemPayload(item, previous: previous),
+      payload,
       imagePath: imagePath,
       imageBytes: imageBytes,
     );

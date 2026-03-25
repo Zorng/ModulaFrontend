@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:modular_pos/features/auth/domain/active_branch_context_provider.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_controller.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_state.dart';
@@ -57,7 +58,171 @@ class _StaticStockInventoryController extends StockInventoryController {
   Future<void> loadStockItems({String status = 'all'}) async {}
 }
 
+class _RecordingMenuViewModel extends MenuViewModel {
+  _RecordingMenuViewModel(this._state);
+
+  final MenuState _state;
+  int updateCalls = 0;
+  int compositionUpsertCalls = 0;
+  List<MenuComponent> lastCompositionPayload = const [];
+
+  @override
+  MenuState build() => _state;
+
+  @override
+  Future<void> loadMenu({
+    String? branchId,
+    String? status,
+    MenuReadLane readLane = MenuReadLane.management,
+  }) async {}
+
+  @override
+  Future<void> loadItemComposition(String menuItemId) async {}
+
+  @override
+  Future<MenuItemDetail> loadMenuItemDetail(
+    String menuItemId, {
+    int retries = 2,
+    Duration retryDelay = const Duration(milliseconds: 200),
+  }) async {
+    return state.detailByItemId[menuItemId]!;
+  }
+
+  @override
+  Future<MenuItem> updateMenuItem(
+    MenuItem item, {
+    String? imagePath,
+    List<int>? imageBytes,
+  }) async {
+    updateCalls += 1;
+    return item;
+  }
+
+  @override
+  Future<void> upsertItemComposition({
+    required String menuItemId,
+    required List<MenuComponent> baseComponents,
+  }) async {
+    compositionUpsertCalls += 1;
+    lastCompositionPayload = baseComponents;
+  }
+}
+
 void main() {
+  testWidgets(
+    'MenuItemFormPage first edit open uses hydrated item baseline before composition-only save',
+    (tester) async {
+      tester.view.physicalSize = const Size(1440, 2200);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      const partialItem = MenuItem(
+        id: 'item-1',
+        name: 'Latte',
+        categoryId: 'cat-1',
+        price: 2.5,
+        basePrice: 2.5,
+      );
+      const hydratedItem = MenuItem(
+        id: 'item-1',
+        name: 'Latte',
+        categoryId: 'cat-1',
+        price: 2.5,
+        basePrice: 2.5,
+        branchIds: ['branch-1'],
+        visibleBranchIds: ['branch-1'],
+      );
+      const detail = MenuItemDetail(
+        item: hydratedItem,
+        categoryName: 'Coffee',
+        modifierGroups: [],
+        baseComponents: [
+          MenuComponent(
+            stockItemId: 'stock-1',
+            quantityInBaseUnit: 250,
+            trackingMode: 'TRACKED',
+          ),
+        ],
+        modifierOptionEffects: [],
+      );
+      final notifier = _RecordingMenuViewModel(
+        const MenuState(
+          isLoading: false,
+          allItems: [partialItem],
+          filteredItems: [partialItem],
+          categories: [MenuCategory(id: 'cat-1', name: 'Coffee')],
+          branches: [MenuBranch(id: 'branch-1', name: 'Main')],
+          detailByItemId: {'item-1': detail},
+          hydratedItems: {'item-1': hydratedItem},
+          compositionLoadedByItem: {'item-1': true},
+          compositionByItem: {
+            'item-1': [
+              MenuComponent(
+                stockItemId: 'stock-1',
+                quantityInBaseUnit: 250,
+                trackingMode: 'TRACKED',
+              ),
+            ],
+          },
+          baseCompositionByItemId: {
+            'item-1': [
+              MenuComponent(
+                stockItemId: 'stock-1',
+                quantityInBaseUnit: 250,
+                trackingMode: 'TRACKED',
+              ),
+            ],
+          },
+        ),
+      );
+
+      await pumpApp(
+        tester,
+        const MenuItemFormPage(initialItem: partialItem),
+        overrides: [
+          menuViewModelProvider.overrideWith(() => notifier),
+          stockInventoryControllerProvider.overrideWith(
+            () => _StaticStockInventoryController(
+              const StockInventoryState(
+                stockItems: [
+                  StockItem(
+                    id: 'stock-1',
+                    name: 'Espresso',
+                    baseUnit: 'ml',
+                    pieceSize: 1,
+                    branchId: '',
+                    branchName: '',
+                    onHand: 0,
+                    minThreshold: 0,
+                    isActive: true,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          activeBranchContextIdProvider.overrideWithValue('branch-1'),
+        ],
+      );
+
+      await tester.pump();
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Edit'));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextFormField).last, '300');
+      await tester.pump();
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+      await tester.pumpAndSettle();
+
+      expect(notifier.updateCalls, 0);
+      expect(notifier.compositionUpsertCalls, 1);
+      expect(notifier.lastCompositionPayload.first.quantityInBaseUnit, 300);
+    },
+  );
+
   testWidgets(
     'MenuItemFormPage renders base composition and item-scoped modifier effects from explicit state',
     (tester) async {

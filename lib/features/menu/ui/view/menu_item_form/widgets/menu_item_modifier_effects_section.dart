@@ -257,6 +257,14 @@ class _ModifierEffectOptionCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           if (hasExplicitRows) ...[
+            Text(
+              'Item-scoped effects',
+              style: textTheme.bodySmall?.copyWith(
+                color: Colors.grey.shade700,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
             ...rows.map(
               (row) => Padding(
                 padding: const EdgeInsets.only(bottom: 12),
@@ -284,7 +292,9 @@ class _ModifierEffectOptionCard extends StatelessWidget {
                 ),
               ),
             ),
-          ] else if (hasInheritedRows) ...[
+          ],
+          if (hasInheritedRows) ...[
+            if (hasExplicitRows) const SizedBox(height: 4),
             Container(
               width: double.infinity,
               margin: const EdgeInsets.only(bottom: 12),
@@ -314,7 +324,8 @@ class _ModifierEffectOptionCard extends StatelessWidget {
                 ),
               ),
             ),
-          ] else
+          ],
+          if (!hasExplicitRows && !hasInheritedRows)
             Text(
               'No item-scoped or inherited deltas for this option.',
               style: textTheme.bodyMedium?.copyWith(color: Colors.grey),

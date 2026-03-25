@@ -27,7 +27,10 @@ class MenuItemDetailDto {
     final item = MenuItemDto.fromJson(payload);
     final modifierGroups = _parseModifierGroups(payload);
     final baseComponents = _parseBaseComponents(payload);
-    final modifierOptionEffects = _parseModifierOptionEffects(payload);
+    final modifierOptionEffects = _parseModifierOptionEffects(
+      payload,
+      modifierGroups: modifierGroups,
+    );
 
     return MenuItemDetailDto(
       item: item,
@@ -53,10 +56,11 @@ List<MenuComponentDto> _parseBaseComponents(Map<String, dynamic> payload) {
 
 List<MenuModifierOptionEffectDto> _parseModifierOptionEffects(
   Map<String, dynamic> payload,
+  {required List<ModifierGroupDto> modifierGroups}
 ) {
   final rawEffects =
       payload['modifierOptionEffects'] as List<dynamic>? ?? const <dynamic>[];
-  return rawEffects
+  final parsedEffects = rawEffects
       .whereType<Map>()
       .map(
         (entry) => MenuModifierOptionEffectDto.fromJson(
@@ -64,6 +68,23 @@ List<MenuModifierOptionEffectDto> _parseModifierOptionEffects(
         ),
       )
       .where((entry) => entry.modifierOptionId.isNotEmpty)
+      .toList(growable: false);
+  if (parsedEffects.isNotEmpty) {
+    return parsedEffects;
+  }
+
+  return modifierGroups
+      .expand((group) => group.options)
+      .where(
+        (option) =>
+            option.id.trim().isNotEmpty && option.componentDeltas.isNotEmpty,
+      )
+      .map(
+        (option) => MenuModifierOptionEffectDto(
+          modifierOptionId: option.id,
+          components: option.componentDeltas,
+        ),
+      )
       .toList(growable: false);
 }
 

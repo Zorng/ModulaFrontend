@@ -633,6 +633,38 @@ void main() {
       },
     );
 
+    test('updateMenuItem skips API call when patch payload has no changed fields', () async {
+      final api = _MockMenuApi();
+      final repository = RemoteMenuRepository(api);
+
+      const previous = MenuItem(
+        id: 'item-1',
+        name: 'Latte',
+        categoryId: 'cat-1',
+        price: 2.5,
+        basePrice: 2.5,
+        branchIds: ['branch-1'],
+        visibleBranchIds: ['branch-1'],
+        modifierGroupIds: ['group-1'],
+      );
+      const item = MenuItem(
+        id: 'item-1',
+        name: 'Latte',
+        categoryId: 'cat-1',
+        price: 2.5,
+        basePrice: 2.5,
+        branchIds: ['branch-1'],
+        visibleBranchIds: ['branch-1'],
+        modifierGroupIds: ['group-1'],
+      );
+
+      final updated = await repository.updateMenuItem(item, previous: previous);
+
+      expect(updated.id, 'item-1');
+      expect(updated.name, 'Latte');
+      verifyNever(() => api.updateMenuItem(any(), imagePath: any(named: 'imagePath'), imageBytes: any(named: 'imageBytes')));
+    });
+
     test(
       'fetchMenuItemDetail maps explicit detail payload including effects',
       () async {
