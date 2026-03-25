@@ -14,7 +14,7 @@ final ordersProvider = NotifierProvider<OrdersNotifier, List<Order>>(
 const orderFulfillmentActiveView = 'FULFILLMENT_ACTIVE';
 const orderManualClaimReviewView = 'MANUAL_CLAIM_REVIEW';
 
-enum FulfillmentWorkspaceTab { kitchen, externalClaims }
+enum FulfillmentWorkspaceTab { kitchen, voidRequests, externalClaims }
 
 final fulfillmentWorkspaceTabProvider =
     NotifierProvider<FulfillmentWorkspaceTabNotifier, FulfillmentWorkspaceTab>(

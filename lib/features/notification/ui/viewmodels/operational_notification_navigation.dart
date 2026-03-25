@@ -1,5 +1,4 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/features/auth/domain/active_branch_context_provider.dart';
 import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
@@ -12,9 +11,10 @@ String operationalNotificationActionLabel(OperationalNotificationItem item) {
     case OperationalNotificationTypes.cashSessionClosed:
       return 'View session';
     case OperationalNotificationTypes.voidApprovalNeeded:
+      return 'Review sale';
     case OperationalNotificationTypes.voidApproved:
     case OperationalNotificationTypes.voidRejected:
-      return 'Open carts';
+      return 'View sale';
   }
   return 'Open';
 }
@@ -63,9 +63,10 @@ String operationalNotificationHandoffConfirmLabel(
     case OperationalNotificationTypes.cashSessionClosed:
       return 'Switch and view';
     case OperationalNotificationTypes.voidApprovalNeeded:
+      return 'Switch and review';
     case OperationalNotificationTypes.voidApproved:
     case OperationalNotificationTypes.voidRejected:
-      return 'Switch and open';
+      return 'Switch and view';
   }
   return 'Switch and open';
 }
@@ -79,7 +80,7 @@ String operationalNotificationAccessFailureMessage(
     case OperationalNotificationTypes.voidApprovalNeeded:
     case OperationalNotificationTypes.voidApproved:
     case OperationalNotificationTypes.voidRejected:
-      return 'You can no longer open these carts.';
+      return 'You can no longer open this sale.';
   }
   return 'You can no longer open this notification.';
 }
@@ -159,11 +160,9 @@ String operationalNotificationLocation(OperationalNotificationItem item) {
       }
       return AppRoute.cashHistory.path;
     case OperationalNotificationTypes.voidApprovalNeeded:
-      return _saleHistoryLocation(item, state: 'VOID_PENDING');
     case OperationalNotificationTypes.voidApproved:
-      return _saleHistoryLocation(item, state: 'VOIDED');
     case OperationalNotificationTypes.voidRejected:
-      return _saleHistoryLocation(item, state: 'FINALIZED');
+      return _saleDetailLocation(item);
   }
   return AppRoute.notifications.path;
 }
@@ -180,23 +179,13 @@ class OperationalNotificationContextHandoffResult {
   final String? message;
 }
 
-String _saleHistoryLocation(
-  OperationalNotificationItem item, {
-  required String state,
-}) {
+String _saleDetailLocation(OperationalNotificationItem item) {
   final saleId = _payloadValue(item, preferredKeys: const ['saleId']);
-  final createdAtDate = DateFormat(
-    'yyyy-MM-dd',
-  ).format(item.createdAt.toLocal());
-  final query = <String, String>{
-    'state': state,
-    'date': createdAtDate,
-    if (saleId != null) 'saleId': saleId,
-  };
-  final queryString = Uri(queryParameters: query).query;
-  return queryString.isEmpty
-      ? AppRoute.saleViewCarts.path
-      : '${AppRoute.saleViewCarts.path}?$queryString';
+  if (saleId == null) return AppRoute.notifications.path;
+  return AppRoute.saleDetail.path.replaceFirst(
+    ':saleId',
+    Uri.encodeComponent(saleId),
+  );
 }
 
 bool _hasTenantMembership(AuthSession session, String tenantId) {
@@ -213,10 +202,10 @@ String _handoffActionDescription(OperationalNotificationItem item) {
     case OperationalNotificationTypes.cashSessionClosed:
       return 'view this closed session';
     case OperationalNotificationTypes.voidApprovalNeeded:
-      return 'review this void request';
+      return 'review this sale';
     case OperationalNotificationTypes.voidApproved:
     case OperationalNotificationTypes.voidRejected:
-      return 'open the related carts';
+      return 'view this sale';
   }
   return 'open this notification';
 }

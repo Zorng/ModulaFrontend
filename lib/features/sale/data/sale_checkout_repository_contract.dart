@@ -642,6 +642,38 @@ class SaleRequestVoidCommand {
   }
 }
 
+class SaleApproveVoidCommand {
+  const SaleApproveVoidCommand({
+    required this.saleId,
+    required this.clientOpId,
+    this.note,
+  });
+
+  final String saleId;
+  final String clientOpId;
+  final String? note;
+
+  Map<String, dynamic> toJson() {
+    return {if (note != null) 'note': note};
+  }
+}
+
+class SaleRejectVoidCommand {
+  const SaleRejectVoidCommand({
+    required this.saleId,
+    required this.clientOpId,
+    this.note,
+  });
+
+  final String saleId;
+  final String clientOpId;
+  final String? note;
+
+  Map<String, dynamic> toJson() {
+    return {if (note != null) 'note': note};
+  }
+}
+
 class SaleImmediateReceiptDto {
   const SaleImmediateReceiptDto({
     required this.receiptId,
@@ -1259,6 +1291,74 @@ class SaleVoidRequestReadDto {
   final String? reviewedByAccountId;
 }
 
+class SaleVoidRequestQueueQueryDto {
+  const SaleVoidRequestQueueQueryDto({
+    this.status,
+    this.limit = 20,
+    this.offset = 0,
+  });
+
+  final String? status;
+  final int limit;
+  final int offset;
+}
+
+class SaleVoidRequestQueueItemDto {
+  const SaleVoidRequestQueueItemDto({
+    required this.voidRequestId,
+    required this.saleId,
+    required this.tenantId,
+    required this.branchId,
+    required this.saleStatus,
+    required this.voidRequestStatus,
+    required this.requestedAt,
+    required this.requestedByAccountId,
+    required this.reason,
+    required this.paymentMethod,
+    required this.grandTotalUsd,
+    required this.grandTotalKhr,
+    required this.saleCreatedAt,
+    this.orderId,
+    this.branchName,
+    this.requestedByDisplayName,
+    this.fulfillmentStatus,
+  });
+
+  final String voidRequestId;
+  final String saleId;
+  final String? orderId;
+  final String tenantId;
+  final String branchId;
+  final String? branchName;
+  final String saleStatus;
+  final String voidRequestStatus;
+  final DateTime requestedAt;
+  final String requestedByAccountId;
+  final String? requestedByDisplayName;
+  final String reason;
+  final String paymentMethod;
+  final double grandTotalUsd;
+  final double grandTotalKhr;
+  final String? fulfillmentStatus;
+  final DateTime saleCreatedAt;
+}
+
+class SaleVoidRequestQueuePageDto {
+  const SaleVoidRequestQueuePageDto({
+    required this.items,
+    required this.limit,
+    required this.offset,
+    required this.total,
+    required this.hasMore,
+  });
+
+  final List<SaleVoidRequestQueueItemDto> items;
+  final int limit;
+  final int offset;
+  final int total;
+  final bool hasMore;
+}
+
 abstract class SaleCartRepository {
   // Legacy draft/cart mutation methods still used by the existing cart UI.
   Future<String> ensureDraft({
@@ -1318,11 +1418,19 @@ abstract class SaleCartRepository {
 }
 
 abstract class SaleCheckoutRepository implements SaleCartRepository {
+  Future<SaleVoidRequestQueuePageDto> getSaleVoidRequests(
+    SaleVoidRequestQueueQueryDto query,
+  );
+
   Future<SaleDetailReadDto> getSaleDetail({required String saleId});
 
   Future<SaleVoidRequestReadDto?> getSaleVoidRequest({required String saleId});
 
   Future<SaleVoidRequestReadDto> requestSaleVoid(SaleRequestVoidCommand command);
+
+  Future<SaleVoidRequestReadDto> approveSaleVoid(SaleApproveVoidCommand command);
+
+  Future<SaleVoidRequestReadDto> rejectSaleVoid(SaleRejectVoidCommand command);
 
   Future<SaleCheckoutSummary> preCheckout({
     required String saleId,

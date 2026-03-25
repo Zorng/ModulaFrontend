@@ -196,6 +196,25 @@ class SaleRepository implements SaleCheckoutRepository {
   }
 
   @override
+  Future<SaleVoidRequestQueuePageDto> getSaleVoidRequests(
+    SaleVoidRequestQueueQueryDto query,
+  ) async {
+    final normalizedStatus = query.status?.trim().toUpperCase();
+    try {
+      final page = await _api.listSaleVoidRequests(
+        status: normalizedStatus == null || normalizedStatus.isEmpty
+            ? null
+            : normalizedStatus,
+        limit: query.limit,
+        offset: query.offset,
+      );
+      return SaleMappers.toSaleVoidRequestQueuePage(page);
+    } on ApiClientException catch (error) {
+      throw _toSaleRepoException(error);
+    }
+  }
+
+  @override
   Future<SaleDetailReadDto> getSaleDetail({required String saleId}) async {
     try {
       final sale = await _api.getSaleDetail(saleId.trim());
@@ -241,6 +260,76 @@ class SaleRepository implements SaleCheckoutRepository {
         payload,
         idempotency: IdempotencyRequest(
           actionKey: 'sale.void.request',
+          intentId: command.clientOpId.trim().isEmpty
+              ? _randomUuid()
+              : command.clientOpId.trim(),
+          payload: {'saleId': normalizedSaleId, ...payload},
+        ),
+      );
+      return SaleMappers.toSaleVoidRequestRead(request);
+    } on ApiClientException catch (error) {
+      throw _toSaleRepoException(error);
+    }
+  }
+
+  @override
+  Future<SaleVoidRequestReadDto> approveSaleVoid(
+    SaleApproveVoidCommand command,
+  ) async {
+    final normalizedSaleId = command.saleId.trim();
+    if (normalizedSaleId.isEmpty) {
+      throw const SaleCheckoutRepositoryException(
+        reasonCode: SaleCheckoutReasonCodes.invalidRequest,
+        message: 'Sale id is required before approving void.',
+      );
+    }
+
+    final normalizedNote = command.note?.trim();
+    final payload = <String, dynamic>{
+      if (normalizedNote != null && normalizedNote.isNotEmpty)
+        'note': normalizedNote,
+    };
+    try {
+      final request = await _api.approveSaleVoid(
+        normalizedSaleId,
+        payload,
+        idempotency: IdempotencyRequest(
+          actionKey: 'sale.void.approve',
+          intentId: command.clientOpId.trim().isEmpty
+              ? _randomUuid()
+              : command.clientOpId.trim(),
+          payload: {'saleId': normalizedSaleId, ...payload},
+        ),
+      );
+      return SaleMappers.toSaleVoidRequestRead(request);
+    } on ApiClientException catch (error) {
+      throw _toSaleRepoException(error);
+    }
+  }
+
+  @override
+  Future<SaleVoidRequestReadDto> rejectSaleVoid(
+    SaleRejectVoidCommand command,
+  ) async {
+    final normalizedSaleId = command.saleId.trim();
+    if (normalizedSaleId.isEmpty) {
+      throw const SaleCheckoutRepositoryException(
+        reasonCode: SaleCheckoutReasonCodes.invalidRequest,
+        message: 'Sale id is required before rejecting void.',
+      );
+    }
+
+    final normalizedNote = command.note?.trim();
+    final payload = <String, dynamic>{
+      if (normalizedNote != null && normalizedNote.isNotEmpty)
+        'note': normalizedNote,
+    };
+    try {
+      final request = await _api.rejectSaleVoid(
+        normalizedSaleId,
+        payload,
+        idempotency: IdempotencyRequest(
+          actionKey: 'sale.void.reject',
           intentId: command.clientOpId.trim().isEmpty
               ? _randomUuid()
               : command.clientOpId.trim(),

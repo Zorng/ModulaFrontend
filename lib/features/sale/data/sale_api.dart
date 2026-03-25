@@ -407,6 +407,30 @@ class SaleApi {
     }
   }
 
+  Future<SaleVoidRequestQueueResponseDto> listSaleVoidRequests({
+    String? status,
+    int limit = 20,
+    int offset = 0,
+  }) async {
+    try {
+      final query = <String, dynamic>{
+        'limit': limit,
+        'offset': offset,
+        if (status != null && status.trim().isNotEmpty) 'status': status.trim(),
+      };
+      final response = await _dio.get<Map<String, dynamic>>(
+        '$_prefix/void-requests',
+        queryParameters: query,
+      );
+      return SaleVoidRequestQueueResponseDto.fromJson(_unwrap(response.data));
+    } on DioError catch (error) {
+      throw _mapSaleDioError(
+        error,
+        fallbackMessage: 'Failed to load void requests.',
+      );
+    }
+  }
+
   Future<SaleVoidRequestDto> requestSaleVoid(
     String saleId,
     Map<String, dynamic> body, {
@@ -423,6 +447,46 @@ class SaleApi {
       throw _mapSaleDioError(
         error,
         fallbackMessage: 'Failed to request sale void.',
+      );
+    }
+  }
+
+  Future<SaleVoidRequestDto> approveSaleVoid(
+    String saleId,
+    Map<String, dynamic> body, {
+    required IdempotencyRequest idempotency,
+  }) async {
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        '$_prefix/$saleId/void/approve',
+        data: body,
+        options: withIdempotency(request: idempotency),
+      );
+      return SaleVoidRequestDto.fromJson(_unwrap(response.data));
+    } on DioError catch (error) {
+      throw _mapSaleDioError(
+        error,
+        fallbackMessage: 'Failed to approve sale void.',
+      );
+    }
+  }
+
+  Future<SaleVoidRequestDto> rejectSaleVoid(
+    String saleId,
+    Map<String, dynamic> body, {
+    required IdempotencyRequest idempotency,
+  }) async {
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        '$_prefix/$saleId/void/reject',
+        data: body,
+        options: withIdempotency(request: idempotency),
+      );
+      return SaleVoidRequestDto.fromJson(_unwrap(response.data));
+    } on DioError catch (error) {
+      throw _mapSaleDioError(
+        error,
+        fallbackMessage: 'Failed to reject sale void.',
       );
     }
   }

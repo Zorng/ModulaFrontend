@@ -1316,6 +1316,101 @@ class SaleVoidRequestDto {
   }
 }
 
+class SaleVoidRequestQueueItemResponseDto {
+  const SaleVoidRequestQueueItemResponseDto({
+    required this.voidRequestId,
+    required this.saleId,
+    required this.tenantId,
+    required this.branchId,
+    required this.saleStatus,
+    required this.voidRequestStatus,
+    required this.requestedAt,
+    required this.requestedByAccountId,
+    required this.reason,
+    required this.paymentMethod,
+    required this.grandTotalUsd,
+    required this.grandTotalKhr,
+    required this.saleCreatedAt,
+    this.orderId,
+    this.branchName,
+    this.requestedByDisplayName,
+    this.fulfillmentStatus,
+  });
+
+  final String voidRequestId;
+  final String saleId;
+  final String? orderId;
+  final String tenantId;
+  final String branchId;
+  final String? branchName;
+  final String saleStatus;
+  final String voidRequestStatus;
+  final DateTime requestedAt;
+  final String requestedByAccountId;
+  final String? requestedByDisplayName;
+  final String reason;
+  final String paymentMethod;
+  final double grandTotalUsd;
+  final double grandTotalKhr;
+  final String? fulfillmentStatus;
+  final DateTime saleCreatedAt;
+
+  factory SaleVoidRequestQueueItemResponseDto.fromJson(
+    Map<String, dynamic> json,
+  ) {
+    return SaleVoidRequestQueueItemResponseDto(
+      voidRequestId: _readString(json['voidRequestId']),
+      saleId: _readString(json['saleId']),
+      orderId: _readNullableString(json['orderId']),
+      tenantId: _readString(json['tenantId']),
+      branchId: _readString(json['branchId']),
+      branchName: _readNullableString(json['branchName']),
+      saleStatus: _readString(json['saleStatus']),
+      voidRequestStatus: _readString(json['voidRequestStatus']),
+      requestedAt: _readDateTime(json['requestedAt']),
+      requestedByAccountId: _readString(json['requestedByAccountId']),
+      requestedByDisplayName: _readNullableString(
+        json['requestedByDisplayName'],
+      ),
+      reason: _readString(json['reason']),
+      paymentMethod: _readString(json['paymentMethod']),
+      grandTotalUsd: _readDouble(json['grandTotalUsd']),
+      grandTotalKhr: _readDouble(json['grandTotalKhr']),
+      fulfillmentStatus: _readNullableString(json['fulfillmentStatus']),
+      saleCreatedAt: _readDateTime(json['saleCreatedAt']),
+    );
+  }
+}
+
+class SaleVoidRequestQueueResponseDto {
+  const SaleVoidRequestQueueResponseDto({
+    required this.items,
+    required this.limit,
+    required this.offset,
+    required this.total,
+    required this.hasMore,
+  });
+
+  final List<SaleVoidRequestQueueItemResponseDto> items;
+  final int limit;
+  final int offset;
+  final int total;
+  final bool hasMore;
+
+  factory SaleVoidRequestQueueResponseDto.fromJson(Map<String, dynamic> json) {
+    return SaleVoidRequestQueueResponseDto(
+      items: _readTypedList(
+        json['items'],
+        SaleVoidRequestQueueItemResponseDto.fromJson,
+      ),
+      limit: _readInt(json['limit']),
+      offset: _readInt(json['offset']),
+      total: _readInt(json['total']),
+      hasMore: json['hasMore'] == true,
+    );
+  }
+}
+
 Map<String, dynamic> _asMap(dynamic value) {
   if (value is Map<String, dynamic>) return value;
   if (value is Map) {

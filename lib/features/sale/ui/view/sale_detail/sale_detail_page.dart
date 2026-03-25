@@ -25,6 +25,7 @@ class SaleDetailPage extends ConsumerStatefulWidget {
 class _SaleDetailPageState extends ConsumerState<SaleDetailPage> {
   Future<_SaleDetailPageData>? _future;
   bool _isSubmittingVoidRequest = false;
+  String? _activeVoidReviewAction;
 
   @override
   void initState() {
@@ -92,6 +93,102 @@ class _SaleDetailPageState extends ConsumerState<SaleDetailPage> {
     }
   }
 
+  Future<void> _approveVoidRequest(SaleDetailReadDto sale) async {
+    final note = await _promptReviewNote(
+      context,
+      title: 'Approve void request',
+      hintText: 'Add an approval note (optional)',
+      submitLabel: 'Approve',
+    );
+    if (note == null) return;
+
+    setState(() {
+      _activeVoidReviewAction = 'approve';
+    });
+
+    final repo = ref.read(saleRepositoryProvider);
+    try {
+      await repo.approveSaleVoid(
+        SaleApproveVoidCommand(
+          saleId: sale.saleId,
+          note: note.trim().isEmpty ? null : note.trim(),
+          clientOpId: 'sale-void-approve-${DateTime.now().microsecondsSinceEpoch}',
+        ),
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Void request approved')),
+      );
+      setState(() {
+        _activeVoidReviewAction = null;
+        _future = _load();
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _activeVoidReviewAction = null;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            UserErrorMessage.build(
+              context: 'Failed to approve void request',
+              error: error,
+            ),
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _rejectVoidRequest(SaleDetailReadDto sale) async {
+    final note = await _promptReviewNote(
+      context,
+      title: 'Reject void request',
+      hintText: 'Add a rejection note (optional)',
+      submitLabel: 'Reject',
+    );
+    if (note == null) return;
+
+    setState(() {
+      _activeVoidReviewAction = 'reject';
+    });
+
+    final repo = ref.read(saleRepositoryProvider);
+    try {
+      await repo.rejectSaleVoid(
+        SaleRejectVoidCommand(
+          saleId: sale.saleId,
+          note: note.trim().isEmpty ? null : note.trim(),
+          clientOpId: 'sale-void-reject-${DateTime.now().microsecondsSinceEpoch}',
+        ),
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Void request rejected')),
+      );
+      setState(() {
+        _activeVoidReviewAction = null;
+        _future = _load();
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _activeVoidReviewAction = null;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            UserErrorMessage.build(
+              context: 'Failed to reject void request',
+              error: error,
+            ),
+          ),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final normalizedSaleId = widget.saleId.trim();
@@ -149,10 +246,14 @@ class _SaleDetailPageState extends ConsumerState<SaleDetailPage> {
 
           final data = snapshot.data!;
           final sale = data.sale;
+          final hasPendingVoidRequest =
+              data.voidRequest?.status.trim().toUpperCase() == 'PENDING';
           final canRequestVoid =
-              currentRole == AuthRole.cashier &&
+              isBranchOperatorAuthRole(currentRole) &&
               sale.status.trim().toUpperCase() == 'FINALIZED' &&
               data.voidRequest == null;
+          final canReviewVoid =
+              isVoidReviewerAuthRole(currentRole) && hasPendingVoidRequest;
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
@@ -280,7 +381,7 @@ class _SaleDetailPageState extends ConsumerState<SaleDetailPage> {
                   title: 'Void Workflow',
                   children: [
                     Text(
-                      'This finalized sale can be submitted for manager review before it is voided.',
+                      'This finalized sale can be submitted for branch review before it is voided.',
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
                     const SizedBox(height: 12),
@@ -327,6 +428,43 @@ class _SaleDetailPageState extends ConsumerState<SaleDetailPage> {
                         label: 'Reviewed at',
                         value: _formatDateTime(data.voidRequest!.reviewedAt!),
                       ),
+                    if (canReviewVoid) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        'Review this pending void request.',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: _activeVoidReviewAction == null
+                                  ? () => _rejectVoidRequest(sale)
+                                  : null,
+                              child: Text(
+                                _activeVoidReviewAction == 'reject'
+                                    ? 'Rejecting...'
+                                    : 'Reject',
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: FilledButton(
+                              onPressed: _activeVoidReviewAction == null
+                                  ? () => _approveVoidRequest(sale)
+                                  : null,
+                              child: Text(
+                                _activeVoidReviewAction == 'approve'
+                                    ? 'Approving...'
+                                    : 'Approve',
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               ],
@@ -559,24 +697,43 @@ String _formatDateTime(DateTime value) {
   return DateFormat('MMM d, y • h:mm a').format(value);
 }
 
-Future<String?> _promptVoidReason(BuildContext context) async {
+Future<String?> _promptVoidReason(BuildContext context) {
+  return _promptReviewNote(
+    context,
+    title: 'Request void',
+    hintText: 'Enter the reason for this void request',
+    submitLabel: 'Submit',
+    requireNonEmpty: true,
+  );
+}
+
+Future<String?> _promptReviewNote(
+  BuildContext context, {
+  required String title,
+  required String hintText,
+  required String submitLabel,
+  int minLines = 3,
+  int maxLines = 5,
+  bool requireNonEmpty = false,
+}) async {
   final controller = TextEditingController();
   return showDialog<String>(
     context: context,
     builder: (context) {
       return StatefulBuilder(
         builder: (context, setState) {
-          final reason = controller.text.trim();
+          final note = controller.text.trim();
+          final canSubmit = requireNonEmpty ? note.isNotEmpty : true;
           return AlertDialog(
-            title: const Text('Request void'),
+            title: Text(title),
             content: TextField(
               controller: controller,
               autofocus: true,
-              minLines: 3,
-              maxLines: 5,
-              decoration: const InputDecoration(
-                hintText: 'Enter the reason for this void request',
-                border: OutlineInputBorder(),
+              minLines: minLines,
+              maxLines: maxLines,
+              decoration: InputDecoration(
+                hintText: hintText,
+                border: const OutlineInputBorder(),
               ),
               onChanged: (_) => setState(() {}),
             ),
@@ -586,10 +743,10 @@ Future<String?> _promptVoidReason(BuildContext context) async {
                 child: const Text('Cancel'),
               ),
               FilledButton(
-                onPressed: reason.isEmpty
-                    ? null
-                    : () => Navigator.of(context).pop(reason),
-                child: const Text('Submit'),
+                onPressed: canSubmit
+                    ? () => Navigator.of(context).pop(controller.text)
+                    : null,
+                child: Text(submitLabel),
               ),
             ],
           );

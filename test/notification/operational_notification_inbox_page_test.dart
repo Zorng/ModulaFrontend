@@ -340,9 +340,9 @@ Widget _actionRouterHarness(
             const notification_view.OperationalNotificationInboxPage(),
       ),
       GoRoute(
-        path: AppRoute.saleViewCarts.path,
+        path: AppRoute.saleDetail.path,
         builder: (context, state) => Scaffold(
-          body: Text('Sale route ${state.uri.queryParameters['state'] ?? '-'}'),
+          body: Text('Sale detail ${state.pathParameters['saleId'] ?? '-'}'),
         ),
       ),
       GoRoute(
@@ -554,7 +554,7 @@ void main() {
     },
   );
 
-  testWidgets('open action routes void notifications to sale carts', (
+  testWidgets('open action routes void notifications to sale detail', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -572,10 +572,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Open carts'));
+    await tester.tap(find.text('Review sale'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Sale route VOID_PENDING'), findsOneWidget);
+    expect(find.text('Sale detail sale-1'), findsOneWidget);
   });
 
   testWidgets(
@@ -624,7 +624,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Open carts'));
+      await tester.tap(find.text('Review sale'));
       await tester.pumpAndSettle();
 
       expect(
@@ -633,18 +633,18 @@ void main() {
       );
       expect(
         find.textContaining(
-          'Switch to Tenant 1 / Main Branch to review this void request?',
+          'Switch to Tenant 1 / Main Branch to review this sale?',
         ),
         findsOneWidget,
       );
-      expect(find.text('Sale route VOID_PENDING'), findsNothing);
+      expect(find.text('Sale detail sale-1'), findsNothing);
 
-      await tester.tap(find.text('Switch and open'));
+      await tester.tap(find.text('Switch and review'));
       await tester.pumpAndSettle();
 
       expect(controller.selectedTenants, ['tenant-1']);
       expect(controller.selectedBranches, ['branch-1']);
-      expect(find.text('Sale route VOID_PENDING'), findsOneWidget);
+      expect(find.text('Sale detail sale-1'), findsOneWidget);
     },
   );
 
@@ -699,13 +699,13 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Open carts'));
+    await tester.tap(find.text('Review sale'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Switch and open'));
+    await tester.tap(find.text('Switch and review'));
     await tester.pumpAndSettle();
 
-    expect(find.text('You can no longer open these carts.'), findsWidgets);
-    expect(find.text('Sale route VOID_PENDING'), findsNothing);
+    expect(find.text('You can no longer open this sale.'), findsWidgets);
+    expect(find.text('Sale detail sale-1'), findsNothing);
   });
 
   testWidgets('open action routes cash session notifications to detail', (

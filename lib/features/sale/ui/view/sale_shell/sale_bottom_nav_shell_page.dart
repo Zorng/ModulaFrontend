@@ -113,6 +113,8 @@ class _SaleBottomNavShellPageState
           switch (workspaceTab) {
             case FulfillmentWorkspaceTab.kitchen:
               ref.read(ordersProvider.notifier).load(date: DateTime.now());
+            case FulfillmentWorkspaceTab.voidRequests:
+              break;
             case FulfillmentWorkspaceTab.externalClaims:
               ref
                   .read(ordersProvider.notifier)

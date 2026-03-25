@@ -343,10 +343,10 @@ Output:
 - cashier request flow works
 
 ## Phase 5 — Manager/Admin Review Flow
-- [ ] add approve / reject actions for `VOID_PENDING`
-- [ ] collect review note as needed
-- [ ] refresh to `VOIDED` or restored `FINALIZED`
-- [ ] add tests
+- [x] add approve / reject actions for `VOID_PENDING`
+- [x] collect review note as needed
+- [x] refresh to `VOIDED` or restored `FINALIZED`
+- [x] add tests
 
 Output:
 - review flow works
@@ -381,6 +381,6 @@ Output:
 | 2 | Completed | Canonical workflow route is sale-keyed; fulfillment can be the entry surface only if order summaries preserve `saleId` and do not require an order-detail discovery hop. |
 | 3 | Completed | Read-only sale detail page now exists as a sale-keyed route with sale + void-request reads and focused page tests. |
 | 4 | Completed | Cashier can request void from sale detail, submit a reason through `void/request`, and the page refreshes into `VOID_PENDING` with focused page/repository/widget coverage. |
-| 5 | Not started |  |
+| 5 | Completed | Sale detail now supports owner/admin/manager review of `VOID_PENDING` requests with approve/reject note dialogs, refresh into `VOIDED` or restored `FINALIZED`, and focused page tests. |
 | 6 | Not started |  |
 | 7 | Not started |  |

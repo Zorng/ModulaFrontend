@@ -3,7 +3,7 @@ import 'package:modular_pos/features/notification/domain/models/operational_noti
 import 'package:modular_pos/features/notification/ui/viewmodels/operational_notification_navigation.dart';
 
 void main() {
-  test('void approval notifications route to carts with state and date', () {
+  test('void approval notifications route to sale detail', () {
     final item = OperationalNotificationItem(
       id: 'notif-1',
       tenantId: 'tenant-1',
@@ -21,13 +21,17 @@ void main() {
 
     expect(
       operationalNotificationLocation(item),
-      '/sale/carts?state=VOID_PENDING&date=2026-03-23&saleId=sale-1',
+      '/sale/detail/sale-1',
     );
-    expect(operationalNotificationActionLabel(item), 'Open carts');
+    expect(operationalNotificationActionLabel(item), 'Review sale');
     expect(operationalNotificationUsesExplicitContextHandoff(item), isTrue);
     expect(
       operationalNotificationHandoffMessage(item),
-      'Switch to Tenant 1 / this branch to review this void request?',
+      'Switch to Tenant 1 / this branch to review this sale?',
+    );
+    expect(
+      operationalNotificationHandoffConfirmLabel(item),
+      'Switch and review',
     );
   });
 

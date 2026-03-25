@@ -11,6 +11,71 @@ class _MockSaleApi extends Mock implements SaleApi {}
 
 void main() {
   test(
+    'getSaleVoidRequests maps reviewer queue rows from the dedicated queue endpoint',
+    () async {
+      final api = _MockSaleApi();
+      final repository = SaleRepository(api);
+
+      when(
+        () => api.listSaleVoidRequests(
+          status: any(named: 'status'),
+          limit: any(named: 'limit'),
+          offset: any(named: 'offset'),
+        ),
+      ).thenAnswer(
+        (_) async => SaleVoidRequestQueueResponseDto(
+          items: [
+            SaleVoidRequestQueueItemResponseDto(
+              voidRequestId: 'vr-1',
+              saleId: 'sale-1',
+              orderId: 'order-1',
+              tenantId: 'tenant-1',
+              branchId: 'branch-1',
+              branchName: 'Main Branch',
+              saleStatus: 'FINALIZED',
+              voidRequestStatus: 'PENDING',
+              requestedAt: DateTime.utc(2026, 3, 25, 10),
+              requestedByAccountId: 'staff-1',
+              requestedByDisplayName: 'Staff One',
+              reason: 'Wrong item prepared',
+              paymentMethod: 'CASH',
+              grandTotalUsd: 8,
+              grandTotalKhr: 32800,
+              fulfillmentStatus: 'READY',
+              saleCreatedAt: DateTime.utc(2026, 3, 25, 9, 55),
+            ),
+          ],
+          limit: 20,
+          offset: 0,
+          total: 1,
+          hasMore: false,
+        ),
+      );
+
+      final result = await repository.getSaleVoidRequests(
+        const SaleVoidRequestQueueQueryDto(status: 'PENDING', limit: 20),
+      );
+
+      expect(result.items, hasLength(1));
+      expect(result.limit, 20);
+      expect(result.total, 1);
+      final item = result.items.single;
+      expect(item.voidRequestId, 'vr-1');
+      expect(item.saleId, 'sale-1');
+      expect(item.orderId, 'order-1');
+      expect(item.branchName, 'Main Branch');
+      expect(item.saleStatus, 'FINALIZED');
+      expect(item.voidRequestStatus, 'PENDING');
+      expect(item.requestedByDisplayName, 'Staff One');
+      expect(item.paymentMethod, 'CASH');
+      expect(item.fulfillmentStatus, 'READY');
+      verify(
+        () => api.listSaleVoidRequests(status: 'PENDING', limit: 20, offset: 0),
+      ).called(1);
+    },
+  );
+
+  test(
     'getOrders maps summaries directly from the expanded order list payload',
     () async {
       final api = _MockSaleApi();

@@ -114,6 +114,46 @@ class SaleMappers {
     );
   }
 
+  static SaleVoidRequestQueuePageDto toSaleVoidRequestQueuePage(
+    SaleVoidRequestQueueResponseDto dto,
+  ) {
+    return SaleVoidRequestQueuePageDto(
+      items: dto.items.map(toSaleVoidRequestQueueItem).toList(growable: false),
+      limit: dto.limit,
+      offset: dto.offset,
+      total: dto.total,
+      hasMore: dto.hasMore,
+    );
+  }
+
+  static SaleVoidRequestQueueItemDto toSaleVoidRequestQueueItem(
+    SaleVoidRequestQueueItemResponseDto dto,
+  ) {
+    return SaleVoidRequestQueueItemDto(
+      voidRequestId: dto.voidRequestId,
+      saleId: dto.saleId,
+      orderId: dto.orderId,
+      tenantId: dto.tenantId,
+      branchId: dto.branchId,
+      branchName: dto.branchName,
+      saleStatus: normalizeSaleState(dto.saleStatus),
+      voidRequestStatus: dto.voidRequestStatus.trim().isEmpty
+          ? 'PENDING'
+          : dto.voidRequestStatus.trim().toUpperCase(),
+      requestedAt: dto.requestedAt.toLocal(),
+      requestedByAccountId: dto.requestedByAccountId,
+      requestedByDisplayName: dto.requestedByDisplayName,
+      reason: dto.reason,
+      paymentMethod: normalizePaymentMethod(dto.paymentMethod),
+      grandTotalUsd: dto.grandTotalUsd,
+      grandTotalKhr: dto.grandTotalKhr,
+      fulfillmentStatus: dto.fulfillmentStatus?.trim().isEmpty ?? true
+          ? null
+          : dto.fulfillmentStatus!.trim().toUpperCase(),
+      saleCreatedAt: dto.saleCreatedAt.toLocal(),
+    );
+  }
+
   static Sale toDomainSale(SaleDto dto) {
     return Sale(
       id: dto.id,

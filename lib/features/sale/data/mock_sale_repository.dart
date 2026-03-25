@@ -324,6 +324,74 @@ class MockSaleRepository implements SaleCheckoutRepository {
   }
 
   @override
+  Future<SaleVoidRequestQueuePageDto> getSaleVoidRequests(
+    SaleVoidRequestQueueQueryDto query,
+  ) async {
+    final normalizedStatus = (query.status ?? 'PENDING').trim().toUpperCase();
+    final filtered = _voidRequestsBySaleId.values.where((request) {
+      if (normalizedStatus.isEmpty || normalizedStatus == 'PENDING') {
+        return request.status.trim().toUpperCase() == 'PENDING';
+      }
+      if (normalizedStatus == 'ALL') return true;
+      return request.status.trim().toUpperCase() == normalizedStatus;
+    }).toList(growable: false)
+      ..sort((a, b) {
+        final requestedAtCompare = b.requestedAt.compareTo(a.requestedAt);
+        if (requestedAtCompare != 0) return requestedAtCompare;
+        return b.requestId.compareTo(a.requestId);
+      });
+
+    final safeLimit = query.limit < 1 ? 1 : query.limit;
+    final safeOffset = query.offset < 0 ? 0 : query.offset;
+    final paged = safeOffset >= filtered.length
+        ? const <_MockSaleVoidRequest>[]
+        : filtered.sublist(
+            safeOffset,
+            min(filtered.length, safeOffset + safeLimit),
+          );
+
+    final items = paged.map((request) {
+      final sale =
+          _finalizedSales[request.saleId] ?? _voidedSales[request.saleId];
+      return SaleVoidRequestQueueItemDto(
+        voidRequestId: request.requestId,
+        saleId: request.saleId,
+        orderId: null,
+        tenantId: 'mock-tenant-001',
+        branchId: _activeBranchId,
+        branchName: null,
+        saleStatus: sale?.state.trim().toUpperCase() ?? 'FINALIZED',
+        voidRequestStatus: request.status.trim().toUpperCase(),
+        requestedAt: request.requestedAt,
+        requestedByAccountId:
+            (request.requestedByAccountId ?? '').trim().isEmpty
+            ? 'mock-account-001'
+            : request.requestedByAccountId!.trim(),
+        requestedByDisplayName: null,
+        reason: request.reason,
+        paymentMethod:
+            sale?.paymentMethod.trim().toUpperCase().isNotEmpty == true
+            ? sale!.paymentMethod.trim().toUpperCase()
+            : 'CASH',
+        grandTotalUsd: sale?.totalUsdExact ?? 0,
+        grandTotalKhr: sale?.totalKhrExact ?? 0,
+        fulfillmentStatus: sale?.fulfillmentStatus.trim().isNotEmpty == true
+            ? sale!.fulfillmentStatus.trim().toUpperCase()
+            : null,
+        saleCreatedAt: sale?.createdAt ?? request.requestedAt,
+      );
+    }).toList(growable: false);
+
+    return SaleVoidRequestQueuePageDto(
+      items: items,
+      limit: safeLimit,
+      offset: safeOffset,
+      total: filtered.length,
+      hasMore: safeOffset + items.length < filtered.length,
+    );
+  }
+
+  @override
   Future<SaleDetailReadDto> getSaleDetail({required String saleId}) async {
     final normalizedSaleId = saleId.trim();
     final finalized =
@@ -371,7 +439,7 @@ class MockSaleRepository implements SaleCheckoutRepository {
       voidedAt: finalized.state.trim().toUpperCase() == 'VOIDED'
           ? finalized.updatedAt
           : null,
-      voidReason: null,
+      voidReason: finalized.voidReason,
       lines: finalized.items
           .map(
             (item) => SaleDetailLineDto(
@@ -461,6 +529,100 @@ class MockSaleRepository implements SaleCheckoutRepository {
       requestedByAccountId: 'mock-account-001',
     );
     _voidRequestsBySaleId[normalizedSaleId] = request;
+
+    return SaleVoidRequestReadDto(
+      requestId: request.requestId,
+      saleId: request.saleId,
+      status: request.status,
+      reason: request.reason,
+      reviewNote: request.reviewNote,
+      requestedAt: request.requestedAt,
+      reviewedAt: request.reviewedAt,
+      requestedByAccountId: request.requestedByAccountId,
+      reviewedByAccountId: request.reviewedByAccountId,
+    );
+  }
+
+  @override
+  Future<SaleVoidRequestReadDto> approveSaleVoid(
+    SaleApproveVoidCommand command,
+  ) async {
+    final normalizedSaleId = command.saleId.trim();
+    if (normalizedSaleId.isEmpty) {
+      throw const SaleCheckoutRepositoryException(
+        reasonCode: SaleCheckoutReasonCodes.invalidRequest,
+        message: 'Sale id is required before approving void.',
+      );
+    }
+
+    final request = _voidRequestsBySaleId[normalizedSaleId];
+    final finalized = _finalizedSales[normalizedSaleId];
+    if (request == null || finalized == null || request.status != 'PENDING') {
+      throw const SaleCheckoutRepositoryException(
+        reasonCode: SaleCheckoutReasonCodes.invalidRequest,
+        message: 'No pending void request is available for approval.',
+      );
+    }
+
+    final now = _now();
+    request.status = 'APPROVED';
+    request.reviewNote = command.note?.trim().isEmpty ?? true
+        ? null
+        : command.note!.trim();
+    request.reviewedAt = now;
+    request.reviewedByAccountId = 'mock-account-reviewer';
+
+    finalized.state = 'VOIDED';
+    finalized.fulfillmentStatus = 'cancelled';
+    finalized.voidReason = request.reason;
+    finalized.updatedAt = now;
+    _finalizedSales.remove(normalizedSaleId);
+    _voidedSales[normalizedSaleId] = finalized;
+
+    return SaleVoidRequestReadDto(
+      requestId: request.requestId,
+      saleId: request.saleId,
+      status: request.status,
+      reason: request.reason,
+      reviewNote: request.reviewNote,
+      requestedAt: request.requestedAt,
+      reviewedAt: request.reviewedAt,
+      requestedByAccountId: request.requestedByAccountId,
+      reviewedByAccountId: request.reviewedByAccountId,
+    );
+  }
+
+  @override
+  Future<SaleVoidRequestReadDto> rejectSaleVoid(
+    SaleRejectVoidCommand command,
+  ) async {
+    final normalizedSaleId = command.saleId.trim();
+    if (normalizedSaleId.isEmpty) {
+      throw const SaleCheckoutRepositoryException(
+        reasonCode: SaleCheckoutReasonCodes.invalidRequest,
+        message: 'Sale id is required before rejecting void.',
+      );
+    }
+
+    final request = _voidRequestsBySaleId[normalizedSaleId];
+    final finalized = _finalizedSales[normalizedSaleId];
+    if (request == null || finalized == null || request.status != 'PENDING') {
+      throw const SaleCheckoutRepositoryException(
+        reasonCode: SaleCheckoutReasonCodes.invalidRequest,
+        message: 'No pending void request is available for rejection.',
+      );
+    }
+
+    final now = _now();
+    request.status = 'REJECTED';
+    request.reviewNote = command.note?.trim().isEmpty ?? true
+        ? null
+        : command.note!.trim();
+    request.reviewedAt = now;
+    request.reviewedByAccountId = 'mock-account-reviewer';
+
+    finalized.state = 'FINALIZED';
+    finalized.updatedAt = now;
 
     return SaleVoidRequestReadDto(
       requestId: request.requestId,
@@ -2326,6 +2488,7 @@ class _MockFinalizedSale {
   final double changeGivenKhr;
   String fulfillmentStatus;
   String state;
+  String? voidReason;
   final List<_MockSaleItem> items;
   final DateTime createdAt;
   DateTime updatedAt;

@@ -129,6 +129,69 @@ void main() {
       ).called(1);
     });
 
+    test('listSaleVoidRequests reads canonical queue envelope payload', () async {
+      final dio = _MockDio();
+      when(
+        () => dio.get<Map<String, dynamic>>(
+          any(),
+          queryParameters: any(named: 'queryParameters'),
+        ),
+      ).thenAnswer(
+        (_) async => Response<Map<String, dynamic>>(
+          requestOptions: RequestOptions(path: '/v0/sales/void-requests'),
+          data: {
+            'success': true,
+            'data': {
+              'items': [
+                {
+                  'voidRequestId': 'vr-1',
+                  'saleId': 'sale-1',
+                  'orderId': 'order-1',
+                  'tenantId': 'tenant-1',
+                  'branchId': 'branch-1',
+                  'branchName': 'Main Branch',
+                  'saleStatus': 'FINALIZED',
+                  'voidRequestStatus': 'PENDING',
+                  'requestedAt': '2026-03-25T10:00:00.000Z',
+                  'requestedByAccountId': 'staff-1',
+                  'requestedByDisplayName': 'Staff One',
+                  'reason': 'Wrong item prepared',
+                  'paymentMethod': 'CASH',
+                  'grandTotalUsd': 8,
+                  'grandTotalKhr': 32800,
+                  'fulfillmentStatus': 'READY',
+                  'saleCreatedAt': '2026-03-25T09:55:00.000Z',
+                },
+              ],
+              'limit': 20,
+              'offset': 0,
+              'total': 1,
+              'hasMore': false,
+            },
+          },
+        ),
+      );
+
+      final api = SaleApi(dio);
+      final page = await api.listSaleVoidRequests(status: 'PENDING');
+
+      expect(page.items, hasLength(1));
+      expect(page.items.single.voidRequestId, 'vr-1');
+      expect(page.items.single.saleId, 'sale-1');
+      expect(page.items.single.orderId, 'order-1');
+      expect(page.items.single.branchName, 'Main Branch');
+      expect(page.items.single.requestedByDisplayName, 'Staff One');
+      expect(page.items.single.reason, 'Wrong item prepared');
+      expect(page.limit, 20);
+      expect(page.total, 1);
+      verify(
+        () => dio.get<Map<String, dynamic>>(
+          '/v0/sales/void-requests',
+          queryParameters: any(named: 'queryParameters'),
+        ),
+      ).called(1);
+    });
+
     test('getReceiptBySaleId reads the canonical receipt endpoint', () async {
       final dio = _MockDio();
       when(() => dio.get<Map<String, dynamic>>(any())).thenAnswer(

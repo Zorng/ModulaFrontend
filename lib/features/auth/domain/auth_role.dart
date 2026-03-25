@@ -62,3 +62,27 @@ AuthRole resolveSessionAuthRole(AuthSession? session) {
 
   return AuthRole.unknown;
 }
+
+bool isBranchOperatorAuthRole(AuthRole role) {
+  switch (role) {
+    case AuthRole.owner:
+    case AuthRole.admin:
+    case AuthRole.manager:
+    case AuthRole.cashier:
+      return true;
+    case AuthRole.unknown:
+      return false;
+  }
+}
+
+bool isVoidReviewerAuthRole(AuthRole role) {
+  switch (role) {
+    case AuthRole.owner:
+    case AuthRole.admin:
+    case AuthRole.manager:
+      return true;
+    case AuthRole.cashier:
+    case AuthRole.unknown:
+      return false;
+  }
+}
