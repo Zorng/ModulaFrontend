@@ -98,6 +98,9 @@ class SaleDto {
     required this.createdAt,
     required this.updatedAt,
     required this.items,
+    this.finalizedAt,
+    this.voidedAt,
+    this.voidReason,
   });
 
   final String id;
@@ -127,6 +130,9 @@ class SaleDto {
   final DateTime createdAt;
   final DateTime updatedAt;
   final List<SaleItemDto> items;
+  final DateTime? finalizedAt;
+  final DateTime? voidedAt;
+  final String? voidReason;
 
   factory SaleDto.fromJson(Map<String, dynamic> json) {
     final tenderCurrency = _readString(json['tenderCurrency']);
@@ -201,6 +207,9 @@ class SaleDto {
       createdAt: _readDateTime(json['createdAt']),
       updatedAt: _readDateTime(json['updatedAt']),
       items: _readSaleItems(json),
+      finalizedAt: _readNullableDateTime(json['finalizedAt']),
+      voidedAt: _readNullableDateTime(json['voidedAt']),
+      voidReason: _readNullableString(json['voidReason']),
     );
   }
 }
@@ -1263,6 +1272,8 @@ class SaleVoidRequestDto {
     this.reviewNote,
     required this.requestedAt,
     this.reviewedAt,
+    this.requestedByAccountId,
+    this.reviewedByAccountId,
   });
 
   final String id;
@@ -1272,6 +1283,8 @@ class SaleVoidRequestDto {
   final String? reviewNote;
   final DateTime requestedAt;
   final DateTime? reviewedAt;
+  final String? requestedByAccountId;
+  final String? reviewedByAccountId;
 
   factory SaleVoidRequestDto.fromJson(Map<String, dynamic> json) {
     return SaleVoidRequestDto(
@@ -1282,6 +1295,8 @@ class SaleVoidRequestDto {
       reviewNote: _readNullableString(json['reviewNote']),
       requestedAt: _readDateTime(json['requestedAt']),
       reviewedAt: _readNullableDateTime(json['reviewedAt']),
+      requestedByAccountId: _readNullableString(json['requestedByAccountId']),
+      reviewedByAccountId: _readNullableString(json['reviewedByAccountId']),
     );
   }
 }

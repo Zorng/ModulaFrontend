@@ -196,6 +196,32 @@ class SaleRepository implements SaleCheckoutRepository {
   }
 
   @override
+  Future<SaleDetailReadDto> getSaleDetail({required String saleId}) async {
+    try {
+      final sale = await _api.getSaleDetail(saleId.trim());
+      return SaleMappers.toSaleDetailRead(sale);
+    } on ApiClientException catch (error) {
+      throw _toSaleRepoException(error);
+    }
+  }
+
+  @override
+  Future<SaleVoidRequestReadDto?> getSaleVoidRequest({
+    required String saleId,
+  }) async {
+    try {
+      final request = await _api.getSaleVoidRequest(saleId.trim());
+      return SaleMappers.toSaleVoidRequestRead(request);
+    } on ApiClientException catch (error) {
+      final normalizedCode = _readString(error.code).toUpperCase();
+      if (error.statusCode == 404 || normalizedCode == 'VOID_REQUEST_NOT_FOUND') {
+        return null;
+      }
+      throw _toSaleRepoException(error);
+    }
+  }
+
+  @override
   Future<void> voidSale(String saleId, {required String reason}) async {
     await _api.voidSale(saleId, reason: reason);
   }

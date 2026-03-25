@@ -24,6 +24,11 @@ void main() {
       '/sale/carts?state=VOID_PENDING&date=2026-03-23&saleId=sale-1',
     );
     expect(operationalNotificationActionLabel(item), 'Open carts');
+    expect(operationalNotificationUsesExplicitContextHandoff(item), isTrue);
+    expect(
+      operationalNotificationHandoffMessage(item),
+      'Switch to Tenant 1 / this branch to review this void request?',
+    );
   });
 
   test('cash session notifications route to session detail when present', () {
@@ -46,5 +51,6 @@ void main() {
       '/cash/session/history/session-1',
     );
     expect(operationalNotificationActionLabel(item), 'View session');
+    expect(operationalNotificationUsesExplicitContextHandoff(item), isTrue);
   });
 }

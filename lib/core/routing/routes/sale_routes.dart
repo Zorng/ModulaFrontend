@@ -6,6 +6,7 @@ import 'package:modular_pos/features/sale/ui/view/order/order_page.dart';
 import 'package:modular_pos/features/sale/ui/view/order_detail/order_detail_page.dart';
 import 'package:modular_pos/features/sale/ui/view/sale/sale_page.dart';
 import 'package:modular_pos/features/sale/ui/view/sale_cart/sale_cart_page.dart';
+import 'package:modular_pos/features/sale/ui/view/sale_detail/sale_detail_page.dart';
 import 'package:modular_pos/features/sale/ui/view/sale_item_detail/sale_item_detail_page.dart';
 import 'package:modular_pos/features/sale/ui/view/sale_shell/sale_bottom_nav_shell_page.dart';
 import 'package:modular_pos/features/sale/ui/view/view_cart_detail/view_cart_detail_page.dart';
@@ -69,6 +70,14 @@ List<RouteBase> buildSaleRoutes() {
       builder: (context, state) {
         final summary = state.extra as SaleSummary;
         return ViewCartDetailPage(summary: summary);
+      },
+    ),
+    GoRoute(
+      path: AppRoute.saleDetail.path,
+      name: AppRoute.saleDetail.name,
+      builder: (context, state) {
+        final saleId = state.pathParameters['saleId'] ?? '';
+        return SaleDetailPage(saleId: saleId);
       },
     ),
     GoRoute(

@@ -321,6 +321,76 @@ class MockSaleRepository implements SaleCheckoutRepository {
   }
 
   @override
+  Future<SaleDetailReadDto> getSaleDetail({required String saleId}) async {
+    final normalizedSaleId = saleId.trim();
+    final finalized =
+        _finalizedSales[normalizedSaleId] ?? _voidedSales[normalizedSaleId];
+    if (finalized == null) {
+      throw const SaleCheckoutRepositoryException(
+        reasonCode: SaleCheckoutReasonCodes.invalidRequest,
+        message: 'Sale not found.',
+      );
+    }
+
+    return SaleDetailReadDto(
+      saleId: finalized.saleId,
+      orderId: null,
+      status: finalized.state.trim().toUpperCase(),
+      saleType: finalized.saleType.trim().isEmpty
+          ? 'TAKEAWAY'
+          : finalized.saleType.trim().toUpperCase(),
+      paymentMethod: finalized.paymentMethod.trim().isEmpty
+          ? 'CASH'
+          : finalized.paymentMethod.trim().toUpperCase(),
+      tenderCurrency: finalized.tenderCurrency.trim().isEmpty
+          ? 'USD'
+          : finalized.tenderCurrency.trim().toUpperCase(),
+      fulfillmentStatus: finalized.fulfillmentStatus.trim().isEmpty
+          ? 'PENDING'
+          : finalized.fulfillmentStatus.trim().toUpperCase(),
+      subtotalUsdExact: finalized.subtotalUsdExact,
+      subtotalKhrExact: finalized.subtotalKhrExact,
+      discountUsdExact: 0,
+      discountKhrExact: 0,
+      taxUsdExact: 0,
+      taxKhrExact: 0,
+      totalUsdExact: finalized.totalUsdExact,
+      totalKhrExact: finalized.totalKhrExact,
+      cashReceivedUsd: finalized.cashReceivedUsd,
+      cashReceivedKhr: finalized.cashReceivedKhr,
+      changeGivenUsd: finalized.changeGivenUsd,
+      changeGivenKhr: finalized.changeGivenKhr,
+      createdAt: finalized.createdAt,
+      updatedAt: finalized.updatedAt,
+      finalizedAt: finalized.state.trim().toUpperCase() == 'FINALIZED'
+          ? finalized.updatedAt
+          : null,
+      voidedAt: finalized.state.trim().toUpperCase() == 'VOIDED'
+          ? finalized.updatedAt
+          : null,
+      voidReason: null,
+      lines: finalized.items
+          .map(
+            (item) => SaleDetailLineDto(
+              lineId: item.id,
+              menuItemId: item.menuItemId,
+              menuItemName: item.menuItemId,
+              quantity: item.quantity,
+              modifierLabels: _modifierLabels(item.modifiers),
+            ),
+          )
+          .toList(growable: false),
+    );
+  }
+
+  @override
+  Future<SaleVoidRequestReadDto?> getSaleVoidRequest({
+    required String saleId,
+  }) async {
+    return null;
+  }
+
+  @override
   Future<void> voidSale(String saleId, {required String reason}) async {
     final draft = _drafts.remove(saleId);
     if (draft != null) {
@@ -1530,6 +1600,19 @@ class MockSaleRepository implements SaleCheckoutRepository {
           : item.unitPriceUsd;
       return sum + (lineBase * item.quantity);
     });
+  }
+
+  List<String> _modifierLabels(List<Map<String, dynamic>> modifiers) {
+    final labels = <String>[];
+    for (final modifier in modifiers) {
+      final rawOptionIds = modifier['optionIds'];
+      if (rawOptionIds is! List) continue;
+      for (final optionId in rawOptionIds) {
+        final value = optionId?.toString().trim() ?? '';
+        if (value.isNotEmpty) labels.add(value);
+      }
+    }
+    return labels;
   }
 
   _MockSaleItem _lineFromCommand(SaleCartLineInputDto line) {

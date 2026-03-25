@@ -11,6 +11,7 @@ import 'package:modular_pos/features/auth/domain/auth_role.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/policy/ui/viewmodels/policy_viewmodel.dart';
 import 'package:modular_pos/features/sale/ui/view/order_detail/order_detail_utils.dart';
+import 'package:modular_pos/features/sale/ui/view/order/order_utils.dart';
 import 'package:modular_pos/features/sale/ui/view/order_detail/widgets/order_detail_summary_row.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/order_viewmodel.dart';
 
@@ -95,7 +96,7 @@ class OrderDetailPage extends ConsumerWidget {
                 icon: const Icon(Icons.close),
                 onPressed: () => Navigator.of(context).maybePop(),
               ),
-        title: Text('Order No. ${order.number}'),
+        title: Text(orderDetailTitle(order.number)),
         centerTitle: false,
       ),
       bottomNavigationBar: showManualClaimBottomSubmitAction
@@ -957,7 +958,7 @@ class OrderDetailPage extends ConsumerWidget {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  'Order ${order.number}',
+                  orderReferenceLabel(order.number),
                   style: Theme.of(dialogContext).textTheme.bodySmall,
                 ),
               ],

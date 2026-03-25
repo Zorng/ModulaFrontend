@@ -172,6 +172,53 @@ void main() {
     },
   );
 
+  testWidgets('OrderDetailPage uses placeholder title for long order numbers', (
+    tester,
+  ) async {
+    final order = Order(
+      id: 'legacy-2',
+      saleId: 'legacy-2',
+      number: '550e8400-e29b-41d4-a716-446655440000',
+      status: 'pending',
+      ticketStatus: 'UNPAID',
+      placedAt: DateTime(2026, 3, 17, 9),
+      orderType: 'take_away',
+      paymentMethod: 'cash',
+      totalUsd: 3.5,
+      totalKhr: 14350,
+      tenderCurrency: 'usd',
+      tenderAmount: 0,
+      changeAmount: 0,
+      lines: const [OrderLine(name: 'Latte', modifiers: [], quantity: 1)],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ordersProvider.overrideWith(() => _StaticOrdersNotifier([order])),
+          policyNotifierProvider.overrideWith(_StaticPolicyNotifier.new),
+          appConnectivityStatusProvider.overrideWith(
+            _OnlineConnectivityNotifier.new,
+          ),
+          loginControllerProvider.overrideWith(
+            () => _StaticLoginController(_sessionForRole('cashier')),
+          ),
+        ],
+        child: const MaterialApp(
+          home: OrderDetailPage(orderIdentityKey: 'order:legacy-2'),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(find.text('Order Detail'), findsOneWidget);
+    expect(
+      find.text('Order No. 550e8400-e29b-41d4-a716-446655440000'),
+      findsNothing,
+    );
+  });
+
   testWidgets(
     'OrderDetailPage shows inline proof form for unprepared manual claim outage order when online',
     (tester) async {

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
+import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
 import 'package:modular_pos/features/auth/data/auth_session_store.dart';
 import 'package:modular_pos/features/auth/domain/models/auth_session.dart';
 import 'package:modular_pos/features/auth/domain/models/tenant_membership.dart';
@@ -21,6 +22,74 @@ class _StaticLoginController extends LoginController {
 
   @override
   LoginState build() => LoginState(session: _session);
+}
+
+class _SwitchingLoginController extends LoginController {
+  _SwitchingLoginController({
+    required this.initialSession,
+    this.onSelectTenant,
+    this.onSelectBranch,
+  });
+
+  final AuthSession initialSession;
+  final Future<bool> Function(
+    _SwitchingLoginController controller,
+    String tenantId,
+  )?
+  onSelectTenant;
+  final Future<void> Function(
+    _SwitchingLoginController controller,
+    String branchId,
+  )?
+  onSelectBranch;
+  final List<String> selectedTenants = <String>[];
+  final List<String> selectedBranches = <String>[];
+
+  @override
+  LoginState build() => LoginState(session: initialSession);
+
+  @override
+  Future<bool> selectTenant(String tenantId) async {
+    selectedTenants.add(tenantId);
+    if (onSelectTenant != null) {
+      return onSelectTenant!(this, tenantId);
+    }
+    return true;
+  }
+
+  @override
+  Future<void> selectBranch(String branchId) async {
+    selectedBranches.add(branchId);
+    if (onSelectBranch != null) {
+      await onSelectBranch!(this, branchId);
+    }
+  }
+
+  void setSession(AuthSession session) {
+    state = state.copyWith(
+      isLoading: false,
+      session: session,
+      error: null,
+      errorCode: null,
+      errorStatusCode: null,
+      branchOptions: const [],
+      requiresBranchSelection: false,
+    );
+  }
+
+  void setBranchOverride(String branchId, String branchName) {
+    ref.read(authActiveBranchOverrideProvider.notifier).setOverride(branchId);
+    ref.read(authActiveBranchNameOverrideProvider.notifier).setName(branchName);
+  }
+
+  void setError(String message, {String code = 'TEST_ERROR'}) {
+    state = state.copyWith(
+      isLoading: false,
+      error: message,
+      errorCode: code,
+      errorStatusCode: 400,
+    );
+  }
 }
 
 class _FakeOperationalNotificationRepository
@@ -205,13 +274,17 @@ OperationalNotificationItem _notification({
   String subjectType = OperationalNotificationSubjectTypes.sale,
   String? subjectId,
   Map<String, dynamic>? payload,
+  String tenantId = 'tenant-1',
+  String tenantName = 'Tenant 1',
+  String branchId = 'branch-1',
+  String? branchName = 'Main Branch',
 }) {
   return OperationalNotificationItem(
     id: id,
-    tenantId: 'tenant-1',
-    tenantName: 'Tenant 1',
-    branchId: 'branch-1',
-    branchName: 'Main Branch',
+    tenantId: tenantId,
+    tenantName: tenantName,
+    branchId: branchId,
+    branchName: branchName,
     type: type,
     subjectType: subjectType,
     subjectId: subjectId ?? 'sale-$id',
@@ -228,12 +301,13 @@ OperationalNotificationItem _notification({
 Widget _pageHarness(
   OperationalNotificationRepository repository, {
   AuthSession? session,
+  LoginController? controller,
 }) {
   final resolvedSession = session ?? _session();
   return ProviderScope(
     overrides: [
       loginControllerProvider.overrideWith(
-        () => _StaticLoginController(resolvedSession),
+        () => controller ?? _StaticLoginController(resolvedSession),
       ),
       initialAuthSessionProvider.overrideWithValue(resolvedSession),
       operationalNotificationRepositoryProvider.overrideWithValue(repository),
@@ -247,6 +321,7 @@ Widget _pageHarness(
 Widget _actionRouterHarness(
   OperationalNotificationRepository repository, {
   AuthSession? session,
+  LoginController? controller,
 }) {
   final resolvedSession = session ?? _session();
   final router = GoRouter(
@@ -291,7 +366,7 @@ Widget _actionRouterHarness(
   return ProviderScope(
     overrides: [
       loginControllerProvider.overrideWith(
-        () => _StaticLoginController(resolvedSession),
+        () => controller ?? _StaticLoginController(resolvedSession),
       ),
       initialAuthSessionProvider.overrideWithValue(resolvedSession),
       operationalNotificationRepositoryProvider.overrideWithValue(repository),
@@ -503,6 +578,136 @@ void main() {
     expect(find.text('Sale route VOID_PENDING'), findsOneWidget);
   });
 
+  testWidgets(
+    'void action prompts before switching context when workspace differs',
+    (tester) async {
+      _setWideSurface(tester);
+      addTearDown(() => _resetSurface(tester));
+
+      final initialSession = _accountScopedSessionWithoutTenantSelection();
+      final controller = _SwitchingLoginController(
+        initialSession: initialSession,
+        onSelectTenant: (controller, tenantId) async {
+          controller.setSession(
+            AuthSession(
+              user: initialSession.user.copyWith(tenantId: tenantId),
+              memberships: initialSession.memberships,
+              activeTenantId: tenantId,
+              accessToken: initialSession.accessToken,
+              refreshToken: initialSession.refreshToken,
+              accessTokenExpiresAt: initialSession.accessTokenExpiresAt,
+              refreshTokenExpiresAt: initialSession.refreshTokenExpiresAt,
+            ),
+          );
+          return true;
+        },
+        onSelectBranch: (controller, branchId) async {
+          controller.setSession(_session());
+          controller.setBranchOverride(branchId, 'Main Branch');
+        },
+      );
+
+      await tester.pumpWidget(
+        _actionRouterHarness(
+          _FakeOperationalNotificationRepository(
+            items: [_notification(id: '1')],
+            unreadCount: 1,
+          ),
+          session: initialSession,
+          controller: controller,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(
+        find.byKey(const Key('operational_notification_inbox_action')),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Open carts'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(notification_view.operationalNotificationHandoffDialogKey),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining(
+          'Switch to Tenant 1 / Main Branch to review this void request?',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Sale route VOID_PENDING'), findsNothing);
+
+      await tester.tap(find.text('Switch and open'));
+      await tester.pumpAndSettle();
+
+      expect(controller.selectedTenants, ['tenant-1']);
+      expect(controller.selectedBranches, ['branch-1']);
+      expect(find.text('Sale route VOID_PENDING'), findsOneWidget);
+    },
+  );
+
+  testWidgets('void action shows failure when notification access is stale', (
+    tester,
+  ) async {
+    _setWideSurface(tester);
+    addTearDown(() => _resetSurface(tester));
+
+    final deniedSession = AuthSession(
+      user: User(
+        id: 'user-1',
+        name: 'Tester',
+        role: 'ADMIN',
+        tenantId: '',
+        branches: const <UserBranch>[],
+      ),
+      memberships: const <TenantMembership>[
+        TenantMembership(
+          membershipId: 'membership-2',
+          tenantId: 'tenant-2',
+          tenantName: 'Tenant 2',
+          role: 'ADMIN',
+          branches: <UserBranch>[],
+        ),
+      ],
+      activeTenantId: null,
+      accessToken: 'access-token',
+      refreshToken: 'refresh-token',
+      accessTokenExpiresAt: DateTime.now().toUtc().add(
+        const Duration(hours: 1),
+      ),
+      refreshTokenExpiresAt: DateTime.now().toUtc().add(
+        const Duration(days: 1),
+      ),
+      tenantSelectionToken: 'selection-token',
+    );
+
+    await tester.pumpWidget(
+      _actionRouterHarness(
+        _FakeOperationalNotificationRepository(
+          items: [_notification(id: '4')],
+          unreadCount: 1,
+        ),
+        session: deniedSession,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.byKey(const Key('operational_notification_inbox_action')),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Open carts'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Switch and open'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('You can no longer open these carts.'), findsWidgets);
+    expect(find.text('Sale route VOID_PENDING'), findsNothing);
+  });
+
   testWidgets('open action routes cash session notifications to detail', (
     tester,
   ) async {
@@ -532,6 +737,161 @@ void main() {
     await tester.tap(find.text('View session'));
     await tester.pumpAndSettle();
 
+    expect(
+      find.byKey(notification_view.operationalNotificationHandoffDialogKey),
+      findsNothing,
+    );
     expect(find.text('Cash session session-1'), findsOneWidget);
   });
+
+  testWidgets(
+    'cash session action prompts before switching context when workspace differs',
+    (tester) async {
+      _setWideSurface(tester);
+      addTearDown(() => _resetSurface(tester));
+
+      final initialSession = _accountScopedSessionWithoutTenantSelection();
+      final controller = _SwitchingLoginController(
+        initialSession: initialSession,
+        onSelectTenant: (controller, tenantId) async {
+          controller.setSession(
+            AuthSession(
+              user: initialSession.user.copyWith(tenantId: tenantId),
+              memberships: initialSession.memberships,
+              activeTenantId: tenantId,
+              accessToken: initialSession.accessToken,
+              refreshToken: initialSession.refreshToken,
+              accessTokenExpiresAt: initialSession.accessTokenExpiresAt,
+              refreshTokenExpiresAt: initialSession.refreshTokenExpiresAt,
+            ),
+          );
+          return true;
+        },
+        onSelectBranch: (controller, branchId) async {
+          controller.setSession(_session());
+          controller.setBranchOverride(branchId, 'Main Branch');
+        },
+      );
+
+      await tester.pumpWidget(
+        _actionRouterHarness(
+          _FakeOperationalNotificationRepository(
+            items: [
+              _notification(
+                id: '2',
+                type: OperationalNotificationTypes.cashSessionClosed,
+                subjectType: OperationalNotificationSubjectTypes.cashSession,
+                subjectId: 'session-1',
+                payload: const {'sessionId': 'session-1'},
+              ),
+            ],
+            unreadCount: 1,
+          ),
+          session: initialSession,
+          controller: controller,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(
+        find.byKey(const Key('operational_notification_inbox_action')),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('View session'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(notification_view.operationalNotificationHandoffDialogKey),
+        findsOneWidget,
+      );
+      expect(find.text('Switch workspace?'), findsOneWidget);
+      expect(
+        find.textContaining(
+          'Switch to Tenant 1 / Main Branch to view this closed session?',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Cash session session-1'), findsNothing);
+
+      await tester.tap(find.text('Switch and view'));
+      await tester.pumpAndSettle();
+
+      expect(controller.selectedTenants, ['tenant-1']);
+      expect(controller.selectedBranches, ['branch-1']);
+      expect(find.text('Cash session session-1'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'cash session action shows failure when notification access is stale',
+    (tester) async {
+      _setWideSurface(tester);
+      addTearDown(() => _resetSurface(tester));
+
+      final deniedSession = AuthSession(
+        user: User(
+          id: 'user-1',
+          name: 'Tester',
+          role: 'ADMIN',
+          tenantId: '',
+          branches: const <UserBranch>[],
+        ),
+        memberships: const <TenantMembership>[
+          TenantMembership(
+            membershipId: 'membership-2',
+            tenantId: 'tenant-2',
+            tenantName: 'Tenant 2',
+            role: 'ADMIN',
+            branches: <UserBranch>[],
+          ),
+        ],
+        activeTenantId: null,
+        accessToken: 'access-token',
+        refreshToken: 'refresh-token',
+        accessTokenExpiresAt: DateTime.now().toUtc().add(
+          const Duration(hours: 1),
+        ),
+        refreshTokenExpiresAt: DateTime.now().toUtc().add(
+          const Duration(days: 1),
+        ),
+        tenantSelectionToken: 'selection-token',
+      );
+
+      await tester.pumpWidget(
+        _actionRouterHarness(
+          _FakeOperationalNotificationRepository(
+            items: [
+              _notification(
+                id: '3',
+                type: OperationalNotificationTypes.cashSessionClosed,
+                subjectType: OperationalNotificationSubjectTypes.cashSession,
+                subjectId: 'session-2',
+                payload: const {'sessionId': 'session-2'},
+              ),
+            ],
+            unreadCount: 1,
+          ),
+          session: deniedSession,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(
+        find.byKey(const Key('operational_notification_inbox_action')),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('View session'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Switch and view'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('You can no longer view this closed session.'),
+        findsWidgets,
+      );
+      expect(find.text('Cash session session-2'), findsNothing);
+    },
+  );
 }

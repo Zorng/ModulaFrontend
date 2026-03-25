@@ -1135,6 +1135,102 @@ class SaleReceiptDto {
   final List<SaleReceiptLineDto> lines;
 }
 
+class SaleDetailLineDto {
+  const SaleDetailLineDto({
+    required this.lineId,
+    required this.menuItemId,
+    required this.menuItemName,
+    required this.quantity,
+    this.modifierLabels = const <String>[],
+  });
+
+  final String lineId;
+  final String menuItemId;
+  final String menuItemName;
+  final int quantity;
+  final List<String> modifierLabels;
+}
+
+class SaleDetailReadDto {
+  const SaleDetailReadDto({
+    required this.saleId,
+    required this.status,
+    required this.saleType,
+    required this.paymentMethod,
+    required this.tenderCurrency,
+    required this.fulfillmentStatus,
+    required this.subtotalUsdExact,
+    required this.subtotalKhrExact,
+    required this.discountUsdExact,
+    required this.discountKhrExact,
+    required this.taxUsdExact,
+    required this.taxKhrExact,
+    required this.totalUsdExact,
+    required this.totalKhrExact,
+    required this.createdAt,
+    required this.updatedAt,
+    required this.lines,
+    this.orderId,
+    this.cashReceivedUsd,
+    this.cashReceivedKhr,
+    this.changeGivenUsd,
+    this.changeGivenKhr,
+    this.finalizedAt,
+    this.voidedAt,
+    this.voidReason,
+  });
+
+  final String saleId;
+  final String? orderId;
+  final String status;
+  final String saleType;
+  final String paymentMethod;
+  final String tenderCurrency;
+  final String fulfillmentStatus;
+  final double subtotalUsdExact;
+  final double subtotalKhrExact;
+  final double discountUsdExact;
+  final double discountKhrExact;
+  final double taxUsdExact;
+  final double taxKhrExact;
+  final double totalUsdExact;
+  final double totalKhrExact;
+  final double? cashReceivedUsd;
+  final double? cashReceivedKhr;
+  final double? changeGivenUsd;
+  final double? changeGivenKhr;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final DateTime? finalizedAt;
+  final DateTime? voidedAt;
+  final String? voidReason;
+  final List<SaleDetailLineDto> lines;
+}
+
+class SaleVoidRequestReadDto {
+  const SaleVoidRequestReadDto({
+    required this.requestId,
+    required this.saleId,
+    required this.status,
+    required this.reason,
+    required this.requestedAt,
+    this.reviewNote,
+    this.reviewedAt,
+    this.requestedByAccountId,
+    this.reviewedByAccountId,
+  });
+
+  final String requestId;
+  final String saleId;
+  final String status;
+  final String reason;
+  final String? reviewNote;
+  final DateTime requestedAt;
+  final DateTime? reviewedAt;
+  final String? requestedByAccountId;
+  final String? reviewedByAccountId;
+}
+
 abstract class SaleCartRepository {
   // Legacy draft/cart mutation methods still used by the existing cart UI.
   Future<String> ensureDraft({
@@ -1194,6 +1290,10 @@ abstract class SaleCartRepository {
 }
 
 abstract class SaleCheckoutRepository implements SaleCartRepository {
+  Future<SaleDetailReadDto> getSaleDetail({required String saleId});
+
+  Future<SaleVoidRequestReadDto?> getSaleVoidRequest({required String saleId});
+
   Future<SaleCheckoutSummary> preCheckout({
     required String saleId,
     required String tenderCurrency,

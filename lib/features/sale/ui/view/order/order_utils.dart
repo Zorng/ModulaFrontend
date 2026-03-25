@@ -1,5 +1,37 @@
 import 'package:flutter/material.dart';
 
+final RegExp _uuidLikeOrderNumberPattern = RegExp(
+  r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+);
+
+bool shouldUseOrderIdentityPlaceholder(String value) {
+  final normalized = value.trim();
+  if (normalized.isEmpty) return true;
+  return normalized.length > 20 ||
+      _uuidLikeOrderNumberPattern.hasMatch(normalized);
+}
+
+String orderCardTitle(String orderNumber) {
+  if (shouldUseOrderIdentityPlaceholder(orderNumber)) {
+    return 'Ticket Pending';
+  }
+  return 'Ticket $orderNumber';
+}
+
+String orderDetailTitle(String orderNumber) {
+  if (shouldUseOrderIdentityPlaceholder(orderNumber)) {
+    return 'Order Detail';
+  }
+  return 'Order No. $orderNumber';
+}
+
+String orderReferenceLabel(String orderNumber) {
+  if (shouldUseOrderIdentityPlaceholder(orderNumber)) {
+    return 'Pending order reference';
+  }
+  return 'Order $orderNumber';
+}
+
 String formatOrderTime(DateTime time) {
   final hour = time.hour % 12 == 0 ? 12 : time.hour % 12;
   final minute = time.minute.toString().padLeft(2, '0');

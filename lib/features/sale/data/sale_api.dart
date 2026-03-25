@@ -385,8 +385,26 @@ class SaleApi {
   }
 
   Future<SaleDto> getSaleDetail(String saleId) async {
-    final response = await _dio.get<Map<String, dynamic>>('$_prefix/$saleId');
-    return SaleDto.fromJson(_unwrap(response.data));
+    try {
+      final response = await _dio.get<Map<String, dynamic>>('$_prefix/$saleId');
+      return SaleDto.fromJson(_unwrap(response.data));
+    } on DioError catch (error) {
+      throw _mapSaleDioError(error, fallbackMessage: 'Failed to load sale.');
+    }
+  }
+
+  Future<SaleVoidRequestDto> getSaleVoidRequest(String saleId) async {
+    try {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '$_prefix/$saleId/void-request',
+      );
+      return SaleVoidRequestDto.fromJson(_unwrap(response.data));
+    } on DioError catch (error) {
+      throw _mapSaleDioError(
+        error,
+        fallbackMessage: 'Failed to load void request.',
+      );
+    }
   }
 
   Future<List<SaleDto>> listSales({

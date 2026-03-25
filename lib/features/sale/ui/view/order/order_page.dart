@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/core/widgets/navigation/responsive_detail_modal.dart';
 import 'package:modular_pos/features/sale/ui/view/order/order_utils.dart';
 import 'package:modular_pos/features/sale/ui/view/order/widgets/order_card.dart';
@@ -25,6 +26,7 @@ class _OrderPageState extends ConsumerState<OrderPage> {
     'in_prep',
     'ready',
     'delivered',
+    'cancelled',
   ];
 
   String _selectedStatus = _fulfillmentStatuses.first;
@@ -80,19 +82,61 @@ class _OrderPageState extends ConsumerState<OrderPage> {
     );
   }
 
+  void _openOrderDetail(Order order) {
+    showResponsiveDetailModal<void>(
+      context: context,
+      builder: (modalContext) =>
+          OrderDetailPage(orderIdentityKey: order.identityKey, showBack: false),
+    );
+  }
+
+  List<OrderCardAction> _buildCardActions(
+    Order order,
+    FulfillmentWorkspaceTab workspaceTab,
+  ) {
+    final actions = <OrderCardAction>[
+      OrderCardAction(
+        label: workspaceTab == FulfillmentWorkspaceTab.externalClaims
+            ? 'Review detail'
+            : 'Open detail',
+        icon: Icons.open_in_new_outlined,
+        onSelected: () => _openOrderDetail(order),
+      ),
+    ];
+    if (workspaceTab == FulfillmentWorkspaceTab.kitchen &&
+        !order.isLocalOutageOrder) {
+      actions.add(
+        OrderCardAction(
+          label: 'Update fulfillment status',
+          icon: Icons.pending_actions_outlined,
+          onSelected: () => _openStatusSheet(order),
+        ),
+      );
+    }
+    return actions;
+  }
+
   @override
   Widget build(BuildContext context) {
     final workspaceTab = ref.watch(fulfillmentWorkspaceTabProvider);
     final orders = ref.watch(ordersProvider);
+    final kitchenOrders = orders
+        .where((order) => order.ticketStatus.trim().toUpperCase() == 'PAID')
+        .where((order) => !order.isExternalPaymentClaimOrder)
+        .toList(growable: false);
+    final kitchenStatusCounts = <String, int>{
+      for (final status in _fulfillmentStatuses)
+        status: kitchenOrders.where((order) => order.status == status).length,
+    };
     final filtered = switch (workspaceTab) {
       FulfillmentWorkspaceTab.kitchen =>
-        orders
-            .where((order) => order.ticketStatus.trim().toUpperCase() == 'PAID')
-            .where((order) => !order.isExternalPaymentClaimOrder)
+        kitchenOrders
             .where((order) => order.status == _selectedStatus)
-            .toList(),
+            .toList(growable: false),
       FulfillmentWorkspaceTab.externalClaims =>
-        orders.where((order) => order.isExternalPaymentClaimOrder).toList(),
+        orders
+            .where((order) => order.isExternalPaymentClaimOrder)
+            .toList(growable: false),
     };
 
     return DefaultTabController(
@@ -124,6 +168,7 @@ class _OrderPageState extends ConsumerState<OrderPage> {
                 selectedDate: _selectedDate,
                 onPickDate: _pickDate,
                 statuses: _fulfillmentStatuses,
+                statusCounts: kitchenStatusCounts,
                 selectedStatus: _selectedStatus,
                 onStatusChanged: (status) =>
                     setState(() => _selectedStatus = status),
@@ -151,45 +196,95 @@ class _OrderPageState extends ConsumerState<OrderPage> {
                             : 'No external payment claims',
                       ),
                     )
-                  : ListView.builder(
-                      itemCount: filtered.length,
-                      itemBuilder: (context, index) {
-                        final order = filtered[index];
-                        return OrderCard(
-                          order: order,
-                          onTap: () {
-                            showResponsiveDetailModal<void>(
-                              context: context,
-                              builder: (modalContext) => OrderDetailPage(
-                                orderIdentityKey: order.identityKey,
-                                showBack: false,
-                              ),
+                  : LayoutBuilder(
+                      builder: (context, constraints) {
+                        final isLarge = AppBreakpoints.isLarge(
+                          constraints.maxWidth,
+                        );
+                        final contentPadding = EdgeInsets.fromLTRB(
+                          16,
+                          workspaceTab == FulfillmentWorkspaceTab.kitchen
+                              ? 4
+                              : 8,
+                          16,
+                          16,
+                        );
+                        if (workspaceTab == FulfillmentWorkspaceTab.kitchen &&
+                            isLarge) {
+                          return GridView.builder(
+                            padding: contentPadding,
+                            gridDelegate:
+                                SliverGridDelegateWithMaxCrossAxisExtent(
+                                  maxCrossAxisExtent: 360,
+                                  mainAxisSpacing: 16,
+                                  crossAxisSpacing: 16,
+                                  mainAxisExtent: 318,
+                                ),
+                            itemCount: filtered.length,
+                            itemBuilder: (context, index) {
+                              final order = filtered[index];
+                              return OrderCard(
+                                order: order,
+                                onTap: () => _openOrderDetail(order),
+                                onStatusTap: !order.isLocalOutageOrder
+                                    ? () => _openStatusSheet(order)
+                                    : null,
+                                actions: _buildCardActions(order, workspaceTab),
+                                statusLabelBuilder: (order) =>
+                                    orderFulfillmentStatusLabel(order.status),
+                                statusColorBuilder: (order) =>
+                                    orderStatusColor(order.status),
+                                statusTextColorBuilder: (order) =>
+                                    orderStatusTextColor(order.status),
+                              );
+                            },
+                          );
+                        }
+                        return ListView.separated(
+                          padding: contentPadding,
+                          itemCount: filtered.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: 16),
+                          itemBuilder: (context, index) {
+                            final order = filtered[index];
+                            return OrderCard(
+                              order: order,
+                              compact: true,
+                              onTap: () => _openOrderDetail(order),
+                              onStatusTap:
+                                  workspaceTab ==
+                                          FulfillmentWorkspaceTab.kitchen &&
+                                      !order.isLocalOutageOrder
+                                  ? () => _openStatusSheet(order)
+                                  : null,
+                              actions: _buildCardActions(order, workspaceTab),
+                              statusLabelBuilder:
+                                  workspaceTab ==
+                                      FulfillmentWorkspaceTab.kitchen
+                                  ? (order) => orderFulfillmentStatusLabel(
+                                      order.status,
+                                    )
+                                  : (order) => externalPaymentClaimStatusLabel(
+                                      order.externalPaymentClaimStatusKey,
+                                    ),
+                              statusColorBuilder:
+                                  workspaceTab ==
+                                      FulfillmentWorkspaceTab.kitchen
+                                  ? (order) => orderStatusColor(order.status)
+                                  : (order) => externalPaymentClaimStatusColor(
+                                      order.externalPaymentClaimStatusKey,
+                                    ),
+                              statusTextColorBuilder:
+                                  workspaceTab ==
+                                      FulfillmentWorkspaceTab.kitchen
+                                  ? (order) =>
+                                        orderStatusTextColor(order.status)
+                                  : (order) =>
+                                        externalPaymentClaimStatusTextColor(
+                                          order.externalPaymentClaimStatusKey,
+                                        ),
                             );
                           },
-                          onStatusTap:
-                              workspaceTab == FulfillmentWorkspaceTab.kitchen &&
-                                  !order.isLocalOutageOrder
-                              ? () => _openStatusSheet(order)
-                              : null,
-                          statusLabelBuilder:
-                              workspaceTab == FulfillmentWorkspaceTab.kitchen
-                              ? (order) =>
-                                    orderFulfillmentStatusLabel(order.status)
-                              : (order) => externalPaymentClaimStatusLabel(
-                                  order.externalPaymentClaimStatusKey,
-                                ),
-                          statusColorBuilder:
-                              workspaceTab == FulfillmentWorkspaceTab.kitchen
-                              ? (order) => orderStatusColor(order.status)
-                              : (order) => externalPaymentClaimStatusColor(
-                                  order.externalPaymentClaimStatusKey,
-                                ),
-                          statusTextColorBuilder:
-                              workspaceTab == FulfillmentWorkspaceTab.kitchen
-                              ? (order) => orderStatusTextColor(order.status)
-                              : (order) => externalPaymentClaimStatusTextColor(
-                                  order.externalPaymentClaimStatusKey,
-                                ),
                         );
                       },
                     ),

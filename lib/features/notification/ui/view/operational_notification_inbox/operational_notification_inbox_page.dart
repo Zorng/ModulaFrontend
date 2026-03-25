@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:modular_pos/core/feedback/user_error_message.dart';
 import 'package:modular_pos/core/theme/responsive.dart';
+import 'package:modular_pos/features/auth/domain/active_branch_context_provider.dart';
+import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/notification/domain/models/operational_notification.dart';
 import 'package:modular_pos/features/notification/ui/viewmodels/operational_notification_inbox_controller.dart';
 import 'package:modular_pos/features/notification/ui/viewmodels/operational_notification_navigation.dart';
@@ -13,6 +15,12 @@ const operationalNotificationInboxDialogKey = Key(
 );
 const operationalNotificationInboxBottomSheetKey = Key(
   'operational_notification_inbox_bottom_sheet',
+);
+const operationalNotificationHandoffDialogKey = Key(
+  'operational_notification_handoff_dialog',
+);
+const operationalNotificationHandoffBottomSheetKey = Key(
+  'operational_notification_handoff_bottom_sheet',
 );
 
 Future<void> showOperationalNotificationInboxModal(BuildContext context) {
@@ -164,6 +172,7 @@ class OperationalNotificationInboxPage extends ConsumerWidget {
                           isMarkingRead: state.isMarkingRead(notification.id),
                           onOpen: () => _openNotification(
                             context,
+                            ref,
                             controller,
                             notification,
                             closeModalOnNavigate: modalPresentation,
@@ -208,6 +217,7 @@ class OperationalNotificationInboxPage extends ConsumerWidget {
 
 Future<void> _openNotification(
   BuildContext context,
+  WidgetRef ref,
   OperationalNotificationInboxController controller,
   OperationalNotificationItem notification, {
   required bool closeModalOnNavigate,
@@ -216,6 +226,39 @@ Future<void> _openNotification(
     await controller.markAsRead(notification);
   }
   if (!context.mounted) return;
+  final loginState = ref.read(loginControllerProvider);
+  final activeBranchId = ref.read(activeBranchContextIdProvider);
+  final usesExplicitHandoff = operationalNotificationUsesExplicitContextHandoff(
+    notification,
+  );
+  if (usesExplicitHandoff &&
+      !operationalNotificationContextMatches(
+        loginState: loginState,
+        activeBranchId: activeBranchId,
+        item: notification,
+      )) {
+    final confirmed = await _confirmNotificationContextHandoff(
+      context,
+      notification,
+    );
+    if (!confirmed || !context.mounted) return;
+    final handoffResult = await operationalNotificationPrepareContext(
+      ref,
+      notification,
+    );
+    if (!context.mounted) return;
+    if (!handoffResult.isSuccess) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            handoffResult.message ??
+                operationalNotificationAccessFailureMessage(notification),
+          ),
+        ),
+      );
+      return;
+    }
+  }
   final router = GoRouter.of(context);
   if (closeModalOnNavigate) {
     Navigator.of(context).pop();
@@ -223,6 +266,86 @@ Future<void> _openNotification(
     return;
   }
   router.go(operationalNotificationLocation(notification));
+}
+
+Future<bool> _confirmNotificationContextHandoff(
+  BuildContext context,
+  OperationalNotificationItem notification,
+) async {
+  final isWide = AppBreakpoints.isLarge(MediaQuery.of(context).size.width);
+  final message = operationalNotificationHandoffMessage(notification);
+  final confirmLabel = operationalNotificationHandoffConfirmLabel(notification);
+
+  if (isWide) {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          key: operationalNotificationHandoffDialogKey,
+          title: const Text('Switch workspace?'),
+          content: Text(message),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: Text(confirmLabel),
+            ),
+          ],
+        );
+      },
+    );
+    return confirmed ?? false;
+  }
+
+  final confirmed = await showModalBottomSheet<bool>(
+    context: context,
+    backgroundColor: Colors.white,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    builder: (sheetContext) {
+      return SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+          child: Column(
+            key: operationalNotificationHandoffBottomSheetKey,
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Switch workspace?',
+                style: Theme.of(sheetContext).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 12),
+              Text(message),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.of(sheetContext).pop(false),
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: () => Navigator.of(sheetContext).pop(true),
+                      child: Text(confirmLabel),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+  return confirmed ?? false;
 }
 
 class _Toolbar extends StatelessWidget {

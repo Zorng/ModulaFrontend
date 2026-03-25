@@ -52,6 +52,68 @@ class SaleMappers {
     );
   }
 
+  static SaleDetailReadDto toSaleDetailRead(SaleDto dto) {
+    return SaleDetailReadDto(
+      saleId: dto.id,
+      orderId: dto.orderId,
+      status: normalizeSaleState(dto.state),
+      saleType: dto.saleType.trim().isEmpty ? 'TAKEAWAY' : dto.saleType.trim(),
+      paymentMethod: normalizePaymentMethod(dto.paymentMethod),
+      tenderCurrency: normalizeTenderCurrency(dto.tenderCurrency),
+      fulfillmentStatus: dto.fulfillmentStatus.trim().isEmpty
+          ? 'PENDING'
+          : dto.fulfillmentStatus.trim().toUpperCase(),
+      subtotalUsdExact: dto.subtotalUsdExact,
+      subtotalKhrExact: dto.subtotalKhrExact,
+      discountUsdExact: dto.discountUsdExact,
+      discountKhrExact: dto.discountKhrExact,
+      taxUsdExact: dto.taxUsdExact,
+      taxKhrExact: dto.taxKhrExact,
+      totalUsdExact: dto.totalUsdExact,
+      totalKhrExact: dto.totalKhrExact,
+      cashReceivedUsd: dto.cashReceivedUsd,
+      cashReceivedKhr: dto.cashReceivedKhr,
+      changeGivenUsd: dto.changeGivenUsd,
+      changeGivenKhr: dto.changeGivenKhr,
+      createdAt: dto.createdAt.toLocal(),
+      updatedAt: dto.updatedAt.toLocal(),
+      finalizedAt: dto.finalizedAt?.toLocal(),
+      voidedAt: dto.voidedAt?.toLocal(),
+      voidReason: dto.voidReason,
+      lines: dto.items
+          .map(
+            (item) => SaleDetailLineDto(
+              lineId: item.id,
+              menuItemId: item.menuItemId,
+              menuItemName: item.menuItemName.isEmpty
+                  ? 'Item'
+                  : item.menuItemName,
+              quantity: item.quantity,
+              modifierLabels: item.modifiers
+                  .expand((modifier) => modifier.options)
+                  .map((option) => option.label)
+                  .where((label) => label.trim().isNotEmpty)
+                  .toList(growable: false),
+            ),
+          )
+          .toList(growable: false),
+    );
+  }
+
+  static SaleVoidRequestReadDto toSaleVoidRequestRead(SaleVoidRequestDto dto) {
+    return SaleVoidRequestReadDto(
+      requestId: dto.id,
+      saleId: dto.saleId,
+      status: dto.status.trim().isEmpty ? 'PENDING' : dto.status.trim(),
+      reason: dto.reason,
+      reviewNote: dto.reviewNote,
+      requestedAt: dto.requestedAt.toLocal(),
+      reviewedAt: dto.reviewedAt?.toLocal(),
+      requestedByAccountId: dto.requestedByAccountId,
+      reviewedByAccountId: dto.reviewedByAccountId,
+    );
+  }
+
   static Sale toDomainSale(SaleDto dto) {
     return Sale(
       id: dto.id,

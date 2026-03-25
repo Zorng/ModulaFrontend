@@ -80,12 +80,14 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    expect(find.text('Order No. ORDER-001'), findsOneWidget);
-    expect(find.text('Order No. TICKET-001'), findsNothing);
+    expect(find.text('Kitchen Board'), findsOneWidget);
+    expect(find.text('Ticket ORDER-001'), findsOneWidget);
+    expect(find.text('Ticket TICKET-001'), findsNothing);
     expect(find.byType(TabBar), findsOneWidget);
     expect(find.text('Kitchen'), findsOneWidget);
     expect(find.text('External Claims'), findsOneWidget);
-    expect(find.widgetWithText(ChoiceChip, 'Pending'), findsOneWidget);
+    expect(find.text('Preparing'), findsOneWidget);
+    expect(find.text('Cancelled'), findsOneWidget);
     expect(find.text('Pending Payment'), findsNothing);
     expect(find.text('No external payment claims'), findsNothing);
   });
@@ -128,7 +130,7 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      expect(find.text('Order No. LOCAL-CASH-001'), findsOneWidget);
+      expect(find.text('Ticket LOCAL-CASH-001'), findsOneWidget);
       expect(find.text('Pending'), findsWidgets);
       expect(find.text('External Claims'), findsOneWidget);
     },
@@ -170,8 +172,10 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    expect(find.text('Order No. ORDER-001'), findsOneWidget);
-    await tester.tap(find.text('Pending').last);
+    expect(find.text('Ticket ORDER-001'), findsOneWidget);
+    await tester.tap(find.byTooltip('Order actions').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Update fulfillment status').last);
     await tester.pumpAndSettle();
 
     expect(find.text('Update Fulfillment Status'), findsOneWidget);
@@ -243,9 +247,90 @@ void main() {
 
     expect(notifier.lastRequestedStatus, isNull);
     expect(notifier.lastRequestedView, orderManualClaimReviewView);
-    expect(find.text('Order No. CLAIM-001'), findsOneWidget);
-    expect(find.text('Order No. ORDER-001'), findsNothing);
+    expect(find.text('Ticket CLAIM-001'), findsOneWidget);
+    expect(find.text('Ticket ORDER-001'), findsNothing);
     expect(find.text('Claim Recorded'), findsOneWidget);
-    expect(find.widgetWithText(ChoiceChip, 'Pending'), findsNothing);
+    expect(find.text('Kitchen Board'), findsNothing);
+  });
+
+  testWidgets('OrderPage uses a grid board on wide kitchen layouts', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1400, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final orders = [
+      for (var i = 0; i < 3; i++)
+        Order(
+          id: 'order-$i',
+          saleId: 'sale-$i',
+          number: 'ORDER-00$i',
+          status: 'pending',
+          ticketStatus: 'PAID',
+          placedAt: DateTime(2026, 3, 18, 10, i),
+          orderType: 'take_away',
+          paymentMethod: 'cash',
+          totalUsd: 3.5 + i,
+          totalKhr: 14350 + i.toDouble(),
+          tenderCurrency: 'usd',
+          tenderAmount: 5,
+          changeAmount: 1.5,
+          lines: const [OrderLine(name: 'Latte', modifiers: [], quantity: 1)],
+        ),
+    ];
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ordersProvider.overrideWith(() => _StaticOrdersNotifier(orders)),
+        ],
+        child: const MaterialApp(home: OrderPage()),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(find.byType(GridView), findsOneWidget);
+    expect(find.text('Ticket ORDER-000'), findsOneWidget);
+  });
+
+  testWidgets('OrderPage uses placeholder ticket text for long order numbers', (
+    tester,
+  ) async {
+    final order = Order(
+      id: 'order-uuid',
+      saleId: 'sale-uuid',
+      number: '550e8400-e29b-41d4-a716-446655440000',
+      status: 'pending',
+      ticketStatus: 'PAID',
+      placedAt: DateTime(2026, 3, 18, 10),
+      orderType: 'take_away',
+      paymentMethod: 'cash',
+      totalUsd: 3.5,
+      totalKhr: 14350,
+      tenderCurrency: 'usd',
+      tenderAmount: 5,
+      changeAmount: 1.5,
+      lines: const [OrderLine(name: 'Latte', modifiers: [], quantity: 1)],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ordersProvider.overrideWith(() => _StaticOrdersNotifier([order])),
+        ],
+        child: const MaterialApp(home: OrderPage()),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(find.text('Ticket Pending'), findsOneWidget);
+    expect(
+      find.text('Ticket 550e8400-e29b-41d4-a716-446655440000'),
+      findsNothing,
+    );
   });
 }
