@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:modular_pos/core/widgets/display/dashed_border_painter.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
+import 'package:modular_pos/features/menu/ui/view/menu_item_form/widgets/menu_section_action_button.dart';
 
 class MenuItemCompositionDraft {
   MenuItemCompositionDraft({
@@ -52,6 +52,7 @@ class MenuItemCompositionSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final isMobileLayout = MediaQuery.sizeOf(context).width < 640;
 
     return Card(
       color: Colors.white,
@@ -74,6 +75,11 @@ class MenuItemCompositionSection extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (!isMobileLayout && isEditing && onAddRow != null)
+                  MenuSectionActionButton(
+                    label: 'Add component',
+                    onPressed: onAddRow!,
+                  ),
               ],
             ),
             if ((helperText ?? '').trim().isNotEmpty) ...[
@@ -128,33 +134,13 @@ class MenuItemCompositionSection extends StatelessWidget {
                           ),
                   ),
                 ),
-              if (isEditing) ...[
+              if (isMobileLayout && isEditing && onAddRow != null) ...[
                 const SizedBox(height: 4),
                 SizedBox(
                   width: double.infinity,
-                  child: InkWell(
-                    onTap: stockItems.isEmpty ? null : onAddRow,
-                    child: CustomPaint(
-                      foregroundPainter: DashedBorderPainter(
-                        color: Theme.of(context).primaryColor,
-                      ),
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.primaryContainer,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          'Add component',
-                          textAlign: TextAlign.center,
-                          style: textTheme.bodyMedium,
-                        ),
-                      ),
-                    ),
+                  child: MenuSectionActionButton(
+                    label: 'Add component',
+                    onPressed: onAddRow!,
                   ),
                 ),
               ],
@@ -195,8 +181,8 @@ class _EditableCompositionRow extends StatelessWidget {
         stockItems.any((item) => item.id == row.selectedStockItemId)
         ? row.selectedStockItemId
         : null;
-    final selectedTrackingMode = row.trackingMode == 'UNTRACKED'
-        ? 'UNTRACKED'
+    final selectedTrackingMode = row.trackingMode == 'NOT_TRACKED'
+        ? 'NOT_TRACKED'
         : 'TRACKED';
 
     return LayoutBuilder(
@@ -233,7 +219,7 @@ class _EditableCompositionRow extends StatelessWidget {
           initialSelection: selectedTrackingMode,
           entries: const [
             DropdownMenuEntry(value: 'TRACKED', label: 'Tracked'),
-            DropdownMenuEntry(value: 'UNTRACKED', label: 'Untracked'),
+            DropdownMenuEntry(value: 'NOT_TRACKED', label: 'Untracked'),
           ],
           hintText: 'Tracking mode',
           onChanged: (value) {
@@ -427,9 +413,7 @@ String _stockItemLabel(List<StockItem> stockItems, String? stockItemId) {
     }
   }
   if (match == null) {
-    return (stockItemId ?? '').trim().isEmpty
-        ? 'Unknown stock item'
-        : stockItemId!;
+    return 'Unknown stock item';
   }
   final unit = match.baseUnit.trim();
   if (unit.isEmpty) return match.name;

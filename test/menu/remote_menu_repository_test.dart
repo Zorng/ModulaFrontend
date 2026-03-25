@@ -3,15 +3,18 @@ import 'package:mocktail/mocktail.dart';
 import 'package:modular_pos/features/menu/data/dto/menu_branch_dto.dart';
 import 'package:modular_pos/features/menu/data/dto/menu_category_dto.dart';
 import 'package:modular_pos/features/menu/data/dto/menu_composition_dto.dart';
+import 'package:modular_pos/features/menu/data/dto/menu_item_detail_dto.dart';
 import 'package:modular_pos/features/menu/data/dto/menu_item_dto.dart';
-import 'package:modular_pos/features/menu/data/dto/menu_item_with_modifiers_dto.dart';
+import 'package:modular_pos/features/menu/data/dto/menu_modifier_option_effect_dto.dart';
 import 'package:modular_pos/features/menu/data/dto/modifier_group_dto.dart';
 import 'package:modular_pos/features/menu/data/menu_api.dart';
 import 'package:modular_pos/features/menu/data/menu_repository.dart';
 import 'package:modular_pos/features/menu/data/remote_menu_repository.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_category.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_composition.dart';
+import 'package:modular_pos/features/menu/domain/models/menu_item_detail.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
+import 'package:modular_pos/features/menu/domain/models/menu_modifier_option_effect.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 
 class _MockMenuApi extends Mock implements MenuApi {}
@@ -22,6 +25,7 @@ void main() {
     registerFallbackValue(<String>[]);
     registerFallbackValue(<int>[]);
     registerFallbackValue(<MenuComponentDto>[]);
+    registerFallbackValue(<MenuModifierOptionEffectDto>[]);
   });
 
   group('RemoteMenuRepository', () {
@@ -629,14 +633,97 @@ void main() {
       },
     );
 
+    test('updateMenuItem skips API call when patch payload has no changed fields', () async {
+      final api = _MockMenuApi();
+      final repository = RemoteMenuRepository(api);
+
+      const previous = MenuItem(
+        id: 'item-1',
+        name: 'Latte',
+        categoryId: 'cat-1',
+        price: 2.5,
+        basePrice: 2.5,
+        branchIds: ['branch-1'],
+        visibleBranchIds: ['branch-1'],
+        modifierGroupIds: ['group-1'],
+      );
+      const item = MenuItem(
+        id: 'item-1',
+        name: 'Latte',
+        categoryId: 'cat-1',
+        price: 2.5,
+        basePrice: 2.5,
+        branchIds: ['branch-1'],
+        visibleBranchIds: ['branch-1'],
+        modifierGroupIds: ['group-1'],
+      );
+
+      final updated = await repository.updateMenuItem(item, previous: previous);
+
+      expect(updated.id, 'item-1');
+      expect(updated.name, 'Latte');
+      verifyNever(() => api.updateMenuItem(any(), imagePath: any(named: 'imagePath'), imageBytes: any(named: 'imageBytes')));
+    });
+
+    test(
+      'fetchMenuItemDetail maps explicit detail payload including effects',
+      () async {
+        final api = _MockMenuApi();
+        final repository = RemoteMenuRepository(api);
+
+        when(() => api.fetchMenuItemDetail('item-1')).thenAnswer(
+          (_) async => MenuItemDetailDto.fromJson({
+            'id': 'item-1',
+            'tenantId': 'tenant-1',
+            'name': 'Latte',
+            'categoryId': 'cat-1',
+            'basePrice': 2.5,
+            'status': 'ACTIVE',
+            'categoryName': 'Coffee',
+            'modifierGroups': [
+              _modifierGroupJson(id: 'group-1', name: 'Size'),
+            ],
+            'baseComponents': [
+              {
+                'stockItemId': 'stock-1',
+                'quantityInBaseUnit': 250,
+                'trackingMode': 'TRACKED',
+              },
+            ],
+            'modifierOptionEffects': [
+              {
+                'modifierOptionId': 'opt-1',
+                'components': [
+                  {
+                    'stockItemId': 'stock-2',
+                    'quantityDeltaInBaseUnit': 50,
+                    'trackingMode': 'TRACKED',
+                  },
+                ],
+              },
+            ],
+          }),
+        );
+
+        final detail = await repository.fetchMenuItemDetail('item-1');
+
+        expect(detail, isA<MenuItemDetail>());
+        expect(detail.item.id, 'item-1');
+        expect(detail.modifierGroups, hasLength(1));
+        expect(detail.baseComponents, hasLength(1));
+        expect(detail.modifierOptionEffects, hasLength(1));
+        expect(detail.modifierOptionEffects.first.modifierOptionId, 'opt-1');
+      },
+    );
+
     test(
       'fetchMenuItemComposition maps baseComponents from detail payload',
       () async {
         final api = _MockMenuApi();
         final repository = RemoteMenuRepository(api);
 
-        when(() => api.fetchMenuItemWithModifiers('item-1')).thenAnswer(
-          (_) async => MenuItemWithModifiersDto.fromJson({
+        when(() => api.fetchMenuItemDetail('item-1')).thenAnswer(
+          (_) async => MenuItemDetailDto.fromJson({
             'id': 'item-1',
             'tenantId': 'tenant-1',
             'name': 'Latte',
@@ -662,6 +749,93 @@ void main() {
         expect(components.first.trackingMode, 'TRACKED');
       },
     );
+
+    test(
+      'fetchMenuItemModifierOptionEffects maps effects from detail payload',
+      () async {
+        final api = _MockMenuApi();
+        final repository = RemoteMenuRepository(api);
+
+        when(() => api.fetchMenuItemDetail('item-1')).thenAnswer(
+          (_) async => MenuItemDetailDto.fromJson({
+            'id': 'item-1',
+            'tenantId': 'tenant-1',
+            'name': 'Latte',
+            'categoryId': 'cat-1',
+            'basePrice': 2.5,
+            'status': 'ACTIVE',
+            'modifierGroups': const [],
+            'modifierOptionEffects': [
+              {
+                'modifierOptionId': 'opt-1',
+                'components': [
+                  {
+                    'stockItemId': 'stock-2',
+                    'quantityDeltaInBaseUnit': -50,
+                    'trackingMode': 'TRACKED',
+                  },
+                ],
+              },
+            ],
+          }),
+        );
+
+        final effects = await repository.fetchMenuItemModifierOptionEffects(
+          'item-1',
+        );
+
+        expect(effects, hasLength(1));
+        expect(effects.first.modifierOptionId, 'opt-1');
+        expect(effects.first.components, hasLength(1));
+        expect(effects.first.components.first.stockItemId, 'stock-2');
+        expect(
+          effects.first.components.first.quantityDeltaInBaseUnit,
+          -50,
+        );
+      },
+    );
+
+    test('upsert modifier option effects maps payload', () async {
+      final api = _MockMenuApi();
+      final repository = RemoteMenuRepository(api);
+
+      when(
+        () => api.upsertMenuItemModifierOptionEffects(
+          menuItemId: any(named: 'menuItemId'),
+          effects: any(named: 'effects'),
+        ),
+      ).thenAnswer((_) async {});
+
+      await repository.upsertMenuItemModifierOptionEffects(
+        menuItemId: 'item-1',
+        effects: const [
+          MenuModifierOptionEffect(
+            modifierOptionId: 'opt-1',
+            components: [
+              ModifierDelta(
+                stockItemId: 'stock-2',
+                quantityDeltaInBaseUnit: 50,
+                trackingMode: 'TRACKED',
+              ),
+            ],
+          ),
+        ],
+      );
+
+      final captured =
+          verify(
+                () => api.upsertMenuItemModifierOptionEffects(
+                  menuItemId: 'item-1',
+                  effects: captureAny(named: 'effects'),
+                ),
+              ).captured.single
+              as List<MenuModifierOptionEffectDto>;
+
+      expect(captured, hasLength(1));
+      expect(captured.first.modifierOptionId, 'opt-1');
+      expect(captured.first.components, hasLength(1));
+      expect(captured.first.components.first.stockItemId, 'stock-2');
+    });
 
     test('upsert/evaluate composition map payloads and result', () async {
       final api = _MockMenuApi();
@@ -731,4 +905,21 @@ void main() {
       expect(evaluated.components, hasLength(1));
     });
   });
+}
+
+Map<String, dynamic> _modifierGroupJson({
+  required String id,
+  required String name,
+}) {
+  return <String, dynamic>{
+    'id': id,
+    'tenantId': 'tenant-1',
+    'name': name,
+    'selectionMode': 'SINGLE',
+    'minSelections': 0,
+    'maxSelections': 1,
+    'isRequired': false,
+    'status': 'ACTIVE',
+    'options': const <Map<String, dynamic>>[],
+  };
 }

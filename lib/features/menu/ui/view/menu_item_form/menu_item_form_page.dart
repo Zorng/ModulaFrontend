@@ -7,16 +7,22 @@ import 'package:image_picker/image_picker.dart';
 import 'package:modular_pos/core/theme/app_theme.dart';
 import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/core/widgets/media/product_image_picker.dart';
+import 'package:modular_pos/features/auth/domain/active_branch_context_provider.dart';
+import 'package:modular_pos/features/branchV2/ui/viewmodels/branch_controller.dart';
+import 'package:modular_pos/features/branchV2/ui/viewmodels/branch_state.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_controller.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_composition.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_branch.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_category.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
+import 'package:modular_pos/features/menu/domain/models/menu_modifier_option_effect.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 import 'package:modular_pos/features/menu/ui/components/menu_form_field_label.dart';
 import 'package:modular_pos/features/menu/ui/view/menu_item_form/menu_item_form_error_mapper.dart';
 import 'package:modular_pos/features/menu/ui/view/menu_item_form/menu_item_form_utils.dart';
 import 'package:modular_pos/features/menu/ui/view/menu_item_form/widgets/menu_item_composition_section.dart';
+import 'package:modular_pos/features/menu/ui/view/menu_item_form/widgets/menu_item_modifier_effects_section.dart';
+import 'package:modular_pos/features/menu/ui/view/menu_item_form/widgets/menu_section_action_button.dart';
 import 'package:modular_pos/features/menu/ui/view/menu_item_form/widgets/selection_chips_field.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
 
@@ -50,7 +56,14 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
   bool _isSaving = false;
   bool _isActive = true;
   final List<MenuItemCompositionDraft> _compositionRows = [];
+  final Map<String, List<MenuItemCompositionDraft>> _modifierEffectRowsByOptionId =
+      {};
   bool _didInitializeComposition = false;
+  bool _didInitializeModifierEffects = false;
+  bool _compositionDirty = false;
+  bool _modifierEffectsDirty = false;
+  bool _didHydrateEditBaseline = false;
+  bool _hasUserEditedBaseItem = false;
 
   bool get isCreate => _mode == _MenuItemFormMode.create;
   bool get isView => _mode == _MenuItemFormMode.view;
@@ -71,7 +84,9 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(menuViewModelProvider.notifier).loadMenu();
       ref.read(stockInventoryControllerProvider.notifier).loadStockItems();
+      _ensureEditBaselineLoaded();
       _bootstrapCompositionState();
+      _bootstrapModifierEffectsState();
     });
 
     _nameController = TextEditingController(
@@ -80,6 +95,8 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
     _priceController = TextEditingController(
       text: widget.initialItem?.price.toStringAsFixed(2) ?? '',
     );
+    _nameController.addListener(_markBaseItemEditedFromController);
+    _priceController.addListener(_markBaseItemEditedFromController);
 
     _selectedCategoryId = widget.initialItem?.categoryId;
     _selectedModifierGroupIds.addAll(
@@ -98,28 +115,85 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
     final categories = state.categories;
     final modifierGroups = state.modifierGroups;
     final branches = state.branches;
-    final stockItems = inventoryState.stockItems
-        .where((item) => item.isActive)
-        .toList(growable: false)
+    final stockItems = inventoryState.stockItems.toList(growable: false)
       ..sort((a, b) => a.name.compareTo(b.name));
     final compositionItemId = widget.initialItem?.id;
+    final detailItem = compositionItemId == null
+        ? null
+        : state.detailByItemId[compositionItemId]?.item;
     final compositionLoading =
         compositionItemId != null &&
         state.compositionLoadingByItem[compositionItemId] == true;
     final compositionError = compositionItemId == null
         ? null
         : state.compositionErrors[compositionItemId];
+    final modifierEffectsLoading =
+        compositionItemId != null &&
+        state.modifierOptionEffectsLoadingByItemId[compositionItemId] == true;
+    final modifierEffectsError = compositionItemId == null
+        ? null
+        : state.modifierOptionEffectsErrorsByItemId[compositionItemId];
+    final baseComposition = compositionItemId == null
+        ? const <MenuComponent>[]
+        : state.baseCompositionByItemId[compositionItemId] ??
+            const <MenuComponent>[];
+    final modifierEffects = compositionItemId == null
+        ? const <MenuModifierOptionEffect>[]
+        : state.modifierOptionEffectsByItemId[compositionItemId] ??
+            const <MenuModifierOptionEffect>[];
+    final selectedModifierGroups = modifierGroups
+        .where((group) => _selectedModifierGroupIds.contains(group.id))
+        .toList(growable: false);
+    final inheritedEffectsByOptionId = {
+      for (final option in selectedModifierGroups.expand((group) => group.options))
+        if (!_modifierEffectRowsByOptionId.containsKey(option.id) &&
+            option.componentDeltas.isNotEmpty)
+          option.id: option.componentDeltas,
+    };
 
     if (!_didInitializeComposition &&
         compositionItemId != null &&
         state.compositionLoadedByItem[compositionItemId] == true) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted || _didInitializeComposition) return;
-        _replaceCompositionRows(state.compositionByItem[compositionItemId] ?? const []);
-        setState(() => _didInitializeComposition = true);
+        if (!_compositionDirty) {
+          _replaceCompositionRows(baseComposition);
+        }
+        setState(() {
+          _didInitializeComposition = true;
+          if (!_compositionDirty) {
+            _compositionDirty = false;
+          }
+        });
+      });
+    }
+    if (!_didInitializeModifierEffects && compositionItemId != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _didInitializeModifierEffects) return;
+        if (!_modifierEffectsDirty) {
+          _replaceModifierEffectRows(modifierEffects);
+        }
+        setState(() {
+          _didInitializeModifierEffects = true;
+          if (!_modifierEffectsDirty) {
+            _modifierEffectsDirty = false;
+          }
+        });
+      });
+    }
+    if (!isCreate && !_didHydrateEditBaseline && detailItem != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _didHydrateEditBaseline) return;
+        if (!_hasUserEditedBaseItem) {
+          _hydrateEditBaseline(detailItem);
+        }
+        setState(() {
+          _didHydrateEditBaseline = true;
+        });
       });
     }
     if (!_hasInitializedBranchSelection &&
+        isCreate &&
         _selectedBranchIds.isEmpty &&
         branches.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -137,6 +211,7 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
     final modifierNameLookup = {
       for (final group in modifierGroups) group.id: group.name,
     };
+    final isMobileLayout = MediaQuery.of(context).size.width < 640;
 
     return Scaffold(
       appBar: AppBar(
@@ -247,6 +322,13 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
               child: _MenuSectionCard(
                 title: 'Assign branch',
                 description: 'Select which branches provide this item.',
+                headerAction: isEditing && branches.isNotEmpty && !isMobileLayout
+                    ? _SectionHeaderButton(
+                        label: 'Select branches',
+                        onPressed: () => _showBranchSelection(branches),
+                        showAddIcon: false,
+                      )
+                    : null,
                 children: [
                   if (branches.isEmpty)
                     Text(
@@ -265,7 +347,19 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
                       onRemove: (id) =>
                           setState(() => _selectedBranchIds.remove(id)),
                       editable: isEditing,
+                      showAddButton: false,
                     ),
+                  if (isEditing && branches.isNotEmpty && isMobileLayout) ...[
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: _SectionHeaderButton(
+                        label: 'Select branches',
+                        onPressed: () => _showBranchSelection(branches),
+                        showAddIcon: false,
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -273,6 +367,13 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
               child: _MenuSectionCard(
                 title: 'Modifier groups',
                 description: 'Assign modifier groups for this item.',
+                headerAction:
+                    isEditing && modifierGroups.isNotEmpty && !isMobileLayout
+                    ? _SectionHeaderButton(
+                        label: 'Add modifier',
+                        onPressed: () => _showModifierSelection(modifierGroups),
+                      )
+                    : null,
                 children: [
                   if (modifierGroups.isEmpty)
                     Text(
@@ -291,27 +392,61 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
                       onRemove: (id) =>
                           setState(() => _selectedModifierGroupIds.remove(id)),
                       editable: isEditing,
+                      showAddButton: false,
                     ),
+                  if (isEditing &&
+                      modifierGroups.isNotEmpty &&
+                      isMobileLayout) ...[
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: _SectionHeaderButton(
+                        label: 'Add modifier',
+                        onPressed: () => _showModifierSelection(modifierGroups),
+                      ),
+                    ),
+                  ],
                 ],
+              ),
+            ),
+            _SectionSpacer(
+              child: MenuItemModifierEffectsSection(
+                modifierGroups: selectedModifierGroups,
+                effectRowsByOptionId: _modifierEffectRowsByOptionId,
+                inheritedEffectsByOptionId: inheritedEffectsByOptionId,
+                stockItems: stockItems,
+                isEditing: isEditing,
+                isLoading: modifierEffectsLoading,
+                errorText: modifierEffectsError,
+                helperText: isCreate
+                    ? 'Optional. Save the item first, then open it again if you want to configure item-scoped modifier effects.'
+                    : 'Optional. Use item-scoped option effects only when a modifier option should add or remove components for this menu item.',
+                emptyText: isCreate
+                    ? 'Modifier option effects become available after the item is created.'
+                    : 'No item-scoped modifier effects configured for the selected modifier groups.',
+                onAddRow: _addModifierEffectRow,
+                onRemoveRow: _removeModifierEffectRow,
+                onStockItemChanged: _updateModifierEffectStockItem,
+                onTrackingModeChanged: _updateModifierEffectTrackingMode,
               ),
             ),
             _SectionSpacer(
               child: MenuItemCompositionSection(
                 rows: _compositionRows,
                 stockItems: stockItems,
-                isEditing: isEditing && !isCreate,
+                isEditing: isEditing,
                 isLoading: compositionLoading,
                 errorText: compositionError,
                 helperText: isCreate
-                    ? 'Save the item first, then open it again to configure base components.'
-                    : 'Base components stay with the menu item and modifier options can adjust them later.',
+                    ? 'Optional. Save the item first, then open it again if you want to configure base components.'
+                    : 'Optional. Base components stay with the menu item and modifier options can adjust them later.',
                 emptyText: isCreate
                     ? 'Composition becomes available after the item is created.'
                     : 'No base components configured yet.',
-                onAddRow: isCreate ? null : _addCompositionRow,
-                onRemoveRow: isCreate ? null : _removeCompositionRow,
-                onStockItemChanged: isCreate ? null : _updateCompositionStockItem,
-                onTrackingModeChanged: isCreate ? null : _updateCompositionTrackingMode,
+                onAddRow: _addCompositionRow,
+                onRemoveRow: _removeCompositionRow,
+                onStockItemChanged: _updateCompositionStockItem,
+                onTrackingModeChanged: _updateCompositionTrackingMode,
               ),
             ),
             _SectionSpacer(
@@ -425,6 +560,7 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
                     ? (value) {
                         setState(() {
                           _selectedCategoryId = value;
+                          _markBaseItemEdited();
                         });
                       }
                     : null,
@@ -492,26 +628,104 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
 
     setState(() => _isSaving = true);
     try {
+      if (_mode == _MenuItemFormMode.edit) {
+        await _ensureEditBaselineLoaded();
+      }
       final notifier = ref.read(menuViewModelProvider.notifier);
+      final menuState = ref.read(menuViewModelProvider);
+      final resolvedEditItemId = _mode == _MenuItemFormMode.edit
+          ? _resolveEditItemId()
+          : null;
+      final selectedModifierGroups = menuState.modifierGroups
+          .where((group) => _selectedModifierGroupIds.contains(group.id))
+          .toList(growable: false);
+      final compositionPayload = _buildCompositionPayload();
+      final modifierEffectPayload = _buildModifierEffectPayload(
+        selectedModifierGroups,
+      );
+      var activeBranchContextId =
+          (ref.read(activeBranchContextIdProvider) ?? '').trim();
+      var hasBranchContext = activeBranchContextId.isNotEmpty;
+      final trackedModifierEffectsRequireBranch = modifierEffectPayload.any(
+        (effect) => effect.components.any(
+          (component) => component.trackingMode.trim().toUpperCase() == 'TRACKED',
+        ),
+      );
+      final branchContextNeeded =
+          _compositionDirty ||
+          (_modifierEffectsDirty && trackedModifierEffectsRequireBranch);
+      if (branchContextNeeded && !hasBranchContext) {
+        final resolvedBranchId = _resolveBranchContextForSave();
+        if (resolvedBranchId == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Select at least one valid branch before saving composition or tracked modifier effects.',
+              ),
+            ),
+          );
+          return;
+        }
+        final selectionResult = await ref
+            .read(branchControllerProvider.notifier)
+            .onBranchTileTap(branchId: resolvedBranchId);
+        if (selectionResult != BranchSelectionResult.success) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Failed to switch into a branch context for saving composition changes.',
+              ),
+            ),
+          );
+          return;
+        }
+        activeBranchContextId =
+            (ref.read(activeBranchContextIdProvider) ?? '').trim();
+        hasBranchContext = activeBranchContextId.isNotEmpty;
+        if (!hasBranchContext) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Branch context is still missing after branch selection.',
+              ),
+            ),
+          );
+          return;
+        }
+      }
+      if (_mode == _MenuItemFormMode.edit &&
+          (resolvedEditItemId ?? '').trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Unable to resolve menu item id. Please try again.'),
+          ),
+        );
+        return;
+      }
       final item = MenuItem(
-        id: widget.initialItem?.id ?? '',
+        id: _mode == _MenuItemFormMode.edit ? resolvedEditItemId ?? '' : '',
         name: _nameController.text.trim(),
         categoryId: _selectedCategoryId ?? '',
         price: double.parse(_priceController.text.trim()),
-        imageUrl: widget.initialItem?.imageUrl,
+        imageUrl: _baselineItemForEdit()?.imageUrl,
         modifierGroupIds: _selectedModifierGroupIds.toList(),
-        description: widget.initialItem?.description ?? '',
+        description: _baselineItemForEdit()?.description ?? '',
         branchIds: _selectedBranchIds.toList(growable: false),
         isActive: _isActive,
       );
 
       MenuItem saved;
       if (_mode == _MenuItemFormMode.edit) {
-        saved = await notifier.updateMenuItem(
-          item,
-          imagePath: kIsWeb ? null : _selectedImagePath,
-          imageBytes: _selectedImageBytes,
-        );
+        if (_hasBaseItemChanges(item)) {
+          saved = await notifier.updateMenuItem(
+            item,
+            imagePath: kIsWeb ? null : _selectedImagePath,
+            imageBytes: _selectedImageBytes,
+          );
+        } else {
+          saved = widget.initialItem ?? item;
+        }
       } else {
         saved = await notifier.addMenuItem(
           item,
@@ -520,21 +734,37 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
         );
       }
 
-      if (!isCreate) {
+      if (_compositionDirty) {
         await notifier.upsertItemComposition(
           menuItemId: saved.id,
-          baseComponents: _buildCompositionPayload(),
+          baseComponents: compositionPayload,
         );
+        _compositionDirty = false;
+      }
+      if (_modifierEffectsDirty) {
+        await notifier.upsertItemModifierOptionEffects(
+          menuItemId: saved.id,
+          effects: modifierEffectPayload,
+        );
+        _modifierEffectsDirty = false;
       }
 
-      await notifier.loadItemWithModifiers(saved.id);
+      await notifier.loadMenuItemDetail(saved.id);
       if (mounted) context.pop(saved);
     } catch (e) {
       if (!mounted) return;
       final compositionMessage = widget.initialItem == null
           ? null
-          : ref.read(menuViewModelProvider).compositionErrors[widget.initialItem!.id];
-      final message = compositionMessage ?? mapMenuItemSaveErrorMessage(e);
+          : ref.read(menuViewModelProvider).compositionErrors[
+              widget.initialItem!.id
+            ];
+      final effectMessage = widget.initialItem == null
+          ? null
+          : ref
+                .read(menuViewModelProvider)
+                .modifierOptionEffectsErrorsByItemId[widget.initialItem!.id];
+      final message =
+          effectMessage ?? compositionMessage ?? mapMenuItemSaveErrorMessage(e);
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(message)));
@@ -551,6 +781,7 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
       setState(() {
         _selectedImageBytes = bytes;
         _selectedImagePath = picked.path;
+        _markBaseItemEdited();
       });
     } catch (_) {
       if (!mounted) return;
@@ -577,6 +808,7 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
   void _resetToView() {
     _mode = _MenuItemFormMode.view;
     _isSaving = false;
+    _hasUserEditedBaseItem = false;
     _selectedImageBytes = null;
     _selectedImagePath = null;
     _nameController.text = widget.initialItem?.name ?? '';
@@ -591,6 +823,7 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
     _existingImageUrl = widget.initialItem?.imageUrl;
     _isActive = widget.initialItem?.isActive ?? true;
     _restoreCompositionDrafts();
+    _restoreModifierEffectDrafts();
   }
 
   Future<void> _toggleActiveState() async {
@@ -609,7 +842,10 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
         await notifier.restoreMenuItem(current.id);
       }
       if (!mounted) return;
-      setState(() => _isActive = !_isActive);
+      setState(() {
+        _isActive = !_isActive;
+        _markBaseItemEdited();
+      });
       final messenger = ScaffoldMessenger.of(context);
       messenger.showSnackBar(
         SnackBar(
@@ -692,6 +928,7 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
           _selectedModifierGroupIds
             ..clear()
             ..addAll(selection);
+          _markBaseItemEdited();
         });
       },
     );
@@ -716,6 +953,7 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
             ..clear()
             ..addAll(selection);
           _hasInitializedBranchSelection = true;
+          _markBaseItemEdited();
         });
       },
     );
@@ -724,14 +962,30 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
   Future<void> _bootstrapCompositionState() async {
     final item = widget.initialItem;
     if (item == null || item.id.trim().isEmpty) {
-      if (mounted) setState(() => _didInitializeComposition = true);
+      if (mounted) {
+        setState(() {
+          _didInitializeComposition = true;
+          _compositionDirty = false;
+        });
+      }
       return;
     }
 
-    final cached = ref.read(menuViewModelProvider).compositionByItem[item.id];
+    final cached = ref.read(menuViewModelProvider).baseCompositionByItemId[
+      item.id
+    ];
     if (cached != null) {
-      _replaceCompositionRows(cached);
-      if (mounted) setState(() => _didInitializeComposition = true);
+      if (!_compositionDirty) {
+        _replaceCompositionRows(cached);
+      }
+      if (mounted) {
+        setState(() {
+          _didInitializeComposition = true;
+          if (!_compositionDirty) {
+            _compositionDirty = false;
+          }
+        });
+      }
       return;
     }
 
@@ -743,19 +997,95 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
 
     if (!mounted) return;
     final nextComponents =
-        ref.read(menuViewModelProvider).compositionByItem[item.id] ?? const <MenuComponent>[];
-    _replaceCompositionRows(nextComponents);
-    setState(() => _didInitializeComposition = true);
+        ref.read(menuViewModelProvider).baseCompositionByItemId[item.id] ??
+        const <MenuComponent>[];
+    if (!_compositionDirty) {
+      _replaceCompositionRows(nextComponents);
+    }
+    setState(() {
+      _didInitializeComposition = true;
+      if (!_compositionDirty) {
+        _compositionDirty = false;
+      }
+    });
+  }
+
+  Future<void> _bootstrapModifierEffectsState() async {
+    final item = widget.initialItem;
+    if (item == null || item.id.trim().isEmpty) {
+      if (mounted) {
+        setState(() {
+          _didInitializeModifierEffects = true;
+          _modifierEffectsDirty = false;
+        });
+      }
+      return;
+    }
+
+    final cached =
+        ref.read(menuViewModelProvider).modifierOptionEffectsByItemId[item.id];
+    if (cached != null) {
+      if (!_modifierEffectsDirty) {
+        _replaceModifierEffectRows(cached);
+      }
+      if (mounted) {
+        setState(() {
+          _didInitializeModifierEffects = true;
+          if (!_modifierEffectsDirty) {
+            _modifierEffectsDirty = false;
+          }
+        });
+      }
+      return;
+    }
+
+    try {
+      await ref.read(menuViewModelProvider.notifier).loadMenuItemDetail(item.id);
+    } catch (_) {
+      // Error state is already stored in the viewmodel for the section UI.
+    }
+
+    if (!mounted) return;
+    final nextEffects =
+        ref.read(menuViewModelProvider).modifierOptionEffectsByItemId[item.id] ??
+        const <MenuModifierOptionEffect>[];
+    if (!_modifierEffectsDirty) {
+      _replaceModifierEffectRows(nextEffects);
+    }
+    setState(() {
+      _didInitializeModifierEffects = true;
+      if (!_modifierEffectsDirty) {
+        _modifierEffectsDirty = false;
+      }
+    });
   }
 
   void _restoreCompositionDrafts() {
     final itemId = widget.initialItem?.id;
     if (itemId == null || itemId.trim().isEmpty) {
       _replaceCompositionRows(const []);
+      _compositionDirty = false;
       return;
     }
-    final cached = ref.read(menuViewModelProvider).compositionByItem[itemId] ?? const <MenuComponent>[];
+    final cached =
+        ref.read(menuViewModelProvider).baseCompositionByItemId[itemId] ??
+        const <MenuComponent>[];
     _replaceCompositionRows(cached);
+    _compositionDirty = false;
+  }
+
+  void _restoreModifierEffectDrafts() {
+    final itemId = widget.initialItem?.id;
+    if (itemId == null || itemId.trim().isEmpty) {
+      _replaceModifierEffectRows(const []);
+      _modifierEffectsDirty = false;
+      return;
+    }
+    final cached =
+        ref.read(menuViewModelProvider).modifierOptionEffectsByItemId[itemId] ??
+        const <MenuModifierOptionEffect>[];
+    _replaceModifierEffectRows(cached);
+    _modifierEffectsDirty = false;
   }
 
   void _replaceCompositionRows(List<MenuComponent> components) {
@@ -771,7 +1101,40 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
             quantity: component.quantityInBaseUnit.toString(),
             trackingMode: component.trackingMode.isEmpty
                 ? 'TRACKED'
-                : component.trackingMode,
+                : component.trackingMode == 'UNTRACKED'
+                    ? 'NOT_TRACKED'
+                    : component.trackingMode,
+          ),
+        ).map(_attachCompositionDraftListener),
+      );
+  }
+
+  void _replaceModifierEffectRows(List<MenuModifierOptionEffect> effects) {
+    for (final rows in _modifierEffectRowsByOptionId.values) {
+      for (final row in rows) {
+        row.dispose();
+      }
+    }
+    _modifierEffectRowsByOptionId
+      ..clear()
+      ..addEntries(
+        effects.map(
+          (effect) => MapEntry(
+            effect.modifierOptionId,
+            effect.components
+                .map(
+                  (component) => MenuItemCompositionDraft(
+                    stockItemId: component.stockItemId,
+                    quantity: component.quantityDeltaInBaseUnit.toString(),
+                    trackingMode: component.trackingMode.isEmpty
+                        ? 'TRACKED'
+                        : component.trackingMode == 'UNTRACKED'
+                            ? 'NOT_TRACKED'
+                            : component.trackingMode,
+                  ),
+                )
+                .map(_attachModifierEffectDraftListener)
+                .toList(),
           ),
         ),
       );
@@ -779,7 +1142,10 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
 
   void _addCompositionRow() {
     setState(() {
-      _compositionRows.add(MenuItemCompositionDraft());
+      _compositionRows.add(
+        _attachCompositionDraftListener(MenuItemCompositionDraft()),
+      );
+      _compositionDirty = true;
     });
   }
 
@@ -789,6 +1155,7 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
       if (index == -1) return;
       _compositionRows[index].dispose();
       _compositionRows.removeAt(index);
+      _compositionDirty = true;
     });
   }
 
@@ -797,6 +1164,7 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
       for (final row in _compositionRows) {
         if (row.id == rowId) {
           row.selectedStockItemId = stockItemId;
+          _compositionDirty = true;
           return;
         }
       }
@@ -808,6 +1176,71 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
       for (final row in _compositionRows) {
         if (row.id == rowId) {
           row.trackingMode = trackingMode;
+          _compositionDirty = true;
+          return;
+        }
+      }
+    });
+  }
+
+  void _addModifierEffectRow(String optionId) {
+    setState(() {
+      final rows = _modifierEffectRowsByOptionId.putIfAbsent(
+        optionId,
+        () => <MenuItemCompositionDraft>[],
+      );
+      rows.add(
+        _attachModifierEffectDraftListener(
+          MenuItemCompositionDraft(quantity: '0'),
+        ),
+      );
+      _modifierEffectsDirty = true;
+    });
+  }
+
+  void _removeModifierEffectRow(String optionId, String rowId) {
+    setState(() {
+      final rows = _modifierEffectRowsByOptionId[optionId];
+      if (rows == null) return;
+      final index = rows.indexWhere((row) => row.id == rowId);
+      if (index == -1) return;
+      rows[index].dispose();
+      rows.removeAt(index);
+      if (rows.isEmpty) {
+        _modifierEffectRowsByOptionId.remove(optionId);
+      }
+      _modifierEffectsDirty = true;
+    });
+  }
+
+  void _updateModifierEffectStockItem(
+    String optionId,
+    String rowId,
+    String? stockItemId,
+  ) {
+    setState(() {
+      for (final row in _modifierEffectRowsByOptionId[optionId] ??
+          const <MenuItemCompositionDraft>[]) {
+        if (row.id == rowId) {
+          row.selectedStockItemId = stockItemId;
+          _modifierEffectsDirty = true;
+          return;
+        }
+      }
+    });
+  }
+
+  void _updateModifierEffectTrackingMode(
+    String optionId,
+    String rowId,
+    String trackingMode,
+  ) {
+    setState(() {
+      for (final row in _modifierEffectRowsByOptionId[optionId] ??
+          const <MenuItemCompositionDraft>[]) {
+        if (row.id == rowId) {
+          row.trackingMode = trackingMode;
+          _modifierEffectsDirty = true;
           return;
         }
       }
@@ -832,10 +1265,214 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
         .toList(growable: false);
   }
 
+  List<MenuModifierOptionEffect> _buildModifierEffectPayload(
+    List<ModifierGroup> selectedModifierGroups,
+  ) {
+    final allowedOptionIds = selectedModifierGroups
+        .expand((group) => group.options)
+        .map((option) => option.id)
+        .where((id) => id.trim().isNotEmpty)
+        .toSet();
+
+    return _modifierEffectRowsByOptionId.entries
+        .where((entry) => allowedOptionIds.contains(entry.key))
+        .map((entry) {
+          final components = entry.value
+              .map((row) {
+                final stockItemId = (row.selectedStockItemId ?? '').trim();
+                final quantity = double.tryParse(
+                  row.quantityController.text.trim(),
+                );
+                if (stockItemId.isEmpty || quantity == null || quantity <= 0) {
+                  return null;
+                }
+                return ModifierDelta(
+                  stockItemId: stockItemId,
+                  quantityDeltaInBaseUnit: quantity,
+                  trackingMode: row.trackingMode,
+                );
+              })
+              .whereType<ModifierDelta>()
+              .toList(growable: false);
+          if (components.isEmpty) return null;
+          return MenuModifierOptionEffect(
+            modifierOptionId: entry.key,
+            components: components,
+          );
+        })
+        .whereType<MenuModifierOptionEffect>()
+        .toList(growable: false);
+  }
+
+  MenuItemCompositionDraft _attachCompositionDraftListener(
+    MenuItemCompositionDraft draft,
+  ) {
+    draft.quantityController.addListener(() {
+      if (!mounted) return;
+      _compositionDirty = true;
+    });
+    return draft;
+  }
+
+  MenuItemCompositionDraft _attachModifierEffectDraftListener(
+    MenuItemCompositionDraft draft,
+  ) {
+    draft.quantityController.addListener(() {
+      if (!mounted) return;
+      _modifierEffectsDirty = true;
+    });
+    return draft;
+  }
+
+  bool _hasBaseItemChanges(MenuItem nextItem) {
+    final previous = _baselineItemForEdit();
+    if (previous == null) return true;
+
+    final nextBranchIds = [...nextItem.branchIds]..sort();
+    final previousBranchIds = [...previous.branchIds]..sort();
+    final nextModifierGroupIds = [...nextItem.modifierGroupIds]..sort();
+    final previousModifierGroupIds = [...previous.modifierGroupIds]..sort();
+    final nextImageUrl = (_existingImageUrl ?? '').trim();
+    final previousImageUrl = (previous.imageUrl ?? '').trim();
+
+    return nextItem.name != previous.name ||
+        nextItem.categoryId != previous.categoryId ||
+        nextItem.price != previous.price ||
+        nextItem.isActive != previous.isActive ||
+        !listEquals(nextBranchIds, previousBranchIds) ||
+        !listEquals(nextModifierGroupIds, previousModifierGroupIds) ||
+        _selectedImageBytes != null ||
+        _selectedImagePath != null ||
+        nextImageUrl != previousImageUrl;
+  }
+
+  MenuItem? _baselineItemForEdit() {
+    final initial = widget.initialItem;
+    if (initial == null) return null;
+    final itemId = initial.id.trim();
+    if (itemId.isEmpty) return initial;
+    final state = ref.read(menuViewModelProvider);
+    return state.detailByItemId[itemId]?.item ??
+        state.hydratedItems[itemId] ??
+        state.allItems.cast<MenuItem?>().firstWhere(
+          (item) => item?.id == itemId,
+          orElse: () => initial,
+        );
+  }
+
+  Future<void> _ensureEditBaselineLoaded() async {
+    final item = widget.initialItem;
+    if (item == null) return;
+    final itemId = item.id.trim();
+    if (itemId.isEmpty) return;
+
+    final state = ref.read(menuViewModelProvider);
+    final detail = state.detailByItemId[itemId];
+    if (detail != null) {
+      if (!_didHydrateEditBaseline && mounted) {
+        setState(() {
+          if (!_hasUserEditedBaseItem) {
+            _hydrateEditBaseline(detail.item);
+          }
+          _didHydrateEditBaseline = true;
+        });
+      }
+      return;
+    }
+
+    try {
+      final loaded = await ref.read(menuViewModelProvider.notifier).loadMenuItemDetail(
+        itemId,
+      );
+      if (!mounted) return;
+      setState(() {
+        if (!_hasUserEditedBaseItem) {
+          _hydrateEditBaseline(loaded.item);
+        }
+        _didHydrateEditBaseline = true;
+      });
+    } catch (_) {
+      // Save path will still fall back to currently available item data.
+    }
+  }
+
+  void _hydrateEditBaseline(MenuItem item) {
+    _nameController.text = item.name;
+    _priceController.text = item.price.toStringAsFixed(2);
+    _selectedCategoryId = item.categoryId;
+    _selectedModifierGroupIds
+      ..clear()
+      ..addAll(item.modifierGroupIds);
+    _selectedBranchIds
+      ..clear()
+      ..addAll(
+        item.visibleBranchIds.isNotEmpty ? item.visibleBranchIds : item.branchIds,
+      );
+    _hasInitializedBranchSelection = _selectedBranchIds.isNotEmpty;
+    _existingImageUrl = item.imageUrl;
+    _isActive = item.isActive;
+  }
+
+  void _markBaseItemEditedFromController() {
+    if (!mounted || _mode != _MenuItemFormMode.edit) return;
+    _hasUserEditedBaseItem = true;
+  }
+
+  void _markBaseItemEdited() {
+    if (!mounted || _mode != _MenuItemFormMode.edit) return;
+    _hasUserEditedBaseItem = true;
+  }
+
+  String? _resolveBranchContextForSave() {
+    if (_selectedBranchIds.isEmpty) return null;
+    final branches = ref.read(menuViewModelProvider).branches;
+    for (final branch in branches) {
+      if (_selectedBranchIds.contains(branch.id)) {
+        return branch.id;
+      }
+    }
+    return _selectedBranchIds.first;
+  }
+
+  String? _resolveEditItemId() {
+    final state = ref.read(menuViewModelProvider);
+    final directId = (widget.initialItem?.id ?? '').trim();
+    if (directId.isNotEmpty) return directId;
+
+    final initial = widget.initialItem;
+    if (initial == null) return null;
+
+    for (final detail in state.detailByItemId.values) {
+      final candidate = detail.item;
+      if (candidate.name == initial.name &&
+          candidate.categoryId == initial.categoryId &&
+          candidate.price == initial.price) {
+        final candidateId = candidate.id.trim();
+        if (candidateId.isNotEmpty) return candidateId;
+      }
+    }
+
+    for (final candidate in state.allItems) {
+      if (candidate.name == initial.name &&
+          candidate.categoryId == initial.categoryId &&
+          candidate.price == initial.price) {
+        final candidateId = candidate.id.trim();
+        if (candidateId.isNotEmpty) return candidateId;
+      }
+    }
+
+    return null;
+  }
+
   @override
   void dispose() {
     for (final row in _compositionRows) {
       row.dispose();
+    }
+    for (final rows in _modifierEffectRowsByOptionId.values) {
+      for (final row in rows) {
+        row.dispose();
+      }
     }
     _nameController.dispose();
     _priceController.dispose();
@@ -847,11 +1484,13 @@ class _MenuSectionCard extends StatelessWidget {
   const _MenuSectionCard({
     required this.title,
     this.description,
+    this.headerAction,
     required this.children,
   });
 
   final String title;
   final String? description;
+  final Widget? headerAction;
   final List<Widget> children;
 
   @override
@@ -863,19 +1502,81 @@ class _MenuSectionCard extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title, style: Theme.of(context).textTheme.titleMedium),
-            if (description != null) ...[
-              const SizedBox(height: 4),
-              Text(description!, style: Theme.of(context).textTheme.bodyMedium),
-            ],
-            const SizedBox(height: 16),
-            ...children,
-          ],
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final compactHeader = constraints.maxWidth < 640;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (headerAction == null)
+                  _SectionHeaderText(title: title, description: description)
+                else if (compactHeader) ...[
+                  _SectionHeaderText(title: title, description: description),
+                  const SizedBox(height: 12),
+                  SizedBox(width: double.infinity, child: headerAction!),
+                ] else
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: _SectionHeaderText(
+                          title: title,
+                          description: description,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      headerAction!,
+                    ],
+                  ),
+                const SizedBox(height: 16),
+                ...children,
+              ],
+            );
+          },
         ),
       ),
+    );
+  }
+}
+
+class _SectionHeaderText extends StatelessWidget {
+  const _SectionHeaderText({required this.title, this.description});
+
+  final String title;
+  final String? description;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: Theme.of(context).textTheme.titleMedium),
+        if (description != null) ...[
+          const SizedBox(height: 4),
+          Text(description!, style: Theme.of(context).textTheme.bodyMedium),
+        ],
+      ],
+    );
+  }
+}
+
+class _SectionHeaderButton extends StatelessWidget {
+  const _SectionHeaderButton({
+    required this.label,
+    required this.onPressed,
+    this.showAddIcon = true,
+  });
+
+  final String label;
+  final VoidCallback onPressed;
+  final bool showAddIcon;
+
+  @override
+  Widget build(BuildContext context) {
+    return MenuSectionActionButton(
+      label: label,
+      onPressed: onPressed,
+      showAddIcon: showAddIcon,
     );
   }
 }
@@ -941,11 +1642,10 @@ class _MenuActionRow extends StatelessWidget {
           const SizedBox(width: 12),
           SizedBox(
             width: 140,
-            child: FilledButton.icon(
+            child: FilledButton(
               style: primaryStyle,
               onPressed: isSaving ? null : onEdit,
-              icon: const Icon(Icons.edit_outlined, size: 18),
-              label: const Text('Edit'),
+              child: const Text('Edit'),
             ),
           ),
         ],

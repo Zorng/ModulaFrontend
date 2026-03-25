@@ -5,7 +5,9 @@ import 'package:modular_pos/features/menu/data/remote_menu_repository.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_branch.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_category.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_composition.dart';
+import 'package:modular_pos/features/menu/domain/models/menu_item_detail.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
+import 'package:modular_pos/features/menu/domain/models/menu_modifier_option_effect.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 
 final useMockMenuRepositoryProvider = Provider<bool>((ref) => false);
@@ -62,6 +64,12 @@ abstract class MenuRepository {
 
   Future<List<MenuCategory>> fetchCategoriesOnly({String? status});
 
+  Future<MenuItemDetail> fetchMenuItemDetail(String menuItemId);
+
+  Future<List<MenuModifierOptionEffect>> fetchMenuItemModifierOptionEffects(
+    String menuItemId,
+  );
+
   Future<(MenuItem, List<ModifierGroup>)> fetchItemWithModifiers(
     String menuItemId, {
     bool retrying = false,
@@ -72,6 +80,11 @@ abstract class MenuRepository {
   Future<void> upsertMenuItemComposition({
     required String menuItemId,
     required List<MenuComponent> baseComponents,
+  });
+
+  Future<void> upsertMenuItemModifierOptionEffects({
+    required String menuItemId,
+    required List<MenuModifierOptionEffect> effects,
   });
 
   Future<MenuCompositionEvaluate> evaluateMenuItemComposition({

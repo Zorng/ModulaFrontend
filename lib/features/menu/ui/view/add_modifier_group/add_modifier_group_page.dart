@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/theme/app_theme.dart';
-import 'package:modular_pos/core/widgets/display/dashed_border_painter.dart';
 import 'package:modular_pos/features/inventory/ui/widgets/inventory_section_card.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 import 'package:modular_pos/features/menu/ui/components/menu_form_field_label.dart';
 import 'package:modular_pos/features/menu/ui/view/add_modifier_group/add_modifier_group_models.dart';
 import 'package:modular_pos/features/menu/ui/view/add_modifier_group/widgets/modifier_option_row_tile.dart';
+import 'package:modular_pos/features/menu/ui/view/menu_item_form/widgets/menu_section_action_button.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
 
 enum ModifierGroupFormMode { create, view, edit }
@@ -329,6 +329,13 @@ class _AddModifierGroupPageState extends ConsumerState<AddModifierGroupPage> {
               elevation: 0,
               shadowColor: Colors.transparent,
               children: [
+                Text(
+                  'Modifier groups define reusable option structure, selection rules, and shared price deltas. Item-specific component effects are configured on each menu item.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).hintColor,
+                  ),
+                ),
+                const SizedBox(height: 12),
                 AbsorbPointer(
                   absorbing: !_isEditing,
                   child: Column(
@@ -400,8 +407,8 @@ class _AddModifierGroupPageState extends ConsumerState<AddModifierGroupPage> {
               children: [
                 Text(
                   _isSingleSelection
-                      ? 'Choose at least one option and set a default if needed.'
-                      : 'Choose at least one option for this modifier group.',
+                      ? 'Choose reusable options and set a default if needed.'
+                      : 'Choose reusable options for this modifier group.',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: Theme.of(context).hintColor,
                   ),
@@ -465,29 +472,16 @@ class _AddModifierGroupPageState extends ConsumerState<AddModifierGroupPage> {
                         .toList(),
                   ),
                 ),
-                if (_isEditing)
-                  InkWell(
-                    onTap: _addOption,
-                    child: CustomPaint(
-                      foregroundPainter: DashedBorderPainter(
-                        color: Theme.of(context).primaryColor,
-                      ),
-                      child: Container(
-                        height: 50,
-                        width: double.infinity,
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.primaryContainer,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Center(
-                          child: Text(
-                            '+ Add another option',
-                            style: TextStyle(color: Colors.black),
-                          ),
-                        ),
-                      ),
+                if (_isEditing && isSmall) ...[
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: MenuSectionActionButton(
+                      label: 'Add option',
+                      onPressed: _addOption,
                     ),
                   ),
+                ],
               ],
             ),
             const SizedBox(height: 16),

@@ -1,12 +1,16 @@
 import 'package:modular_pos/features/menu/data/dto/menu_branch_dto.dart';
 import 'package:modular_pos/features/menu/data/dto/menu_category_dto.dart';
 import 'package:modular_pos/features/menu/data/dto/menu_composition_dto.dart';
+import 'package:modular_pos/features/menu/data/dto/menu_item_detail_dto.dart';
 import 'package:modular_pos/features/menu/data/dto/menu_item_dto.dart';
+import 'package:modular_pos/features/menu/data/dto/menu_modifier_option_effect_dto.dart';
 import 'package:modular_pos/features/menu/data/dto/modifier_group_dto.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_branch.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_category.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_composition.dart';
+import 'package:modular_pos/features/menu/domain/models/menu_item_detail.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
+import 'package:modular_pos/features/menu/domain/models/menu_modifier_option_effect.dart';
 import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 
 class MenuMappers {
@@ -121,6 +125,43 @@ class MenuMappers {
       components: dto.components
           .map(toCompositionComponent)
           .toList(growable: false),
+    );
+  }
+
+  static MenuModifierOptionEffect toModifierOptionEffect(
+    MenuModifierOptionEffectDto dto,
+  ) {
+    return MenuModifierOptionEffect(
+      modifierOptionId: dto.modifierOptionId,
+      components: dto.components
+          .map(toModifierDelta)
+          .toList(growable: false),
+    );
+  }
+
+  static MenuItemDetail toItemDetail(MenuItemDetailDto dto) {
+    final modifierGroups = dto.modifierGroups
+        .map(toGroup)
+        .toList(growable: false);
+    final item = toItem(
+      dto.item.copyWith(
+        modifierGroupIds: modifierGroups
+            .map((entry) => entry.id)
+            .where((entry) => entry.isNotEmpty)
+            .toList(growable: false),
+      ),
+    );
+
+    return MenuItemDetail(
+      item: item,
+      modifierGroups: modifierGroups,
+      baseComponents: dto.baseComponents
+          .map(toCompositionComponent)
+          .toList(growable: false),
+      modifierOptionEffects: dto.modifierOptionEffects
+          .map(toModifierOptionEffect)
+          .toList(growable: false),
+      categoryName: dto.categoryName,
     );
   }
 
