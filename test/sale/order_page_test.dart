@@ -116,7 +116,7 @@ void main() {
     expect(find.text('Ticket TICKET-001'), findsNothing);
     expect(find.byType(TabBar), findsOneWidget);
     expect(find.text('Kitchen'), findsOneWidget);
-    expect(find.text('External Claims'), findsOneWidget);
+    expect(find.text('External Claims'), findsNothing);
     expect(find.text('Void Requests'), findsNothing);
     expect(find.text('Preparing'), findsOneWidget);
     expect(find.text('Cancelled'), findsOneWidget);
@@ -164,7 +164,7 @@ void main() {
 
       expect(find.text('Ticket LOCAL-CASH-001'), findsOneWidget);
       expect(find.text('Pending'), findsWidgets);
-      expect(find.text('External Claims'), findsOneWidget);
+      expect(find.text('External Claims'), findsNothing);
     },
   );
 
@@ -225,9 +225,7 @@ void main() {
     tester,
   ) async {
     final repo = _MockSaleRepository();
-    when(
-      () => repo.requestSaleVoid(any()),
-    ).thenAnswer(
+    when(() => repo.requestSaleVoid(any())).thenAnswer(
       (_) async => SaleVoidRequestReadDto(
         requestId: 'void-1',
         saleId: 'sale-1',
@@ -294,9 +292,7 @@ void main() {
     tester,
   ) async {
     final repo = _MockSaleRepository();
-    when(
-      () => repo.requestSaleVoid(any()),
-    ).thenAnswer(
+    when(() => repo.requestSaleVoid(any())).thenAnswer(
       (_) async => SaleVoidRequestReadDto(
         requestId: 'void-1',
         saleId: 'sale-1',
@@ -401,70 +397,6 @@ void main() {
     expect(find.text('Update fulfillment status'), findsOneWidget);
   });
 
-  testWidgets('OrderPage switches to the external claims queue', (
-    tester,
-  ) async {
-    final kitchenOrder = Order(
-      id: 'order-1',
-      saleId: 'sale-1',
-      number: 'ORDER-001',
-      status: 'pending',
-      ticketStatus: 'PAID',
-      placedAt: DateTime(2026, 3, 18, 10),
-      orderType: 'take_away',
-      paymentMethod: 'cash',
-      totalUsd: 3.5,
-      totalKhr: 14350,
-      tenderCurrency: 'usd',
-      tenderAmount: 5,
-      changeAmount: 1.5,
-      lines: const [OrderLine(name: 'Latte', modifiers: [], quantity: 1)],
-      sourceMode: 'DIRECT_CHECKOUT',
-    );
-    final claimOrder = Order(
-      id: 'local-claim-1',
-      saleId: '',
-      number: 'CLAIM-001',
-      status: 'pending',
-      ticketStatus: 'UNPAID',
-      placedAt: DateTime(2026, 3, 18, 11),
-      orderType: 'take_away',
-      paymentMethod: 'qr',
-      totalUsd: 4,
-      totalKhr: 16400,
-      tenderCurrency: 'usd',
-      tenderAmount: 0,
-      changeAmount: 0,
-      lines: const [OrderLine(name: 'Mocha', modifiers: [], quantity: 1)],
-      sourceMode: 'MANUAL_EXTERNAL_PAYMENT_CLAIM',
-      isLocalOutageOrder: true,
-      localOutageIntentId: 'local-claim-1',
-      localOutageState:
-          SaleOutageOrderStates.manualExternalPaymentClaimRecorded,
-      localOutageSourceMode: SaleOutageSourceModes.manualExternalPaymentClaim,
-    );
-    final notifier = _StaticOrdersNotifier([kitchenOrder, claimOrder]);
-
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [ordersProvider.overrideWith(() => notifier)],
-        child: const MaterialApp(home: OrderPage()),
-      ),
-    );
-
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('External Claims'));
-    await tester.pumpAndSettle();
-
-    expect(notifier.lastRequestedStatus, isNull);
-    expect(notifier.lastRequestedView, orderManualClaimReviewView);
-    expect(find.text('Ticket CLAIM-001'), findsOneWidget);
-    expect(find.text('Ticket ORDER-001'), findsNothing);
-    expect(find.text('Claim Recorded'), findsOneWidget);
-    expect(find.text('Kitchen Board'), findsNothing);
-  });
-
   testWidgets('OrderPage shows reviewer-only void requests tab and queue', (
     tester,
   ) async {
@@ -507,12 +439,16 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Void Requests'), findsOneWidget);
+    expect(find.text('External Claims'), findsNothing);
     expect(notifier.loadCallCount, 1);
 
     await tester.tap(find.text('Void Requests'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Review pending and historical sale void requests.'), findsOneWidget);
+    expect(
+      find.text('Review pending and historical sale void requests.'),
+      findsOneWidget,
+    );
     expect(find.text('Requested by Reviewer One'), findsOneWidget);
     expect(notifier.loadCallCount, 1);
     verify(() => repo.getSaleVoidRequests(any())).called(1);
@@ -540,7 +476,9 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          ordersProvider.overrideWith(() => _StaticOrdersNotifier([kitchenOrder])),
+          ordersProvider.overrideWith(
+            () => _StaticOrdersNotifier([kitchenOrder]),
+          ),
           loginControllerProvider.overrideWith(
             () => _StaticLoginController(_sessionForRole('cashier')),
           ),
@@ -552,7 +490,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Kitchen'), findsOneWidget);
-    expect(find.text('External Claims'), findsOneWidget);
+    expect(find.text('External Claims'), findsNothing);
     expect(find.text('Void Requests'), findsNothing);
   });
 

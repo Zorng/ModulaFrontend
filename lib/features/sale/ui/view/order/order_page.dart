@@ -67,13 +67,9 @@ class _OrderPageState extends ConsumerState<OrderPage> {
       return const [
         FulfillmentWorkspaceTab.kitchen,
         FulfillmentWorkspaceTab.voidRequests,
-        FulfillmentWorkspaceTab.externalClaims,
       ];
     }
-    return const [
-      FulfillmentWorkspaceTab.kitchen,
-      FulfillmentWorkspaceTab.externalClaims,
-    ];
+    return const [FulfillmentWorkspaceTab.kitchen];
   }
 
   String _tabLabel(FulfillmentWorkspaceTab tab) {
@@ -83,7 +79,7 @@ class _OrderPageState extends ConsumerState<OrderPage> {
       case FulfillmentWorkspaceTab.voidRequests:
         return 'Void Requests';
       case FulfillmentWorkspaceTab.externalClaims:
-        return 'External Claims';
+        return 'Deferred Claims';
     }
   }
 
@@ -138,13 +134,14 @@ class _OrderPageState extends ConsumerState<OrderPage> {
         SaleRequestVoidCommand(
           saleId: saleId,
           reason: reason.trim(),
-          clientOpId: 'sale-void-request-${DateTime.now().microsecondsSinceEpoch}',
+          clientOpId:
+              'sale-void-request-${DateTime.now().microsecondsSinceEpoch}',
         ),
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Void request submitted')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Void request submitted')));
       await _loadActiveWorkspace();
     } catch (error) {
       if (!mounted) return;
@@ -231,8 +228,7 @@ class _OrderPageState extends ConsumerState<OrderPage> {
         kitchenOrders
             .where((order) => order.status == _selectedStatus)
             .toList(growable: false),
-      FulfillmentWorkspaceTab.voidRequests =>
-        const <Order>[],
+      FulfillmentWorkspaceTab.voidRequests => const <Order>[],
       FulfillmentWorkspaceTab.externalClaims =>
         orders
             .where((order) => order.isExternalPaymentClaimOrder)
@@ -299,7 +295,7 @@ class _OrderPageState extends ConsumerState<OrderPage> {
                           child: Text(
                             workspaceTab == FulfillmentWorkspaceTab.kitchen
                                 ? 'No fulfillment work'
-                                : 'No external payment claims',
+                                : 'No deferred claim items',
                           ),
                         )
                       : LayoutBuilder(
@@ -315,7 +311,8 @@ class _OrderPageState extends ConsumerState<OrderPage> {
                               16,
                               16,
                             );
-                            if (workspaceTab == FulfillmentWorkspaceTab.kitchen &&
+                            if (workspaceTab ==
+                                    FulfillmentWorkspaceTab.kitchen &&
                                 isLarge) {
                               return GridView.builder(
                                 padding: contentPadding,
@@ -380,31 +377,31 @@ class _OrderPageState extends ConsumerState<OrderPage> {
                                       ? (order) => orderFulfillmentStatusLabel(
                                           order.status,
                                         )
-                                      : (order) =>
-                                            externalPaymentClaimStatusLabel(
-                                              order
-                                                  .externalPaymentClaimStatusKey,
-                                            ),
+                                      : (
+                                          order,
+                                        ) => externalPaymentClaimStatusLabel(
+                                          order.externalPaymentClaimStatusKey,
+                                        ),
                                   statusColorBuilder:
                                       workspaceTab ==
                                           FulfillmentWorkspaceTab.kitchen
                                       ? (order) =>
                                             orderStatusColor(order.status)
-                                      : (order) =>
-                                            externalPaymentClaimStatusColor(
-                                              order
-                                                  .externalPaymentClaimStatusKey,
-                                            ),
+                                      : (
+                                          order,
+                                        ) => externalPaymentClaimStatusColor(
+                                          order.externalPaymentClaimStatusKey,
+                                        ),
                                   statusTextColorBuilder:
                                       workspaceTab ==
                                           FulfillmentWorkspaceTab.kitchen
                                       ? (order) =>
                                             orderStatusTextColor(order.status)
-                                      : (order) =>
-                                            externalPaymentClaimStatusTextColor(
-                                              order
-                                                  .externalPaymentClaimStatusKey,
-                                            ),
+                                      : (
+                                          order,
+                                        ) => externalPaymentClaimStatusTextColor(
+                                          order.externalPaymentClaimStatusKey,
+                                        ),
                                 );
                               },
                             );
@@ -425,7 +422,8 @@ class _RequestVoidReasonSheet extends StatefulWidget {
   final Order order;
 
   @override
-  State<_RequestVoidReasonSheet> createState() => _RequestVoidReasonSheetState();
+  State<_RequestVoidReasonSheet> createState() =>
+      _RequestVoidReasonSheetState();
 }
 
 class _RequestVoidReasonSheetState extends State<_RequestVoidReasonSheet> {
@@ -558,10 +556,7 @@ class _RequestVoidReasonSheetState extends State<_RequestVoidReasonSheet> {
 }
 
 class _RequestVoidSummaryRow extends StatelessWidget {
-  const _RequestVoidSummaryRow({
-    required this.label,
-    required this.value,
-  });
+  const _RequestVoidSummaryRow({required this.label, required this.value});
 
   final String label;
   final String value;

@@ -9,7 +9,6 @@ import 'package:modular_pos/core/feedback/user_error_message.dart';
 import 'package:modular_pos/core/widgets/media/product_image_picker.dart';
 import 'package:modular_pos/features/auth/domain/auth_role.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
-import 'package:modular_pos/features/policy/ui/viewmodels/policy_viewmodel.dart';
 import 'package:modular_pos/features/sale/ui/view/order_detail/order_detail_utils.dart';
 import 'package:modular_pos/features/sale/ui/view/order/order_utils.dart';
 import 'package:modular_pos/features/sale/ui/view/order_detail/widgets/order_detail_summary_row.dart';
@@ -22,13 +21,15 @@ class OrderDetailPage extends ConsumerWidget {
     this.showBack = true,
   });
 
+  static const bool _manualClaimUiEnabled = false;
+  static const bool _legacyOpenTicketUiEnabled = false;
+
   final String orderIdentityKey;
   final bool showBack;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final orders = ref.watch(ordersProvider);
-    final policyState = ref.watch(policyNotifierProvider);
     final connectivityStatus = ref.watch(appConnectivityStatusProvider);
     final currentRole = resolveSessionAuthRole(
       ref.watch(loginControllerProvider).session,
@@ -53,7 +54,9 @@ class OrderDetailPage extends ConsumerWidget {
       ),
     );
     final showManualClaimSection =
-        order.isLocalOutageOrder && order.isManualClaimOutageOrder;
+        _manualClaimUiEnabled &&
+        order.isLocalOutageOrder &&
+        order.isManualClaimOutageOrder;
     final showOfflineCashReplaySection = order.isQueueBackedOfflineCashOrder;
     final showLegacyOfflineCashSettlementSection =
         order.isAwaitingOutageSettlement && !order.isManualClaimOutageOrder;
@@ -75,7 +78,9 @@ class OrderDetailPage extends ConsumerWidget {
     final submittedByDisplayName =
         (order.manualPaymentClaimRequestedByDisplayName ?? '').trim();
     final showManualClaimBottomSubmitAction =
-        showManualClaimSection && !order.hasSubmittedManualExternalPaymentClaim;
+        _manualClaimUiEnabled &&
+        showManualClaimSection &&
+        !order.hasSubmittedManualExternalPaymentClaim;
     final canSubmitManualClaimFromBottom =
         order.hasManualExternalPaymentClaimRecorded &&
         connectivityStatus != AppConnectivityStatus.offline;
@@ -217,7 +222,8 @@ class OrderDetailPage extends ConsumerWidget {
                       value: '\$${order.totalUsd.toStringAsFixed(2)}',
                       subValue: 'KHR ${order.totalKhr.toStringAsFixed(0)}',
                     ),
-                    if (order.hasManualExternalPaymentClaimRecorded) ...[
+                    if (_manualClaimUiEnabled &&
+                        order.hasManualExternalPaymentClaimRecorded) ...[
                       const Divider(),
                       OrderDetailSummaryRow(
                         label: 'Claimed amount',
@@ -228,7 +234,8 @@ class OrderDetailPage extends ConsumerWidget {
                           tenderCurrency: order.tenderCurrency,
                         ),
                       ),
-                    ] else if (!order.isExternalPaymentClaimOrder) ...[
+                    ] else if (!(_manualClaimUiEnabled &&
+                        order.isExternalPaymentClaimOrder)) ...[
                       const Divider(),
                       OrderDetailSummaryRow(
                         label: 'Received amount',
@@ -246,7 +253,8 @@ class OrderDetailPage extends ConsumerWidget {
                         ),
                       ),
                     ],
-                    if (order.isExternalPaymentClaimOrder &&
+                    if (_manualClaimUiEnabled &&
+                        order.isExternalPaymentClaimOrder &&
                         capturedByDisplayName.isNotEmpty) ...[
                       const Divider(),
                       OrderDetailSummaryRow(
@@ -254,7 +262,8 @@ class OrderDetailPage extends ConsumerWidget {
                         value: capturedByDisplayName,
                       ),
                     ],
-                    if (order.isExternalPaymentClaimOrder &&
+                    if (_manualClaimUiEnabled &&
+                        order.isExternalPaymentClaimOrder &&
                         submittedByDisplayName.isNotEmpty) ...[
                       const Divider(),
                       OrderDetailSummaryRow(
@@ -262,7 +271,8 @@ class OrderDetailPage extends ConsumerWidget {
                         value: submittedByDisplayName,
                       ),
                     ],
-                    if (order.isExternalPaymentClaimOrder &&
+                    if (_manualClaimUiEnabled &&
+                        order.isExternalPaymentClaimOrder &&
                         order.manualPaymentClaimRequestedAt != null) ...[
                       const Divider(),
                       OrderDetailSummaryRow(
@@ -630,10 +640,10 @@ class OrderDetailPage extends ConsumerWidget {
                 ),
               ),
             ],
-            if (order.isSettleableOpenTicket) ...[
+            if (_legacyOpenTicketUiEnabled && order.isSettleableOpenTicket) ...[
               const SizedBox(height: 16),
               Text(
-                'Open Ticket Settlement',
+                'Legacy Ticket Settlement',
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               const SizedBox(height: 8),
@@ -649,9 +659,7 @@ class OrderDetailPage extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        !policyState.branchPolicy.saleAllowPayLater
-                            ? 'New pay-later tickets are disabled by policy, but this existing unpaid ticket can still be settled.'
-                            : 'This existing unpaid ticket can be settled directly from here.',
+                        'This existing unpaid ticket can be settled directly from here.',
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                       const SizedBox(height: 12),
@@ -700,19 +708,19 @@ class OrderDetailPage extends ConsumerWidget {
   }
 
   String _paymentMethodLabel(Order order) {
-    if (order.hasRejectedManualExternalPaymentClaim) {
+    if (_manualClaimUiEnabled && order.hasRejectedManualExternalPaymentClaim) {
       return 'External payment claim rejected';
     }
-    if (order.hasSubmittedManualExternalPaymentClaim) {
+    if (_manualClaimUiEnabled && order.hasSubmittedManualExternalPaymentClaim) {
       return 'External payment claim pending review';
     }
-    if (order.hasPendingRemoteManualPaymentClaim) {
+    if (_manualClaimUiEnabled && order.hasPendingRemoteManualPaymentClaim) {
       return 'Manual payment claim pending review';
     }
-    if (order.hasManualExternalPaymentClaimRecorded) {
+    if (_manualClaimUiEnabled && order.hasManualExternalPaymentClaimRecorded) {
       return 'External payment claim proof attached';
     }
-    if (order.isManualClaimOutageOrder) {
+    if (_manualClaimUiEnabled && order.isManualClaimOutageOrder) {
       return 'External payment claim (offline capture)';
     }
     if (order.isQueueBackedOfflineCashOrder) {
@@ -727,6 +735,9 @@ class OrderDetailPage extends ConsumerWidget {
   }
 
   String _outageRecoveryMessage(Order order) {
+    if (!_manualClaimUiEnabled && order.isManualClaimOutageOrder) {
+      return 'This archived order came from a deferred external-claim flow and is not actionable in the current release.';
+    }
     if (order.hasRejectedManualExternalPaymentClaim) {
       final reviewNote = (order.localOutageLastErrorMessage ?? '').trim();
       if (reviewNote.isNotEmpty) {

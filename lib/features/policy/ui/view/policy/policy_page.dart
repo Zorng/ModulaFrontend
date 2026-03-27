@@ -63,14 +63,6 @@ class _PolicyPageState extends ConsumerState<PolicyPage> {
               'Turns Cambodian Riel rounding on or off for branch pricing and payment display.',
           type: PolicyItemType.toggle,
         ),
-        PolicyItem(
-          id: 'allow_pay_later',
-          title: 'Allow Pay Later',
-          icon: Icons.receipt_outlined,
-          subtitle:
-              'Controls whether this branch can place open tickets before payment is collected.',
-          type: PolicyItemType.toggle,
-        ),
       ],
     ),
   ];
@@ -148,11 +140,6 @@ class _PolicyPageState extends ConsumerState<PolicyPage> {
     if (item.id == 'usd_to_khr') {
       final rate = double.tryParse(newValue.toString()) ?? 0;
       await policyNotifier.updateCurrency(rate);
-      return;
-    }
-
-    if (item.id == 'allow_pay_later') {
-      await policyNotifier.updatePayLater(enabled: newValue as bool);
       return;
     }
   }
@@ -290,7 +277,6 @@ class _PolicyPageState extends ConsumerState<PolicyPage> {
     return {
       'apply_vat': state.branchPolicy.saleVatEnabled,
       'khr_rounding_enabled': state.branchPolicy.saleKhrRoundingEnabled,
-      'allow_pay_later': state.branchPolicy.saleAllowPayLater,
     };
   }
 

@@ -220,7 +220,7 @@ void main() {
   });
 
   testWidgets(
-    'OrderDetailPage shows inline proof form for unprepared manual claim outage order when online',
+    'OrderDetailPage hides manual claim entry UI for deferred outage claim orders',
     (tester) async {
       await tester.binding.setSurfaceSize(const Size(1280, 900));
       addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -266,13 +266,19 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      expect(find.text('Save Proof'), findsOneWidget);
-      expect(find.text('Submit Claim Online'), findsOneWidget);
+      expect(find.text('Save Proof'), findsNothing);
+      expect(find.text('Submit Claim Online'), findsNothing);
+      expect(
+        find.text(
+          'This archived order came from a deferred external-claim flow and is not actionable in the current release.',
+        ),
+        findsOneWidget,
+      );
       expect(find.text('Payment'), findsNothing);
       expect(find.text('Order Items'), findsOneWidget);
       expect(find.text('Grand Total'), findsOneWidget);
-      expect(find.text('Customer reference (optional)'), findsOneWidget);
-      expect(find.text('Select proof image'), findsOneWidget);
+      expect(find.text('Customer reference (optional)'), findsNothing);
+      expect(find.text('Select proof image'), findsNothing);
       expect(find.text('Record Manual Claim'), findsNothing);
       expect(find.text('Proof image URL'), findsNothing);
       expect(find.text('Add Claim Proof'), findsNothing);
@@ -280,7 +286,7 @@ void main() {
   );
 
   testWidgets(
-    'OrderDetailPage shows manual claim online submit action for recorded outage claim',
+    'OrderDetailPage hides recorded manual claim actions for deferred outage claim orders',
     (tester) async {
       final order = Order(
         id: 'local-2',
@@ -328,15 +334,21 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      expect(find.text('External Payment Claim'), findsOneWidget);
-      expect(find.text('Submit Claim Online'), findsOneWidget);
-      expect(find.text('Captured by'), findsOneWidget);
-      expect(find.text('Staff One'), findsOneWidget);
+      expect(find.text('External Payment Claim'), findsNothing);
+      expect(find.text('Submit Claim Online'), findsNothing);
+      expect(find.text('Captured by'), findsNothing);
+      expect(find.text('Staff One'), findsNothing);
+      expect(
+        find.text(
+          'This archived order came from a deferred external-claim flow and is not actionable in the current release.',
+        ),
+        findsOneWidget,
+      );
     },
   );
 
   testWidgets(
-    'OrderDetailPage shows manager review actions for submitted manual claim',
+    'OrderDetailPage hides manual claim review actions for deferred outage claim orders',
     (tester) async {
       final order = Order(
         id: 'order-1',
@@ -389,13 +401,65 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      expect(find.text('Approve Claim'), findsOneWidget);
-      expect(find.text('Reject Claim'), findsOneWidget);
-      expect(find.text('Captured by'), findsOneWidget);
-      expect(find.text('Staff One'), findsOneWidget);
-      expect(find.text('Submitted by'), findsOneWidget);
-      expect(find.text('Staff Two'), findsOneWidget);
-      expect(find.text('Submitted at'), findsOneWidget);
+      expect(find.text('Approve Claim'), findsNothing);
+      expect(find.text('Reject Claim'), findsNothing);
+      expect(find.text('Captured by'), findsNothing);
+      expect(find.text('Staff One'), findsNothing);
+      expect(find.text('Submitted by'), findsNothing);
+      expect(find.text('Staff Two'), findsNothing);
+      expect(find.text('Submitted at'), findsNothing);
+      expect(
+        find.text(
+          'This archived order came from a deferred external-claim flow and is not actionable in the current release.',
+        ),
+        findsOneWidget,
+      );
     },
   );
+
+  testWidgets('OrderDetailPage hides legacy open-ticket settlement actions', (
+    tester,
+  ) async {
+    final order = Order(
+      id: 'ticket-1',
+      saleId: '',
+      number: 'TICKET-001',
+      status: 'pending',
+      ticketStatus: 'UNPAID',
+      placedAt: DateTime(2026, 3, 17, 9),
+      orderType: 'dine_in',
+      paymentMethod: 'unpaid',
+      totalUsd: 3.5,
+      totalKhr: 14350,
+      tenderCurrency: 'usd',
+      tenderAmount: 0,
+      changeAmount: 0,
+      lines: const [OrderLine(name: 'Latte', modifiers: [], quantity: 1)],
+      openTicketId: 'ticket-1',
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ordersProvider.overrideWith(() => _StaticOrdersNotifier([order])),
+          policyNotifierProvider.overrideWith(_StaticPolicyNotifier.new),
+          appConnectivityStatusProvider.overrideWith(
+            _OnlineConnectivityNotifier.new,
+          ),
+          loginControllerProvider.overrideWith(
+            () => _StaticLoginController(_sessionForRole('cashier')),
+          ),
+        ],
+        child: const MaterialApp(
+          home: OrderDetailPage(orderIdentityKey: 'order:ticket-1'),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(find.text('Open Ticket Settlement'), findsNothing);
+    expect(find.textContaining('Collect USD'), findsNothing);
+    expect(find.textContaining('Collect KHR'), findsNothing);
+  });
 }

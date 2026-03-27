@@ -332,7 +332,7 @@ void main() {
   );
 
   testWidgets(
-    'offline QR flow keeps checkout action and explains later external-claim handling',
+    'offline QR flow disables KHQR checkout and asks the operator to reconnect',
     (tester) async {
       SharedPreferences.setMockInitialValues({});
       final prefs = await SharedPreferences.getInstance();
@@ -393,19 +393,79 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      final captureButton = find.widgetWithText(FilledButton, 'Checkout');
+      final captureButton = find.widgetWithText(FilledButton, 'Generate Code');
       expect(captureButton, findsOneWidget);
-      expect(tester.widget<FilledButton>(captureButton).onPressed, isNotNull);
-      expect(find.widgetWithText(FilledButton, 'Generate Code'), findsNothing);
+      expect(tester.widget<FilledButton>(captureButton).onPressed, isNull);
       expect(
         find.text(
-          'Offline KHQR gateway is unavailable. Checkout will capture the order first. Add proof and submit the external-payment claim when back online.',
+          'KHQR checkout is unavailable while offline. Reconnect to continue.',
         ),
         findsOneWidget,
       );
       expect(find.text('Capture KHQR Claim'), findsNothing);
     },
   );
+
+  testWidgets('dine-in selection stays on pay-first checkout', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final store = AuthSessionStore(prefs);
+
+    const item = MenuItem(
+      id: 'menu-1',
+      name: 'Latte',
+      categoryId: 'cat-1',
+      price: 1.5,
+    );
+
+    final container = createTestContainer(
+      overrides: [
+        authSessionStoreProvider.overrideWithValue(store),
+        authRepositoryProvider.overrideWithValue(FakeAuthRepository()),
+        saleRepositoryProvider.overrideWithValue(_MockSaleRepository()),
+        policyNotifierProvider.overrideWith(_StaticPolicyNotifier.new),
+        menuViewModelProvider.overrideWith(
+          () => _StaticMenuViewModel(const MenuState(isLoading: false)),
+        ),
+        saleCartProvider.overrideWith(
+          () => _PrefilledCartNotifier(
+            const SaleCartState(
+              saleId: 'sale-1',
+              saleType: 'dine_in',
+              lines: [CartLine(item: item, quantity: 1, selectedOptionIds: {})],
+            ),
+          ),
+        ),
+        saleAccessGateProvider.overrideWithValue(
+          const SaleAccessGate(
+            branchId: 'branch-1',
+            contextLoading: false,
+            branchActive: true,
+            branchFrozen: false,
+            cashSessionOpen: true,
+            canMutateCart: true,
+            canCheckout: true,
+            canPlacePayLater: true,
+          ),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: SaleCartPage()),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField).first, '5');
+    await tester.pumpAndSettle();
+
+    expect(find.widgetWithText(FilledButton, 'Checkout'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Place Order'), findsNothing);
+  });
 
   testWidgets(
     'Cart shows tax row and tax-inclusive change when VAT is enabled',
