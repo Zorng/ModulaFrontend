@@ -5,6 +5,7 @@ import 'package:modular_pos/features/reporting/data/management_reporting_reposit
 import 'package:modular_pos/features/reporting/data/mock_management_reporting_repository.dart';
 import 'package:modular_pos/features/reporting/domain/models/report_query.dart';
 import 'package:modular_pos/features/reporting/domain/models/report_scope.dart';
+import 'package:modular_pos/features/reporting/domain/models/restock_spend_reporting.dart';
 import 'package:modular_pos/features/reporting/ui/models/reporting_branch_option.dart';
 import 'package:modular_pos/features/reporting/ui/models/restock_spend_drill_down_route_args.dart';
 import 'package:modular_pos/features/reporting/ui/models/sales_drill_down_route_args.dart';
@@ -340,9 +341,13 @@ void main() {
       );
 
       final state = container.read(restockSpendSummaryControllerProvider);
+      final now = DateTime.now();
 
       expect(state.branchScope, ReportBranchScope.allBranches);
       expect(state.branchId, isNull);
+      expect(state.window, ReportTimeWindow.month);
+      expect(state.selectedDateRange.start, DateTime(now.year, now.month, 1));
+      expect(state.selectedDateRange.end, DateTime(now.year, now.month + 1, 0));
     });
 
     test('loads restock spend summary from the reporting repository', () async {
@@ -397,6 +402,42 @@ void main() {
 
       expect(state.branchScope, ReportBranchScope.branch);
     });
+
+    test('custom date range sends window custom with from and to', () async {
+      final repository = _CapturingRestockSpendSummaryRepository();
+      final container = createTestContainer(
+        overrides: [
+          managementReportingRepositoryProvider.overrideWithValue(repository),
+          reportingAccessContextProvider.overrideWithValue(
+            const ReportingAccessContext(
+              role: AuthRole.admin,
+              tenantId: 'tenant-1',
+              activeBranchId: 'branch-1',
+              branches: [ReportingBranchOption(id: 'branch-1', name: 'Main')],
+            ),
+          ),
+        ],
+      );
+
+      await container
+          .read(restockSpendSummaryControllerProvider.notifier)
+          .setDateRange(
+            DateTimeRange(
+              start: DateTime(2026, 2, 14),
+              end: DateTime(2026, 2, 18),
+            ),
+          );
+
+      expect(repository.capturedQuery, isNotNull);
+      expect(repository.capturedQuery!.scope.window, ReportTimeWindow.custom);
+      expect(repository.capturedQuery!.scope.from, '2026-02-14');
+      expect(repository.capturedQuery!.scope.to, '2026-02-18');
+      expect(
+        repository.capturedQuery!.scope.branchScope,
+        ReportBranchScope.allBranches,
+      );
+      expect(repository.capturedQuery!.scope.branchId, isNull);
+    });
   });
 
   group('RestockSpendDrillDownController', () {
@@ -412,7 +453,7 @@ void main() {
       await container
           .read(restockSpendDrillDownControllerProvider.notifier)
           .initialize(
-            const RestockSpendDrillDownRouteArgs(
+            RestockSpendDrillDownRouteArgs(
               scope: ReportScopeQuery(
                 branchScope: ReportBranchScope.branch,
                 branchId: 'branch-1',
@@ -439,7 +480,7 @@ void main() {
       await container
           .read(restockSpendDrillDownControllerProvider.notifier)
           .initialize(
-            const RestockSpendDrillDownRouteArgs(
+            RestockSpendDrillDownRouteArgs(
               scope: ReportScopeQuery(
                 branchScope: ReportBranchScope.branch,
                 branchId: 'branch-1',
@@ -453,5 +494,60 @@ void main() {
 
       expect(state.costFilter, RestockSpendCostFilter.unknown);
     });
+
+    test('normalizes invalid inventory window handoff to month', () async {
+      final repository = _CapturingRestockSpendDrillDownRepository();
+      final container = createTestContainer(
+        overrides: [
+          managementReportingRepositoryProvider.overrideWithValue(repository),
+        ],
+      );
+
+      await container
+          .read(restockSpendDrillDownControllerProvider.notifier)
+          .initialize(
+            RestockSpendDrillDownRouteArgs(
+              scope: const ReportScopeQuery(
+                window: ReportTimeWindow.week,
+                branchScope: ReportBranchScope.allBranches,
+              ),
+            ),
+          );
+
+      expect(repository.capturedQuery, isNotNull);
+      expect(repository.capturedQuery!.scope.window, ReportTimeWindow.month);
+      expect(repository.capturedQuery!.scope.from, isNull);
+      expect(repository.capturedQuery!.scope.to, isNull);
+      expect(
+        repository.capturedQuery!.scope.branchScope,
+        ReportBranchScope.allBranches,
+      );
+    });
   });
+}
+
+class _CapturingRestockSpendSummaryRepository
+    extends MockManagementReportingRepository {
+  RestockSpendSummaryReportQuery? capturedQuery;
+
+  @override
+  Future<RestockSpendSummaryReport> getRestockSpendSummary(
+    RestockSpendSummaryReportQuery query,
+  ) async {
+    capturedQuery = query;
+    return super.getRestockSpendSummary(query);
+  }
+}
+
+class _CapturingRestockSpendDrillDownRepository
+    extends MockManagementReportingRepository {
+  RestockSpendDrillDownReportQuery? capturedQuery;
+
+  @override
+  Future<RestockSpendDrillDownReport> getRestockSpendDrillDown(
+    RestockSpendDrillDownReportQuery query,
+  ) async {
+    capturedQuery = query;
+    return super.getRestockSpendDrillDown(query);
+  }
 }

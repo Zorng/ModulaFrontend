@@ -106,7 +106,8 @@ class RestockSpendSummaryController extends Notifier<RestockSpendSummaryState> {
   RestockSpendSummaryState build() {
     final access = ref.watch(reportingAccessContextProvider);
     final today = DateTime.now();
-    final normalizedToday = DateTime(today.year, today.month, today.day);
+    final monthStart = DateTime(today.year, today.month, 1);
+    final monthEnd = DateTime(today.year, today.month + 1, 0);
     final defaultBranchScope = access?.canUseAllBranches == true
         ? ReportBranchScope.allBranches
         : ReportBranchScope.branch;
@@ -116,11 +117,8 @@ class RestockSpendSummaryController extends Notifier<RestockSpendSummaryState> {
       report: null,
       errorMessage: null,
       errorCode: null,
-      window: ReportTimeWindow.day,
-      selectedDateRange: DateTimeRange(
-        start: normalizedToday,
-        end: normalizedToday,
-      ),
+      window: ReportTimeWindow.month,
+      selectedDateRange: DateTimeRange(start: monthStart, end: monthEnd),
       branchScope: defaultBranchScope,
       branchId: defaultBranchScope == ReportBranchScope.branch
           ? access?.fallbackBranchId

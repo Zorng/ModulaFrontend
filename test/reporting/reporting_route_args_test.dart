@@ -31,7 +31,7 @@ void main() {
   });
 
   test('restock drill-down route args round-trip through query parameters', () {
-    const args = RestockSpendDrillDownRouteArgs(
+    final args = RestockSpendDrillDownRouteArgs(
       scope: ReportScopeQuery(
         window: ReportTimeWindow.week,
         branchScope: ReportBranchScope.allBranches,
@@ -44,11 +44,39 @@ void main() {
     );
 
     expect(restored, isNotNull);
-    expect(restored!.scope.window, ReportTimeWindow.week);
+    expect(restored!.scope.window, ReportTimeWindow.month);
     expect(restored.scope.branchScope, ReportBranchScope.allBranches);
     expect(restored.scope.branchId, isNull);
     expect(restored.branchName, 'Main Branch');
   });
+
+  test(
+    'restock drill-down route args keep custom scope only when from and to exist',
+    () {
+      final args = RestockSpendDrillDownRouteArgs(
+        scope: const ReportScopeQuery(
+          window: ReportTimeWindow.custom,
+          from: '2026-03-01',
+          to: '2026-03-24',
+          branchScope: ReportBranchScope.branch,
+          branchId: 'branch-1',
+        ),
+        branchName: 'Main Branch',
+      );
+
+      final restored = RestockSpendDrillDownRouteArgs.fromQueryParameters(
+        args.toQueryParameters(),
+      );
+
+      expect(restored, isNotNull);
+      expect(restored!.scope.window, ReportTimeWindow.custom);
+      expect(restored.scope.from, '2026-03-01');
+      expect(restored.scope.to, '2026-03-24');
+      expect(restored.scope.branchScope, ReportBranchScope.branch);
+      expect(restored.scope.branchId, 'branch-1');
+      expect(restored.branchName, 'Main Branch');
+    },
+  );
 
   test('branch-scoped drill-down args require a branch id', () {
     final restored = SalesDrillDownRouteArgs.fromQueryParameters({
