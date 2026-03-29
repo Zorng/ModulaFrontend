@@ -67,7 +67,7 @@ void main() {
     await _pumpPage(
       tester,
       accessContext: null,
-      args: const RestockSpendDrillDownRouteArgs(
+      args: RestockSpendDrillDownRouteArgs(
         scope: ReportScopeQuery(
           branchScope: ReportBranchScope.branch,
           branchId: 'branch-mock-with-long-name',
@@ -97,13 +97,16 @@ Future<void> _pumpPage(
       ),
     ],
   ),
-  RestockSpendDrillDownRouteArgs args = const RestockSpendDrillDownRouteArgs(
-    scope: ReportScopeQuery(
-      branchScope: ReportBranchScope.branch,
-      branchId: 'branch-1',
-    ),
-  ),
+  RestockSpendDrillDownRouteArgs? args,
 }) async {
+  final effectiveArgs =
+      args ??
+      RestockSpendDrillDownRouteArgs(
+        scope: const ReportScopeQuery(
+          branchScope: ReportBranchScope.branch,
+          branchId: 'branch-1',
+        ),
+      );
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
@@ -111,9 +114,7 @@ Future<void> _pumpPage(
         if (accessContext != null)
           reportingAccessContextProvider.overrideWithValue(accessContext),
       ],
-      child: MaterialApp(
-        home: RestockSpendDrillDownPage(args: args),
-      ),
+      child: MaterialApp(home: RestockSpendDrillDownPage(args: effectiveArgs)),
     ),
   );
 }

@@ -24,6 +24,7 @@ class ReportingHorizontalBarChart extends StatelessWidget {
     required this.items,
     this.emptyText = 'No chart data available.',
     this.axisSteps = 0,
+    this.maxValue,
     this.minChartHeight = 220,
     this.chartHeightPerItem = 42,
   });
@@ -31,6 +32,7 @@ class ReportingHorizontalBarChart extends StatelessWidget {
   final List<ReportingHorizontalBarChartItem> items;
   final String emptyText;
   final int axisSteps;
+  final double? maxValue;
   final double minChartHeight;
   final double chartHeightPerItem;
 
@@ -48,11 +50,16 @@ class ReportingHorizontalBarChart extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final resolvedAxisSteps = _resolveAxisSteps(constraints.maxWidth);
-        final interval = _resolveAxisInterval(
-          maxItemValue: maxItemValue,
-          axisSteps: resolvedAxisSteps,
-        );
-        final maxAxisValue = math.max(1.0, interval * resolvedAxisSteps);
+        final resolvedMaxValue = maxValue;
+        final interval = resolvedMaxValue != null && resolvedMaxValue > 0
+            ? math.max(1.0, resolvedMaxValue / resolvedAxisSteps)
+            : _resolveAxisInterval(
+                maxItemValue: maxItemValue,
+                axisSteps: resolvedAxisSteps,
+              );
+        final maxAxisValue = resolvedMaxValue != null && resolvedMaxValue > 0
+            ? resolvedMaxValue
+            : math.max(1.0, interval * resolvedAxisSteps);
         final formatter = NumberFormat.decimalPattern();
         final theme = Theme.of(context);
         final axisColor = theme.dividerColor;

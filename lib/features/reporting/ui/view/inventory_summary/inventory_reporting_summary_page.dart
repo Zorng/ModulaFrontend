@@ -190,8 +190,6 @@ class _InventoryReportingSummaryPageState
     final dateFilter = InventoryDropdown<ReportTimeWindow>(
       initialValue: state.window,
       entries: const [
-        DropdownMenuEntry(value: ReportTimeWindow.day, label: 'Today'),
-        DropdownMenuEntry(value: ReportTimeWindow.week, label: 'Week'),
         DropdownMenuEntry(value: ReportTimeWindow.month, label: 'Month'),
         DropdownMenuEntry(value: ReportTimeWindow.custom, label: 'Custom'),
       ],

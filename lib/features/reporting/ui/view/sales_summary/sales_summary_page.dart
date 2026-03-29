@@ -7,13 +7,16 @@ import 'package:modular_pos/features/branchV2/ui/viewmodels/branch_controller.da
 import 'package:modular_pos/features/inventory/ui/widgets/inventory_dropdown.dart';
 import 'package:modular_pos/features/reporting/domain/models/report_query.dart';
 import 'package:modular_pos/features/reporting/domain/models/report_scope.dart';
+import 'package:modular_pos/features/reporting/domain/models/sales_reporting.dart';
 import 'package:modular_pos/features/reporting/ui/models/sales_drill_down_route_args.dart';
 import 'package:modular_pos/features/reporting/ui/reporting_formatters.dart';
 import 'package:modular_pos/features/reporting/ui/viewmodels/reporting_access_context.dart';
 import 'package:modular_pos/features/reporting/ui/viewmodels/sales_summary_controller.dart';
 import 'package:modular_pos/features/reporting/ui/widgets/reporting_kpi_card.dart';
+import 'package:modular_pos/features/reporting/ui/widgets/reporting_state_views.dart';
 import 'package:modular_pos/features/reporting/ui/widgets/sales_category_breakdown_panel.dart';
 import 'package:modular_pos/features/reporting/ui/widgets/sales_payment_breakdown_panel.dart';
+import 'package:modular_pos/features/reporting/ui/widgets/sales_top_items_panel.dart';
 import 'package:modular_pos/features/reporting/ui/widgets/sales_type_breakdown_panel.dart';
 
 class SalesSummaryPage extends ConsumerStatefulWidget {
@@ -111,24 +114,43 @@ class _SalesSummaryPageState extends ConsumerState<SalesSummaryPage> {
                   ),
                 ],
                 const SizedBox(height: 24),
-                _buildKpiSection(context, state),
-                const SizedBox(height: 24),
-                _buildSalesSummaryPanels(state),
-                if (state.report != null && access != null) ...[
+                if (state.errorMessage != null && state.report == null)
+                  ReportingMessageStateView(
+                    icon: Icons.receipt_long_outlined,
+                    title: 'Sales summary unavailable',
+                    message: state.errorMessage!,
+                    actionLabel: 'Retry',
+                    onAction: () {
+                      ref.read(salesSummaryControllerProvider.notifier).load();
+                    },
+                  )
+                else if (_hasNoVisibleSalesData(state.report))
+                  const ReportingMessageStateView(
+                    icon: Icons.receipt_long_outlined,
+                    title: 'No sales data',
+                    message:
+                        'No sales matched the current filters for the selected period.',
+                  )
+                else ...[
+                  _buildKpiSection(context, state),
                   const SizedBox(height: 24),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: FilledButton.icon(
-                      onPressed: () => _openDrillDown(
-                        context,
-                        state,
-                        access,
-                        tenantBranches,
+                  _buildSalesSummaryPanels(state),
+                  if (state.report != null && access != null) ...[
+                    const SizedBox(height: 24),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: FilledButton.icon(
+                        onPressed: () => _openDrillDown(
+                          context,
+                          state,
+                          access,
+                          tenantBranches,
+                        ),
+                        icon: const Icon(Icons.list_alt_outlined),
+                        label: const Text('View Sales Details'),
                       ),
-                      icon: const Icon(Icons.list_alt_outlined),
-                      label: const Text('View Sales Details'),
                     ),
-                  ),
+                  ],
                 ],
               ],
             ),
@@ -362,6 +384,7 @@ class _SalesSummaryPageState extends ConsumerState<SalesSummaryPage> {
         state.report?.cashTenderBreakdown ?? const [];
     final categoryBreakdownItems = state.report?.categoryBreakdown ?? const [];
     final saleTypeBreakdownItems = state.report?.saleTypeBreakdown ?? const [];
+    final topItems = state.report?.topItems ?? const [];
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -377,6 +400,8 @@ class _SalesSummaryPageState extends ConsumerState<SalesSummaryPage> {
               SalesCategoryBreakdownPanel(categories: categoryBreakdownItems),
               const SizedBox(height: _summaryPanelGap),
               SalesTypeBreakdownPanel(items: saleTypeBreakdownItems),
+              const SizedBox(height: _summaryPanelGap),
+              SalesTopItemsPanel(items: topItems),
             ],
           );
         }
@@ -407,6 +432,8 @@ class _SalesSummaryPageState extends ConsumerState<SalesSummaryPage> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   SalesTypeBreakdownPanel(items: saleTypeBreakdownItems),
+                  const SizedBox(height: _summaryPanelGap),
+                  SalesTopItemsPanel(items: topItems),
                 ],
               ),
             ),
@@ -443,4 +470,22 @@ class _SalesSummaryPageState extends ConsumerState<SalesSummaryPage> {
       queryParameters: args.toQueryParameters(),
     );
   }
+}
+
+bool _hasNoVisibleSalesData(SalesSummaryReport? report) {
+  if (report == null) return false;
+
+  final hasConfirmedSales = report.confirmed.transactionCount > 0;
+  final hasPaymentBreakdown = report.paymentBreakdown.isNotEmpty;
+  final hasCashTenderBreakdown = report.cashTenderBreakdown.isNotEmpty;
+  final hasSaleTypeBreakdown = report.saleTypeBreakdown.isNotEmpty;
+  final hasCategoryBreakdown = report.categoryBreakdown.isNotEmpty;
+  final hasTopItems = report.topItems.isNotEmpty;
+
+  return !hasConfirmedSales &&
+      !hasPaymentBreakdown &&
+      !hasCashTenderBreakdown &&
+      !hasSaleTypeBreakdown &&
+      !hasCategoryBreakdown &&
+      !hasTopItems;
 }

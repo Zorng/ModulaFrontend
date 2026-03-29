@@ -1,11 +1,12 @@
 import 'package:modular_pos/features/reporting/domain/models/report_query.dart';
+import 'package:modular_pos/features/reporting/domain/models/report_scope.dart';
 import 'package:modular_pos/features/reporting/ui/models/report_scope_route_query.dart';
 
 class RestockSpendDrillDownRouteArgs {
-  const RestockSpendDrillDownRouteArgs({
-    required this.scope,
+  RestockSpendDrillDownRouteArgs({
+    required ReportScopeQuery scope,
     this.branchName,
-  });
+  }) : scope = _normalizedScope(scope);
 
   final ReportScopeQuery scope;
   final String? branchName;
@@ -29,6 +30,25 @@ class RestockSpendDrillDownRouteArgs {
       branchName: _normalized(queryParameters['branchName']),
     );
   }
+}
+
+ReportScopeQuery _normalizedScope(ReportScopeQuery scope) {
+  final normalizedFrom = _normalized(scope.from);
+  final normalizedTo = _normalized(scope.to);
+  final usesCustomWindow =
+      scope.window == ReportTimeWindow.custom &&
+      normalizedFrom != null &&
+      normalizedTo != null;
+
+  return ReportScopeQuery(
+    window: usesCustomWindow ? ReportTimeWindow.custom : ReportTimeWindow.month,
+    from: usesCustomWindow ? normalizedFrom : null,
+    to: usesCustomWindow ? normalizedTo : null,
+    branchScope: scope.branchScope,
+    branchId: scope.branchScope == ReportBranchScope.branch
+        ? _normalized(scope.branchId)
+        : null,
+  );
 }
 
 String? _normalized(String? value) {
