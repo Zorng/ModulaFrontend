@@ -13,9 +13,9 @@ class TenantWorkspaceAppBarActions extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          OperationalNotificationInboxAction(compact: true),
-          SizedBox(width: 4),
           GlobalSyncStatusIndicator(compact: true),
+          SizedBox(width: 4),
+          OperationalNotificationInboxAction(compact: true),
           SizedBox(width: 4),
           AccountShellAction(),
         ],

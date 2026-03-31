@@ -446,6 +446,20 @@ void main() {
       find.byKey(const Key('operational_notification_unread_badge')),
       findsOneWidget,
     );
+    expect(
+      tester.getTopLeft(find.byType(GlobalSyncStatusIndicator)).dx,
+      lessThan(
+        tester
+            .getTopLeft(
+              find.byKey(const Key('operational_notification_inbox_action')),
+            )
+            .dx,
+      ),
+    );
+    expect(
+      tester.getTopLeft(find.byType(GlobalSyncStatusIndicator)).dx,
+      lessThan(tester.getTopLeft(find.byKey(AccountShellAction.actionKey)).dx),
+    );
     await tester.tap(find.byTooltip('Open workspace drawer'));
     await tester.pumpAndSettle();
 
@@ -579,6 +593,20 @@ void main() {
     );
     expect(find.byIcon(Icons.settings_outlined), findsNothing);
     expect(find.byType(GlobalSyncStatusIndicator), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.byType(GlobalSyncStatusIndicator)).dx,
+      lessThan(
+        tester
+            .getTopLeft(
+              find.byKey(const Key('operational_notification_inbox_action')),
+            )
+            .dx,
+      ),
+    );
+    expect(
+      tester.getTopLeft(find.byType(GlobalSyncStatusIndicator)).dx,
+      lessThan(tester.getTopLeft(find.byKey(AccountShellAction.actionKey)).dx),
+    );
   });
 
   testWidgets('wide tenant portal does not duplicate shell utility icons', (

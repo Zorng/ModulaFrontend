@@ -47,11 +47,13 @@ class BranchWorkspaceScaffold extends ConsumerWidget {
         ),
         title: Text(title),
         actions: <Widget>[
-          ...(actions ?? const <Widget>[]),
-          if ((actions ?? const <Widget>[]).isNotEmpty)
-            const SizedBox(width: 4),
-          const OperationalNotificationInboxAction(compact: true),
           const GlobalSyncStatusIndicator(compact: true),
+          const SizedBox(width: 4),
+          const OperationalNotificationInboxAction(compact: true),
+          if ((actions ?? const <Widget>[]).isNotEmpty) ...[
+            const SizedBox(width: 4),
+            ...(actions ?? const <Widget>[]),
+          ],
           const AccountShellAction(),
           const SizedBox(width: 4),
         ],
