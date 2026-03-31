@@ -609,6 +609,9 @@ class SaleRepository implements SaleCheckoutRepository {
       receipt = SaleImmediateReceiptDto(
         receiptId: receiptRead.receiptId,
         saleId: receiptRead.saleId,
+        receiptNumber: receiptRead.receiptNumber.isEmpty
+            ? receiptRead.receiptId
+            : receiptRead.receiptNumber,
         statusDisplay: receiptRead.statusDisplay,
         issuedAt: receiptRead.issuedAt.toLocal(),
       );

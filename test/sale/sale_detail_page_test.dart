@@ -13,6 +13,7 @@ import 'package:modular_pos/features/sale/data/sale_repository.dart';
 import 'package:modular_pos/features/sale/ui/view/sale_detail/sale_detail_page.dart';
 
 class _MockSaleRepository extends Mock implements SaleCheckoutRepository {}
+
 class _StaticLoginController extends LoginController {
   _StaticLoginController(this._session);
 
@@ -32,16 +33,10 @@ void main() {
       ),
     );
     registerFallbackValue(
-      const SaleApproveVoidCommand(
-        saleId: 'sale-1',
-        clientOpId: 'client-op',
-      ),
+      const SaleApproveVoidCommand(saleId: 'sale-1', clientOpId: 'client-op'),
     );
     registerFallbackValue(
-      const SaleRejectVoidCommand(
-        saleId: 'sale-1',
-        clientOpId: 'client-op',
-      ),
+      const SaleRejectVoidCommand(saleId: 'sale-1', clientOpId: 'client-op'),
     );
   });
 
@@ -125,9 +120,9 @@ void main() {
     tester,
   ) async {
     final repo = _MockSaleRepository();
-    when(() => repo.getSaleDetail(saleId: 'sale-1')).thenAnswer(
-      (_) async => _saleDetail(),
-    );
+    when(
+      () => repo.getSaleDetail(saleId: 'sale-1'),
+    ).thenAnswer((_) async => _saleDetail());
     when(
       () => repo.getSaleVoidRequest(saleId: 'sale-1'),
     ).thenAnswer((_) async => _voidRequest());
@@ -148,11 +143,11 @@ void main() {
 
     expect(find.text('Sale Detail'), findsOneWidget);
     expect(find.text('Sale Record'), findsOneWidget);
-    expect(find.text('sale-1'), findsWidgets);
+    expect(find.text('Receipt No.'), findsOneWidget);
+    expect(find.text('RCP-20260325-0001'), findsOneWidget);
     expect(find.text('Void Pending'), findsNWidgets(2));
     expect(find.text('Overview'), findsOneWidget);
-    expect(find.text('Order ID'), findsOneWidget);
-    expect(find.text('order-1'), findsOneWidget);
+    expect(find.text('Order ID'), findsNothing);
     await tester.scrollUntilVisible(find.text('Void Request'), 200);
     await tester.pumpAndSettle();
     expect(find.text('Void Request'), findsOneWidget);
@@ -172,9 +167,7 @@ void main() {
           ? _finalizedSaleDetail()
           : _finalizedSaleDetail(status: 'VOID_PENDING');
     });
-    when(
-      () => repo.getSaleVoidRequest(saleId: 'sale-1'),
-    ).thenAnswer((_) async {
+    when(() => repo.getSaleVoidRequest(saleId: 'sale-1')).thenAnswer((_) async {
       return saleReadCount == 1 ? null : _voidRequest();
     });
     when(
@@ -201,10 +194,7 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Request void'));
     await tester.pumpAndSettle();
 
-    await tester.enterText(
-      find.byType(TextField),
-      'Wrong item prepared',
-    );
+    await tester.enterText(find.byType(TextField), 'Wrong item prepared');
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilledButton, 'Submit'));
     await tester.pump();
@@ -236,9 +226,7 @@ void main() {
           ? _finalizedSaleDetail()
           : _finalizedSaleDetail(status: 'VOID_PENDING');
     });
-    when(
-      () => repo.getSaleVoidRequest(saleId: 'sale-1'),
-    ).thenAnswer((_) async {
+    when(() => repo.getSaleVoidRequest(saleId: 'sale-1')).thenAnswer((_) async {
       return saleReadCount == 1 ? null : _voidRequest();
     });
     when(
@@ -287,9 +275,7 @@ void main() {
       saleReadCount += 1;
       return saleReadCount == 1 ? _saleDetail() : _approvedSaleDetail();
     });
-    when(
-      () => repo.getSaleVoidRequest(saleId: 'sale-1'),
-    ).thenAnswer((_) async {
+    when(() => repo.getSaleVoidRequest(saleId: 'sale-1')).thenAnswer((_) async {
       return saleReadCount == 1 ? _voidRequest() : _approvedVoidRequest();
     });
     when(
@@ -353,9 +339,7 @@ void main() {
           ? _saleDetail()
           : _finalizedSaleDetail(status: 'FINALIZED');
     });
-    when(
-      () => repo.getSaleVoidRequest(saleId: 'sale-1'),
-    ).thenAnswer((_) async {
+    when(() => repo.getSaleVoidRequest(saleId: 'sale-1')).thenAnswer((_) async {
       return saleReadCount == 1 ? _voidRequest() : _rejectedVoidRequest();
     });
     when(
@@ -437,6 +421,7 @@ SaleDetailReadDto _saleDetail() {
   return SaleDetailReadDto(
     saleId: 'sale-1',
     orderId: 'order-1',
+    receiptNumber: 'RCP-20260325-0001',
     status: 'VOID_PENDING',
     saleType: 'TAKEAWAY',
     paymentMethod: 'KHQR',
@@ -475,6 +460,7 @@ SaleDetailReadDto _finalizedSaleDetail({String status = 'FINALIZED'}) {
   return SaleDetailReadDto(
     saleId: 'sale-1',
     orderId: 'order-1',
+    receiptNumber: 'RCP-20260325-0001',
     status: status,
     saleType: 'TAKEAWAY',
     paymentMethod: 'KHQR',
@@ -555,6 +541,7 @@ SaleDetailReadDto _approvedSaleDetail() {
   return SaleDetailReadDto(
     saleId: 'sale-1',
     orderId: 'order-1',
+    receiptNumber: 'RCP-20260325-0001',
     status: 'VOIDED',
     saleType: 'TAKEAWAY',
     paymentMethod: 'KHQR',

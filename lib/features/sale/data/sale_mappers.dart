@@ -13,6 +13,9 @@ class SaleMappers {
     return SaleImmediateReceiptDto(
       receiptId: receipt.receiptId,
       saleId: receipt.saleId,
+      receiptNumber: receipt.receiptNumber.isEmpty
+          ? receipt.receiptId
+          : receipt.receiptNumber,
       statusDisplay: receipt.statusDisplay,
       issuedAt: receipt.issuedAt.toLocal(),
     );
@@ -56,6 +59,7 @@ class SaleMappers {
     return SaleDetailReadDto(
       saleId: dto.id,
       orderId: dto.orderId,
+      receiptNumber: dto.receiptNumber,
       status: normalizeSaleState(dto.state),
       saleType: dto.saleType.trim().isEmpty ? 'TAKEAWAY' : dto.saleType.trim(),
       paymentMethod: normalizePaymentMethod(dto.paymentMethod),
@@ -133,6 +137,7 @@ class SaleMappers {
       voidRequestId: dto.voidRequestId,
       saleId: dto.saleId,
       orderId: dto.orderId,
+      receiptNumber: dto.receiptNumber,
       tenantId: dto.tenantId,
       branchId: dto.branchId,
       branchName: dto.branchName,

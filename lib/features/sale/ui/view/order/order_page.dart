@@ -491,10 +491,6 @@ class _RequestVoidReasonSheetState extends State<_RequestVoidReasonSheet> {
                     value: orderCardTitle(order.number),
                   ),
                   _RequestVoidSummaryRow(
-                    label: 'Sale ID',
-                    value: order.finalizedSaleId,
-                  ),
-                  _RequestVoidSummaryRow(
                     label: 'Total',
                     value: '\$${order.totalUsd.toStringAsFixed(2)}',
                   ),

@@ -38,6 +38,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Void Requests'), findsOneWidget);
+    expect(find.text('Receipt RCP-20260325-0001'), findsOneWidget);
     expect(find.text('Wrong item prepared'), findsOneWidget);
     expect(find.text('Requested by Staff One'), findsOneWidget);
     expect(find.text('Main Branch'), findsOneWidget);
@@ -73,9 +74,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [saleRepositoryProvider.overrideWithValue(repo)],
-        child: const MaterialApp(
-          home: Scaffold(body: VoidRequestQueueView()),
-        ),
+        child: const MaterialApp(home: Scaffold(body: VoidRequestQueueView())),
       ),
     );
 
@@ -108,15 +107,16 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [saleRepositoryProvider.overrideWithValue(repo)],
-        child: const MaterialApp(
-          home: Scaffold(body: VoidRequestQueueView()),
-        ),
+        child: const MaterialApp(home: Scaffold(body: VoidRequestQueueView())),
       ),
     );
 
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('Failed to load void requests.'), findsOneWidget);
+    expect(
+      find.textContaining('Failed to load void requests.'),
+      findsOneWidget,
+    );
     expect(find.widgetWithText(FilledButton, 'Retry'), findsOneWidget);
 
     await tester.tap(find.widgetWithText(FilledButton, 'Retry'));
@@ -134,6 +134,7 @@ SaleVoidRequestQueuePageDto _queuePage() {
         voidRequestId: 'vr-1',
         saleId: 'sale-1',
         orderId: 'order-1',
+        receiptNumber: 'RCP-20260325-0001',
         tenantId: 'tenant-1',
         branchId: 'branch-1',
         branchName: 'Main Branch',

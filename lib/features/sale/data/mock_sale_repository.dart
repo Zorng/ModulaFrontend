@@ -361,6 +361,9 @@ class MockSaleRepository implements SaleCheckoutRepository {
             voidRequestId: request.requestId,
             saleId: request.saleId,
             orderId: null,
+            receiptNumber: sale == null
+                ? null
+                : _receiptsBySaleId[sale.saleId]?.receiptNumber,
             tenantId: 'mock-tenant-001',
             branchId: _activeBranchId,
             branchName: null,
@@ -411,6 +414,7 @@ class MockSaleRepository implements SaleCheckoutRepository {
     return SaleDetailReadDto(
       saleId: finalized.saleId,
       orderId: null,
+      receiptNumber: _receiptsBySaleId[finalized.saleId]?.receiptNumber,
       status: finalized.state.trim().toUpperCase(),
       saleType: finalized.saleType.trim().isEmpty
           ? 'TAKEAWAY'
@@ -1033,6 +1037,7 @@ class MockSaleRepository implements SaleCheckoutRepository {
           receipt: SaleImmediateReceiptDto(
             receiptId: receiptId,
             saleId: saleId,
+            receiptNumber: receiptId,
             statusDisplay: 'NORMAL',
             issuedAt: now,
           ),
@@ -1297,6 +1302,7 @@ class MockSaleRepository implements SaleCheckoutRepository {
           receipt: SaleImmediateReceiptDto(
             receiptId: receipt.receiptNumber,
             saleId: receipt.saleId,
+            receiptNumber: receipt.receiptNumber,
             statusDisplay: 'NORMAL',
             issuedAt: receipt.issuedAt,
           ),

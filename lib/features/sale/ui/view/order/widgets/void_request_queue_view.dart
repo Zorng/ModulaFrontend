@@ -84,9 +84,9 @@ class _VoidRequestQueueViewState extends ConsumerState<VoidRequestQueueView> {
             children: [
               Text(
                 'Void Requests',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: 4),
               Text(
@@ -186,10 +186,7 @@ class _VoidRequestQueueViewState extends ConsumerState<VoidRequestQueueView> {
 }
 
 class _VoidRequestQueueCard extends StatelessWidget {
-  const _VoidRequestQueueCard({
-    required this.item,
-    required this.onTap,
-  });
+  const _VoidRequestQueueCard({required this.item, required this.onTap});
 
   final SaleVoidRequestQueueItemDto item;
   final VoidCallback onTap;
@@ -202,6 +199,10 @@ class _VoidRequestQueueCard extends StatelessWidget {
         : item.requestedByAccountId;
     final branchName = (item.branchName ?? '').trim();
     final metaColor = theme.colorScheme.onSurfaceVariant;
+    final receiptNumber = (item.receiptNumber ?? '').trim();
+    final title = receiptNumber.isNotEmpty
+        ? 'Receipt $receiptNumber'
+        : 'Finalized Sale';
 
     return InkWell(
       onTap: onTap,
@@ -226,7 +227,7 @@ class _VoidRequestQueueCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Sale ${item.saleId}',
+                          title,
                           style: theme.textTheme.titleMedium?.copyWith(
                             fontWeight: FontWeight.w700,
                           ),
@@ -243,7 +244,9 @@ class _VoidRequestQueueCard extends StatelessWidget {
                   ),
                   _QueueStatusPill(
                     label: _labelize(item.voidRequestStatus),
-                    backgroundColor: _requestStatusColor(item.voidRequestStatus),
+                    backgroundColor: _requestStatusColor(
+                      item.voidRequestStatus,
+                    ),
                   ),
                 ],
               ),
@@ -273,10 +276,7 @@ class _VoidRequestQueueCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 14),
-              Text(
-                item.reason,
-                style: theme.textTheme.bodyMedium,
-              ),
+              Text(item.reason, style: theme.textTheme.bodyMedium),
               const SizedBox(height: 14),
               Row(
                 children: [
@@ -303,10 +303,7 @@ class _VoidRequestQueueCard extends StatelessWidget {
 }
 
 class _QueueMetaChip extends StatelessWidget {
-  const _QueueMetaChip({
-    required this.icon,
-    required this.label,
-  });
+  const _QueueMetaChip({required this.icon, required this.label});
 
   final IconData icon;
   final String label;
@@ -338,10 +335,7 @@ class _QueueMetaChip extends StatelessWidget {
 }
 
 class _QueueStatusPill extends StatelessWidget {
-  const _QueueStatusPill({
-    required this.label,
-    required this.backgroundColor,
-  });
+  const _QueueStatusPill({required this.label, required this.backgroundColor});
 
   final String label;
   final Color backgroundColor;
@@ -399,8 +393,7 @@ String _labelize(String raw) {
       .split('_')
       .where((part) => part.isNotEmpty)
       .map(
-        (part) =>
-            '${part[0].toUpperCase()}${part.substring(1).toLowerCase()}',
+        (part) => '${part[0].toUpperCase()}${part.substring(1).toLowerCase()}',
       )
       .join(' ');
 }

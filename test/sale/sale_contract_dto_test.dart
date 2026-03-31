@@ -51,6 +51,7 @@ void main() {
       'receipt': {
         'receiptId': 'receipt-1',
         'saleId': 'sale-1',
+        'receiptNumber': 'RCP-20260223-0001',
         'statusDisplay': 'NORMAL',
         'issuedAt': '2026-02-23T18:00:00.000Z',
       },
@@ -62,6 +63,7 @@ void main() {
     expect(dto.sale.cashReceivedUsd, 10);
     expect(dto.sale.changeGivenUsd, 2);
     expect(dto.receipt?.receiptId, 'receipt-1');
+    expect(dto.receipt?.receiptNumber, 'RCP-20260223-0001');
   });
 
   test('parses khqr initiate response', () {
@@ -121,6 +123,7 @@ void main() {
       'receipt': {
         'receiptId': 'sale-2',
         'saleId': 'sale-2',
+        'receiptNumber': 'RCP-20260222-0001',
         'statusDisplay': 'NORMAL',
         'issuedAt': '2026-02-22T10:10:01.000Z',
       },
@@ -131,6 +134,7 @@ void main() {
     expect(dto.sale.cashReceivedUsd, 0);
     expect(dto.sale.changeGivenUsd, 0);
     expect(dto.receipt?.saleId, 'sale-2');
+    expect(dto.receipt?.receiptNumber, 'RCP-20260222-0001');
   });
 
   test('parses approve manual payment claim response with receipt', () {
@@ -142,6 +146,7 @@ void main() {
       'receipt': {
         'receiptId': 'receipt-1',
         'saleId': 'sale-1',
+        'receiptNumber': 'RCP-20260317-0001',
         'statusDisplay': 'NORMAL',
         'issuedAt': '2026-03-17T09:15:00.000Z',
       },
@@ -152,6 +157,7 @@ void main() {
     expect(dto.status, 'APPROVED');
     expect(dto.saleId, 'sale-1');
     expect(dto.receipt?.receiptId, 'receipt-1');
+    expect(dto.receipt?.receiptNumber, 'RCP-20260317-0001');
   });
 
   test('parses reject manual payment claim response', () {
@@ -298,6 +304,7 @@ void main() {
       'cashChangeTenderAmount': 5,
       'createdAt': '2026-02-22T10:05:00.000Z',
       'updatedAt': '2026-02-22T10:15:00.000Z',
+      'receiptNumber': 'RCP-20260222-0003',
       'lines': [
         {
           'id': 'line-1',
@@ -314,6 +321,7 @@ void main() {
     expect(dto.totalUsdExact, 5);
     expect(dto.cashReceivedUsd, 10);
     expect(dto.changeGivenUsd, 5);
+    expect(dto.receiptNumber, 'RCP-20260222-0003');
     expect(dto.items.single.menuItemName, 'Iced Latte');
   });
 }

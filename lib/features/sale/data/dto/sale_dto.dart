@@ -99,6 +99,7 @@ class SaleDto {
     required this.updatedAt,
     required this.items,
     this.finalizedAt,
+    this.receiptNumber,
     this.voidedAt,
     this.voidReason,
   });
@@ -131,6 +132,7 @@ class SaleDto {
   final DateTime updatedAt;
   final List<SaleItemDto> items;
   final DateTime? finalizedAt;
+  final String? receiptNumber;
   final DateTime? voidedAt;
   final String? voidReason;
 
@@ -208,6 +210,7 @@ class SaleDto {
       updatedAt: _readDateTime(json['updatedAt']),
       items: _readSaleItems(json),
       finalizedAt: _readNullableDateTime(json['finalizedAt']),
+      receiptNumber: _readNullableString(json['receiptNumber']),
       voidedAt: _readNullableDateTime(json['voidedAt']),
       voidReason: _readNullableString(json['voidReason']),
     );
@@ -310,12 +313,14 @@ class SaleReceiptProjectionDto {
   const SaleReceiptProjectionDto({
     required this.receiptId,
     required this.saleId,
+    required this.receiptNumber,
     required this.statusDisplay,
     required this.issuedAt,
   });
 
   final String receiptId;
   final String saleId;
+  final String receiptNumber;
   final String statusDisplay;
   final DateTime issuedAt;
 
@@ -323,6 +328,7 @@ class SaleReceiptProjectionDto {
     return SaleReceiptProjectionDto(
       receiptId: _readString(json['receiptId']),
       saleId: _readString(json['saleId']),
+      receiptNumber: _readString(json['receiptNumber']),
       statusDisplay: _readString(json['statusDisplay']),
       issuedAt: _readDateTime(json['issuedAt']),
     );
@@ -1332,6 +1338,7 @@ class SaleVoidRequestQueueItemResponseDto {
     required this.grandTotalKhr,
     required this.saleCreatedAt,
     this.orderId,
+    this.receiptNumber,
     this.branchName,
     this.requestedByDisplayName,
     this.fulfillmentStatus,
@@ -1340,6 +1347,7 @@ class SaleVoidRequestQueueItemResponseDto {
   final String voidRequestId;
   final String saleId;
   final String? orderId;
+  final String? receiptNumber;
   final String tenantId;
   final String branchId;
   final String? branchName;
@@ -1362,6 +1370,7 @@ class SaleVoidRequestQueueItemResponseDto {
       voidRequestId: _readString(json['voidRequestId']),
       saleId: _readString(json['saleId']),
       orderId: _readNullableString(json['orderId']),
+      receiptNumber: _readNullableString(json['receiptNumber']),
       tenantId: _readString(json['tenantId']),
       branchId: _readString(json['branchId']),
       branchName: _readNullableString(json['branchName']),

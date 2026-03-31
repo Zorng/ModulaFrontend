@@ -13,6 +13,7 @@ import 'package:modular_pos/features/policy/ui/viewmodels/policy_viewmodel.dart'
 import 'package:modular_pos/features/sale/data/sale_checkout_repository_contract.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/order_viewmodel.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_access_gate.dart';
+import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_state.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_pricing.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_checkout_error_message.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_viewmodel.dart';
@@ -67,8 +68,6 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text('Receipt #: ${receipt.receiptNumber}'),
-                    const SizedBox(height: 4),
-                    Text('Sale ID: ${receipt.saleId}'),
                     const SizedBox(height: 4),
                     Text('Payment: ${receipt.paymentMethod.toUpperCase()}'),
                     const SizedBox(height: 12),
@@ -347,6 +346,14 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
     super.dispose();
   }
 
+  String _lastReceiptNumber(SaleCartState state) {
+    final immediate = state.lastReceipt?.receiptNumber.trim() ?? '';
+    if (immediate.isNotEmpty) return immediate;
+    final printable = state.lastPrintableReceipt?.receiptNumber.trim() ?? '';
+    if (printable.isNotEmpty) return printable;
+    return '';
+  }
+
   void _syncKhqrPolling({
     required String paymentMethod,
     required String khqrStatus,
@@ -574,10 +581,8 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text('Sale finalized successfully.'),
-                        if (cartState.lastFinalizedOrderId != null)
-                          Text('Order #: ${cartState.lastFinalizedOrderId}'),
-                        if (cartState.lastReceiptId != null)
-                          Text('Receipt #: ${cartState.lastReceiptId}'),
+                        if (_lastReceiptNumber(cartState).isNotEmpty)
+                          Text('Receipt #: ${_lastReceiptNumber(cartState)}'),
                         if (cartState.lastReceipt != null &&
                             cartState.lastReceipt!.statusDisplay
                                 .trim()

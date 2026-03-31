@@ -57,6 +57,10 @@ class OrderDetailPage extends ConsumerWidget {
     final backendOrderIdForDetail = order.isLocalOutageOrder
         ? (order.localOutageMaterializedOrderId ?? '').trim()
         : order.orderId;
+    final visibleOrderReference = order.number.trim();
+    final showOrderReference =
+        visibleOrderReference.isNotEmpty &&
+        !shouldUseOrderIdentityPlaceholder(visibleOrderReference);
     final AsyncValue<SaleOrderDetailReadResultDto?> remoteOrderDetailAsync =
         _manualClaimUiEnabled &&
             order.isExternalPaymentClaimOrder &&
@@ -211,12 +215,10 @@ class OrderDetailPage extends ConsumerWidget {
                 ),
                 child: Column(
                   children: [
-                    if (order.orderId.isNotEmpty) ...[
+                    if (showOrderReference) ...[
                       OrderDetailSummaryRow(
-                        label: order.isLocalOutageOrder
-                            ? 'Backend Order ID'
-                            : 'Order ID',
-                        value: order.orderId,
+                        label: 'Order',
+                        value: visibleOrderReference,
                       ),
                       const Divider(),
                     ],
@@ -1071,10 +1073,8 @@ class OrderDetailPage extends ConsumerWidget {
                   'The external payment claim is approved and the sale is now finalized.',
                 ),
                 const SizedBox(height: 12),
-                if ((result.receiptId ?? '').trim().isNotEmpty)
-                  Text('Receipt #: ${result.receiptId}'),
-                if ((result.saleId ?? '').trim().isNotEmpty)
-                  Text('Sale ID: ${result.saleId}'),
+                if ((result.receipt?.receiptNumber ?? '').trim().isNotEmpty)
+                  Text('Receipt #: ${result.receipt!.receiptNumber}'),
               ],
             ),
             actions: [

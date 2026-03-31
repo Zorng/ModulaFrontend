@@ -658,6 +658,7 @@ SaleVoidRequestQueuePageDto _voidQueuePage() {
         voidRequestId: 'void-request-1',
         saleId: 'sale-1',
         orderId: 'order-1',
+        receiptNumber: 'RCP-20260318-0001',
         tenantId: 'tenant-1',
         branchId: 'branch-1',
         branchName: 'Main Branch',

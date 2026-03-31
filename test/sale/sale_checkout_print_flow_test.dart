@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:modular_pos/features/cash_session/ui/viewmodels/cash_session_viewmodel.dart';
 import 'package:modular_pos/core/printing/esc_pos_receipt_formatter.dart';
 import 'package:modular_pos/core/printing/thermal_printer_controller.dart';
 import 'package:modular_pos/core/printing/thermal_printer_state.dart';
@@ -73,6 +74,16 @@ class _PrefilledSaleCartNotifier extends SaleCartNotifier {
   SaleCartState build() => _initialState;
 }
 
+class _SpyCashSessionViewModel extends CashSessionViewModel {
+  @override
+  CashSessionState build() {
+    return const CashSessionState(currentUserAccountId: 'user-1');
+  }
+
+  @override
+  Future<void> load() async {}
+}
+
 class _RecordingPrinterController extends ThermalPrinterController {
   final List<ThermalReceiptPrintData> printedReceipts =
       <ThermalReceiptPrintData>[];
@@ -112,6 +123,7 @@ void main() {
         receipt: SaleImmediateReceiptDto(
           receiptId: 'RCP-1001',
           saleId: 'sale-1',
+          receiptNumber: 'RCP-1001',
           statusDisplay: 'NORMAL',
           issuedAt: DateTime(2026, 3, 10, 8, 30),
         ),
@@ -127,6 +139,7 @@ void main() {
     final container = createTestContainer(
       overrides: [
         saleRepositoryProvider.overrideWithValue(repo),
+        cashSessionViewModelProvider.overrideWith(_SpyCashSessionViewModel.new),
         saleCartProvider.overrideWith(
           () => _PrefilledSaleCartNotifier(
             const SaleCartState(
@@ -192,6 +205,7 @@ void main() {
           receipt: SaleImmediateReceiptDto(
             receiptId: 'sale-2',
             saleId: 'sale-2',
+            receiptNumber: 'RCP-1002',
             statusDisplay: 'NORMAL',
             issuedAt: DateTime(2026, 3, 10, 8, 35),
           ),
@@ -207,6 +221,9 @@ void main() {
       final container = createTestContainer(
         overrides: [
           saleRepositoryProvider.overrideWithValue(repo),
+          cashSessionViewModelProvider.overrideWith(
+            _SpyCashSessionViewModel.new,
+          ),
           saleCartProvider.overrideWith(
             () => _PrefilledSaleCartNotifier(
               const SaleCartState(
@@ -241,7 +258,10 @@ void main() {
       await Future<void>.delayed(Duration.zero);
 
       expect(printerController.printedReceipts, hasLength(1));
-      expect(printerController.printedReceipts.single.receiptNumber, 'sale-2');
+      expect(
+        printerController.printedReceipts.single.receiptNumber,
+        'RCP-1002',
+      );
       expect(
         printerController.printedReceipts.single.items.single.name,
         'Hot Latte',
@@ -267,6 +287,7 @@ void main() {
         receipt: SaleImmediateReceiptDto(
           receiptId: 'RCP-1004',
           saleId: 'sale-4',
+          receiptNumber: 'RCP-1004',
           statusDisplay: 'NORMAL',
           issuedAt: DateTime(2026, 3, 10, 9, 15),
         ),
@@ -282,6 +303,7 @@ void main() {
     final container = createTestContainer(
       overrides: [
         saleRepositoryProvider.overrideWithValue(repo),
+        cashSessionViewModelProvider.overrideWith(_SpyCashSessionViewModel.new),
         saleCartProvider.overrideWith(
           () => _PrefilledSaleCartNotifier(
             const SaleCartState(
@@ -344,6 +366,7 @@ void main() {
           receipt: SaleImmediateReceiptDto(
             receiptId: 'RCP-1005',
             saleId: 'sale-5',
+            receiptNumber: 'RCP-1005',
             statusDisplay: 'NORMAL',
             issuedAt: DateTime(2026, 3, 10, 9, 30),
           ),
@@ -366,6 +389,9 @@ void main() {
       final container = createTestContainer(
         overrides: [
           saleRepositoryProvider.overrideWithValue(repo),
+          cashSessionViewModelProvider.overrideWith(
+            _SpyCashSessionViewModel.new,
+          ),
           saleCartProvider.overrideWith(
             () => _PrefilledSaleCartNotifier(
               const SaleCartState(
@@ -458,6 +484,7 @@ void main() {
     final container = createTestContainer(
       overrides: [
         saleRepositoryProvider.overrideWithValue(repo),
+        cashSessionViewModelProvider.overrideWith(_SpyCashSessionViewModel.new),
         saleCartProvider.overrideWith(
           () => _PrefilledSaleCartNotifier(
             SaleCartState(
@@ -466,6 +493,7 @@ void main() {
               lastReceipt: SaleImmediateReceiptDto(
                 receiptId: 'RCP-1003',
                 saleId: 'sale-3',
+                receiptNumber: 'RCP-1003',
                 statusDisplay: 'NORMAL',
                 issuedAt: DateTime(2026, 3, 10, 9, 0),
               ),

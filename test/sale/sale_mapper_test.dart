@@ -208,6 +208,7 @@ void main() {
         'receipt': {
           'receiptId': 'receipt-1',
           'saleId': 'sale-1',
+          'receiptNumber': 'RCP-20260307-0001',
           'statusDisplay': 'Paid',
           'issuedAt': '2026-03-07T10:05:00.000Z',
         },
@@ -218,6 +219,7 @@ void main() {
     expect(result.orderId, 'order-1');
     expect(result.status, 'FINALIZED');
     expect(result.receiptId, 'receipt-1');
+    expect(result.receipt?.receiptNumber, 'RCP-20260307-0001');
     expect(result.cashReceivedUsd, 10);
     expect(result.changeGivenUsd, 5);
     expect(result.idempotentReplay, isFalse);
@@ -253,6 +255,7 @@ void main() {
           'receipt': {
             'receiptId': 'sale-2',
             'saleId': 'sale-2',
+            'receiptNumber': 'RCP-20260307-0002',
             'statusDisplay': 'Paid',
             'issuedAt': '2026-03-07T10:05:00.000Z',
           },
@@ -261,6 +264,7 @@ void main() {
 
       expect(result.saleId, 'sale-2');
       expect(result.receiptId, 'sale-2');
+      expect(result.receipt?.receiptNumber, 'RCP-20260307-0002');
     },
   );
 

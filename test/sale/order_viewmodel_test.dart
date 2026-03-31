@@ -1272,6 +1272,7 @@ void main() {
           receipt: SaleImmediateReceiptDto(
             receiptId: 'receipt-1',
             saleId: 'sale-1',
+            receiptNumber: 'RCP-20260317-0001',
             statusDisplay: 'NORMAL',
             issuedAt: DateTime.utc(2026, 3, 17, 9, 15),
           ),

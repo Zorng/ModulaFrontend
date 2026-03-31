@@ -1684,8 +1684,9 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
   }) {
     final issuedAt = finalizeResult.receipt?.issuedAt ?? DateTime.now();
     final resolvedSaleId = _resolveFinalizeSaleId(finalizeResult);
-    final receiptNumber = finalizeResult.receiptId?.trim().isNotEmpty == true
-        ? finalizeResult.receiptId!.trim()
+    final receiptNumber =
+        finalizeResult.receipt?.receiptNumber.trim().isNotEmpty == true
+        ? finalizeResult.receipt!.receiptNumber.trim()
         : resolvedSaleId;
     final totals = _checkoutCartTotals(previousState);
     final cartPricing = _cartPricingForState(previousState);

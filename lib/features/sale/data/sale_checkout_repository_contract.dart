@@ -674,12 +674,14 @@ class SaleImmediateReceiptDto {
   const SaleImmediateReceiptDto({
     required this.receiptId,
     required this.saleId,
+    required this.receiptNumber,
     required this.statusDisplay,
     required this.issuedAt,
   });
 
   final String receiptId;
   final String saleId;
+  final String receiptNumber;
   final String statusDisplay;
   final DateTime issuedAt;
 }
@@ -1291,6 +1293,7 @@ class SaleDetailReadDto {
     required this.updatedAt,
     required this.lines,
     this.orderId,
+    this.receiptNumber,
     this.cashReceivedUsd,
     this.cashReceivedKhr,
     this.changeGivenUsd,
@@ -1302,6 +1305,7 @@ class SaleDetailReadDto {
 
   final String saleId;
   final String? orderId;
+  final String? receiptNumber;
   final String status;
   final String saleType;
   final String paymentMethod;
@@ -1379,6 +1383,7 @@ class SaleVoidRequestQueueItemDto {
     required this.grandTotalKhr,
     required this.saleCreatedAt,
     this.orderId,
+    this.receiptNumber,
     this.branchName,
     this.requestedByDisplayName,
     this.fulfillmentStatus,
@@ -1387,6 +1392,7 @@ class SaleVoidRequestQueueItemDto {
   final String voidRequestId;
   final String saleId;
   final String? orderId;
+  final String? receiptNumber;
   final String tenantId;
   final String branchId;
   final String? branchName;

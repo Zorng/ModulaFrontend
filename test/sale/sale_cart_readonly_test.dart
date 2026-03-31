@@ -681,6 +681,7 @@ void main() {
               lastReceipt: SaleImmediateReceiptDto(
                 receiptId: 'receipt-1',
                 saleId: 'sale-1',
+                receiptNumber: 'RCP-20260307-0001',
                 statusDisplay: 'ISSUED',
                 issuedAt: DateTime(2026, 3, 7),
               ),
@@ -712,8 +713,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Sale finalized successfully.'), findsOneWidget);
-    expect(find.text('Order #: order-1'), findsOneWidget);
-    expect(find.text('Receipt #: receipt-1'), findsOneWidget);
+    expect(find.text('Order #: order-1'), findsNothing);
+    expect(find.text('Receipt #: RCP-20260307-0001'), findsOneWidget);
     expect(find.text('Receipt status: ISSUED'), findsOneWidget);
     expect(find.widgetWithText(TextButton, 'Receipt'), findsOneWidget);
   });

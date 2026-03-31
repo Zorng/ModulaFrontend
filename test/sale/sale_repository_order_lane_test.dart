@@ -29,6 +29,7 @@ void main() {
               voidRequestId: 'vr-1',
               saleId: 'sale-1',
               orderId: 'order-1',
+              receiptNumber: 'RCP-20260325-0001',
               tenantId: 'tenant-1',
               branchId: 'branch-1',
               branchName: 'Main Branch',
@@ -63,6 +64,7 @@ void main() {
       expect(item.voidRequestId, 'vr-1');
       expect(item.saleId, 'sale-1');
       expect(item.orderId, 'order-1');
+      expect(item.receiptNumber, 'RCP-20260325-0001');
       expect(item.branchName, 'Main Branch');
       expect(item.saleStatus, 'FINALIZED');
       expect(item.voidRequestStatus, 'PENDING');

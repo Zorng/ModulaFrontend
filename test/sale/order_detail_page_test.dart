@@ -213,6 +213,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Order Detail'), findsOneWidget);
+    expect(find.text('Order ID'), findsNothing);
     expect(
       find.text('Order No. 550e8400-e29b-41d4-a716-446655440000'),
       findsNothing,

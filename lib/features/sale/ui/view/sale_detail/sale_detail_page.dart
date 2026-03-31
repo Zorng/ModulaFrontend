@@ -9,11 +9,7 @@ import 'package:modular_pos/features/sale/data/sale_repository.dart';
 import 'package:modular_pos/features/sale/ui/components/view_carts/view_carts_formatters.dart';
 
 class SaleDetailPage extends ConsumerStatefulWidget {
-  const SaleDetailPage({
-    super.key,
-    required this.saleId,
-    this.showBack = true,
-  });
+  const SaleDetailPage({super.key, required this.saleId, this.showBack = true});
 
   final String saleId;
   final bool showBack;
@@ -64,13 +60,14 @@ class _SaleDetailPageState extends ConsumerState<SaleDetailPage> {
         SaleRequestVoidCommand(
           saleId: sale.saleId,
           reason: reason.trim(),
-          clientOpId: 'sale-void-request-${DateTime.now().microsecondsSinceEpoch}',
+          clientOpId:
+              'sale-void-request-${DateTime.now().microsecondsSinceEpoch}',
         ),
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Void request submitted')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Void request submitted')));
       setState(() {
         _isSubmittingVoidRequest = false;
         _future = _load();
@@ -112,13 +109,14 @@ class _SaleDetailPageState extends ConsumerState<SaleDetailPage> {
         SaleApproveVoidCommand(
           saleId: sale.saleId,
           note: note.trim().isEmpty ? null : note.trim(),
-          clientOpId: 'sale-void-approve-${DateTime.now().microsecondsSinceEpoch}',
+          clientOpId:
+              'sale-void-approve-${DateTime.now().microsecondsSinceEpoch}',
         ),
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Void request approved')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Void request approved')));
       setState(() {
         _activeVoidReviewAction = null;
         _future = _load();
@@ -160,13 +158,14 @@ class _SaleDetailPageState extends ConsumerState<SaleDetailPage> {
         SaleRejectVoidCommand(
           saleId: sale.saleId,
           note: note.trim().isEmpty ? null : note.trim(),
-          clientOpId: 'sale-void-reject-${DateTime.now().microsecondsSinceEpoch}',
+          clientOpId:
+              'sale-void-reject-${DateTime.now().microsecondsSinceEpoch}',
         ),
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Void request rejected')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Void request rejected')));
       setState(() {
         _activeVoidReviewAction = null;
         _future = _load();
@@ -262,9 +261,11 @@ class _SaleDetailPageState extends ConsumerState<SaleDetailPage> {
               _DetailSectionCard(
                 title: 'Overview',
                 children: [
-                  _DetailRow(label: 'Sale ID', value: sale.saleId),
-                  if ((sale.orderId ?? '').trim().isNotEmpty)
-                    _DetailRow(label: 'Order ID', value: sale.orderId!.trim()),
+                  if ((sale.receiptNumber ?? '').trim().isNotEmpty)
+                    _DetailRow(
+                      label: 'Receipt No.',
+                      value: sale.receiptNumber!.trim(),
+                    ),
                   _DetailRow(label: 'Status', value: _labelize(sale.status)),
                   _DetailRow(
                     label: 'Fulfillment',
@@ -494,10 +495,7 @@ class _SaleDetailPageState extends ConsumerState<SaleDetailPage> {
 }
 
 class _SaleDetailPageData {
-  const _SaleDetailPageData({
-    required this.sale,
-    required this.voidRequest,
-  });
+  const _SaleDetailPageData({required this.sale, required this.voidRequest});
 
   final SaleDetailReadDto sale;
   final SaleVoidRequestReadDto? voidRequest;
@@ -511,6 +509,7 @@ class _SaleHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final statusColor = viewCartsStateColor(sale.status);
+    final receiptNumber = (sale.receiptNumber ?? '').trim();
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -548,7 +547,9 @@ class _SaleHeader extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              sale.saleId,
+              receiptNumber.isNotEmpty
+                  ? 'Receipt No. $receiptNumber'
+                  : 'Finalized sale record',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
@@ -561,10 +562,7 @@ class _SaleHeader extends StatelessWidget {
 }
 
 class _DetailSectionCard extends StatelessWidget {
-  const _DetailSectionCard({
-    required this.title,
-    required this.children,
-  });
+  const _DetailSectionCard({required this.title, required this.children});
 
   final String title;
   final List<Widget> children;
@@ -641,9 +639,9 @@ class _SaleLineCard extends StatelessWidget {
           children: [
             Text(
               '${line.quantity} × ${line.menuItemName}',
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
             ),
             if (line.modifierLabels.isNotEmpty) ...[
               const SizedBox(height: 6),
@@ -676,8 +674,7 @@ String _labelize(String raw) {
       .split('_')
       .where((part) => part.isNotEmpty)
       .map(
-        (part) =>
-            '${part[0].toUpperCase()}${part.substring(1).toLowerCase()}',
+        (part) => '${part[0].toUpperCase()}${part.substring(1).toLowerCase()}',
       )
       .join(' ');
 }
