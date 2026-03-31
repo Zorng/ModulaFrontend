@@ -144,7 +144,9 @@ class _AddModifierGroupPageState extends ConsumerState<AddModifierGroupPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please input required fields and add at least one option.'),
+          content: Text(
+            'Please input required fields and add at least one option.',
+          ),
         ),
       );
       return;
@@ -157,19 +159,32 @@ class _AddModifierGroupPageState extends ConsumerState<AddModifierGroupPage> {
       return;
     }
 
+    final persistedOptionIds = {
+      for (final option
+          in (_currentGroup()?.options ??
+              widget.initialGroup?.options ??
+              const <ModifierOption>[]))
+        if (option.id.trim().isNotEmpty) option.id,
+    };
+    final defaultOptionId =
+        _isSingleSelection && persistedOptionIds.contains(_selectedDefault)
+        ? _selectedDefault
+        : null;
+
     final group = ModifierGroup(
       id: widget.initialGroup?.id ?? '',
       name: name,
-      selectionType:
-          _selectedSelectionType == 'Multiple Selection' ? 'multiple' : 'single',
+      selectionType: _selectedSelectionType == 'Multiple Selection'
+          ? 'multiple'
+          : 'single',
       pricingBehavior: _mapPricingBehaviorToValue(_selectedPricingBehavior),
-      defaultOptionId: _isSingleSelection ? _selectedDefault : null,
+      defaultOptionId: defaultOptionId,
       options: _options.map((row) {
         final priceDelta = _requiresPriceInput
             ? double.tryParse(row.priceController.text) ?? 0.0
             : 0.0;
         return ModifierOption(
-          id: row.id,
+          id: persistedOptionIds.contains(row.id) ? row.id : '',
           name: row.nameController.text.trim(),
           price: priceDelta,
           priceDelta: priceDelta,
@@ -237,9 +252,7 @@ class _AddModifierGroupPageState extends ConsumerState<AddModifierGroupPage> {
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Failed to archive modifier group.'),
-        ),
+        const SnackBar(content: Text('Failed to archive modifier group.')),
       );
     }
   }
@@ -289,8 +302,7 @@ class _AddModifierGroupPageState extends ConsumerState<AddModifierGroupPage> {
               onSelected: onSelected,
               dropdownMenuEntries: options
                   .map(
-                    (option) =>
-                        DropdownMenuEntry(value: option, label: option),
+                    (option) => DropdownMenuEntry(value: option, label: option),
                   )
                   .toList(),
             ),
@@ -413,7 +425,9 @@ class _AddModifierGroupPageState extends ConsumerState<AddModifierGroupPage> {
                     color: Theme.of(context).hintColor,
                   ),
                 ),
-                if (_isView && _isSingleSelection && defaultOptionLabel != null) ...[
+                if (_isView &&
+                    _isSingleSelection &&
+                    defaultOptionLabel != null) ...[
                   const SizedBox(height: 12),
                   Container(
                     width: double.infinity,
@@ -448,6 +462,14 @@ class _AddModifierGroupPageState extends ConsumerState<AddModifierGroupPage> {
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: Theme.of(context).hintColor,
                       ),
+                    ),
+                  ),
+                if (_isEditing && !isSmall)
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: MenuSectionActionButton(
+                      label: 'Add option',
+                      onPressed: _addOption,
                     ),
                   ),
                 AbsorbPointer(
@@ -495,7 +517,9 @@ class _AddModifierGroupPageState extends ConsumerState<AddModifierGroupPage> {
                           ? (isArchived ? _restoreGroup : _archiveGroup)
                           : _cancel,
                       child: Text(
-                        _isView ? (isArchived ? 'Restore' : 'Archive') : 'Cancel',
+                        _isView
+                            ? (isArchived ? 'Restore' : 'Archive')
+                            : 'Cancel',
                       ),
                     ),
                   ),
@@ -503,7 +527,9 @@ class _AddModifierGroupPageState extends ConsumerState<AddModifierGroupPage> {
                   Expanded(
                     child: FilledButton(
                       onPressed: _isView
-                          ? () => setState(() => _mode = ModifierGroupFormMode.edit)
+                          ? () => setState(
+                              () => _mode = ModifierGroupFormMode.edit,
+                            )
                           : _saveGroup,
                       child: Text(_isView ? 'Edit' : 'Save'),
                     ),
@@ -522,7 +548,9 @@ class _AddModifierGroupPageState extends ConsumerState<AddModifierGroupPage> {
                           ? (isArchived ? _restoreGroup : _archiveGroup)
                           : _cancel,
                       child: Text(
-                        _isView ? (isArchived ? 'Restore' : 'Archive') : 'Cancel',
+                        _isView
+                            ? (isArchived ? 'Restore' : 'Archive')
+                            : 'Cancel',
                       ),
                     ),
                   ),
@@ -531,7 +559,9 @@ class _AddModifierGroupPageState extends ConsumerState<AddModifierGroupPage> {
                     width: 160,
                     child: FilledButton(
                       onPressed: _isView
-                          ? () => setState(() => _mode = ModifierGroupFormMode.edit)
+                          ? () => setState(
+                              () => _mode = ModifierGroupFormMode.edit,
+                            )
                           : _saveGroup,
                       child: Text(_isView ? 'Edit' : 'Save'),
                     ),
@@ -548,17 +578,15 @@ class _AddModifierGroupPageState extends ConsumerState<AddModifierGroupPage> {
     final group = _currentGroup();
     if (group == null) return;
     try {
-      await ref.read(menuViewModelProvider.notifier).restoreModifierGroup(
-        group.id,
-      );
+      await ref
+          .read(menuViewModelProvider.notifier)
+          .restoreModifierGroup(group.id);
       if (!mounted) return;
       context.pop();
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Failed to restore modifier group.'),
-        ),
+        const SnackBar(content: Text('Failed to restore modifier group.')),
       );
     }
   }

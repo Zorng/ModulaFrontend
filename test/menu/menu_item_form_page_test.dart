@@ -355,7 +355,7 @@ void main() {
   );
 
   testWidgets(
-    'MenuItemFormPage create mode shows gated helper text for composition and modifier effects',
+    'MenuItemFormPage create mode gates deferred composition sections until after create',
     (tester) async {
       tester.view.physicalSize = const Size(1440, 2200);
       tester.view.devicePixelRatio = 1.0;
@@ -386,15 +386,40 @@ void main() {
 
       expect(
         find.text(
-          'Optional. Save the item first, then open it again if you want to configure base components.',
+          'Base components become available after you save this item and reopen it.',
         ),
         findsOneWidget,
       );
+      final compositionTitleBottom = tester
+          .getBottomLeft(find.text('Composition'))
+          .dy;
+      final compositionMessageTop = tester
+          .getTopLeft(
+            find.text(
+              'Base components become available after you save this item and reopen it.',
+            ),
+          )
+          .dy;
+      expect(compositionMessageTop - compositionTitleBottom, lessThan(4));
+      expect(find.text('Modifier option effects'), findsNothing);
+      expect(find.text('Add component'), findsNothing);
       expect(
         find.text(
-          'Optional. Save the item first, then open it again if you want to configure item-scoped modifier effects.',
+          'Save the item first, then reopen it to configure base components for this menu item.',
         ),
-        findsOneWidget,
+        findsNothing,
+      );
+      expect(
+        find.text(
+          'Base components become available after the item is created.',
+        ),
+        findsNothing,
+      );
+      expect(
+        find.text(
+          'No stock items available. Add stock items in Inventory before configuring composition.',
+        ),
+        findsNothing,
       );
     },
   );
