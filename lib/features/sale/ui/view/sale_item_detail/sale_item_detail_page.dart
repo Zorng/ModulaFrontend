@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -24,6 +26,8 @@ class _SaleItemDetailPageState extends ConsumerState<SaleItemDetailPage> {
   late Map<String, Set<String>> _selectedOptionIds;
   late Future<(MenuItem, List<ModifierGroup>)> _loadFuture;
   bool _hasRetried = false;
+  bool _isRepairingLegacyMultiSelect = false;
+  final Set<String> _legacyRepairAttempted = <String>{};
 
   @override
   void initState() {
@@ -73,6 +77,12 @@ class _SaleItemDetailPageState extends ConsumerState<SaleItemDetailPage> {
             .whereType<ModifierGroup>()
             .toList();
         final modifiers = fetchedMods.isNotEmpty ? fetchedMods : hydratedMods;
+        final staleMultiGroups = modifiers
+            .where(_needsLegacyMultiSelectRepair)
+            .toList(growable: false);
+        final repairableMultiGroups = staleMultiGroups
+            .where((group) => !_legacyRepairAttempted.contains(group.id))
+            .toList(growable: false);
 
         final gate = ref.watch(saleAccessGateProvider);
 
@@ -93,6 +103,20 @@ class _SaleItemDetailPageState extends ConsumerState<SaleItemDetailPage> {
 
         if (_selectedOptionIds.isEmpty && modifiers.isNotEmpty) {
           _selectedOptionIds = _initialSelections(modifiers);
+        }
+
+        if (staleMultiGroups.isNotEmpty) {
+          if (!_isRepairingLegacyMultiSelect &&
+              repairableMultiGroups.isNotEmpty) {
+            _legacyRepairAttempted.addAll(
+              repairableMultiGroups.map((group) => group.id),
+            );
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) return;
+              unawaited(_repairLegacyMultiSelectGroups(repairableMultiGroups));
+            });
+          }
+          return const Center(child: CircularProgressIndicator());
         }
 
         final hasError =
@@ -175,13 +199,21 @@ class _SaleItemDetailPageState extends ConsumerState<SaleItemDetailPage> {
           _selectedOptionIds,
           _quantity,
         );
+        final selectionValidation = _validateSelections(
+          modifiers,
+          _selectedOptionIds,
+        );
         final hasUnpricedSelections = pricing.unpricedOptionNames.isNotEmpty;
-        final canAddToCart = gate.canAddToCart && !hasUnpricedSelections;
+        final canAddToCart =
+            gate.canAddToCart &&
+            selectionValidation.blockingMessage == null &&
+            !hasUnpricedSelections;
         final blockingMessage = !gate.canAddToCart
             ? gate.blockingMessage
-            : hasUnpricedSelections
-            ? 'One or more selected modifier options do not have item-level prices configured yet.'
-            : null;
+            : selectionValidation.blockingMessage ??
+                  (hasUnpricedSelections
+                      ? 'One or more selected modifier options do not have item-level prices configured yet.'
+                      : null);
 
         // Check if we're in a dialog context (no Scaffold parent)
         final isDialog = ModalRoute.of(context) is! PageRoute;
@@ -357,6 +389,42 @@ class _SaleItemDetailPageState extends ConsumerState<SaleItemDetailPage> {
       },
     );
   }
+
+  bool _needsLegacyMultiSelectRepair(ModifierGroup group) {
+    return group.selectionType == 'multiple' && group.maxSelections <= 1;
+  }
+
+  ModifierGroup _normalizedMultiSelectGroup(ModifierGroup group) {
+    return group.copyWith(
+      selectionType: 'multiple',
+      selectionMode: 'MULTI',
+      minSelections: group.minSelections < 0 ? 0 : group.minSelections,
+      maxSelections: group.maxSelections > 1 ? group.maxSelections : 99,
+    );
+  }
+
+  Future<void> _repairLegacyMultiSelectGroups(
+    List<ModifierGroup> groups,
+  ) async {
+    if (_isRepairingLegacyMultiSelect) return;
+    setState(() => _isRepairingLegacyMultiSelect = true);
+    try {
+      final notifier = ref.read(menuViewModelProvider.notifier);
+      for (final group in groups) {
+        await notifier.updateModifierGroup(_normalizedMultiSelectGroup(group));
+      }
+      if (!mounted) return;
+      setState(() {
+        _selectedOptionIds = {};
+        _hasRetried = false;
+        _loadFuture = notifier.loadItemWithModifiers(widget.item.id);
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _isRepairingLegacyMultiSelect = false);
+      }
+    }
+  }
 }
 
 class SaleItemSelectionResult {
@@ -428,6 +496,46 @@ class _SelectionPricing {
   final double addonTotalUsd;
   final double unitPriceUsd;
   final double lineTotalUsd;
+}
+
+class _SelectionValidation {
+  const _SelectionValidation({this.blockingMessage});
+
+  final String? blockingMessage;
+}
+
+_SelectionValidation _validateSelections(
+  List<ModifierGroup> groups,
+  Map<String, Set<String>> selections,
+) {
+  for (final group in groups) {
+    final selectedCount = selections[group.id]?.length ?? 0;
+    final minSelections = _requiredMinSelections(group);
+    if (selectedCount < minSelections) {
+      final optionLabel = minSelections == 1 ? 'option' : 'options';
+      return _SelectionValidation(
+        blockingMessage:
+            'Select at least $minSelections $optionLabel for ${group.name}.',
+      );
+    }
+
+    if (group.maxSelections > 0 && selectedCount > group.maxSelections) {
+      final optionLabel = group.maxSelections == 1 ? 'option' : 'options';
+      return _SelectionValidation(
+        blockingMessage:
+            'Select no more than ${group.maxSelections} $optionLabel for ${group.name}.',
+      );
+    }
+  }
+
+  return const _SelectionValidation();
+}
+
+int _requiredMinSelections(ModifierGroup group) {
+  if (group.minSelections > 0) {
+    return group.minSelections;
+  }
+  return group.isRequired == true ? 1 : 0;
 }
 
 _SelectionPricing _computeSelectionPricing(

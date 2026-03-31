@@ -107,6 +107,9 @@ void main() {
 
     expect(notifier.updateCalls, 1);
     expect(notifier.updatedGroup, isNotNull);
+    expect(notifier.updatedGroup!.selectionMode, 'MULTI');
+    expect(notifier.updatedGroup!.minSelections, 0);
+    expect(notifier.updatedGroup!.maxSelections, 99);
     expect(notifier.updatedGroup!.options, hasLength(2));
     expect(notifier.updatedGroup!.options.first.id, 'opt-1');
     expect(notifier.updatedGroup!.options.last.id, '');

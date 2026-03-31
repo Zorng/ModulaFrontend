@@ -40,6 +40,8 @@ class _AddModifierGroupPageState extends ConsumerState<AddModifierGroupPage> {
       _selectedSelectionType != null &&
       _selectedSelectionType != 'Multiple Selection';
 
+  bool get _isMultipleSelection => !_isSingleSelection;
+
   bool get _requiresPriceInput => false;
   bool get _isView => _mode == ModifierGroupFormMode.view;
   bool get _isEditing => _mode != ModifierGroupFormMode.view;
@@ -141,6 +143,9 @@ class _AddModifierGroupPageState extends ConsumerState<AddModifierGroupPage> {
               const <ModifierOption>[]))
         if (option.id.trim().isNotEmpty) option.id,
     };
+    final existingGroup = _currentGroup() ?? widget.initialGroup;
+    final minSelections = _resolvedMinSelections(existingGroup);
+    final maxSelections = _resolvedMaxSelections(existingGroup);
     final defaultOptionId =
         _isSingleSelection && persistedOptionIds.contains(_selectedDefault)
         ? _selectedDefault
@@ -152,7 +157,11 @@ class _AddModifierGroupPageState extends ConsumerState<AddModifierGroupPage> {
       selectionType: _selectedSelectionType == 'Multiple Selection'
           ? 'multiple'
           : 'single',
+      selectionMode: _isMultipleSelection ? 'MULTI' : 'SINGLE',
       pricingBehavior: 'none',
+      minSelections: minSelections,
+      maxSelections: maxSelections,
+      isRequired: _resolvedIsRequired(existingGroup, minSelections),
       defaultOptionId: defaultOptionId,
       options: _options.map((row) {
         final priceDelta = _requiresPriceInput
@@ -257,6 +266,37 @@ class _AddModifierGroupPageState extends ConsumerState<AddModifierGroupPage> {
       return;
     }
     context.pop();
+  }
+
+  int _resolvedMinSelections(ModifierGroup? existingGroup) {
+    if (_isSingleSelection) {
+      final requiresSelection =
+          existingGroup?.isRequired == true ||
+          (existingGroup?.minSelections ?? 0) > 0;
+      return requiresSelection ? 1 : 0;
+    }
+    if (existingGroup != null &&
+        existingGroup.selectionType == 'multiple' &&
+        existingGroup.minSelections >= 0) {
+      return existingGroup.minSelections;
+    }
+    return (existingGroup?.isRequired ?? false) ? 1 : 0;
+  }
+
+  int _resolvedMaxSelections(ModifierGroup? existingGroup) {
+    if (_isSingleSelection) {
+      return 1;
+    }
+    if (existingGroup != null &&
+        existingGroup.selectionType == 'multiple' &&
+        existingGroup.maxSelections > 1) {
+      return existingGroup.maxSelections;
+    }
+    return 99;
+  }
+
+  bool _resolvedIsRequired(ModifierGroup? existingGroup, int minSelections) {
+    return existingGroup?.isRequired ?? minSelections > 0;
   }
 
   Widget _buildDropdownField({
