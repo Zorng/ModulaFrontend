@@ -153,24 +153,33 @@ class _SaleBottomNavShellPageState
             title: appBarTitle,
             actions: actionsForIndex(index, context),
             body: SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(24, 18, 24, 24),
-                child: Row(
-                  children: [
-                    Expanded(child: widget.navigationShell),
-                    if (showCartPanel) ...[
-                      const VerticalDivider(width: 1),
-                      SizedBox(
-                        width: cartPanelWidth,
-                        child: SaleCartPanel(
-                          key: const ValueKey('wide_cart_panel'),
-                          contentPadding: const EdgeInsets.all(16),
+              child: showCartPanel
+                  ? Row(
+                      children: [
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(24, 18, 24, 24),
+                            child: widget.navigationShell,
+                          ),
                         ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
+                        const VerticalDivider(width: 1),
+                        SizedBox(
+                          width: cartPanelWidth,
+                          child: ColoredBox(
+                            key: const Key('wide_sale_cart_surface'),
+                            color: Colors.white,
+                            child: const SaleCartPanel(
+                              key: ValueKey('wide_cart_panel'),
+                              contentPadding: EdgeInsets.all(16),
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  : Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 18, 24, 24),
+                      child: widget.navigationShell,
+                    ),
             ),
             bottomNavigationBar: Material(
               color:

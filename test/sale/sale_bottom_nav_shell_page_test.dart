@@ -1,16 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:modular_pos/core/network/app_connectivity.dart';
+import 'package:modular_pos/core/network/app_connectivity_contract.dart';
+import 'package:modular_pos/core/printing/thermal_printer_controller.dart';
+import 'package:modular_pos/core/printing/thermal_printer_state.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/sync/global_sync_status.dart';
 import 'package:modular_pos/features/auth/domain/models/auth_session.dart';
 import 'package:modular_pos/features/auth/domain/models/tenant_membership.dart';
 import 'package:modular_pos/features/auth/domain/models/user.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
+import 'package:modular_pos/features/menu/data/menu_repository.dart';
+import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
+import 'package:modular_pos/features/menu/ui/viewmodels/menu_state.dart';
+import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
 import 'package:modular_pos/features/notification/data/operational_notification_repository.dart';
 import 'package:modular_pos/features/notification/domain/models/operational_notification.dart';
+import 'package:modular_pos/features/policy/domain/models/policy.dart';
+import 'package:modular_pos/features/policy/ui/viewmodels/policy_viewmodel.dart';
 import 'package:modular_pos/features/sale/ui/view/sale_shell/sale_bottom_nav_shell_page.dart';
+import 'package:modular_pos/features/sale/ui/viewmodels/sale_access_gate.dart';
+import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_state.dart';
+import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_viewmodel.dart';
 
 class _StaticLoginController extends LoginController {
   _StaticLoginController(this._session);
@@ -66,6 +80,57 @@ class _FakeOperationalNotificationRepository
   }
 }
 
+class _StaticPolicyNotifier extends PolicyNotifier {
+  @override
+  PolicyState build() {
+    return const PolicyState(
+      isLoading: false,
+      branchPolicy: BranchPolicy(
+        saleFxRateKhrPerUsd: 4000,
+        saleAllowPayLater: false,
+      ),
+    );
+  }
+}
+
+class _StaticMenuViewModel extends MenuViewModel {
+  _StaticMenuViewModel(this._state);
+
+  final MenuState _state;
+
+  @override
+  MenuState build() => _state;
+
+  @override
+  Future<void> loadMenu({
+    String? branchId,
+    String? status,
+    MenuReadLane readLane = MenuReadLane.management,
+  }) async {}
+}
+
+class _StaticCartNotifier extends SaleCartNotifier {
+  _StaticCartNotifier(this._initial);
+
+  final SaleCartState _initial;
+
+  @override
+  SaleCartState build() => _initial;
+
+  @override
+  Future<void> refreshDiscountEligibility() async {}
+}
+
+class _OnlineConnectivityNotifier extends AppConnectivityStatusController {
+  @override
+  AppConnectivityStatus build() => AppConnectivityStatus.online;
+}
+
+class _StaticThermalPrinterController extends ThermalPrinterController {
+  @override
+  ThermalPrinterState build() => const ThermalPrinterState();
+}
+
 AuthSession _session() {
   const activeBranch = UserBranch(
     id: 'assignment-1',
@@ -105,14 +170,22 @@ void _setSmallViewport(WidgetTester tester) {
   tester.view.devicePixelRatio = 1;
 }
 
+void _setWideViewport(WidgetTester tester) {
+  tester.view.physicalSize = const Size(1440, 1024);
+  tester.view.devicePixelRatio = 1;
+}
+
 void _resetViewport(WidgetTester tester) {
   tester.view.resetPhysicalSize();
   tester.view.resetDevicePixelRatio();
 }
 
-Widget _saleShellHarness() {
+Widget _saleShellHarness({
+  String? initialLocation,
+  List<Override> overrides = const [],
+}) {
   final router = GoRouter(
-    initialLocation: AppRoute.saleCart.path,
+    initialLocation: initialLocation ?? AppRoute.saleCart.path,
     routes: [
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {
@@ -123,8 +196,11 @@ Widget _saleShellHarness() {
             routes: [
               GoRoute(
                 path: AppRoute.sale.path,
-                builder: (context, state) =>
-                    const Scaffold(body: Center(child: Text('Sale tab body'))),
+                builder: (context, state) => const ColoredBox(
+                  key: Key('sale_tab_body'),
+                  color: Color(0xFFF5F5F5),
+                  child: SizedBox.expand(),
+                ),
               ),
             ],
           ),
@@ -167,9 +243,49 @@ Widget _saleShellHarness() {
           detail: 'Workspace is connected.',
         ),
       ),
+      ...overrides,
     ],
     child: MaterialApp.router(routerConfig: router),
   );
+}
+
+List<Override> _wideSaleOverrides() {
+  const item = MenuItem(
+    id: 'menu-1',
+    name: 'Latte',
+    categoryId: 'cat-1',
+    price: 2.5,
+  );
+  return [
+    saleCartProvider.overrideWith(
+      () => _StaticCartNotifier(
+        const SaleCartState(
+          saleId: 'sale-1',
+          lines: [CartLine(item: item, quantity: 1, selectedOptionIds: {})],
+        ),
+      ),
+    ),
+    policyNotifierProvider.overrideWith(_StaticPolicyNotifier.new),
+    menuViewModelProvider.overrideWith(
+      () => _StaticMenuViewModel(const MenuState(isLoading: false)),
+    ),
+    saleAccessGateProvider.overrideWithValue(
+      const SaleAccessGate(
+        branchId: 'branch-1',
+        contextLoading: false,
+        branchActive: true,
+        branchFrozen: false,
+        cashSessionOpen: true,
+        canMutateCart: true,
+        canCheckout: true,
+        canPlacePayLater: false,
+      ),
+    ),
+    appConnectivityStatusProvider.overrideWith(_OnlineConnectivityNotifier.new),
+    thermalPrinterControllerProvider.overrideWith(
+      _StaticThermalPrinterController.new,
+    ),
+  ];
 }
 
 void main() {
@@ -186,5 +302,30 @@ void main() {
     expect(find.byType(PopupMenuButton<String>), findsNothing);
     expect(find.byIcon(Icons.more_vert), findsNothing);
     expect(find.text('View carts'), findsNothing);
+  });
+
+  testWidgets('wide sale tab shows the cart as a full white side surface', (
+    tester,
+  ) async {
+    _setWideViewport(tester);
+    addTearDown(() => _resetViewport(tester));
+
+    await tester.pumpWidget(
+      _saleShellHarness(
+        initialLocation: AppRoute.sale.path,
+        overrides: _wideSaleOverrides(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final cartSurface = tester.widget<ColoredBox>(
+      find.byKey(const Key('wide_sale_cart_surface')),
+    );
+    expect(cartSurface.color, Colors.white);
+    expect(find.byKey(const ValueKey('wide_cart_panel')), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.byKey(const Key('wide_sale_cart_surface'))).dy,
+      lessThan(tester.getTopLeft(find.byKey(const Key('sale_tab_body'))).dy),
+    );
   });
 }
