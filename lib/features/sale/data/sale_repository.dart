@@ -233,7 +233,8 @@ class SaleRepository implements SaleCheckoutRepository {
       return SaleMappers.toSaleVoidRequestRead(request);
     } on ApiClientException catch (error) {
       final normalizedCode = _readString(error.code).toUpperCase();
-      if (error.statusCode == 404 || normalizedCode == 'VOID_REQUEST_NOT_FOUND') {
+      if (error.statusCode == 404 ||
+          normalizedCode == 'VOID_REQUEST_NOT_FOUND') {
         return null;
       }
       throw _toSaleRepoException(error);
@@ -1036,6 +1037,58 @@ class SaleRepository implements SaleCheckoutRepository {
         saleId: data.saleId,
         saleStatus: data.saleStatus,
         paymentMethod: data.paymentMethod,
+      );
+    } on ApiClientException catch (error) {
+      throw _toSaleRepoException(error);
+    }
+  }
+
+  @override
+  Future<SaleOrderDetailReadResultDto> getOrderDetail({
+    required String orderId,
+  }) async {
+    final normalizedOrderId = orderId.trim();
+    if (normalizedOrderId.isEmpty) {
+      throw const SaleCheckoutRepositoryException(
+        reasonCode: SaleCheckoutReasonCodes.invalidRequest,
+        message: 'Order id is required before loading order detail.',
+      );
+    }
+
+    try {
+      final data = await _api.getOrderDetail(normalizedOrderId);
+      return SaleOrderDetailReadResultDto(
+        orderId: data.orderId,
+        tenantId: data.tenantId,
+        branchId: data.branchId,
+        openedByAccountId: data.openedByAccountId,
+        status: data.status,
+        sourceMode: data.sourceMode,
+        saleId: data.saleId,
+        saleStatus: data.saleStatus,
+        paymentMethod: data.paymentMethod,
+        createdAt: data.createdAt,
+        updatedAt: data.updatedAt,
+        checkedOutAt: data.checkedOutAt,
+        checkedOutByAccountId: data.checkedOutByAccountId,
+        cancelledAt: data.cancelledAt,
+        cancelledByAccountId: data.cancelledByAccountId,
+        cancelReason: data.cancelReason,
+        manualPaymentClaims: data.manualPaymentClaims
+            .map(
+              (claim) => SaleManualPaymentClaimDetailDto(
+                claimId: claim.claimId,
+                orderId: claim.orderId,
+                status: claim.status,
+                claimedPaymentMethod: claim.claimedPaymentMethod,
+                tenderCurrency: claim.tenderCurrency,
+                claimedTenderAmount: claim.claimedTenderAmount,
+                proofImageUrl: claim.proofImageUrl,
+                customerReference: claim.customerReference,
+                note: claim.note,
+              ),
+            )
+            .toList(growable: false),
       );
     } on ApiClientException catch (error) {
       throw _toSaleRepoException(error);

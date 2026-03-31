@@ -9,6 +9,7 @@ import 'package:modular_pos/core/feedback/user_error_message.dart';
 import 'package:modular_pos/core/widgets/media/product_image_picker.dart';
 import 'package:modular_pos/features/auth/domain/auth_role.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
+import 'package:modular_pos/features/sale/data/sale_checkout_repository_contract.dart';
 import 'package:modular_pos/features/sale/ui/view/order_detail/order_detail_utils.dart';
 import 'package:modular_pos/features/sale/ui/view/order/order_utils.dart';
 import 'package:modular_pos/features/sale/ui/view/order_detail/widgets/order_detail_summary_row.dart';
@@ -21,7 +22,7 @@ class OrderDetailPage extends ConsumerWidget {
     this.showBack = true,
   });
 
-  static const bool _manualClaimUiEnabled = false;
+  static const bool _manualClaimUiEnabled = true;
   static const bool _legacyOpenTicketUiEnabled = false;
 
   final String orderIdentityKey;
@@ -53,20 +54,54 @@ class OrderDetailPage extends ConsumerWidget {
         lines: const [],
       ),
     );
-    final showManualClaimSection =
+    final backendOrderIdForDetail = order.isLocalOutageOrder
+        ? (order.localOutageMaterializedOrderId ?? '').trim()
+        : order.orderId;
+    final AsyncValue<SaleOrderDetailReadResultDto?> remoteOrderDetailAsync =
         _manualClaimUiEnabled &&
-        order.isLocalOutageOrder &&
-        order.isManualClaimOutageOrder;
+            order.isExternalPaymentClaimOrder &&
+            backendOrderIdForDetail.isNotEmpty
+        ? ref
+              .watch(orderDetailProvider(backendOrderIdForDetail))
+              .whenData((detail) => detail)
+        : const AsyncData<SaleOrderDetailReadResultDto?>(null);
+    final remoteOrderDetail = remoteOrderDetailAsync.asData?.value;
+    final remoteManualClaim = _selectManualPaymentClaim(
+      order: order,
+      remoteOrderDetail: remoteOrderDetail,
+    );
+    final claimedTenderAmount =
+        order.localOutageClaimedTenderAmount ??
+        remoteManualClaim?.claimedTenderAmount;
+    final claimedTenderCurrency =
+        remoteManualClaim?.tenderCurrency ?? order.tenderCurrency;
+    final claimedPaymentMethod =
+        order.localOutageClaimedPaymentMethod ??
+        remoteManualClaim?.claimedPaymentMethod;
+    final proofImageUrl =
+        order.localOutageProofImageUrl ?? remoteManualClaim?.proofImageUrl;
+    final claimCustomerReference =
+        order.localOutageCustomerReference ??
+        remoteManualClaim?.customerReference;
+    final claimNote = order.localOutageNote ?? remoteManualClaim?.note;
+    final hasPendingManualClaimForReview =
+        order.hasSubmittedManualExternalPaymentClaim ||
+        (_isPendingManualPaymentClaimStatus(remoteManualClaim?.status) &&
+            (order.remoteManualPaymentClaimId ?? '').trim().isNotEmpty);
+    final showManualClaimSection =
+        _manualClaimUiEnabled && order.isExternalPaymentClaimOrder;
     final showOfflineCashReplaySection = order.isQueueBackedOfflineCashOrder;
     final showLegacyOfflineCashSettlementSection =
         order.isAwaitingOutageSettlement && !order.isManualClaimOutageOrder;
     final canRecordLocalManualClaim =
         showManualClaimSection &&
+        order.isLocalOutageOrder &&
+        order.isManualClaimOutageOrder &&
         !order.hasManualExternalPaymentClaimRecorded &&
         connectivityStatus != AppConnectivityStatus.offline;
     final canReviewSubmittedManualClaim =
         showManualClaimSection &&
-        order.hasSubmittedManualExternalPaymentClaim &&
+        hasPendingManualClaimForReview &&
         connectivityStatus != AppConnectivityStatus.offline &&
         (currentRole == AuthRole.manager ||
             currentRole == AuthRole.admin ||
@@ -79,7 +114,8 @@ class OrderDetailPage extends ConsumerWidget {
         (order.manualPaymentClaimRequestedByDisplayName ?? '').trim();
     final showManualClaimBottomSubmitAction =
         _manualClaimUiEnabled &&
-        showManualClaimSection &&
+        order.isLocalOutageOrder &&
+        order.isManualClaimOutageOrder &&
         !order.hasSubmittedManualExternalPaymentClaim;
     final canSubmitManualClaimFromBottom =
         order.hasManualExternalPaymentClaimRecorded &&
@@ -223,15 +259,14 @@ class OrderDetailPage extends ConsumerWidget {
                       subValue: 'KHR ${order.totalKhr.toStringAsFixed(0)}',
                     ),
                     if (_manualClaimUiEnabled &&
-                        order.hasManualExternalPaymentClaimRecorded) ...[
+                        order.isExternalPaymentClaimOrder &&
+                        claimedTenderAmount != null) ...[
                       const Divider(),
                       OrderDetailSummaryRow(
                         label: 'Claimed amount',
                         value: _formatTenderAmount(
-                          amount:
-                              order.localOutageClaimedTenderAmount ??
-                              order.tenderAmount,
-                          tenderCurrency: order.tenderCurrency,
+                          amount: claimedTenderAmount,
+                          tenderCurrency: claimedTenderCurrency,
                         ),
                       ),
                     ] else if (!(_manualClaimUiEnabled &&
@@ -395,7 +430,7 @@ class OrderDetailPage extends ConsumerWidget {
                       Text(
                         order.hasRejectedManualExternalPaymentClaim
                             ? 'The last external payment claim was rejected. Review the note below, update the proof if needed, and resubmit online.'
-                            : order.hasSubmittedManualExternalPaymentClaim
+                            : hasPendingManualClaimForReview
                             ? canReviewSubmittedManualClaim
                                   ? 'This external payment claim is submitted online and ready for review. Approve or reject it here.'
                                   : 'External payment claim is submitted online. This order is now waiting for manager review.'
@@ -407,33 +442,41 @@ class OrderDetailPage extends ConsumerWidget {
                             : 'Add the customer payment proof here. Saving proof only stores it locally. Finalization still waits for explicit online claim submission and later review.',
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
+                      if (remoteOrderDetailAsync.isLoading &&
+                          !order.hasManualExternalPaymentClaimRecorded) ...[
+                        const SizedBox(height: 12),
+                        const LinearProgressIndicator(minHeight: 2),
+                      ],
+                      if (remoteOrderDetailAsync.hasError &&
+                          !order.hasManualExternalPaymentClaimRecorded) ...[
+                        const SizedBox(height: 12),
+                        Text(
+                          'Claim detail could not be refreshed right now. Retry after reconnecting if review context is missing.',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
                       if (order.hasManualExternalPaymentClaimRecorded) ...[
                         const SizedBox(height: 12),
                         OrderDetailSummaryRow(
                           label: 'Claimed method',
-                          value:
-                              order.localOutageClaimedPaymentMethod ?? 'KHQR',
+                          value: claimedPaymentMethod ?? 'KHQR',
                         ),
                         const Divider(),
                         OrderDetailSummaryRow(
                           label: 'Claimed amount',
                           value: _formatTenderAmount(
-                            amount:
-                                order.localOutageClaimedTenderAmount ??
-                                order.tenderAmount,
-                            tenderCurrency: order.tenderCurrency,
+                            amount: claimedTenderAmount ?? order.tenderAmount,
+                            tenderCurrency: claimedTenderCurrency,
                           ),
                         ),
-                        if ((order.localOutageCustomerReference ?? '')
-                            .isNotEmpty) ...[
+                        if ((claimCustomerReference ?? '').isNotEmpty) ...[
                           const Divider(),
                           OrderDetailSummaryRow(
                             label: 'Customer reference',
-                            value: order.localOutageCustomerReference!,
+                            value: claimCustomerReference!,
                           ),
                         ],
-                        if ((order.localOutageProofImageUrl ?? '')
-                            .isNotEmpty) ...[
+                        if ((proofImageUrl ?? '').isNotEmpty) ...[
                           const Divider(),
                           Text(
                             'Proof image',
@@ -442,18 +485,18 @@ class OrderDetailPage extends ConsumerWidget {
                           const SizedBox(height: 8),
                           ProductImagePicker(
                             onPickImage: () async {},
-                            imageUrl: order.localOutageProofImageUrl,
+                            imageUrl: proofImageUrl,
                             readOnly: true,
                             size: const Size(220, 180),
                             placeholderLabel: 'Proof image',
                             showTapToChangeHint: false,
                           ),
                         ],
-                        if ((order.localOutageNote ?? '').isNotEmpty) ...[
+                        if ((claimNote ?? '').isNotEmpty) ...[
                           const Divider(),
                           OrderDetailSummaryRow(
                             label: 'Note',
-                            value: order.localOutageNote!,
+                            value: claimNote!,
                           ),
                         ],
                         if (order.hasRejectedManualExternalPaymentClaim &&
@@ -475,11 +518,15 @@ class OrderDetailPage extends ConsumerWidget {
                             ),
                           ),
                         ],
-                        if (order.hasSubmittedManualExternalPaymentClaim) ...[
+                        if (hasPendingManualClaimForReview) ...[
                           const Divider(),
                           OrderDetailSummaryRow(
                             label: 'Backend claim',
-                            value: order.localOutageBackendClaimId!,
+                            value:
+                                order.localOutageBackendClaimId ??
+                                remoteManualClaim?.claimId ??
+                                order.remoteManualPaymentClaimId ??
+                                'Pending claim',
                           ),
                           if (order.localOutageClaimSubmittedAt != null) ...[
                             const Divider(),
@@ -532,6 +579,102 @@ class OrderDetailPage extends ConsumerWidget {
                       ] else if (canRecordLocalManualClaim) ...[
                         const SizedBox(height: 12),
                         _ManualClaimProofForm(order: order),
+                      ] else if (remoteManualClaim != null) ...[
+                        const SizedBox(height: 12),
+                        OrderDetailSummaryRow(
+                          label: 'Claimed method',
+                          value:
+                              remoteManualClaim.claimedPaymentMethod ?? 'KHQR',
+                        ),
+                        if (remoteManualClaim.claimedTenderAmount != null) ...[
+                          const Divider(),
+                          OrderDetailSummaryRow(
+                            label: 'Claimed amount',
+                            value: _formatTenderAmount(
+                              amount: remoteManualClaim.claimedTenderAmount!,
+                              tenderCurrency:
+                                  remoteManualClaim.tenderCurrency ??
+                                  order.tenderCurrency,
+                            ),
+                          ),
+                        ],
+                        if ((remoteManualClaim.customerReference ?? '')
+                            .isNotEmpty) ...[
+                          const Divider(),
+                          OrderDetailSummaryRow(
+                            label: 'Customer reference',
+                            value: remoteManualClaim.customerReference!,
+                          ),
+                        ],
+                        if ((remoteManualClaim.proofImageUrl ?? '')
+                            .isNotEmpty) ...[
+                          const Divider(),
+                          Text(
+                            'Proof image',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                          const SizedBox(height: 8),
+                          ProductImagePicker(
+                            onPickImage: () async {},
+                            imageUrl: remoteManualClaim.proofImageUrl,
+                            readOnly: true,
+                            size: const Size(220, 180),
+                            placeholderLabel: 'Proof image',
+                            showTapToChangeHint: false,
+                          ),
+                        ],
+                        if ((remoteManualClaim.note ?? '').isNotEmpty) ...[
+                          const Divider(),
+                          OrderDetailSummaryRow(
+                            label: 'Note',
+                            value: remoteManualClaim.note!,
+                          ),
+                        ],
+                        if (hasPendingManualClaimForReview) ...[
+                          const Divider(),
+                          OrderDetailSummaryRow(
+                            label: 'Backend claim',
+                            value: remoteManualClaim.claimId,
+                          ),
+                          if (canReviewSubmittedManualClaim) ...[
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    onPressed: () => _reviewManualClaim(
+                                      context,
+                                      ref,
+                                      order,
+                                      approve: false,
+                                    ),
+                                    icon: const Icon(Icons.close_outlined),
+                                    label: const Text('Reject Claim'),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: FilledButton.icon(
+                                    onPressed: () => _reviewManualClaim(
+                                      context,
+                                      ref,
+                                      order,
+                                      approve: true,
+                                    ),
+                                    icon: const Icon(Icons.verified_outlined),
+                                    label: const Text('Approve Claim'),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ] else ...[
+                            const SizedBox(height: 12),
+                            Text(
+                              'Manager, admin, or owner approval is required before this order can be finalized.',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ],
+                        ],
                       ],
                     ],
                   ),
@@ -735,9 +878,6 @@ class OrderDetailPage extends ConsumerWidget {
   }
 
   String _outageRecoveryMessage(Order order) {
-    if (!_manualClaimUiEnabled && order.isManualClaimOutageOrder) {
-      return 'This archived order came from a deferred external-claim flow and is not actionable in the current release.';
-    }
     if (order.hasRejectedManualExternalPaymentClaim) {
       final reviewNote = (order.localOutageLastErrorMessage ?? '').trim();
       if (reviewNote.isNotEmpty) {
@@ -772,6 +912,44 @@ class OrderDetailPage extends ConsumerWidget {
     return order.localOutageMaterializedOrderId == null
         ? 'This order was captured offline and is still awaiting legacy online settlement.'
         : 'This outage-captured order is now materialized online and still awaiting legacy settlement.';
+  }
+
+  SaleManualPaymentClaimDetailDto? _selectManualPaymentClaim({
+    required Order order,
+    required SaleOrderDetailReadResultDto? remoteOrderDetail,
+  }) {
+    final claims = remoteOrderDetail?.manualPaymentClaims ?? const [];
+    if (claims.isEmpty) return null;
+
+    final localBackendClaimId = (order.localOutageBackendClaimId ?? '').trim();
+    if (localBackendClaimId.isNotEmpty) {
+      for (final claim in claims) {
+        if (claim.claimId.trim() == localBackendClaimId) {
+          return claim;
+        }
+      }
+    }
+
+    final remoteClaimId = (order.remoteManualPaymentClaimId ?? '').trim();
+    if (remoteClaimId.isNotEmpty) {
+      for (final claim in claims) {
+        if (claim.claimId.trim() == remoteClaimId) {
+          return claim;
+        }
+      }
+    }
+
+    for (final claim in claims) {
+      if (_isPendingManualPaymentClaimStatus(claim.status)) {
+        return claim;
+      }
+    }
+    return claims.last;
+  }
+
+  bool _isPendingManualPaymentClaimStatus(String? status) {
+    final normalized = (status ?? '').trim().toUpperCase();
+    return normalized == 'PENDING' || normalized == 'PENDING_REVIEW';
   }
 
   String _formatTenderAmount({
@@ -827,6 +1005,12 @@ class OrderDetailPage extends ConsumerWidget {
       await ref
           .read(ordersProvider.notifier)
           .submitManualExternalPaymentClaim(order);
+      final backendOrderId = order.isLocalOutageOrder
+          ? (order.localOutageMaterializedOrderId ?? '').trim()
+          : order.orderId;
+      if (backendOrderId.isNotEmpty) {
+        ref.invalidate(orderDetailProvider(backendOrderId));
+      }
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -841,7 +1025,7 @@ class OrderDetailPage extends ConsumerWidget {
         SnackBar(
           content: Text(
             UserErrorMessage.build(
-              context: 'Failed to submit manual claim online',
+              context: 'Failed to submit external payment claim online',
               error: e,
             ),
           ),
@@ -868,6 +1052,12 @@ class OrderDetailPage extends ConsumerWidget {
         final result = await ref
             .read(ordersProvider.notifier)
             .approveSubmittedManualPaymentClaim(order, note: note);
+        final backendOrderId = order.isLocalOutageOrder
+            ? (order.localOutageMaterializedOrderId ?? '').trim()
+            : order.orderId;
+        if (backendOrderId.isNotEmpty) {
+          ref.invalidate(orderDetailProvider(backendOrderId));
+        }
         if (!context.mounted) return;
         await showDialog<void>(
           context: context,
@@ -878,7 +1068,7 @@ class OrderDetailPage extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'The manual KHQR claim is approved and the sale is now finalized.',
+                  'The external payment claim is approved and the sale is now finalized.',
                 ),
                 const SizedBox(height: 12),
                 if ((result.receiptId ?? '').trim().isNotEmpty)
@@ -903,11 +1093,17 @@ class OrderDetailPage extends ConsumerWidget {
       await ref
           .read(ordersProvider.notifier)
           .rejectSubmittedManualPaymentClaim(order, note: note);
+      final backendOrderId = order.isLocalOutageOrder
+          ? (order.localOutageMaterializedOrderId ?? '').trim()
+          : order.orderId;
+      if (backendOrderId.isNotEmpty) {
+        ref.invalidate(orderDetailProvider(backendOrderId));
+      }
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Manual KHQR claim rejected. The order stays open for further action.',
+            'External payment claim rejected. The order stays open for further action.',
           ),
         ),
       );
@@ -918,8 +1114,8 @@ class OrderDetailPage extends ConsumerWidget {
           content: Text(
             UserErrorMessage.build(
               context: approve
-                  ? 'Failed to approve manual claim'
-                  : 'Failed to reject manual claim',
+                  ? 'Failed to approve external payment claim'
+                  : 'Failed to reject external payment claim',
               error: e,
             ),
           ),

@@ -634,11 +634,7 @@ class SaleRequestVoidCommand {
   final String clientOpId;
 
   Map<String, dynamic> toJson() {
-    return {
-      'sale_id': saleId,
-      'reason': reason,
-      'client_op_id': clientOpId,
-    };
+    return {'sale_id': saleId, 'reason': reason, 'client_op_id': clientOpId};
   }
 }
 
@@ -1143,6 +1139,70 @@ class SaleOpenTicketDetailDto {
   final String? paymentMethod;
 }
 
+class SaleManualPaymentClaimDetailDto {
+  const SaleManualPaymentClaimDetailDto({
+    required this.claimId,
+    required this.orderId,
+    required this.status,
+    this.claimedPaymentMethod,
+    this.tenderCurrency,
+    this.claimedTenderAmount,
+    this.proofImageUrl,
+    this.customerReference,
+    this.note,
+  });
+
+  final String claimId;
+  final String orderId;
+  final String status;
+  final String? claimedPaymentMethod;
+  final String? tenderCurrency;
+  final double? claimedTenderAmount;
+  final String? proofImageUrl;
+  final String? customerReference;
+  final String? note;
+}
+
+class SaleOrderDetailReadResultDto {
+  const SaleOrderDetailReadResultDto({
+    required this.orderId,
+    required this.tenantId,
+    required this.branchId,
+    required this.openedByAccountId,
+    required this.status,
+    required this.sourceMode,
+    required this.createdAt,
+    required this.updatedAt,
+    required this.manualPaymentClaims,
+    this.saleId,
+    this.saleStatus,
+    this.paymentMethod,
+    this.checkedOutAt,
+    this.checkedOutByAccountId,
+    this.cancelledAt,
+    this.cancelledByAccountId,
+    this.cancelReason,
+  });
+
+  final String orderId;
+  final String tenantId;
+  final String branchId;
+  final String openedByAccountId;
+  final String status;
+  final String sourceMode;
+  final String? saleId;
+  final String? saleStatus;
+  final String? paymentMethod;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final DateTime? checkedOutAt;
+  final String? checkedOutByAccountId;
+  final DateTime? cancelledAt;
+  final String? cancelledByAccountId;
+  final String? cancelReason;
+  final List<SaleManualPaymentClaimDetailDto> manualPaymentClaims;
+}
+
 class SaleReceiptLineDto {
   const SaleReceiptLineDto({
     required this.name,
@@ -1414,6 +1474,10 @@ abstract class SaleCartRepository {
     required String orderId,
   });
 
+  Future<SaleOrderDetailReadResultDto> getOrderDetail({
+    required String orderId,
+  });
+
   Future<SaleReceiptDto> getReceipt({required String saleId});
 }
 
@@ -1426,9 +1490,13 @@ abstract class SaleCheckoutRepository implements SaleCartRepository {
 
   Future<SaleVoidRequestReadDto?> getSaleVoidRequest({required String saleId});
 
-  Future<SaleVoidRequestReadDto> requestSaleVoid(SaleRequestVoidCommand command);
+  Future<SaleVoidRequestReadDto> requestSaleVoid(
+    SaleRequestVoidCommand command,
+  );
 
-  Future<SaleVoidRequestReadDto> approveSaleVoid(SaleApproveVoidCommand command);
+  Future<SaleVoidRequestReadDto> approveSaleVoid(
+    SaleApproveVoidCommand command,
+  );
 
   Future<SaleVoidRequestReadDto> rejectSaleVoid(SaleRejectVoidCommand command);
 

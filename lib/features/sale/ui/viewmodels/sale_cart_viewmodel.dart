@@ -1081,6 +1081,7 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
     required String invalidMethodMessage,
     bool enqueueCashReplay = false,
     bool enqueueManualClaimCapture = false,
+    bool requiresOpenCashSession = false,
   }) async {
     if (state.isFinalizing) {
       throw Exception('Offline order capture already in progress.');
@@ -1112,6 +1113,19 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
         gate,
         fallbackCode: SaleCheckoutReasonCodes.unknownError,
         fallbackMessage: 'Offline order capture is currently unavailable.',
+      );
+      state = _applyCheckoutFailure(
+        currentState,
+        reasonCode: error.reasonCode,
+        message: error.message,
+      );
+      throw error;
+    }
+    if (requiresOpenCashSession && !gate.cashSessionOpen) {
+      const error = SaleCheckoutRepositoryException(
+        reasonCode: SaleCheckoutReasonCodes.cashSessionRequired,
+        message:
+            'Open a cash session before capturing an external payment claim.',
       );
       state = _applyCheckoutFailure(
         currentState,
@@ -1314,7 +1328,7 @@ class SaleCartNotifier extends Notifier<SaleCartState> {
           'Manual claim capture is only available while offline.',
       invalidMethodMessage:
           'Manual external-payment claim capture requires QR payment selection.',
-      enqueueManualClaimCapture: true,
+      requiresOpenCashSession: true,
     );
   }
 

@@ -459,6 +459,12 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
         !cartState.isFinalizing &&
         items.isNotEmpty &&
         paymentMethod == 'cash';
+    final canOfflineManualClaimCapture =
+        gate.canCreateDraftSale &&
+        gate.cashSessionOpen &&
+        !cartState.isFinalizing &&
+        items.isNotEmpty &&
+        paymentMethod == 'qr';
     final qrPrimaryActionLabel = switch (khqrStatus) {
       SaleKhqrUiStates.superseded ||
       SaleKhqrUiStates.expired => 'Generate New Code',
@@ -468,16 +474,22 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
     };
     final canPrimaryAction = isOffline && paymentMethod == 'cash'
         ? canOfflineCashCapture
+        : isOffline && paymentMethod == 'qr'
+        ? canOfflineManualClaimCapture
         : paymentMethod == 'qr'
         ? canKhqrAction
         : canCheckout;
     final primaryActionLabel = isOffline && paymentMethod == 'cash'
         ? 'Queue Cash Checkout'
+        : isOffline && paymentMethod == 'qr'
+        ? 'Capture External Claim'
         : paymentMethod == 'qr'
         ? qrPrimaryActionLabel
         : 'Checkout';
     final offlineKhqrUnavailableMessage = isOffline && paymentMethod == 'qr'
-        ? 'KHQR checkout is unavailable while offline. Reconnect to continue.'
+        ? gate.cashSessionOpen
+              ? 'Offline QR proof is captured as an external payment claim. Reconnect later to submit it online for review.'
+              : 'Open a cash session before capturing an external payment claim.'
         : null;
     final checkoutBannerMessage = SaleCheckoutErrorMessage.build(
       reasonCode: cartState.checkoutErrorCode,
@@ -756,14 +768,36 @@ class _SaleCartPanelState extends ConsumerState<SaleCartPanel> {
               }
 
               if (isOffline && paymentMethod == 'qr') {
-                if (!context.mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      'KHQR checkout is unavailable while offline. Reconnect and try again.',
+                try {
+                  final result = await cartNotifier
+                      .captureOfflineManualClaimOrder();
+                  await ref
+                      .read(ordersProvider.notifier)
+                      .load(
+                        date: DateTime.now(),
+                        view: orderManualClaimReviewView,
+                      );
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Order ${result.orderNumber} captured for external payment review. Reconnect later to submit the claim online.',
+                      ),
                     ),
-                  ),
-                );
+                  );
+                } catch (e) {
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        _actionErrorMessage(
+                          context: 'Offline claim capture failed',
+                          error: e,
+                        ),
+                      ),
+                    ),
+                  );
+                }
                 return;
               }
 

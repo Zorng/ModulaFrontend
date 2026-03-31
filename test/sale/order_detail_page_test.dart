@@ -220,7 +220,7 @@ void main() {
   });
 
   testWidgets(
-    'OrderDetailPage hides manual claim entry UI for deferred outage claim orders',
+    'OrderDetailPage shows manual claim entry UI for outage claim orders',
     (tester) async {
       await tester.binding.setSurfaceSize(const Size(1280, 900));
       addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -266,27 +266,18 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      expect(find.text('Save Proof'), findsNothing);
-      expect(find.text('Submit Claim Online'), findsNothing);
-      expect(
-        find.text(
-          'This archived order came from a deferred external-claim flow and is not actionable in the current release.',
-        ),
-        findsOneWidget,
-      );
-      expect(find.text('Payment'), findsNothing);
+      expect(find.text('External Payment Claim'), findsOneWidget);
+      expect(find.text('Save Proof'), findsOneWidget);
+      expect(find.text('Submit Claim Online'), findsOneWidget);
       expect(find.text('Order Items'), findsOneWidget);
       expect(find.text('Grand Total'), findsOneWidget);
-      expect(find.text('Customer reference (optional)'), findsNothing);
-      expect(find.text('Select proof image'), findsNothing);
-      expect(find.text('Record Manual Claim'), findsNothing);
-      expect(find.text('Proof image URL'), findsNothing);
-      expect(find.text('Add Claim Proof'), findsNothing);
+      expect(find.text('Customer reference (optional)'), findsOneWidget);
+      expect(find.text('Select proof image'), findsOneWidget);
     },
   );
 
   testWidgets(
-    'OrderDetailPage hides recorded manual claim actions for deferred outage claim orders',
+    'OrderDetailPage shows recorded manual claim actions for outage claim orders',
     (tester) async {
       final order = Order(
         id: 'local-2',
@@ -334,21 +325,17 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      expect(find.text('External Payment Claim'), findsNothing);
-      expect(find.text('Submit Claim Online'), findsNothing);
-      expect(find.text('Captured by'), findsNothing);
-      expect(find.text('Staff One'), findsNothing);
-      expect(
-        find.text(
-          'This archived order came from a deferred external-claim flow and is not actionable in the current release.',
-        ),
-        findsOneWidget,
-      );
+      expect(find.text('External Payment Claim'), findsOneWidget);
+      expect(find.text('Submit Claim Online'), findsOneWidget);
+      expect(find.text('Captured by'), findsOneWidget);
+      expect(find.text('Staff One'), findsOneWidget);
+      expect(find.text('Claimed amount'), findsWidgets);
+      expect(find.text('Proof image'), findsWidgets);
     },
   );
 
   testWidgets(
-    'OrderDetailPage hides manual claim review actions for deferred outage claim orders',
+    'OrderDetailPage shows manual claim review actions for reviewer roles',
     (tester) async {
       final order = Order(
         id: 'order-1',
@@ -401,19 +388,13 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      expect(find.text('Approve Claim'), findsNothing);
-      expect(find.text('Reject Claim'), findsNothing);
-      expect(find.text('Captured by'), findsNothing);
-      expect(find.text('Staff One'), findsNothing);
-      expect(find.text('Submitted by'), findsNothing);
-      expect(find.text('Staff Two'), findsNothing);
-      expect(find.text('Submitted at'), findsNothing);
-      expect(
-        find.text(
-          'This archived order came from a deferred external-claim flow and is not actionable in the current release.',
-        ),
-        findsOneWidget,
-      );
+      expect(find.text('Approve Claim'), findsOneWidget);
+      expect(find.text('Reject Claim'), findsOneWidget);
+      expect(find.text('Captured by'), findsOneWidget);
+      expect(find.text('Staff One'), findsOneWidget);
+      expect(find.text('Submitted by'), findsOneWidget);
+      expect(find.text('Staff Two'), findsOneWidget);
+      expect(find.text('Submitted at'), findsOneWidget);
     },
   );
 

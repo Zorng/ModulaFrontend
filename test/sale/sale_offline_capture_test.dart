@@ -11,7 +11,6 @@ import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
 import 'package:modular_pos/features/policy/domain/models/policy.dart';
 import 'package:modular_pos/features/policy/ui/viewmodels/policy_viewmodel.dart';
 import 'package:modular_pos/features/sale/data/mock_sale_repository.dart';
-import 'package:modular_pos/features/sale/data/sale_checkout_repository_contract.dart';
 import 'package:modular_pos/features/sale/data/sale_outage_store.dart';
 import 'package:modular_pos/features/sale/data/sale_repository.dart';
 import 'package:modular_pos/features/sale/domain/models/sale_outage_order.dart';
@@ -174,7 +173,7 @@ void main() {
   );
 
   test(
-    'captureOfflineManualClaimOrder stores a manual-claim outage order and clears cart when live checkout is blocked',
+    'captureOfflineManualClaimOrder stores a manual-claim outage order locally without enqueueing push replay',
     () async {
       final database = AppDatabase(NativeDatabase.memory());
       addTearDown(database.close);
@@ -211,11 +210,10 @@ void main() {
               contextLoading: false,
               branchActive: true,
               branchFrozen: false,
-              cashSessionOpen: false,
-              canMutateCart: false,
-              canCheckout: false,
+              cashSessionOpen: true,
+              canMutateCart: true,
+              canCheckout: true,
               canPlacePayLater: false,
-              reasonCode: SaleCheckoutReasonCodes.cashSessionRequired,
             ),
           ),
         ],
@@ -258,15 +256,7 @@ void main() {
       expect(records.first.state, SaleOutageOrderStates.localOpenOrderCaptured);
       expect(records.first.proofImageUrl, isNull);
       expect(records.first.claimRecordedAt, isNull);
-      expect(queuedRecords, hasLength(1));
-      expect(
-        queuedRecords.single.operationType,
-        OfflineOperationType.orderManualExternalPaymentClaimCapture,
-      );
-      final payload = queuedRecords.single.decodePayload();
-      expect(payload['localIntentId'], result.localIntentId);
-      expect(payload['orderId'], isNotEmpty);
-      expect(payload['items'], isA<List<dynamic>>());
+      expect(queuedRecords, isEmpty);
     },
   );
 }

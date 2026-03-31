@@ -328,18 +328,21 @@ class MockSaleRepository implements SaleCheckoutRepository {
     SaleVoidRequestQueueQueryDto query,
   ) async {
     final normalizedStatus = (query.status ?? 'PENDING').trim().toUpperCase();
-    final filtered = _voidRequestsBySaleId.values.where((request) {
-      if (normalizedStatus.isEmpty || normalizedStatus == 'PENDING') {
-        return request.status.trim().toUpperCase() == 'PENDING';
-      }
-      if (normalizedStatus == 'ALL') return true;
-      return request.status.trim().toUpperCase() == normalizedStatus;
-    }).toList(growable: false)
-      ..sort((a, b) {
-        final requestedAtCompare = b.requestedAt.compareTo(a.requestedAt);
-        if (requestedAtCompare != 0) return requestedAtCompare;
-        return b.requestId.compareTo(a.requestId);
-      });
+    final filtered =
+        _voidRequestsBySaleId.values
+            .where((request) {
+              if (normalizedStatus.isEmpty || normalizedStatus == 'PENDING') {
+                return request.status.trim().toUpperCase() == 'PENDING';
+              }
+              if (normalizedStatus == 'ALL') return true;
+              return request.status.trim().toUpperCase() == normalizedStatus;
+            })
+            .toList(growable: false)
+          ..sort((a, b) {
+            final requestedAtCompare = b.requestedAt.compareTo(a.requestedAt);
+            if (requestedAtCompare != 0) return requestedAtCompare;
+            return b.requestId.compareTo(a.requestId);
+          });
 
     final safeLimit = query.limit < 1 ? 1 : query.limit;
     final safeOffset = query.offset < 0 ? 0 : query.offset;
@@ -350,37 +353,39 @@ class MockSaleRepository implements SaleCheckoutRepository {
             min(filtered.length, safeOffset + safeLimit),
           );
 
-    final items = paged.map((request) {
-      final sale =
-          _finalizedSales[request.saleId] ?? _voidedSales[request.saleId];
-      return SaleVoidRequestQueueItemDto(
-        voidRequestId: request.requestId,
-        saleId: request.saleId,
-        orderId: null,
-        tenantId: 'mock-tenant-001',
-        branchId: _activeBranchId,
-        branchName: null,
-        saleStatus: sale?.state.trim().toUpperCase() ?? 'FINALIZED',
-        voidRequestStatus: request.status.trim().toUpperCase(),
-        requestedAt: request.requestedAt,
-        requestedByAccountId:
-            (request.requestedByAccountId ?? '').trim().isEmpty
-            ? 'mock-account-001'
-            : request.requestedByAccountId!.trim(),
-        requestedByDisplayName: null,
-        reason: request.reason,
-        paymentMethod:
-            sale?.paymentMethod.trim().toUpperCase().isNotEmpty == true
-            ? sale!.paymentMethod.trim().toUpperCase()
-            : 'CASH',
-        grandTotalUsd: sale?.totalUsdExact ?? 0,
-        grandTotalKhr: sale?.totalKhrExact ?? 0,
-        fulfillmentStatus: sale?.fulfillmentStatus.trim().isNotEmpty == true
-            ? sale!.fulfillmentStatus.trim().toUpperCase()
-            : null,
-        saleCreatedAt: sale?.createdAt ?? request.requestedAt,
-      );
-    }).toList(growable: false);
+    final items = paged
+        .map((request) {
+          final sale =
+              _finalizedSales[request.saleId] ?? _voidedSales[request.saleId];
+          return SaleVoidRequestQueueItemDto(
+            voidRequestId: request.requestId,
+            saleId: request.saleId,
+            orderId: null,
+            tenantId: 'mock-tenant-001',
+            branchId: _activeBranchId,
+            branchName: null,
+            saleStatus: sale?.state.trim().toUpperCase() ?? 'FINALIZED',
+            voidRequestStatus: request.status.trim().toUpperCase(),
+            requestedAt: request.requestedAt,
+            requestedByAccountId:
+                (request.requestedByAccountId ?? '').trim().isEmpty
+                ? 'mock-account-001'
+                : request.requestedByAccountId!.trim(),
+            requestedByDisplayName: null,
+            reason: request.reason,
+            paymentMethod:
+                sale?.paymentMethod.trim().toUpperCase().isNotEmpty == true
+                ? sale!.paymentMethod.trim().toUpperCase()
+                : 'CASH',
+            grandTotalUsd: sale?.totalUsdExact ?? 0,
+            grandTotalKhr: sale?.totalKhrExact ?? 0,
+            fulfillmentStatus: sale?.fulfillmentStatus.trim().isNotEmpty == true
+                ? sale!.fulfillmentStatus.trim().toUpperCase()
+                : null,
+            saleCreatedAt: sale?.createdAt ?? request.requestedAt,
+          );
+        })
+        .toList(growable: false);
 
     return SaleVoidRequestQueuePageDto(
       items: items,
@@ -1678,6 +1683,66 @@ class MockSaleRepository implements SaleCheckoutRepository {
       saleId: ticket.status == 'PAID' ? ticket.saleId : null,
       saleStatus: ticket.status == 'PAID' ? 'FINALIZED' : null,
       paymentMethod: ticket.status == 'PAID' ? 'CASH' : null,
+    );
+  }
+
+  @override
+  Future<SaleOrderDetailReadResultDto> getOrderDetail({
+    required String orderId,
+  }) async {
+    final normalizedOrderId = orderId.trim();
+    final ticket = normalizedOrderId.isEmpty
+        ? null
+        : _openTicketsById[normalizedOrderId];
+    if (ticket == null) {
+      throw const SaleCheckoutRepositoryException(
+        reasonCode: SaleCheckoutReasonCodes.invalidRequest,
+        message: 'Order detail is not available for this order.',
+      );
+    }
+
+    final manualClaims = [
+      for (final claimId
+          in _manualClaimIdsByOrderId[ticket.openTicketId] ?? const <String>[])
+        if (_manualClaimsById[claimId] != null) _manualClaimsById[claimId]!,
+    ];
+
+    return SaleOrderDetailReadResultDto(
+      orderId: ticket.openTicketId,
+      tenantId: 'mock-tenant-001',
+      branchId: _activeBranchId,
+      openedByAccountId: 'mock-account-001',
+      status: ticket.status == 'PAID' ? 'CHECKED_OUT' : 'OPEN',
+      sourceMode: manualClaims.isNotEmpty
+          ? 'MANUAL_EXTERNAL_PAYMENT_CLAIM'
+          : 'DIRECT_CHECKOUT',
+      saleId: ticket.status == 'PAID' ? ticket.saleId : null,
+      saleStatus: ticket.status == 'PAID' ? 'FINALIZED' : null,
+      paymentMethod: ticket.status == 'PAID' ? 'CASH' : null,
+      createdAt: ticket.createdAt,
+      updatedAt: ticket.updatedAt,
+      checkedOutAt: ticket.status == 'PAID' ? ticket.updatedAt : null,
+      checkedOutByAccountId: ticket.status == 'PAID'
+          ? 'mock-account-reviewer'
+          : null,
+      cancelledAt: ticket.cancelledAt,
+      cancelledByAccountId: null,
+      cancelReason: null,
+      manualPaymentClaims: manualClaims
+          .map(
+            (claim) => SaleManualPaymentClaimDetailDto(
+              claimId: claim.claimId,
+              orderId: claim.orderId,
+              status: claim.status,
+              claimedPaymentMethod: claim.claimedPaymentMethod,
+              tenderCurrency: claim.tenderCurrency,
+              claimedTenderAmount: claim.claimedTenderAmount,
+              proofImageUrl: claim.proofImageUrl,
+              customerReference: claim.customerReference,
+              note: claim.reviewNote ?? claim.note,
+            ),
+          )
+          .toList(growable: false),
     );
   }
 

@@ -11,6 +11,7 @@ class OrderCard extends StatelessWidget {
     this.onStatusTap,
     this.actions = const <OrderCardAction>[],
     this.compact = false,
+    this.fillHeight = false,
     this.statusLabelBuilder = _defaultStatusLabel,
     this.statusColorBuilder = _defaultStatusColor,
     this.statusTextColorBuilder = _defaultStatusTextColor,
@@ -21,6 +22,7 @@ class OrderCard extends StatelessWidget {
   final VoidCallback? onStatusTap;
   final List<OrderCardAction> actions;
   final bool compact;
+  final bool fillHeight;
   final String Function(Order order) statusLabelBuilder;
   final Color Function(Order order) statusColorBuilder;
   final Color Function(Order order) statusTextColorBuilder;
@@ -40,9 +42,74 @@ class OrderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final previewLines = compact ? 2 : 3;
+    final previewLines = 3;
     final visibleLines = order.lines.take(previewLines).toList(growable: false);
     final remainingLineCount = order.lines.length - visibleLines.length;
+    final quantityStyle =
+        (compact ? theme.textTheme.bodyMedium : theme.textTheme.titleSmall)
+            ?.copyWith(fontWeight: FontWeight.w700, height: 1.1);
+    final lineNameStyle =
+        (compact ? theme.textTheme.bodySmall : theme.textTheme.bodyMedium)
+            ?.copyWith(fontWeight: FontWeight.w600, height: 1.15);
+    final modifierStyle = theme.textTheme.labelSmall?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+      fontSize: compact ? 10.5 : 11,
+      height: 1.1,
+    );
+    final helperMaxLines = fillHeight ? 2 : (compact ? 2 : 3);
+    final summarySpacing = fillHeight ? 12.0 : 14.0;
+    final footerSpacing = fillHeight ? 10.0 : 14.0;
+    final orderSummary = Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (var i = 0; i < visibleLines.length; i++) ...[
+            if (i > 0) const Divider(height: 10),
+            OrderLineRow(
+              line: visibleLines[i],
+              quantityStyle: quantityStyle,
+              nameStyle: lineNameStyle,
+              modifierStyle: modifierStyle,
+            ),
+          ],
+          if (remainingLineCount > 0) ...[
+            const SizedBox(height: 6),
+            Text(
+              'See $remainingLineCount more',
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: theme.colorScheme.primary,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+    final footer = Row(
+      children: [
+        _OrderStatusPill(
+          label: statusLabelBuilder(order),
+          backgroundColor: statusColorBuilder(order),
+          foregroundColor: statusTextColorBuilder(order),
+          onTap: onStatusTap,
+        ),
+        const SizedBox(width: 12),
+        const Spacer(),
+        Text(
+          '\$${order.totalUsd.toStringAsFixed(2)}',
+          style: theme.textTheme.titleSmall?.copyWith(
+            color: Colors.green.shade700,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    );
 
     return InkWell(
       onTap: onTap,
@@ -140,68 +207,17 @@ class OrderCard extends StatelessWidget {
                 const SizedBox(height: 6),
                 Text(
                   _helperCopy(order)!,
-                  maxLines: compact ? 2 : 3,
+                  maxLines: helperMaxLines,
                   overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
               ],
-              const SizedBox(height: 14),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.surfaceContainerLowest,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Order (${order.lines.length})',
-                      style: theme.textTheme.labelLarge?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    for (var i = 0; i < visibleLines.length; i++) ...[
-                      if (i > 0) const Divider(height: 12),
-                      OrderLineRow(line: visibleLines[i]),
-                    ],
-                    if (remainingLineCount > 0) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        'See $remainingLineCount more',
-                        style: theme.textTheme.labelMedium?.copyWith(
-                          color: theme.colorScheme.primary,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              const SizedBox(height: 14),
-              Row(
-                children: [
-                  _OrderStatusPill(
-                    label: statusLabelBuilder(order),
-                    backgroundColor: statusColorBuilder(order),
-                    foregroundColor: statusTextColorBuilder(order),
-                    onTap: onStatusTap,
-                  ),
-                  const SizedBox(width: 12),
-                  const Spacer(),
-                  Text(
-                    '\$${order.totalUsd.toStringAsFixed(2)}',
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      color: Colors.green.shade700,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
+              SizedBox(height: summarySpacing),
+              if (fillHeight) Expanded(child: orderSummary) else orderSummary,
+              SizedBox(height: footerSpacing),
+              footer,
             ],
           ),
         ),
@@ -318,16 +334,16 @@ String? _helperCopy(Order order) {
   }
   if (!order.isLocalOutageOrder) return null;
   if (order.hasRejectedManualExternalPaymentClaim) {
-    return 'Manual KHQR claim was rejected. Review and resubmit if needed.';
+    return 'External payment claim was rejected. Review and resubmit if needed.';
   }
   if (order.hasSubmittedManualExternalPaymentClaim) {
-    return 'Manual KHQR claim submitted. Awaiting manager review.';
+    return 'External payment claim submitted. Awaiting manager review.';
   }
   if (order.hasManualExternalPaymentClaimRecorded) {
-    return 'Manual KHQR payment claimed locally. Submit online to continue review.';
+    return 'External payment proof is saved locally. Submit it online to continue review.';
   }
   if (order.isManualClaimOutageOrder) {
-    return 'Offline-captured order awaiting manual KHQR proof.';
+    return 'Outage-captured order awaiting external payment proof.';
   }
   if (order.hasOfflineCashReplayFailure) {
     return 'Offline cash checkout could not sync automatically. Review the sync error before retrying.';

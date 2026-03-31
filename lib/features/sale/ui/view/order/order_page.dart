@@ -63,10 +63,17 @@ class _OrderPageState extends ConsumerState<OrderPage> {
   }
 
   List<FulfillmentWorkspaceTab> _workspaceTabsForRole(AuthRole role) {
-    if (isVoidReviewerAuthRole(role)) {
+    if (isBranchOperatorAuthRole(role)) {
+      if (isVoidReviewerAuthRole(role)) {
+        return const [
+          FulfillmentWorkspaceTab.kitchen,
+          FulfillmentWorkspaceTab.voidRequests,
+          FulfillmentWorkspaceTab.externalClaims,
+        ];
+      }
       return const [
         FulfillmentWorkspaceTab.kitchen,
-        FulfillmentWorkspaceTab.voidRequests,
+        FulfillmentWorkspaceTab.externalClaims,
       ];
     }
     return const [FulfillmentWorkspaceTab.kitchen];
@@ -79,7 +86,7 @@ class _OrderPageState extends ConsumerState<OrderPage> {
       case FulfillmentWorkspaceTab.voidRequests:
         return 'Void Requests';
       case FulfillmentWorkspaceTab.externalClaims:
-        return 'Deferred Claims';
+        return 'External Claims';
     }
   }
 
@@ -164,15 +171,6 @@ class _OrderPageState extends ConsumerState<OrderPage> {
     AuthRole currentRole,
   ) {
     final actions = <OrderCardAction>[];
-    if (workspaceTab == FulfillmentWorkspaceTab.externalClaims) {
-      actions.add(
-        OrderCardAction(
-          label: 'Review detail',
-          icon: Icons.open_in_new_outlined,
-          onSelected: () => _openOrderDetail(order),
-        ),
-      );
-    }
     if (workspaceTab == FulfillmentWorkspaceTab.kitchen &&
         isBranchOperatorAuthRole(currentRole) &&
         order.canOpenVoidWorkflow) {
@@ -295,7 +293,7 @@ class _OrderPageState extends ConsumerState<OrderPage> {
                           child: Text(
                             workspaceTab == FulfillmentWorkspaceTab.kitchen
                                 ? 'No fulfillment work'
-                                : 'No deferred claim items',
+                                : 'No external claims',
                           ),
                         )
                       : LayoutBuilder(
@@ -321,13 +319,14 @@ class _OrderPageState extends ConsumerState<OrderPage> {
                                       maxCrossAxisExtent: 360,
                                       mainAxisSpacing: 16,
                                       crossAxisSpacing: 16,
-                                      mainAxisExtent: 318,
+                                      mainAxisExtent: 340,
                                     ),
                                 itemCount: filtered.length,
                                 itemBuilder: (context, index) {
                                   final order = filtered[index];
                                   return OrderCard(
                                     order: order,
+                                    fillHeight: true,
                                     onTap: () => _openOrderDetail(order),
                                     onStatusTap: !order.isLocalOutageOrder
                                         ? () => _openStatusSheet(order)

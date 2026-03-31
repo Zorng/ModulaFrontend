@@ -18,6 +18,7 @@ import 'package:modular_pos/features/sale/ui/view/sale_cart/sale_cart_page.dart'
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_access_gate.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_state.dart';
 import 'package:modular_pos/features/sale/ui/viewmodels/sale_cart_viewmodel.dart';
+import 'package:modular_pos/features/sale/ui/viewmodels/order_viewmodel.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../test_utils/fakes/fake_auth_repository.dart';
@@ -91,6 +92,36 @@ class _PrefilledCartNotifier extends SaleCartNotifier {
 
   @override
   SaleCartState build() => _initial;
+}
+
+class _ManualClaimCaptureCartNotifier extends _PrefilledCartNotifier {
+  _ManualClaimCaptureCartNotifier(super.initial);
+
+  bool captureCalled = false;
+
+  @override
+  Future<SaleOfflineCaptureResult> captureOfflineManualClaimOrder() async {
+    captureCalled = true;
+    state = const SaleCartState();
+    return const SaleOfflineCaptureResult(
+      localIntentId: 'manual-claim-1',
+      orderNumber: 'LOCAL-CLAIM-001',
+    );
+  }
+}
+
+class _StaticOrdersNotifier extends OrdersNotifier {
+  @override
+  List<Order> build() => const [];
+
+  int loadCallCount = 0;
+  String? lastRequestedView;
+
+  @override
+  Future<void> load({DateTime? date, String? status, String? view}) async {
+    loadCallCount += 1;
+    lastRequestedView = view;
+  }
 }
 
 class _TestSaleAccessGateNotifier extends Notifier<SaleAccessGate> {
@@ -332,7 +363,7 @@ void main() {
   );
 
   testWidgets(
-    'offline QR flow disables KHQR checkout and asks the operator to reconnect',
+    'offline QR flow captures an external payment claim instead of blocking checkout',
     (tester) async {
       SharedPreferences.setMockInitialValues({});
       final prefs = await SharedPreferences.getInstance();
@@ -344,6 +375,15 @@ void main() {
         categoryId: 'cat-1',
         price: 1.5,
       );
+
+      final cartNotifier = _ManualClaimCaptureCartNotifier(
+        const SaleCartState(
+          saleId: 'sale-1',
+          paymentMethod: 'qr',
+          lines: [CartLine(item: item, quantity: 1, selectedOptionIds: {})],
+        ),
+      );
+      final ordersNotifier = _StaticOrdersNotifier();
 
       final container = createTestContainer(
         overrides: [
@@ -357,28 +397,18 @@ void main() {
           menuViewModelProvider.overrideWith(
             () => _StaticMenuViewModel(const MenuState(isLoading: false)),
           ),
-          saleCartProvider.overrideWith(
-            () => _PrefilledCartNotifier(
-              const SaleCartState(
-                saleId: 'sale-1',
-                paymentMethod: 'qr',
-                lines: [
-                  CartLine(item: item, quantity: 1, selectedOptionIds: {}),
-                ],
-              ),
-            ),
-          ),
+          saleCartProvider.overrideWith(() => cartNotifier),
+          ordersProvider.overrideWith(() => ordersNotifier),
           saleAccessGateProvider.overrideWithValue(
             const SaleAccessGate(
               branchId: 'branch-1',
               contextLoading: false,
               branchActive: true,
               branchFrozen: false,
-              cashSessionOpen: false,
-              canMutateCart: false,
-              canCheckout: false,
+              cashSessionOpen: true,
+              canMutateCart: true,
+              canCheckout: true,
               canPlacePayLater: false,
-              reasonCode: SaleCheckoutReasonCodes.cashSessionRequired,
             ),
           ),
         ],
@@ -393,16 +423,30 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      final captureButton = find.widgetWithText(FilledButton, 'Generate Code');
+      final captureButton = find.widgetWithText(
+        FilledButton,
+        'Capture External Claim',
+      );
       expect(captureButton, findsOneWidget);
-      expect(tester.widget<FilledButton>(captureButton).onPressed, isNull);
+      expect(tester.widget<FilledButton>(captureButton).onPressed, isNotNull);
       expect(
         find.text(
-          'KHQR checkout is unavailable while offline. Reconnect to continue.',
+          'Offline QR proof is captured as an external payment claim. Reconnect later to submit it online for review.',
         ),
         findsOneWidget,
       );
-      expect(find.text('Capture KHQR Claim'), findsNothing);
+      await tester.tap(captureButton);
+      await tester.pumpAndSettle();
+
+      expect(cartNotifier.captureCalled, isTrue);
+      expect(ordersNotifier.loadCallCount, 1);
+      expect(ordersNotifier.lastRequestedView, orderManualClaimReviewView);
+      expect(
+        find.text(
+          'Order LOCAL-CLAIM-001 captured for external payment review. Reconnect later to submit the claim online.',
+        ),
+        findsOneWidget,
+      );
     },
   );
 

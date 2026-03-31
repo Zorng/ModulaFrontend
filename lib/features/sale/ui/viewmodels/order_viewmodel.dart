@@ -11,6 +11,23 @@ final ordersProvider = NotifierProvider<OrdersNotifier, List<Order>>(
   OrdersNotifier.new,
 );
 
+final orderDetailProvider =
+    FutureProvider.family<SaleOrderDetailReadResultDto, String>((
+      ref,
+      orderId,
+    ) async {
+      final normalizedOrderId = orderId.trim();
+      if (normalizedOrderId.isEmpty) {
+        throw const SaleCheckoutRepositoryException(
+          reasonCode: SaleCheckoutReasonCodes.invalidRequest,
+          message: 'Order id is required before loading order detail.',
+        );
+      }
+      return ref
+          .read(saleRepositoryProvider)
+          .getOrderDetail(orderId: normalizedOrderId);
+    });
+
 const orderFulfillmentActiveView = 'FULFILLMENT_ACTIVE';
 const orderManualClaimReviewView = 'MANUAL_CLAIM_REVIEW';
 
@@ -772,7 +789,7 @@ class OrdersNotifier extends Notifier<List<Order>> {
       ),
     );
 
-    await load(date: order.placedAt);
+    await load(date: order.placedAt, view: manualClaimReviewView);
   }
 
   Future<void> recordLocalManualExternalPaymentClaimWithUpload(
@@ -820,13 +837,13 @@ class OrdersNotifier extends Notifier<List<Order>> {
       throw const SaleCheckoutRepositoryException(
         reasonCode: SaleCheckoutReasonCodes.invalidRequest,
         message:
-            'Record the manual KHQR claim details locally before submitting it online.',
+            'Record the external payment claim details locally before submitting it online.',
       );
     }
     if (order.hasSubmittedManualExternalPaymentClaim) {
       throw const SaleCheckoutRepositoryException(
         reasonCode: SaleCheckoutReasonCodes.invalidRequest,
-        message: 'This manual KHQR claim is already submitted online.',
+        message: 'This external payment claim is already submitted online.',
       );
     }
 
@@ -919,7 +936,7 @@ class OrdersNotifier extends Notifier<List<Order>> {
           lastErrorMessage: null,
         ),
       );
-      await load(date: order.placedAt);
+      await load(date: order.placedAt, view: manualClaimReviewView);
       return claimResult;
     } on SaleCheckoutRepositoryException catch (error) {
       await store.write(
@@ -929,7 +946,7 @@ class OrdersNotifier extends Notifier<List<Order>> {
           updatedAt: DateTime.now().toUtc(),
         ),
       );
-      await load(date: order.placedAt);
+      await load(date: order.placedAt, view: manualClaimReviewView);
       rethrow;
     } catch (error) {
       await store.write(
@@ -939,25 +956,41 @@ class OrdersNotifier extends Notifier<List<Order>> {
           updatedAt: DateTime.now().toUtc(),
         ),
       );
-      await load(date: order.placedAt);
+      await load(date: order.placedAt, view: manualClaimReviewView);
       rethrow;
     }
   }
 
   Future<SaleApproveManualPaymentClaimResultDto>
   approveSubmittedManualPaymentClaim(Order order, {String? note}) async {
-    if (!order.isLocalOutageOrder || order.localOutageIntentId == null) {
+    if (!order.hasSubmittedManualExternalPaymentClaim &&
+        !order.hasPendingRemoteManualPaymentClaim) {
       throw const SaleCheckoutRepositoryException(
         reasonCode: SaleCheckoutReasonCodes.invalidRequest,
-        message:
-            'Only locally captured outage orders can approve manual claims.',
+        message: 'No submitted external payment claim is waiting for review.',
       );
     }
-    if (!order.hasSubmittedManualExternalPaymentClaim) {
-      throw const SaleCheckoutRepositoryException(
-        reasonCode: SaleCheckoutReasonCodes.invalidRequest,
-        message: 'No submitted manual claim is waiting for review.',
+
+    final remoteOrderId = order.orderId;
+    final remoteClaimId = (order.remoteManualPaymentClaimId ?? '').trim();
+    if (!order.isLocalOutageOrder || order.localOutageIntentId == null) {
+      if (remoteOrderId.isEmpty || remoteClaimId.isEmpty) {
+        throw const SaleCheckoutRepositoryException(
+          reasonCode: SaleCheckoutReasonCodes.invalidRequest,
+          message: 'Backend claim identifiers are missing for this review.',
+        );
+      }
+      final result = await _repo.approveManualPaymentClaim(
+        SaleApproveManualPaymentClaimCommand(
+          orderId: remoteOrderId,
+          claimId: remoteClaimId,
+          clientOpId:
+              'remote-manual-claim-approve-$remoteOrderId-${DateTime.now().millisecondsSinceEpoch}',
+          note: note?.trim().isEmpty == true ? null : note?.trim(),
+        ),
       );
+      await load(date: order.placedAt, view: manualClaimReviewView);
+      return result;
     }
 
     final scope = ref.read(saleOutageScopeProvider);
@@ -1002,7 +1035,7 @@ class OrdersNotifier extends Notifier<List<Order>> {
         scope: scope,
         localIntentId: currentRecord.localIntentId,
       );
-      await load(date: DateTime.now());
+      await load(date: order.placedAt, view: manualClaimReviewView);
       return result;
     } on SaleCheckoutRepositoryException catch (error) {
       await store.write(
@@ -1012,7 +1045,7 @@ class OrdersNotifier extends Notifier<List<Order>> {
           updatedAt: DateTime.now().toUtc(),
         ),
       );
-      await load(date: order.placedAt);
+      await load(date: order.placedAt, view: manualClaimReviewView);
       rethrow;
     } catch (error) {
       await store.write(
@@ -1022,25 +1055,42 @@ class OrdersNotifier extends Notifier<List<Order>> {
           updatedAt: DateTime.now().toUtc(),
         ),
       );
-      await load(date: order.placedAt);
+      await load(date: order.placedAt, view: manualClaimReviewView);
       rethrow;
     }
   }
 
   Future<SaleRejectManualPaymentClaimResultDto>
   rejectSubmittedManualPaymentClaim(Order order, {String? note}) async {
-    if (!order.isLocalOutageOrder || order.localOutageIntentId == null) {
+    if (!order.hasSubmittedManualExternalPaymentClaim &&
+        !order.hasPendingRemoteManualPaymentClaim) {
       throw const SaleCheckoutRepositoryException(
         reasonCode: SaleCheckoutReasonCodes.invalidRequest,
-        message:
-            'Only locally captured outage orders can reject manual claims.',
+        message: 'No submitted external payment claim is waiting for review.',
       );
     }
-    if (!order.hasSubmittedManualExternalPaymentClaim) {
-      throw const SaleCheckoutRepositoryException(
-        reasonCode: SaleCheckoutReasonCodes.invalidRequest,
-        message: 'No submitted manual claim is waiting for review.',
+
+    final remoteOrderId = order.orderId;
+    final remoteClaimId = (order.remoteManualPaymentClaimId ?? '').trim();
+    if (!order.isLocalOutageOrder || order.localOutageIntentId == null) {
+      if (remoteOrderId.isEmpty || remoteClaimId.isEmpty) {
+        throw const SaleCheckoutRepositoryException(
+          reasonCode: SaleCheckoutReasonCodes.invalidRequest,
+          message: 'Backend claim identifiers are missing for this review.',
+        );
+      }
+      final trimmedNote = note?.trim();
+      final result = await _repo.rejectManualPaymentClaim(
+        SaleRejectManualPaymentClaimCommand(
+          orderId: remoteOrderId,
+          claimId: remoteClaimId,
+          clientOpId:
+              'remote-manual-claim-reject-$remoteOrderId-${DateTime.now().millisecondsSinceEpoch}',
+          note: trimmedNote?.isEmpty == true ? null : trimmedNote,
+        ),
       );
+      await load(date: order.placedAt, view: manualClaimReviewView);
+      return result;
     }
 
     final scope = ref.read(saleOutageScopeProvider);
@@ -1092,11 +1142,11 @@ class OrdersNotifier extends Notifier<List<Order>> {
               SaleOutageErrorCodes.manualExternalPaymentClaimRejected,
           lastErrorMessage: trimmedNote?.isEmpty == false
               ? trimmedNote
-              : 'Manual KHQR claim was rejected during review.',
+              : 'External payment claim was rejected during review.',
           updatedAt: DateTime.now().toUtc(),
         ),
       );
-      await load(date: order.placedAt);
+      await load(date: order.placedAt, view: manualClaimReviewView);
       return result;
     } on SaleCheckoutRepositoryException catch (error) {
       await store.write(
@@ -1106,7 +1156,7 @@ class OrdersNotifier extends Notifier<List<Order>> {
           updatedAt: DateTime.now().toUtc(),
         ),
       );
-      await load(date: order.placedAt);
+      await load(date: order.placedAt, view: manualClaimReviewView);
       rethrow;
     } catch (error) {
       await store.write(
@@ -1116,7 +1166,7 @@ class OrdersNotifier extends Notifier<List<Order>> {
           updatedAt: DateTime.now().toUtc(),
         ),
       );
-      await load(date: order.placedAt);
+      await load(date: order.placedAt, view: manualClaimReviewView);
       rethrow;
     }
   }

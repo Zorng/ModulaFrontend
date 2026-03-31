@@ -439,7 +439,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Void Requests'), findsOneWidget);
-    expect(find.text('External Claims'), findsNothing);
+    expect(find.text('External Claims'), findsOneWidget);
     expect(notifier.loadCallCount, 1);
 
     await tester.tap(find.text('Void Requests'));
@@ -490,9 +490,60 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Kitchen'), findsOneWidget);
-    expect(find.text('External Claims'), findsNothing);
+    expect(find.text('External Claims'), findsOneWidget);
     expect(find.text('Void Requests'), findsNothing);
   });
+
+  testWidgets(
+    'OrderPage loads External Claims through manual-claim review view',
+    (tester) async {
+      final claimOrder = Order(
+        id: 'claim-order-1',
+        saleId: '',
+        number: 'LOCAL-CLAIM-001',
+        status: 'pending',
+        ticketStatus: 'UNPAID',
+        placedAt: DateTime(2026, 3, 18, 10),
+        orderType: 'take_away',
+        paymentMethod: 'qr',
+        totalUsd: 3.5,
+        totalKhr: 14350,
+        tenderCurrency: 'usd',
+        tenderAmount: 3.5,
+        changeAmount: 0,
+        lines: const [OrderLine(name: 'Latte', modifiers: [], quantity: 1)],
+        sourceMode: 'MANUAL_EXTERNAL_PAYMENT_CLAIM',
+        remoteManualPaymentClaimId: 'claim-1',
+        remoteManualPaymentClaimStatus: 'PENDING',
+      );
+      final notifier = _StaticOrdersNotifier([claimOrder]);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            ordersProvider.overrideWith(() => notifier),
+            loginControllerProvider.overrideWith(
+              () => _StaticLoginController(_sessionForRole('cashier')),
+            ),
+          ],
+          child: const MaterialApp(home: OrderPage()),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      expect(find.text('External Claims'), findsOneWidget);
+
+      await tester.tap(find.text('External Claims'));
+      await tester.pumpAndSettle();
+
+      expect(notifier.loadCallCount, 2);
+      expect(notifier.lastRequestedView, orderManualClaimReviewView);
+      expect(find.text('Ticket LOCAL-CLAIM-001'), findsOneWidget);
+      expect(find.text('Claim Pending'), findsOneWidget);
+      expect(find.text('Void Requests'), findsNothing);
+    },
+  );
 
   testWidgets('OrderPage uses a grid board on wide kitchen layouts', (
     tester,
