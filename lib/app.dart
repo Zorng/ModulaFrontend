@@ -5,6 +5,7 @@ import 'package:modular_pos/core/hydration/app_hydration_listener.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/routing/workspace_route_guard.dart';
 import 'package:modular_pos/core/routing/routes/account_routes.dart';
+import 'package:modular_pos/core/routing/routes/audit_routes.dart';
 import 'package:modular_pos/core/routing/routes/attendance_routes.dart';
 import 'package:modular_pos/core/routing/routes/branch_routes.dart';
 import 'package:modular_pos/core/routing/routes/cash_routes.dart';
@@ -61,6 +62,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final isTenantSelection = path == AppRoute.tenantSelection.path;
       final isInvitationInbox = path == AppRoute.invitationInbox.path;
       final isNotifications = path == AppRoute.notifications.path;
+      final isAudit = path == AppRoute.audit.path;
       final isAccount = path == AppRoute.account.path;
       final isSettings = path == AppRoute.settings.path;
       final isBranchSelection = path == AppRoute.branchSelection.path;
@@ -88,6 +90,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         return (isTenantSelection ||
                 isInvitationInbox ||
                 isNotifications ||
+                isAudit ||
                 isAccount ||
                 isSettings)
             ? null
@@ -222,6 +225,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         routes: [
           ...buildPortalRoutes(ref),
           ...buildNotificationRoutes(),
+          ...buildAuditRoutes(),
           ...buildMenuRoutes(),
           ...buildPolicyRoutes(),
           ...buildDiscountRoutes(),
@@ -285,6 +289,7 @@ String _homeForRole({
 bool _isTenantAdminRoute(String path) {
   if (isPathInGroup(path, AppRoute.attendanceManagement.path)) return false;
   return isPathInGroup(path, AppRoute.branch.path) ||
+      isPathInGroup(path, AppRoute.audit.path) ||
       isPathInGroup(path, AppRoute.adminMenu.path) ||
       isPathInGroup(path, AppRoute.inventory.path) ||
       isPathInGroup(path, AppRoute.staff.path);

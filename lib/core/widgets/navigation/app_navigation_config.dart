@@ -76,6 +76,12 @@ List<AppNavigationSection> buildAppNavigationSections({
               route: AppRoute.reporting,
               scope: AppNavigationScope.tenant,
             ),
+            AppNavigationDestination(
+              label: 'Audit Log',
+              icon: Icons.history_outlined,
+              route: AppRoute.audit,
+              scope: AppNavigationScope.tenant,
+            ),
           ],
         ),
       ];
