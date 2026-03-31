@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/core/widgets/navigation/branch_workspace_scaffold.dart';
 import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
@@ -214,23 +213,6 @@ class _SaleBottomNavShellPageState
   List<Widget>? actionsForIndex(int index, BuildContext context) {
     if (index == 0) {
       return const [SalePrinterStatusAction()];
-    }
-    if (index == 1) {
-      return [
-        PopupMenuButton<String>(
-          onSelected: (value) {
-            if (value == 'view_carts') {
-              context.push(AppRoute.saleViewCarts.path);
-            }
-          },
-          itemBuilder: (_) => const [
-            PopupMenuItem<String>(
-              value: 'view_carts',
-              child: Text('View carts'),
-            ),
-          ],
-        ),
-      ];
     }
     return null;
   }
