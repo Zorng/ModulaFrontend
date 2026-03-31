@@ -513,6 +513,7 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
 
       while (hasMore) {
         final page = await repository.fetchMasterStockItems(
+          status: 'active',
           pageSize: _stockItemPickerPageSize,
           offset: offset,
         );

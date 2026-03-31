@@ -59,7 +59,7 @@ void main() {
 
       when(
         () => repository.fetchMasterStockItems(
-          status: any(named: 'status'),
+          status: 'active',
           search: any(named: 'search'),
           categoryId: any(named: 'categoryId'),
           pageSize: any(named: 'pageSize'),
@@ -75,7 +75,7 @@ void main() {
       );
       when(
         () => repository.fetchMasterStockItems(
-          status: any(named: 'status'),
+          status: 'active',
           search: any(named: 'search'),
           categoryId: any(named: 'categoryId'),
           pageSize: any(named: 'pageSize'),
@@ -105,7 +105,7 @@ void main() {
       expect(find.text('Matcha Powder'), findsOneWidget);
       verify(
         () => repository.fetchMasterStockItems(
-          status: any(named: 'status'),
+          status: 'active',
           search: any(named: 'search'),
           categoryId: any(named: 'categoryId'),
           pageSize: any(named: 'pageSize'),
@@ -114,7 +114,7 @@ void main() {
       ).called(1);
       verify(
         () => repository.fetchMasterStockItems(
-          status: any(named: 'status'),
+          status: 'active',
           search: any(named: 'search'),
           categoryId: any(named: 'categoryId'),
           pageSize: any(named: 'pageSize'),

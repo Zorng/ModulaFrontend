@@ -34,7 +34,7 @@ class _InventoryStockItemsPageState
   final _searchController = TextEditingController();
   Timer? _searchDebounce;
   String _categoryFilterId = 'all';
-  _ActiveFilter _activeFilter = _ActiveFilter.all;
+  _ActiveFilter _activeFilter = _ActiveFilter.active;
 
   @override
   void initState() {
@@ -74,7 +74,7 @@ class _InventoryStockItemsPageState
     final items = inventoryState.stockItems;
     final hasSearch = _searchController.text.trim().isNotEmpty;
     final hasCategoryFilter = _categoryFilterId != 'all';
-    final hasStatusFilter = _activeFilter != _ActiveFilter.all;
+    final hasStatusFilter = _activeFilter != _ActiveFilter.active;
     final hasActiveFilters = hasSearch || hasCategoryFilter || hasStatusFilter;
     final hasNoStockItems = items.isEmpty;
 
@@ -505,12 +505,11 @@ class _InventoryStockItemsPageState
         final statusFilter = InventoryDropdown<_ActiveFilter>(
           initialValue: _activeFilter,
           entries: const [
-            DropdownMenuEntry(value: _ActiveFilter.all, label: 'All statuses'),
             DropdownMenuEntry(value: _ActiveFilter.active, label: 'Active'),
             DropdownMenuEntry(value: _ActiveFilter.inactive, label: 'Archived'),
           ],
           onSelected: (value) {
-            final selected = value ?? _ActiveFilter.all;
+            final selected = value ?? _ActiveFilter.active;
             setState(() => _activeFilter = selected);
             _reloadStockItems();
           },
@@ -823,7 +822,6 @@ class _InventoryStockItemsPageState
 
   String _statusApiValue(_ActiveFilter filter) {
     return switch (filter) {
-      _ActiveFilter.all => 'all',
       _ActiveFilter.active => 'active',
       _ActiveFilter.inactive => 'archived',
     };
@@ -903,4 +901,4 @@ class _InventoryStockItemsPageState
   }
 }
 
-enum _ActiveFilter { all, active, inactive }
+enum _ActiveFilter { active, inactive }
