@@ -61,6 +61,32 @@ void main() {
       expect(group.options.map((o) => o.id).toList(), ['opt-1']);
     });
 
+    test('toGroup preserves unconfigured item-scoped option prices', () {
+      final dto = ModifierGroupDto.fromJson({
+        'id': 'group-1',
+        'tenantId': 'tenant-1',
+        'name': 'Size',
+        'selectionMode': 'single',
+        'status': 'active',
+        'options': [
+          {
+            'id': 'opt-1',
+            'modifierOptionId': 'opt-1',
+            'groupId': 'group-1',
+            'label': 'Medium',
+            'priceDelta': null,
+            'status': 'active',
+          },
+        ],
+      });
+
+      final group = MenuMappers.toGroup(dto);
+
+      expect(group.options.single.id, 'opt-1');
+      expect(group.options.single.price, 0);
+      expect(group.options.single.isPriceConfigured, isFalse);
+    });
+
     test('normalizeStatus uses fallback deterministically', () {
       expect(
         MenuMappers.normalizeStatus('  ', fallbackIsActive: true),

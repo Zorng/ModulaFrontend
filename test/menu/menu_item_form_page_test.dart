@@ -293,6 +293,7 @@ void main() {
                   'item-1': [
                     MenuModifierOptionEffect(
                       modifierOptionId: 'opt-1',
+                      priceDelta: 0.5,
                       components: [
                         ModifierDelta(
                           stockItemId: 'stock-2',
@@ -346,10 +347,11 @@ void main() {
       expect(find.text('Composition'), findsOneWidget);
       expect(find.text('Espresso (ml)'), findsOneWidget);
       expect(find.text('Quantity: 250'), findsOneWidget);
-      expect(find.text('Modifier option effects'), findsOneWidget);
+      expect(find.text('Modifier option pricing and effects'), findsOneWidget);
       await tester.tap(find.widgetWithText(ExpansionTile, 'Milk'));
       await tester.pumpAndSettle();
       expect(find.text('Oat Milk'), findsOneWidget);
+      expect(find.text('Price delta: +\$0.50'), findsOneWidget);
       expect(find.text('Delta: +50'), findsOneWidget);
     },
   );
@@ -401,7 +403,7 @@ void main() {
           )
           .dy;
       expect(compositionMessageTop - compositionTitleBottom, lessThan(4));
-      expect(find.text('Modifier option effects'), findsNothing);
+      expect(find.text('Modifier option pricing and effects'), findsNothing);
       expect(find.text('Add component'), findsNothing);
       expect(
         find.text(

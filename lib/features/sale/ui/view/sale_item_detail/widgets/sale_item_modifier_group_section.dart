@@ -49,10 +49,7 @@ class SaleItemModifierGroupSection extends StatelessWidget {
                 children: [
                   ...group.options.map((option) {
                     final isSelected = selectedOptionIds.contains(option.id);
-                    final priceDelta = option.price;
-                    final priceLabel = priceDelta == 0
-                        ? ''
-                        : ' (+\$${priceDelta.toStringAsFixed(2)})';
+                    final priceLabel = _priceLabel(option);
                     final highlightColor = Theme.of(
                       context,
                     ).colorScheme.primary.withValues(alpha: 0.08);
@@ -81,10 +78,7 @@ class SaleItemModifierGroupSection extends StatelessWidget {
           else
             ...group.options.map((option) {
               final isSelected = selectedOptionIds.contains(option.id);
-              final priceDelta = option.price;
-              final priceLabel = priceDelta == 0
-                  ? ''
-                  : ' (+\$${priceDelta.toStringAsFixed(2)})';
+              final priceLabel = _priceLabel(option);
               final highlightColor = Theme.of(
                 context,
               ).colorScheme.primary.withValues(alpha: 0.08);
@@ -117,5 +111,15 @@ class SaleItemModifierGroupSection extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  String _priceLabel(ModifierOption option) {
+    if (!option.isPriceConfigured) {
+      return ' (Price not configured)';
+    }
+    if (option.price == 0) {
+      return ' (Free)';
+    }
+    return ' (+\$${option.price.toStringAsFixed(2)})';
   }
 }

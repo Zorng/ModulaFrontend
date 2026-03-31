@@ -646,7 +646,9 @@ class MenuApi {
       );
     }
     if (!isPatch || body.containsKey('status')) {
-      normalized['status'] = _normalizeMenuItemStatus(body['status']?.toString());
+      normalized['status'] = _normalizeMenuItemStatus(
+        body['status']?.toString(),
+      );
     }
     if (!isPatch || body.containsKey('categoryId')) {
       normalized['categoryId'] = _nullableCategoryId(body['categoryId']);
@@ -713,6 +715,8 @@ class MenuApi {
       if (body['modifierGroupId'] != null)
         'modifierGroupId': body['modifierGroupId'],
       'label': body['label']?.toString() ?? body['name']?.toString() ?? '',
+      // Backend still validates modifier-option writes as numeric even though
+      // shared modifier pricing is no longer used for sell-price resolution.
       'priceDelta': _asDouble(
         body['priceDelta'] ?? body['priceAdjustmentUsd'] ?? body['price'],
       ),

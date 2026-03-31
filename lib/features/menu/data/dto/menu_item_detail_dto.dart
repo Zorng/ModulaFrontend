@@ -55,9 +55,9 @@ List<MenuComponentDto> _parseBaseComponents(Map<String, dynamic> payload) {
 }
 
 List<MenuModifierOptionEffectDto> _parseModifierOptionEffects(
-  Map<String, dynamic> payload,
-  {required List<ModifierGroupDto> modifierGroups}
-) {
+  Map<String, dynamic> payload, {
+  required List<ModifierGroupDto> modifierGroups,
+}) {
   final rawEffects =
       payload['modifierOptionEffects'] as List<dynamic>? ?? const <dynamic>[];
   final parsedEffects = rawEffects
@@ -77,11 +77,13 @@ List<MenuModifierOptionEffectDto> _parseModifierOptionEffects(
       .expand((group) => group.options)
       .where(
         (option) =>
-            option.id.trim().isNotEmpty && option.componentDeltas.isNotEmpty,
+            option.id.trim().isNotEmpty &&
+            (option.isPriceConfigured || option.componentDeltas.isNotEmpty),
       )
       .map(
         (option) => MenuModifierOptionEffectDto(
           modifierOptionId: option.id,
+          priceDelta: option.priceDelta,
           components: option.componentDeltas,
         ),
       )

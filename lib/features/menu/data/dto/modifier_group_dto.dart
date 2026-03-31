@@ -35,6 +35,7 @@ class ModifierOptionDto {
     required this.groupId,
     required this.label,
     required this.priceDelta,
+    required this.isPriceConfigured,
     required this.status,
     required this.componentDeltas,
     required this.priceAdjustmentUsd,
@@ -46,6 +47,7 @@ class ModifierOptionDto {
   final String groupId;
   final String label;
   final double priceDelta;
+  final bool isPriceConfigured;
   final String status;
   final List<ModifierDeltaDto> componentDeltas;
 
@@ -55,9 +57,9 @@ class ModifierOptionDto {
   final bool isActive;
 
   factory ModifierOptionDto.fromJson(Map<String, dynamic> json) {
-    final priceDeltaRaw =
-        json['priceDelta'] ?? json['priceAdjustmentUsd'] ?? json['price'] ?? 0;
+    final priceDeltaRaw = _firstPresentPriceValue(json);
     final parsedPriceDelta = _asDouble(priceDeltaRaw);
+    final hasConfiguredPrice = _hasConfiguredPrice(json);
     final rawName =
         json['label'] ??
         json['name'] ??
@@ -81,10 +83,11 @@ class ModifierOptionDto {
         .toList(growable: false);
 
     return ModifierOptionDto(
-      id: json['id']?.toString() ?? '',
+      id: json['id']?.toString() ?? json['modifierOptionId']?.toString() ?? '',
       groupId: json['groupId']?.toString() ?? '',
       label: rawName?.toString() ?? 'Option',
       priceDelta: parsedPriceDelta,
+      isPriceConfigured: hasConfiguredPrice,
       status: normalizedStatus,
       componentDeltas: componentDeltas,
       priceAdjustmentUsd: parsedPriceDelta,
@@ -96,15 +99,16 @@ class ModifierOptionDto {
   Map<String, dynamic> toJson() {
     return <String, dynamic>{
       'id': id,
+      'modifierOptionId': id,
       'groupId': groupId,
       'label': label,
-      'priceDelta': priceDelta,
+      if (isPriceConfigured) 'priceDelta': priceDelta,
       'status': status,
       'componentDeltas': componentDeltas
           .map((entry) => entry.toJson())
           .toList(),
       // Legacy compatibility shape
-      'priceAdjustmentUsd': priceAdjustmentUsd,
+      if (isPriceConfigured) 'priceAdjustmentUsd': priceAdjustmentUsd,
       'isDefault': isDefault,
       'isActive': isActive,
     };
@@ -218,6 +222,32 @@ bool _asBool(dynamic value, {required bool fallback}) {
     if (lower == 'false' || lower == '0') return false;
   }
   return fallback;
+}
+
+dynamic _firstPresentPriceValue(Map<String, dynamic> json) {
+  if (json.containsKey('priceDelta')) {
+    return json['priceDelta'];
+  }
+  if (json.containsKey('priceAdjustmentUsd')) {
+    return json['priceAdjustmentUsd'];
+  }
+  if (json.containsKey('price')) {
+    return json['price'];
+  }
+  return 0;
+}
+
+bool _hasConfiguredPrice(Map<String, dynamic> json) {
+  if (json.containsKey('priceDelta')) {
+    return json['priceDelta'] != null;
+  }
+  if (json.containsKey('priceAdjustmentUsd')) {
+    return json['priceAdjustmentUsd'] != null;
+  }
+  if (json.containsKey('price')) {
+    return json['price'] != null;
+  }
+  return false;
 }
 
 int? _asInt(dynamic value) {

@@ -12,6 +12,7 @@ import 'package:modular_pos/features/branchV2/ui/viewmodels/branch_controller.da
 import 'package:modular_pos/features/inventory/data/branch_stock_repository.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_journal_entry.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
+import 'package:modular_pos/features/inventory/domain/utils/restock_timestamp.dart';
 import 'package:modular_pos/features/inventory/domain/utils/stock_quantity_formatter.dart';
 import 'package:modular_pos/features/inventory/ui/view/restock_stock_item/restock_stock_item_utils.dart';
 import 'package:modular_pos/features/inventory/ui/view/restock_stock_item/widgets/restock_branch_selector.dart';
@@ -533,15 +534,17 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
       _isSaving = true;
       _submitError = null;
     });
+    final submittedAt = DateTime.now();
+    final resolvedRestockDate = _dateCtrl.text.isEmpty
+        ? formatYyyyMmDd(submittedAt)
+        : _dateCtrl.text;
     try {
       await ref
           .read(stockInventoryControllerProvider.notifier)
           .createRestockBatch(
             itemId: item.id,
             baseQty: baseQty,
-            restockDate: _dateCtrl.text.isEmpty
-                ? formatYyyyMmDd(DateTime.now())
-                : _dateCtrl.text,
+            restockDate: resolvedRestockDate,
             expiryDate: _expiryCtrl.text.isEmpty ? null : _expiryCtrl.text,
             supplierName: _supplierCtrl.text.trim().isEmpty
                 ? null
@@ -552,10 +555,10 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
           );
 
       final actor = ref.read(loginControllerProvider).user?.name ?? 'System';
-      final restockDate = _dateCtrl.text.isEmpty
-          ? null
-          : parseYyyyMmDd(_dateCtrl.text);
-      final occurredAt = restockDate ?? DateTime.now();
+      final occurredAt = resolveRestockOccurredAt(
+        resolvedRestockDate,
+        referenceTime: submittedAt,
+      );
       ref
           .read(inventoryJournalControllerProvider.notifier)
           .recordEntry(
@@ -571,7 +574,7 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
                   ? 'Restock recorded'
                   : _noteCtrl.text.trim(),
               actor: actor,
-              createdAt: DateTime.now(),
+              createdAt: submittedAt,
               occurredAt: occurredAt,
             ),
           );

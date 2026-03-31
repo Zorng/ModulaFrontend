@@ -34,7 +34,7 @@ class SaleItemDetailBottomBar extends StatelessWidget {
     final pricedAddons = <MapEntry<String, double>>[];
     selectedOptions.forEach((groupId, options) {
       for (final option in options) {
-        if (option.price > 0) {
+        if (option.isPriceConfigured && option.price > 0) {
           pricedAddons.add(MapEntry(option.name, option.price));
         }
       }

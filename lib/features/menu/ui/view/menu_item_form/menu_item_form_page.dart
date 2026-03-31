@@ -56,6 +56,8 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
   bool _isSaving = false;
   bool _isActive = true;
   final List<MenuItemCompositionDraft> _compositionRows = [];
+  final Map<String, TextEditingController>
+  _modifierEffectPriceControllersByOptionId = {};
   final Map<String, List<MenuItemCompositionDraft>>
   _modifierEffectRowsByOptionId = {};
   bool _didInitializeComposition = false;
@@ -146,14 +148,7 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
         .toList(growable: false);
     final showModifierEffectsSection =
         !isCreate || selectedModifierGroups.isNotEmpty;
-    final inheritedEffectsByOptionId = {
-      for (final option in selectedModifierGroups.expand(
-        (group) => group.options,
-      ))
-        if (!_modifierEffectRowsByOptionId.containsKey(option.id) &&
-            option.componentDeltas.isNotEmpty)
-          option.id: option.componentDeltas,
-    };
+    _ensureModifierEffectPriceControllers(selectedModifierGroups);
 
     if (!_didInitializeComposition &&
         compositionItemId != null &&
@@ -418,19 +413,18 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
               _SectionSpacer(
                 child: MenuItemModifierEffectsSection(
                   modifierGroups: selectedModifierGroups,
+                  priceControllersByOptionId:
+                      _modifierEffectPriceControllersByOptionId,
                   effectRowsByOptionId: _modifierEffectRowsByOptionId,
-                  inheritedEffectsByOptionId: inheritedEffectsByOptionId,
                   stockItems: stockItems,
                   isEditing: isEditing,
                   isLoading: modifierEffectsLoading,
                   errorText: modifierEffectsError,
-                  helperText: isCreate
-                      ? 'Save the item first, then reopen it to configure item-scoped modifier effects for the selected modifier options.'
-                      : 'Optional. Use item-scoped option effects only when a modifier option should add or remove components for this menu item.',
-                  emptyText: isCreate
-                      ? 'Item-scoped modifier effects become available after the item is created.'
-                      : 'No item-scoped modifier effects configured for the selected modifier groups.',
-                  onAddRow: isCreate ? null : _addModifierEffectRow,
+                  helperText:
+                      'Set item-specific price deltas for each modifier option. Component effects are optional.',
+                  emptyText:
+                      'Select a modifier group with options to configure item-level pricing and effects.',
+                  onAddRow: _addModifierEffectRow,
                   onRemoveRow: _removeModifierEffectRow,
                   onStockItemChanged: _updateModifierEffectStockItem,
                   onTrackingModeChanged: _updateModifierEffectTrackingMode,
@@ -446,9 +440,7 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
                 helperText: isCreate
                     ? 'Base components become available after you save this item and reopen it.'
                     : 'Base components stay with the menu item. Modifier options can adjust them later.',
-                emptyText: isCreate
-                    ? ''
-                    : 'No base components configured yet.',
+                emptyText: isCreate ? '' : 'No base components configured yet.',
                 onAddRow: isCreate ? null : _addCompositionRow,
                 onRemoveRow: _removeCompositionRow,
                 onStockItemChanged: _updateCompositionStockItem,
@@ -634,6 +626,7 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
     try {
       if (_mode == _MenuItemFormMode.edit) {
         await _ensureEditBaselineLoaded();
+        if (!mounted) return;
       }
       final notifier = ref.read(menuViewModelProvider.notifier);
       final menuState = ref.read(menuViewModelProvider);
@@ -674,8 +667,8 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
         final selectionResult = await ref
             .read(branchControllerProvider.notifier)
             .onBranchTileTap(branchId: resolvedBranchId);
+        if (!mounted) return;
         if (selectionResult != BranchSelectionResult.success) {
-          if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text(
@@ -699,6 +692,7 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
           return;
         }
       }
+      if (!mounted) return;
       if (_mode == _MenuItemFormMode.edit &&
           (resolvedEditItemId ?? '').trim().isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1124,11 +1118,28 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
   }
 
   void _replaceModifierEffectRows(List<MenuModifierOptionEffect> effects) {
+    for (final controller in _modifierEffectPriceControllersByOptionId.values) {
+      controller.dispose();
+    }
     for (final rows in _modifierEffectRowsByOptionId.values) {
       for (final row in rows) {
         row.dispose();
       }
     }
+    _modifierEffectPriceControllersByOptionId
+      ..clear()
+      ..addEntries(
+        effects.map(
+          (effect) => MapEntry(
+            effect.modifierOptionId,
+            _attachModifierEffectPriceController(
+              TextEditingController(
+                text: _formatDecimalInput(effect.priceDelta),
+              ),
+            ),
+          ),
+        ),
+      );
     _modifierEffectRowsByOptionId
       ..clear()
       ..addEntries(
@@ -1290,10 +1301,16 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
         .where((id) => id.trim().isNotEmpty)
         .toSet();
 
-    return _modifierEffectRowsByOptionId.entries
-        .where((entry) => allowedOptionIds.contains(entry.key))
-        .map((entry) {
-          final components = entry.value
+    final effects = <MenuModifierOptionEffect>[];
+    for (final optionId in allowedOptionIds) {
+      final priceText =
+          _modifierEffectPriceControllersByOptionId[optionId]?.text.trim() ??
+          '';
+      final hasPrice = priceText.isNotEmpty;
+      final priceDelta = hasPrice ? double.tryParse(priceText) : null;
+      final components =
+          (_modifierEffectRowsByOptionId[optionId] ??
+                  const <MenuItemCompositionDraft>[])
               .map((row) {
                 final stockItemId = (row.selectedStockItemId ?? '').trim();
                 final quantity = double.tryParse(
@@ -1310,14 +1327,23 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
               })
               .whereType<ModifierDelta>()
               .toList(growable: false);
-          if (components.isEmpty) return null;
-          return MenuModifierOptionEffect(
-            modifierOptionId: entry.key,
-            components: components,
-          );
-        })
-        .whereType<MenuModifierOptionEffect>()
-        .toList(growable: false);
+      if (!hasPrice && components.isEmpty) {
+        continue;
+      }
+      if (priceDelta == null || priceDelta < 0) {
+        throw const FormatException(
+          'Set a valid price for each modifier option that has item-scoped pricing or component effects.',
+        );
+      }
+      effects.add(
+        MenuModifierOptionEffect(
+          modifierOptionId: optionId,
+          priceDelta: priceDelta,
+          components: components,
+        ),
+      );
+    }
+    return effects;
   }
 
   MenuItemCompositionDraft _attachCompositionDraftListener(
@@ -1338,6 +1364,31 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
       _modifierEffectsDirty = true;
     });
     return draft;
+  }
+
+  TextEditingController _attachModifierEffectPriceController(
+    TextEditingController controller,
+  ) {
+    controller.addListener(() {
+      if (!mounted) return;
+      _modifierEffectsDirty = true;
+    });
+    return controller;
+  }
+
+  void _ensureModifierEffectPriceControllers(
+    List<ModifierGroup> selectedModifierGroups,
+  ) {
+    for (final option in selectedModifierGroups.expand(
+      (group) => group.options,
+    )) {
+      final optionId = option.id.trim();
+      if (optionId.isEmpty) continue;
+      _modifierEffectPriceControllersByOptionId.putIfAbsent(
+        optionId,
+        () => _attachModifierEffectPriceController(TextEditingController()),
+      );
+    }
   }
 
   bool _hasBaseItemChanges(MenuItem nextItem) {
@@ -1487,6 +1538,9 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
     for (final row in _compositionRows) {
       row.dispose();
     }
+    for (final controller in _modifierEffectPriceControllersByOptionId.values) {
+      controller.dispose();
+    }
     for (final rows in _modifierEffectRowsByOptionId.values) {
       for (final row in rows) {
         row.dispose();
@@ -1496,6 +1550,13 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
     _priceController.dispose();
     super.dispose();
   }
+}
+
+String _formatDecimalInput(double value) {
+  if (value == value.roundToDouble()) {
+    return value.toInt().toString();
+  }
+  return value.toString();
 }
 
 class _MenuSectionCard extends StatelessWidget {

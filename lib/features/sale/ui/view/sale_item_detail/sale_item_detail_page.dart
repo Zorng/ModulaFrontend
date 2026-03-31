@@ -75,7 +75,6 @@ class _SaleItemDetailPageState extends ConsumerState<SaleItemDetailPage> {
         final modifiers = fetchedMods.isNotEmpty ? fetchedMods : hydratedMods;
 
         final gate = ref.watch(saleAccessGateProvider);
-        final canAddToCart = gate.canAddToCart;
 
         if (modifiers.isEmpty &&
             !_hasRetried &&
@@ -176,6 +175,13 @@ class _SaleItemDetailPageState extends ConsumerState<SaleItemDetailPage> {
           _selectedOptionIds,
           _quantity,
         );
+        final hasUnpricedSelections = pricing.unpricedOptionNames.isNotEmpty;
+        final canAddToCart = gate.canAddToCart && !hasUnpricedSelections;
+        final blockingMessage = !gate.canAddToCart
+            ? gate.blockingMessage
+            : hasUnpricedSelections
+            ? 'One or more selected modifier options do not have item-level prices configured yet.'
+            : null;
 
         // Check if we're in a dialog context (no Scaffold parent)
         final isDialog = ModalRoute.of(context) is! PageRoute;
@@ -188,7 +194,7 @@ class _SaleItemDetailPageState extends ConsumerState<SaleItemDetailPage> {
           selectedOptions: pricing.selectedOptions,
           onQuantityChanged: (value) => setState(() => _quantity = value),
           canAddToCart: canAddToCart,
-          blockingMessage: canAddToCart ? null : gate.blockingMessage,
+          blockingMessage: blockingMessage,
           showPriceBreakdown: true, // Always show price breakdown
           onAddItem: canAddToCart
               ? () {
@@ -411,12 +417,14 @@ class SaleItemSelectionResult {
 class _SelectionPricing {
   const _SelectionPricing({
     required this.selectedOptions,
+    required this.unpricedOptionNames,
     required this.addonTotalUsd,
     required this.unitPriceUsd,
     required this.lineTotalUsd,
   });
 
   final Map<String, List<ModifierOption>> selectedOptions;
+  final List<String> unpricedOptionNames;
   final double addonTotalUsd;
   final double unitPriceUsd;
   final double lineTotalUsd;
@@ -430,6 +438,7 @@ _SelectionPricing _computeSelectionPricing(
 ) {
   final groupLookup = {for (final group in groups) group.id: group};
   final selectedOptions = <String, List<ModifierOption>>{};
+  final unpricedOptionNames = <String>[];
   double addonTotal = 0;
 
   selections.forEach((groupId, optionIds) {
@@ -440,12 +449,19 @@ _SelectionPricing _computeSelectionPricing(
         .toList(growable: false);
     if (chosen.isEmpty) return;
     selectedOptions[groupId] = chosen;
-    addonTotal += chosen.fold<double>(0, (sum, opt) => sum + opt.price);
+    addonTotal += chosen.fold<double>(0, (sum, opt) {
+      if (!opt.isPriceConfigured) {
+        unpricedOptionNames.add(opt.name);
+        return sum;
+      }
+      return sum + opt.price;
+    });
   });
 
   final unitPriceUsd = item.price + addonTotal;
   return _SelectionPricing(
     selectedOptions: selectedOptions,
+    unpricedOptionNames: unpricedOptionNames,
     addonTotalUsd: addonTotal,
     unitPriceUsd: unitPriceUsd,
     lineTotalUsd: unitPriceUsd * quantity,

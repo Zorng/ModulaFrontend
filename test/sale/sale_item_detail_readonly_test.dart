@@ -101,4 +101,78 @@ void main() {
     expect(tester.widget<FilledButton>(addButton).onPressed, isNull);
     expect(find.textContaining('branch is frozen'), findsOneWidget);
   });
+
+  testWidgets(
+    'SaleItemDetailPage blocks add to cart when selected modifier price is not configured',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(800, 1200));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      const item = MenuItem(
+        id: 'menu-1',
+        name: 'Latte',
+        categoryId: 'cat-1',
+        price: 1.5,
+        modifierGroupIds: ['group-1'],
+      );
+
+      const groups = [
+        ModifierGroup(
+          id: 'group-1',
+          name: 'Size',
+          selectionType: 'single',
+          pricingBehavior: 'none',
+          defaultOptionId: 'opt-1',
+          options: [
+            ModifierOption(
+              id: 'opt-1',
+              name: 'Medium',
+              priceDelta: 0,
+              isPriceConfigured: false,
+            ),
+          ],
+        ),
+      ];
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            menuViewModelProvider.overrideWith(
+              () => _StaticMenuViewModel(
+                stateValue: const MenuState(isLoading: false),
+                item: item,
+                groups: groups,
+              ),
+            ),
+            saleAccessGateProvider.overrideWithValue(
+              const SaleAccessGate(
+                branchId: 'branch-1',
+                contextLoading: false,
+                branchActive: true,
+                branchFrozen: false,
+                cashSessionOpen: true,
+                canMutateCart: true,
+                canCheckout: true,
+                canPlacePayLater: true,
+              ),
+            ),
+          ],
+          child: const MaterialApp(home: SaleItemDetailPage(item: item)),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      final addButton = find.widgetWithText(FilledButton, 'Add to Cart');
+      expect(addButton, findsOneWidget);
+      expect(tester.widget<FilledButton>(addButton).onPressed, isNull);
+      expect(find.text('Medium (Price not configured)'), findsOneWidget);
+      expect(
+        find.text(
+          'One or more selected modifier options do not have item-level prices configured yet.',
+        ),
+        findsOneWidget,
+      );
+    },
+  );
 }

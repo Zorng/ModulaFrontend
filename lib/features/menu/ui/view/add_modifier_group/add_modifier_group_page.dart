@@ -29,11 +29,9 @@ class AddModifierGroupPage extends ConsumerStatefulWidget {
 
 class _AddModifierGroupPageState extends ConsumerState<AddModifierGroupPage> {
   final _groupNameController = TextEditingController();
-  final _pricingBehaviors = ['Price Change', 'No Price Change'];
   final _selectionTypes = ['Single Selection', 'Multiple Selection'];
   final List<ModifierOptionRowModel> _options = [];
 
-  String? _selectedPricingBehavior;
   String? _selectedSelectionType;
   String? _selectedDefault;
   ModifierGroupFormMode _mode = ModifierGroupFormMode.create;
@@ -42,7 +40,7 @@ class _AddModifierGroupPageState extends ConsumerState<AddModifierGroupPage> {
       _selectedSelectionType != null &&
       _selectedSelectionType != 'Multiple Selection';
 
-  bool get _requiresPriceInput => _selectedPricingBehavior != 'No Price Change';
+  bool get _requiresPriceInput => false;
   bool get _isView => _mode == ModifierGroupFormMode.view;
   bool get _isEditing => _mode != ModifierGroupFormMode.view;
   bool get _isCreate => _mode == ModifierGroupFormMode.create;
@@ -73,7 +71,6 @@ class _AddModifierGroupPageState extends ConsumerState<AddModifierGroupPage> {
 
   void _seedFromGroup(ModifierGroup? group) {
     _groupNameController.text = group?.name ?? '';
-    _selectedPricingBehavior = _mapPricingBehavior(group?.pricingBehavior);
     _selectedSelectionType = group?.selectionType == 'multiple'
         ? _selectionTypes.last
         : _selectionTypes.first;
@@ -110,28 +107,6 @@ class _AddModifierGroupPageState extends ConsumerState<AddModifierGroupPage> {
       option.dispose();
     }
     super.dispose();
-  }
-
-  String _mapPricingBehavior(String? behavior) {
-    switch (behavior) {
-      case 'fixed':
-      case 'addon':
-        return 'Price Change';
-      case 'none':
-        return 'No Price Change';
-      default:
-        return _pricingBehaviors.first;
-    }
-  }
-
-  String _mapPricingBehaviorToValue(String? behavior) {
-    switch (behavior) {
-      case 'Price Change':
-        return 'addon';
-      case 'No Price Change':
-      default:
-        return 'none';
-    }
   }
 
   Future<void> _saveGroup() async {
@@ -177,12 +152,12 @@ class _AddModifierGroupPageState extends ConsumerState<AddModifierGroupPage> {
       selectionType: _selectedSelectionType == 'Multiple Selection'
           ? 'multiple'
           : 'single',
-      pricingBehavior: _mapPricingBehaviorToValue(_selectedPricingBehavior),
+      pricingBehavior: 'none',
       defaultOptionId: defaultOptionId,
       options: _options.map((row) {
         final priceDelta = _requiresPriceInput
             ? double.tryParse(row.priceController.text) ?? 0.0
-            : 0.0;
+            : null;
         return ModifierOption(
           id: persistedOptionIds.contains(row.id) ? row.id : '',
           name: row.nameController.text.trim(),
@@ -342,7 +317,7 @@ class _AddModifierGroupPageState extends ConsumerState<AddModifierGroupPage> {
               shadowColor: Colors.transparent,
               children: [
                 Text(
-                  'Modifier groups define reusable option structure, selection rules, and shared price deltas. Item-specific component effects are configured on each menu item.',
+                  'Modifier groups define reusable option structure, selection rules, and default behavior. Menu-item pricing and component effects are configured on each menu item.',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: Theme.of(context).hintColor,
                   ),
@@ -366,42 +341,22 @@ class _AddModifierGroupPageState extends ConsumerState<AddModifierGroupPage> {
                       ),
                       LayoutBuilder(
                         builder: (context, constraints) {
-                          final compact = constraints.maxWidth < 700;
-                          final fieldWidth = compact
-                              ? constraints.maxWidth
-                              : (constraints.maxWidth - 16) / 2;
-                          return Wrap(
-                            spacing: 16,
-                            runSpacing: 16,
-                            children: [
-                              SizedBox(
-                                width: fieldWidth,
-                                child: _buildDropdownField(
-                                  label: 'Pricing Behavior',
-                                  initialSelection: _selectedPricingBehavior,
-                                  options: _pricingBehaviors,
-                                  onSelected: (value) => setState(
-                                    () => _selectedPricingBehavior = value,
-                                  ),
-                                ),
-                              ),
-                              SizedBox(
-                                width: fieldWidth,
-                                child: _buildDropdownField(
-                                  label: 'Selection Type',
-                                  initialSelection: _selectedSelectionType,
-                                  options: _selectionTypes,
-                                  onSelected: (value) {
-                                    setState(() {
-                                      _selectedSelectionType = value;
-                                      if (!_isSingleSelection) {
-                                        _selectedDefault = null;
-                                      }
-                                    });
-                                  },
-                                ),
-                              ),
-                            ],
+                          final fieldWidth = constraints.maxWidth;
+                          return SizedBox(
+                            width: fieldWidth,
+                            child: _buildDropdownField(
+                              label: 'Selection Type',
+                              initialSelection: _selectedSelectionType,
+                              options: _selectionTypes,
+                              onSelected: (value) {
+                                setState(() {
+                                  _selectedSelectionType = value;
+                                  if (!_isSingleSelection) {
+                                    _selectedDefault = null;
+                                  }
+                                });
+                              },
+                            ),
                           );
                         },
                       ),
@@ -419,8 +374,8 @@ class _AddModifierGroupPageState extends ConsumerState<AddModifierGroupPage> {
               children: [
                 Text(
                   _isSingleSelection
-                      ? 'Choose reusable options and set a default if needed.'
-                      : 'Choose reusable options for this modifier group.',
+                      ? 'Choose reusable options and set a default if needed. Pricing is configured per menu item.'
+                      : 'Choose reusable options for this modifier group. Pricing is configured per menu item.',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: Theme.of(context).hintColor,
                   ),
