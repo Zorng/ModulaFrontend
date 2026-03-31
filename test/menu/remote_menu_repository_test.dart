@@ -29,62 +29,67 @@ void main() {
   });
 
   group('RemoteMenuRepository', () {
-    test('fetchCategoriesOnly filters active and archived categories', () async {
-      final api = _MockMenuApi();
-      final repository = RemoteMenuRepository(api);
+    test(
+      'fetchCategoriesOnly filters active and archived categories',
+      () async {
+        final api = _MockMenuApi();
+        final repository = RemoteMenuRepository(api);
 
-      when(
-        () => api.fetchCategories(status: any(named: 'status')),
-      ).thenAnswer(
-        (_) async => const [
-          MenuCategoryDto(
-            id: 'cat-active-1',
-            tenantId: 'tenant-1',
-            name: 'Coffee',
-            status: 'ACTIVE',
-            description: '',
-            isActive: true,
-            displayOrder: 1,
-            createdAt: null,
-            updatedAt: null,
-          ),
-          MenuCategoryDto(
-            id: 'cat-active-2',
-            tenantId: 'tenant-1',
-            name: 'Tea',
-            status: 'ACTIVE',
-            description: '',
-            isActive: true,
-            displayOrder: 2,
-            createdAt: null,
-            updatedAt: null,
-          ),
-          MenuCategoryDto(
-            id: 'cat-archived-1',
-            tenantId: 'tenant-1',
-            name: 'Legacy',
-            status: 'ARCHIVED',
-            description: '',
-            isActive: false,
-            displayOrder: 3,
-            createdAt: null,
-            updatedAt: null,
-          ),
-        ],
-      );
+        when(
+          () => api.fetchCategories(status: any(named: 'status')),
+        ).thenAnswer(
+          (_) async => const [
+            MenuCategoryDto(
+              id: 'cat-active-1',
+              tenantId: 'tenant-1',
+              name: 'Coffee',
+              status: 'ACTIVE',
+              description: '',
+              isActive: true,
+              displayOrder: 1,
+              createdAt: null,
+              updatedAt: null,
+            ),
+            MenuCategoryDto(
+              id: 'cat-active-2',
+              tenantId: 'tenant-1',
+              name: 'Tea',
+              status: 'ACTIVE',
+              description: '',
+              isActive: true,
+              displayOrder: 2,
+              createdAt: null,
+              updatedAt: null,
+            ),
+            MenuCategoryDto(
+              id: 'cat-archived-1',
+              tenantId: 'tenant-1',
+              name: 'Legacy',
+              status: 'ARCHIVED',
+              description: '',
+              isActive: false,
+              displayOrder: 3,
+              createdAt: null,
+              updatedAt: null,
+            ),
+          ],
+        );
 
-      final active = await repository.fetchCategoriesOnly(status: 'active');
-      final archived = await repository.fetchCategoriesOnly(status: 'archived');
+        final active = await repository.fetchCategoriesOnly(status: 'active');
+        final archived = await repository.fetchCategoriesOnly(
+          status: 'archived',
+        );
 
-      expect(
-        active.map((c) => c.id).toList(),
-        ['cat-active-1', 'cat-active-2'],
-      );
-      expect(archived.map((c) => c.id).toList(), ['cat-archived-1']);
+        expect(active.map((c) => c.id).toList(), [
+          'cat-active-1',
+          'cat-active-2',
+        ]);
+        expect(archived.map((c) => c.id).toList(), ['cat-archived-1']);
 
-      verify(() => api.fetchCategories(status: 'active')).called(1);
-      verify(() => api.fetchCategories(status: 'archived')).called(1);
-    });
+        verify(() => api.fetchCategories(status: 'active')).called(1);
+        verify(() => api.fetchCategories(status: 'archived')).called(1);
+      },
+    );
 
     test(
       'fetchMenuData management lane applies status filter with no read fallback',
@@ -449,6 +454,7 @@ void main() {
           groupId: 'group-1',
           label: 'Large',
           priceDelta: 0.5,
+          isPriceConfigured: true,
           status: 'ACTIVE',
           componentDeltas: <ModifierDeltaDto>[],
           priceAdjustmentUsd: 0.5,
@@ -510,6 +516,63 @@ void main() {
     });
 
     test(
+      'createModifierGroup sends zero priceDelta for structure-only options',
+      () async {
+        final api = _MockMenuApi();
+        final repository = RemoteMenuRepository(api);
+
+        when(() => api.createModifierGroup(any())).thenAnswer(
+          (_) async => const ModifierGroupDto(
+            id: 'group-1',
+            tenantId: 'tenant-1',
+            name: 'Temperature',
+            selectionMode: 'MULTI',
+            minSelections: 0,
+            maxSelections: 99,
+            isRequired: false,
+            status: 'ACTIVE',
+            options: <ModifierOptionDto>[],
+            selectionType: 'multiple',
+            pricingBehavior: 'none',
+            defaultOptionId: null,
+            isActive: true,
+          ),
+        );
+        when(() => api.addModifierOption(any())).thenAnswer(
+          (_) async => const ModifierOptionDto(
+            id: 'opt-1',
+            groupId: 'group-1',
+            label: 'Iced',
+            priceDelta: 0,
+            isPriceConfigured: true,
+            status: 'ACTIVE',
+            componentDeltas: <ModifierDeltaDto>[],
+            priceAdjustmentUsd: 0,
+            isDefault: false,
+            isActive: true,
+          ),
+        );
+
+        await repository.createModifierGroup(
+          const ModifierGroup(
+            id: '',
+            name: 'Temperature',
+            selectionType: 'multiple',
+            pricingBehavior: 'none',
+            options: [ModifierOption(id: '', name: 'Iced')],
+          ),
+        );
+
+        final optionPayload =
+            verify(() => api.addModifierOption(captureAny())).captured.single
+                as Map<String, dynamic>;
+
+        expect(optionPayload['label'], 'Iced');
+        expect(optionPayload['priceDelta'], 0.0);
+      },
+    );
+
+    test(
       'updateModifierGroup applies option delta create/update/archive calls',
       () async {
         final api = _MockMenuApi();
@@ -538,6 +601,7 @@ void main() {
             groupId: 'group-1',
             label: 'M',
             priceDelta: 0.2,
+            isPriceConfigured: true,
             status: 'ACTIVE',
             componentDeltas: <ModifierDeltaDto>[],
             priceAdjustmentUsd: 0.2,
@@ -551,6 +615,7 @@ void main() {
             groupId: 'group-1',
             label: 'XL',
             priceDelta: 0.5,
+            isPriceConfigured: true,
             status: 'ACTIVE',
             componentDeltas: <ModifierDeltaDto>[],
             priceAdjustmentUsd: 0.5,
@@ -633,37 +698,49 @@ void main() {
       },
     );
 
-    test('updateMenuItem skips API call when patch payload has no changed fields', () async {
-      final api = _MockMenuApi();
-      final repository = RemoteMenuRepository(api);
+    test(
+      'updateMenuItem skips API call when patch payload has no changed fields',
+      () async {
+        final api = _MockMenuApi();
+        final repository = RemoteMenuRepository(api);
 
-      const previous = MenuItem(
-        id: 'item-1',
-        name: 'Latte',
-        categoryId: 'cat-1',
-        price: 2.5,
-        basePrice: 2.5,
-        branchIds: ['branch-1'],
-        visibleBranchIds: ['branch-1'],
-        modifierGroupIds: ['group-1'],
-      );
-      const item = MenuItem(
-        id: 'item-1',
-        name: 'Latte',
-        categoryId: 'cat-1',
-        price: 2.5,
-        basePrice: 2.5,
-        branchIds: ['branch-1'],
-        visibleBranchIds: ['branch-1'],
-        modifierGroupIds: ['group-1'],
-      );
+        const previous = MenuItem(
+          id: 'item-1',
+          name: 'Latte',
+          categoryId: 'cat-1',
+          price: 2.5,
+          basePrice: 2.5,
+          branchIds: ['branch-1'],
+          visibleBranchIds: ['branch-1'],
+          modifierGroupIds: ['group-1'],
+        );
+        const item = MenuItem(
+          id: 'item-1',
+          name: 'Latte',
+          categoryId: 'cat-1',
+          price: 2.5,
+          basePrice: 2.5,
+          branchIds: ['branch-1'],
+          visibleBranchIds: ['branch-1'],
+          modifierGroupIds: ['group-1'],
+        );
 
-      final updated = await repository.updateMenuItem(item, previous: previous);
+        final updated = await repository.updateMenuItem(
+          item,
+          previous: previous,
+        );
 
-      expect(updated.id, 'item-1');
-      expect(updated.name, 'Latte');
-      verifyNever(() => api.updateMenuItem(any(), imagePath: any(named: 'imagePath'), imageBytes: any(named: 'imageBytes')));
-    });
+        expect(updated.id, 'item-1');
+        expect(updated.name, 'Latte');
+        verifyNever(
+          () => api.updateMenuItem(
+            any(),
+            imagePath: any(named: 'imagePath'),
+            imageBytes: any(named: 'imageBytes'),
+          ),
+        );
+      },
+    );
 
     test(
       'fetchMenuItemDetail maps explicit detail payload including effects',
@@ -680,9 +757,7 @@ void main() {
             'basePrice': 2.5,
             'status': 'ACTIVE',
             'categoryName': 'Coffee',
-            'modifierGroups': [
-              _modifierGroupJson(id: 'group-1', name: 'Size'),
-            ],
+            'modifierGroups': [_modifierGroupJson(id: 'group-1', name: 'Size')],
             'baseComponents': [
               {
                 'stockItemId': 'stock-1',
@@ -788,10 +863,7 @@ void main() {
         expect(effects.first.modifierOptionId, 'opt-1');
         expect(effects.first.components, hasLength(1));
         expect(effects.first.components.first.stockItemId, 'stock-2');
-        expect(
-          effects.first.components.first.quantityDeltaInBaseUnit,
-          -50,
-        );
+        expect(effects.first.components.first.quantityDeltaInBaseUnit, -50);
       },
     );
 
@@ -811,6 +883,7 @@ void main() {
         effects: const [
           MenuModifierOptionEffect(
             modifierOptionId: 'opt-1',
+            priceDelta: 0.5,
             components: [
               ModifierDelta(
                 stockItemId: 'stock-2',
@@ -833,6 +906,7 @@ void main() {
 
       expect(captured, hasLength(1));
       expect(captured.first.modifierOptionId, 'opt-1');
+      expect(captured.first.priceDelta, 0.5);
       expect(captured.first.components, hasLength(1));
       expect(captured.first.components.first.stockItemId, 'stock-2');
     });

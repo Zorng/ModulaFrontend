@@ -15,6 +15,11 @@ class SaleItemModifierGroupSection extends StatelessWidget {
 
   bool get _isSingle => group.selectionType == 'single';
 
+  int? get _multiSelectionLimit {
+    if (_isSingle) return 1;
+    return group.maxSelections > 0 ? group.maxSelections : null;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -49,10 +54,7 @@ class SaleItemModifierGroupSection extends StatelessWidget {
                 children: [
                   ...group.options.map((option) {
                     final isSelected = selectedOptionIds.contains(option.id);
-                    final priceDelta = option.price;
-                    final priceLabel = priceDelta == 0
-                        ? ''
-                        : ' (+\$${priceDelta.toStringAsFixed(2)})';
+                    final priceLabel = _priceLabel(option);
                     final highlightColor = Theme.of(
                       context,
                     ).colorScheme.primary.withValues(alpha: 0.08);
@@ -81,10 +83,7 @@ class SaleItemModifierGroupSection extends StatelessWidget {
           else
             ...group.options.map((option) {
               final isSelected = selectedOptionIds.contains(option.id);
-              final priceDelta = option.price;
-              final priceLabel = priceDelta == 0
-                  ? ''
-                  : ' (+\$${priceDelta.toStringAsFixed(2)})';
+              final priceLabel = _priceLabel(option);
               final highlightColor = Theme.of(
                 context,
               ).colorScheme.primary.withValues(alpha: 0.08);
@@ -104,6 +103,22 @@ class SaleItemModifierGroupSection extends StatelessWidget {
                     onChanged: (checked) {
                       final updated = {...selectedOptionIds};
                       if (checked == true) {
+                        final limit = _multiSelectionLimit;
+                        if (!isSelected &&
+                            limit != null &&
+                            updated.length >= limit) {
+                          final optionLabel = limit == 1 ? 'option' : 'options';
+                          ScaffoldMessenger.of(context)
+                            ..hideCurrentSnackBar()
+                            ..showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'You can select up to $limit $optionLabel for ${group.name}.',
+                                ),
+                              ),
+                            );
+                          return;
+                        }
                         updated.add(option.id);
                       } else {
                         updated.remove(option.id);
@@ -117,5 +132,15 @@ class SaleItemModifierGroupSection extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  String _priceLabel(ModifierOption option) {
+    if (!option.isPriceConfigured) {
+      return ' (Price not configured)';
+    }
+    if (option.price == 0) {
+      return ' (Free)';
+    }
+    return ' (+\$${option.price.toStringAsFixed(2)})';
   }
 }

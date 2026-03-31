@@ -623,15 +623,47 @@ void main() {
       },
     );
 
+    test('modifier option write defaults missing priceDelta to zero', () async {
+      final dio = _MockDio();
+      final api = MenuApi.real(dio);
+
+      when(
+        () => dio.post<Map<String, dynamic>>(
+          '/v0/menu/modifier-groups/group-1/options',
+          data: any(named: 'data'),
+          options: any(named: 'options'),
+        ),
+      ).thenAnswer(
+        (_) async => Response<Map<String, dynamic>>(
+          data: _modifierOptionJson(id: 'opt-1', groupId: 'group-1'),
+          requestOptions: RequestOptions(
+            path: '/v0/menu/modifier-groups/group-1/options',
+          ),
+        ),
+      );
+
+      await api.addModifierOption({'groupId': 'group-1', 'name': 'Iced'});
+
+      final captured = verify(
+        () => dio.post<Map<String, dynamic>>(
+          '/v0/menu/modifier-groups/group-1/options',
+          data: captureAny(named: 'data'),
+          options: captureAny(named: 'options'),
+        ),
+      ).captured;
+      final body = Map<String, dynamic>.from(captured[0] as Map);
+
+      expect(body['label'], 'Iced');
+      expect(body['priceDelta'], 0.0);
+    });
+
     test(
       'explicit detail endpoint maps GET /v0/menu/items/:menuItemId',
       () async {
         final dio = _MockDio();
         final api = MenuApi.real(dio);
 
-        when(
-          () => dio.get<dynamic>('/v0/menu/items/item-1'),
-        ).thenAnswer(
+        when(() => dio.get<dynamic>('/v0/menu/items/item-1')).thenAnswer(
           (_) async => Response<dynamic>(
             data: {
               'success': true,
@@ -648,6 +680,7 @@ void main() {
                 'modifierOptionEffects': [
                   {
                     'modifierOptionId': 'opt-1',
+                    'priceDelta': 0.5,
                     'components': [
                       {
                         'stockItemId': 'stock-2',
@@ -675,6 +708,7 @@ void main() {
         expect(detail.baseComponents.first.stockItemId, 'stock-1');
         expect(detail.modifierOptionEffects, hasLength(1));
         expect(detail.modifierOptionEffects.first.modifierOptionId, 'opt-1');
+        expect(detail.modifierOptionEffects.first.priceDelta, 0.5);
       },
     );
 
@@ -805,6 +839,7 @@ void main() {
           effects: const [
             MenuModifierOptionEffectDto(
               modifierOptionId: 'opt-1',
+              priceDelta: 0,
               components: [
                 ModifierDeltaDto(
                   stockItemId: 'stock-2',

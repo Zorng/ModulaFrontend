@@ -10,8 +10,10 @@ import 'package:modular_pos/features/auth/domain/models/user.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/branchV2/ui/viewmodels/branch_controller.dart';
 import 'package:modular_pos/features/inventory/data/branch_stock_repository.dart';
+import 'package:modular_pos/features/inventory/data/stock_item_repository.dart';
 import 'package:modular_pos/features/inventory/domain/models/inventory_journal_entry.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
+import 'package:modular_pos/features/inventory/domain/utils/restock_timestamp.dart';
 import 'package:modular_pos/features/inventory/domain/utils/stock_quantity_formatter.dart';
 import 'package:modular_pos/features/inventory/ui/view/restock_stock_item/restock_stock_item_utils.dart';
 import 'package:modular_pos/features/inventory/ui/view/restock_stock_item/widgets/restock_branch_selector.dart';
@@ -37,12 +39,15 @@ class RestockStockItemPage extends ConsumerStatefulWidget {
 class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
   static const double _sectionCardElevation = 0;
   static const double _sectionRowSpacing = 16;
+  static const int _stockItemPickerPageSize = 200;
   final _formKey = GlobalKey<FormState>();
   String? _selectedBranchId;
   String? _selectedItemId;
   bool _isSaving = false;
   bool _isCheckingStockItems = true;
   bool _hasShownNoItemsDialog = false;
+  List<StockItem> _stockItemCatalog = const [];
+  String? _stockItemCatalogError;
   TextEditingController? _itemCtrl;
   final _pcsCtrl = TextEditingController();
   final _extraCtrl = TextEditingController();
@@ -65,13 +70,7 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
     _dateCtrl.text = formatYyyyMmDd(DateTime.now());
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(branchControllerProvider.notifier).loadInitial();
-      ref
-          .read(stockInventoryControllerProvider.notifier)
-          .loadStockItems()
-          .whenComplete(() {
-            if (!mounted) return;
-            setState(() => _isCheckingStockItems = false);
-          });
+      unawaited(_loadStockItemCatalog());
     });
   }
 
@@ -91,11 +90,10 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
   @override
   Widget build(BuildContext context) {
     final inventoryState = ref.watch(stockInventoryControllerProvider);
-    final items = inventoryState.stockItems;
+    final items = _stockItemCatalog;
 
     if (!_isCheckingStockItems &&
-        !inventoryState.isLoading &&
-        inventoryState.error == null &&
+        _stockItemCatalogError == null &&
         items.isEmpty &&
         !_hasShownNoItemsDialog) {
       _hasShownNoItemsDialog = true;
@@ -112,6 +110,32 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
           centerTitle: false,
         ),
         body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_stockItemCatalogError != null && items.isEmpty) {
+      return Scaffold(
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          title: const Text('Restock inventory'),
+          centerTitle: false,
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(_stockItemCatalogError!, textAlign: TextAlign.center),
+                const SizedBox(height: 12),
+                FilledButton(
+                  onPressed: _loadStockItemCatalog,
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          ),
+        ),
       );
     }
 
@@ -212,7 +236,7 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
         _submitError = null;
       }),
       onTapEmpty: () {
-        ref.read(stockInventoryControllerProvider.notifier).loadStockItems();
+        unawaited(_loadStockItemCatalog());
       },
     );
     final receivedDateField = InventoryFieldLabel(
@@ -473,6 +497,52 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
     }
   }
 
+  Future<void> _loadStockItemCatalog() async {
+    if (mounted) {
+      setState(() {
+        _isCheckingStockItems = true;
+        _stockItemCatalogError = null;
+      });
+    }
+
+    try {
+      final repository = ref.read(stockItemRepositoryProvider);
+      final catalog = <String, StockItem>{};
+      var offset = 0;
+      var hasMore = true;
+
+      while (hasMore) {
+        final page = await repository.fetchMasterStockItems(
+          status: 'active',
+          pageSize: _stockItemPickerPageSize,
+          offset: offset,
+        );
+        for (final item in page.items) {
+          catalog[item.id] = item;
+        }
+        hasMore = page.hasMore && page.items.isNotEmpty;
+        offset = page.offset + page.items.length;
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _stockItemCatalog = catalog.values.toList(growable: false);
+        _isCheckingStockItems = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      final mapped = mapInventoryError(
+        e,
+        fallbackMessage: 'Failed to load stock items.',
+      );
+      setState(() {
+        _stockItemCatalog = const [];
+        _stockItemCatalogError = mapped.message;
+        _isCheckingStockItems = false;
+      });
+    }
+  }
+
   Future<void> _pickDate() async {
     final now = DateTime.now();
     final initial = parseYyyyMmDd(_dateCtrl.text) ?? now;
@@ -533,15 +603,17 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
       _isSaving = true;
       _submitError = null;
     });
+    final submittedAt = DateTime.now();
+    final resolvedRestockDate = _dateCtrl.text.isEmpty
+        ? formatYyyyMmDd(submittedAt)
+        : _dateCtrl.text;
     try {
       await ref
           .read(stockInventoryControllerProvider.notifier)
           .createRestockBatch(
             itemId: item.id,
             baseQty: baseQty,
-            restockDate: _dateCtrl.text.isEmpty
-                ? formatYyyyMmDd(DateTime.now())
-                : _dateCtrl.text,
+            restockDate: resolvedRestockDate,
             expiryDate: _expiryCtrl.text.isEmpty ? null : _expiryCtrl.text,
             supplierName: _supplierCtrl.text.trim().isEmpty
                 ? null
@@ -552,10 +624,10 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
           );
 
       final actor = ref.read(loginControllerProvider).user?.name ?? 'System';
-      final restockDate = _dateCtrl.text.isEmpty
-          ? null
-          : parseYyyyMmDd(_dateCtrl.text);
-      final occurredAt = restockDate ?? DateTime.now();
+      final occurredAt = resolveRestockOccurredAt(
+        resolvedRestockDate,
+        referenceTime: submittedAt,
+      );
       ref
           .read(inventoryJournalControllerProvider.notifier)
           .recordEntry(
@@ -571,7 +643,7 @@ class _RestockStockItemPageState extends ConsumerState<RestockStockItemPage> {
                   ? 'Restock recorded'
                   : _noteCtrl.text.trim(),
               actor: actor,
-              createdAt: DateTime.now(),
+              createdAt: submittedAt,
               occurredAt: occurredAt,
             ),
           );

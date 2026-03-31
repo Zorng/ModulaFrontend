@@ -69,6 +69,7 @@ class MenuMappers {
       name: dto.label,
       price: dto.priceDelta,
       priceDelta: dto.priceDelta,
+      isPriceConfigured: dto.isPriceConfigured,
       status: status,
       componentDeltas: deltas,
       isDefault: dto.isDefault,
@@ -133,9 +134,8 @@ class MenuMappers {
   ) {
     return MenuModifierOptionEffect(
       modifierOptionId: dto.modifierOptionId,
-      components: dto.components
-          .map(toModifierDelta)
-          .toList(growable: false),
+      priceDelta: dto.priceDelta,
+      components: dto.components.map(toModifierDelta).toList(growable: false),
     );
   }
 

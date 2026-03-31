@@ -7,6 +7,7 @@ import 'package:modular_pos/features/inventory/data/stock_item_repository.dart';
 import 'package:modular_pos/features/inventory/domain/models/on_hand_record.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_batch.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
+import 'package:modular_pos/features/inventory/domain/utils/restock_timestamp.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/inventory_error_mapper.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_state.dart';
 
@@ -570,7 +571,7 @@ class StockInventoryController extends Notifier<StockInventoryState> {
       final item = _findItemOrThrow(itemId);
       final targetBranch =
           _normalizeBranchId(branchId) ?? _normalizeBranchId(item.branchId);
-      final occurredAt = _toUtcIso(restockDate);
+      final occurredAt = restockOccurredAtToUtcIso(restockDate);
       if (targetBranch == null) {
         throw const ApiClientException(
           message: 'Branch selection is required for restocking.',
@@ -1137,12 +1138,5 @@ class StockInventoryController extends Notifier<StockInventoryState> {
       categoryId: state.inventoryCategoryId,
       stockLevel: state.inventoryStockLevel,
     );
-  }
-
-  String? _toUtcIso(String? value) {
-    final trimmed = value?.trim();
-    if (trimmed == null || trimmed.isEmpty) return null;
-    final parsed = DateTime.tryParse(trimmed);
-    return parsed?.toUtc().toIso8601String();
   }
 }

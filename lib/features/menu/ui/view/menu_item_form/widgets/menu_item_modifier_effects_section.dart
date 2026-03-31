@@ -1,21 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
+import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 import 'package:modular_pos/features/menu/ui/view/menu_item_form/widgets/menu_item_composition_section.dart';
 import 'package:modular_pos/features/menu/ui/view/menu_item_form/widgets/menu_section_action_button.dart';
-import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 
 class MenuItemModifierEffectsSection extends StatelessWidget {
   const MenuItemModifierEffectsSection({
     super.key,
     required this.modifierGroups,
+    required this.priceControllersByOptionId,
     required this.effectRowsByOptionId,
-    required this.inheritedEffectsByOptionId,
     required this.stockItems,
     required this.isEditing,
     this.isLoading = false,
     this.errorText,
     this.helperText,
-    this.emptyText = 'No item-scoped modifier effects configured yet.',
+    this.emptyText = 'No item-scoped modifier pricing configured yet.',
     this.onAddRow,
     this.onRemoveRow,
     this.onStockItemChanged,
@@ -23,8 +23,8 @@ class MenuItemModifierEffectsSection extends StatelessWidget {
   });
 
   final List<ModifierGroup> modifierGroups;
+  final Map<String, TextEditingController> priceControllersByOptionId;
   final Map<String, List<MenuItemCompositionDraft>> effectRowsByOptionId;
-  final Map<String, List<ModifierDelta>> inheritedEffectsByOptionId;
   final List<StockItem> stockItems;
   final bool isEditing;
   final bool isLoading;
@@ -34,9 +34,9 @@ class MenuItemModifierEffectsSection extends StatelessWidget {
   final ValueChanged<String>? onAddRow;
   final void Function(String optionId, String rowId)? onRemoveRow;
   final void Function(String optionId, String rowId, String? stockItemId)?
-      onStockItemChanged;
+  onStockItemChanged;
   final void Function(String optionId, String rowId, String trackingMode)?
-      onTrackingModeChanged;
+  onTrackingModeChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -54,7 +54,7 @@ class MenuItemModifierEffectsSection extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Modifier option effects',
+              'Modifier option pricing and effects',
               style: textTheme.titleSmall?.copyWith(
                 fontWeight: FontWeight.w600,
               ),
@@ -88,8 +88,8 @@ class MenuItemModifierEffectsSection extends StatelessWidget {
                       padding: const EdgeInsets.only(bottom: 16),
                       child: _ModifierEffectGroupCard(
                         group: group,
+                        priceControllersByOptionId: priceControllersByOptionId,
                         effectRowsByOptionId: effectRowsByOptionId,
-                        inheritedEffectsByOptionId: inheritedEffectsByOptionId,
                         stockItems: stockItems,
                         isEditing: isEditing,
                         onAddRow: onAddRow,
@@ -109,8 +109,8 @@ class MenuItemModifierEffectsSection extends StatelessWidget {
 class _ModifierEffectGroupCard extends StatelessWidget {
   const _ModifierEffectGroupCard({
     required this.group,
+    required this.priceControllersByOptionId,
     required this.effectRowsByOptionId,
-    required this.inheritedEffectsByOptionId,
     required this.stockItems,
     required this.isEditing,
     this.onAddRow,
@@ -120,27 +120,27 @@ class _ModifierEffectGroupCard extends StatelessWidget {
   });
 
   final ModifierGroup group;
+  final Map<String, TextEditingController> priceControllersByOptionId;
   final Map<String, List<MenuItemCompositionDraft>> effectRowsByOptionId;
-  final Map<String, List<ModifierDelta>> inheritedEffectsByOptionId;
   final List<StockItem> stockItems;
   final bool isEditing;
   final ValueChanged<String>? onAddRow;
   final void Function(String optionId, String rowId)? onRemoveRow;
   final void Function(String optionId, String rowId, String? stockItemId)?
-      onStockItemChanged;
+  onStockItemChanged;
   final void Function(String optionId, String rowId, String trackingMode)?
-      onTrackingModeChanged;
+  onTrackingModeChanged;
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final configuredEffectCount = group.options
-        .map((option) {
-          final explicitCount = effectRowsByOptionId[option.id]?.length ?? 0;
-          if (explicitCount > 0) return explicitCount;
-          return inheritedEffectsByOptionId[option.id]?.length ?? 0;
-        })
-        .fold<int>(0, (sum, count) => sum + count);
+    final configuredOptionCount = group.options.where((option) {
+      final priceText =
+          priceControllersByOptionId[option.id]?.text.trim() ?? '';
+      final hasPrice = priceText.isNotEmpty;
+      final rows = effectRowsByOptionId[option.id] ?? const [];
+      return hasPrice || rows.isNotEmpty;
+    }).length;
 
     return Container(
       decoration: BoxDecoration(
@@ -161,43 +161,53 @@ class _ModifierEffectGroupCard extends StatelessWidget {
           title: Text(group.name, style: textTheme.titleSmall),
           subtitle: Text(
             '${group.options.length} option${group.options.length == 1 ? '' : 's'}'
-            ' • $configuredEffectCount effect${configuredEffectCount == 1 ? '' : 's'}',
+            ' • $configuredOptionCount configured',
             style: textTheme.bodySmall?.copyWith(color: Colors.grey.shade700),
           ),
-          children: group.options.map((option) {
-            final rows = effectRowsByOptionId[option.id] ??
-                const <MenuItemCompositionDraft>[];
-            return SizedBox(
-              width: double.infinity,
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: _ModifierEffectOptionCard(
-                  optionName: option.name,
-                  rows: rows,
-                  inheritedRows:
-                      inheritedEffectsByOptionId[option.id] ??
-                      const <ModifierDelta>[],
-                  stockItems: stockItems,
-                  isEditing: isEditing,
-                  onAddRow: onAddRow == null ? null : () => onAddRow!(option.id),
-                  onRemoveRow: onRemoveRow == null
-                      ? null
-                      : (rowId) => onRemoveRow!(option.id, rowId),
-                  onStockItemChanged: onStockItemChanged == null
-                      ? null
-                      : (rowId, stockItemId) =>
-                          onStockItemChanged!(option.id, rowId, stockItemId),
-                  onTrackingModeChanged: onTrackingModeChanged == null
-                      ? null
-                      : (rowId, trackingMode) => onTrackingModeChanged!(
-                          option.id,
-                          rowId,
-                          trackingMode,
-                        ),
-                ),
-              ),
-            );
-          }).toList(growable: false),
+          children: group.options
+              .map((option) {
+                final priceController = priceControllersByOptionId[option.id];
+                if (priceController == null) {
+                  return const SizedBox.shrink();
+                }
+                final rows =
+                    effectRowsByOptionId[option.id] ??
+                    const <MenuItemCompositionDraft>[];
+                return SizedBox(
+                  width: double.infinity,
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _ModifierEffectOptionCard(
+                      optionName: option.name,
+                      priceController: priceController,
+                      rows: rows,
+                      stockItems: stockItems,
+                      isEditing: isEditing,
+                      onAddRow: onAddRow == null
+                          ? null
+                          : () => onAddRow!(option.id),
+                      onRemoveRow: onRemoveRow == null
+                          ? null
+                          : (rowId) => onRemoveRow!(option.id, rowId),
+                      onStockItemChanged: onStockItemChanged == null
+                          ? null
+                          : (rowId, stockItemId) => onStockItemChanged!(
+                              option.id,
+                              rowId,
+                              stockItemId,
+                            ),
+                      onTrackingModeChanged: onTrackingModeChanged == null
+                          ? null
+                          : (rowId, trackingMode) => onTrackingModeChanged!(
+                              option.id,
+                              rowId,
+                              trackingMode,
+                            ),
+                    ),
+                  ),
+                );
+              })
+              .toList(growable: false),
         ),
       ),
     );
@@ -207,8 +217,8 @@ class _ModifierEffectGroupCard extends StatelessWidget {
 class _ModifierEffectOptionCard extends StatelessWidget {
   const _ModifierEffectOptionCard({
     required this.optionName,
+    required this.priceController,
     required this.rows,
-    required this.inheritedRows,
     required this.stockItems,
     required this.isEditing,
     this.onAddRow,
@@ -218,8 +228,8 @@ class _ModifierEffectOptionCard extends StatelessWidget {
   });
 
   final String optionName;
+  final TextEditingController priceController;
   final List<MenuItemCompositionDraft> rows;
-  final List<ModifierDelta> inheritedRows;
   final List<StockItem> stockItems;
   final bool isEditing;
   final VoidCallback? onAddRow;
@@ -231,8 +241,13 @@ class _ModifierEffectOptionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final isMobileLayout = MediaQuery.sizeOf(context).width < 640;
-    final hasExplicitRows = rows.isNotEmpty;
-    final hasInheritedRows = inheritedRows.isNotEmpty;
+    final hasRows = rows.isNotEmpty;
+    final priceText = priceController.text.trim();
+    final parsedPrice = double.tryParse(priceText);
+    final hasConfiguredPrice = parsedPrice != null && priceText.isNotEmpty;
+    final configuredPriceLabel = parsedPrice == null || priceText.isEmpty
+        ? 'Price not configured'
+        : _formatPriceDeltaLabel(parsedPrice);
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -250,15 +265,42 @@ class _ModifierEffectOptionCard extends StatelessWidget {
               Expanded(child: Text(optionName, style: textTheme.titleSmall)),
               if (!isMobileLayout && isEditing && onAddRow != null)
                 MenuSectionActionButton(
-                  label: 'Add option effect',
+                  label: 'Add component effect',
                   onPressed: onAddRow!,
                 ),
             ],
           ),
           const SizedBox(height: 12),
-          if (hasExplicitRows) ...[
+          if (isEditing) ...[
+            _ModifierOptionPriceField(
+              controller: priceController,
+              requiresPrice: hasRows,
+            ),
+            const SizedBox(height: 12),
+          ] else ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey.shade300),
+              ),
+              child: Text(
+                configuredPriceLabel,
+                style: textTheme.bodyMedium?.copyWith(
+                  color: hasConfiguredPrice
+                      ? Colors.grey.shade800
+                      : Theme.of(context).colorScheme.error,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            if (hasRows) const SizedBox(height: 12),
+          ],
+          if (hasRows) ...[
             Text(
-              'Item-scoped effects',
+              'Component effects',
               style: textTheme.bodySmall?.copyWith(
                 color: Colors.grey.shade700,
                 fontWeight: FontWeight.w600,
@@ -293,41 +335,9 @@ class _ModifierEffectOptionCard extends StatelessWidget {
               ),
             ),
           ],
-          if (hasInheritedRows) ...[
-            if (hasExplicitRows) const SizedBox(height: 4),
-            Container(
-              width: double.infinity,
-              margin: const EdgeInsets.only(bottom: 12),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade50,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey.shade300),
-              ),
-              child: Text(
-                'Inherited from modifier option defaults.',
-                style: textTheme.bodySmall?.copyWith(
-                  color: Colors.grey.shade700,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            ...inheritedRows.map(
-              (row) => Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: _ReadOnlyModifierDeltaRow(
-                    delta: row,
-                    stockItemLabel: _stockItemLabel(stockItems, row.stockItemId),
-                  ),
-                ),
-              ),
-            ),
-          ],
-          if (!hasExplicitRows && !hasInheritedRows)
+          if (!hasConfiguredPrice && !hasRows)
             Text(
-              'No item-scoped or inherited deltas for this option.',
+              'No item-scoped pricing or component effects configured for this option.',
               style: textTheme.bodyMedium?.copyWith(color: Colors.grey),
             ),
           if (isMobileLayout && isEditing && onAddRow != null) ...[
@@ -335,13 +345,48 @@ class _ModifierEffectOptionCard extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: MenuSectionActionButton(
-                label: 'Add option effect',
+                label: 'Add component effect',
                 onPressed: onAddRow!,
               ),
             ),
           ],
         ],
       ),
+    );
+  }
+}
+
+class _ModifierOptionPriceField extends StatelessWidget {
+  const _ModifierOptionPriceField({
+    required this.controller,
+    required this.requiresPrice,
+  });
+
+  final TextEditingController controller;
+  final bool requiresPrice;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextFormField(
+      controller: controller,
+      decoration: const InputDecoration(
+        labelText: 'Price delta',
+        hintText: '0.00',
+        filled: true,
+        fillColor: Colors.white,
+        prefixText: '\$ ',
+      ),
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      validator: (value) {
+        final text = (value ?? '').trim();
+        if (text.isEmpty) {
+          return requiresPrice ? 'Set price' : null;
+        }
+        final parsed = double.tryParse(text);
+        if (parsed == null) return 'Invalid price';
+        if (parsed < 0) return 'Must be >= 0';
+        return null;
+      },
     );
   }
 }
@@ -598,63 +643,6 @@ class _ReadOnlyModifierEffectRow extends StatelessWidget {
   }
 }
 
-class _ReadOnlyModifierDeltaRow extends StatelessWidget {
-  const _ReadOnlyModifierDeltaRow({
-    required this.delta,
-    required this.stockItemLabel,
-  });
-
-  final ModifierDelta delta;
-  final String stockItemLabel;
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    final trackingColor = delta.trackingMode == 'TRACKED'
-        ? Theme.of(context).colorScheme.primary
-        : Colors.grey.shade700;
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        color: Colors.white,
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  stockItemLabel,
-                  style: textTheme.bodyLarge?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Delta: ${_formatDelta(delta.quantityDeltaInBaseUnit)}',
-                  style: textTheme.bodyMedium,
-                ),
-              ],
-            ),
-          ),
-          Chip(
-            label: Text(delta.trackingMode),
-            side: BorderSide(color: trackingColor.withValues(alpha: 0.2)),
-            backgroundColor: trackingColor.withValues(alpha: 0.08),
-            labelStyle: textTheme.labelMedium?.copyWith(
-              color: trackingColor,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 String _stockItemLabel(List<StockItem> stockItems, String? stockItemId) {
   StockItem? match;
   for (final item in stockItems) {
@@ -677,4 +665,11 @@ String _formatDelta(double? value) {
       ? value.toInt().toString()
       : value.toString();
   return value > 0 ? '+$formatted' : formatted;
+}
+
+String _formatPriceDeltaLabel(double value) {
+  if (value == 0) {
+    return 'Price delta: Free';
+  }
+  return 'Price delta: +\$${value.toStringAsFixed(2)}';
 }

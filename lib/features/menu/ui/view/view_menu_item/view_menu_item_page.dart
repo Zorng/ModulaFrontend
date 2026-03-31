@@ -8,6 +8,7 @@ import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_controller.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_composition.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_item.dart';
+import 'package:modular_pos/features/menu/domain/models/modifier_group.dart';
 import 'package:modular_pos/features/menu/ui/view/view_menu_item/view_menu_item_utils.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
 
@@ -74,7 +75,8 @@ class ViewMenuItemPage extends ConsumerWidget {
       ref.read(stockInventoryControllerProvider.notifier).loadStockItems();
     }
 
-    final composition = menuState.baseCompositionByItemId[latestItem.id] ??
+    final composition =
+        menuState.baseCompositionByItemId[latestItem.id] ??
         const <MenuComponent>[];
 
     return Scaffold(
@@ -162,14 +164,17 @@ class ViewMenuItemPage extends ConsumerWidget {
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Text(option.name),
-                                if (option.price > 0)
-                                  Text(
-                                    '+ \$${option.price.toStringAsFixed(2)}',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodyMedium
-                                        ?.copyWith(color: Colors.grey[700]),
-                                  ),
+                                Text(
+                                  _modifierPriceLabel(option),
+                                  style: Theme.of(context).textTheme.bodyMedium
+                                      ?.copyWith(
+                                        color: option.isPriceConfigured
+                                            ? Colors.grey[700]
+                                            : Theme.of(
+                                                context,
+                                              ).colorScheme.error,
+                                      ),
+                                ),
                               ],
                             ),
                           ),
@@ -200,6 +205,16 @@ class ViewMenuItemPage extends ConsumerWidget {
       ),
     );
   }
+}
+
+String _modifierPriceLabel(ModifierOption option) {
+  if (!option.isPriceConfigured) {
+    return 'Price not configured';
+  }
+  if (option.price == 0) {
+    return 'Free';
+  }
+  return '+ \$${option.price.toStringAsFixed(2)}';
 }
 
 class _CompositionSummaryCard extends StatelessWidget {
@@ -267,7 +282,10 @@ class _CompositionSummaryCard extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                _stockItemLabel(stockItems, component.stockItemId),
+                                _stockItemLabel(
+                                  stockItems,
+                                  component.stockItemId,
+                                ),
                                 style: Theme.of(context).textTheme.titleSmall,
                               ),
                               const SizedBox(height: 4),

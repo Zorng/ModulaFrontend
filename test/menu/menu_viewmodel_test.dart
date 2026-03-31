@@ -257,7 +257,9 @@ void main() {
           },
         );
       },
-      skip: _sqliteAvailable ? false : 'sqlite3.dll not available for Drift tests on this machine',
+      skip: _sqliteAvailable
+          ? false
+          : 'sqlite3.dll not available for Drift tests on this machine',
     );
 
     test(
@@ -601,52 +603,56 @@ void main() {
       );
     });
 
-    test('upsertItemModifierOptionEffects stores explicit effect state', () async {
-      final repo = _MockMenuRepository();
-      when(
-        () => repo.upsertMenuItemModifierOptionEffects(
-          menuItemId: 'item-1',
-          effects: any(named: 'effects'),
-        ),
-      ).thenAnswer((_) async {});
-
-      final container = createTestContainer(
-        overrides: [menuRepositoryProvider.overrideWithValue(repo)],
-      );
-      final notifier = container.read(menuViewModelProvider.notifier);
-
-      await notifier.upsertItemModifierOptionEffects(
-        menuItemId: 'item-1',
-        effects: const [
-          MenuModifierOptionEffect(
-            modifierOptionId: 'opt-1',
-            components: [
-              ModifierDelta(
-                stockItemId: 'stock-2',
-                quantityDeltaInBaseUnit: -50,
-                trackingMode: 'TRACKED',
-              ),
-            ],
+    test(
+      'upsertItemModifierOptionEffects stores explicit effect state',
+      () async {
+        final repo = _MockMenuRepository();
+        when(
+          () => repo.upsertMenuItemModifierOptionEffects(
+            menuItemId: 'item-1',
+            effects: any(named: 'effects'),
           ),
-        ],
-      );
+        ).thenAnswer((_) async {});
 
-      final state = container.read(menuViewModelProvider);
-      expect(state.modifierOptionEffectsByItemId['item-1'], hasLength(1));
-      expect(
-        state.modifierOptionEffectsByItemId['item-1']!.first.modifierOptionId,
-        'opt-1',
-      );
-      expect(
-        state.modifierOptionEffectsErrorsByItemId.containsKey('item-1'),
-        isFalse,
-      );
-      verify(
-        () => repo.upsertMenuItemModifierOptionEffects(
+        final container = createTestContainer(
+          overrides: [menuRepositoryProvider.overrideWithValue(repo)],
+        );
+        final notifier = container.read(menuViewModelProvider.notifier);
+
+        await notifier.upsertItemModifierOptionEffects(
           menuItemId: 'item-1',
-          effects: any(named: 'effects'),
-        ),
-      ).called(1);
-    });
+          effects: const [
+            MenuModifierOptionEffect(
+              modifierOptionId: 'opt-1',
+              priceDelta: 0.5,
+              components: [
+                ModifierDelta(
+                  stockItemId: 'stock-2',
+                  quantityDeltaInBaseUnit: -50,
+                  trackingMode: 'TRACKED',
+                ),
+              ],
+            ),
+          ],
+        );
+
+        final state = container.read(menuViewModelProvider);
+        expect(state.modifierOptionEffectsByItemId['item-1'], hasLength(1));
+        expect(
+          state.modifierOptionEffectsByItemId['item-1']!.first.modifierOptionId,
+          'opt-1',
+        );
+        expect(
+          state.modifierOptionEffectsErrorsByItemId.containsKey('item-1'),
+          isFalse,
+        );
+        verify(
+          () => repo.upsertMenuItemModifierOptionEffects(
+            menuItemId: 'item-1',
+            effects: any(named: 'effects'),
+          ),
+        ).called(1);
+      },
+    );
   });
 }

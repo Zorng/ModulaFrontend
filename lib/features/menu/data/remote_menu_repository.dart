@@ -95,7 +95,9 @@ class RemoteMenuRepository extends MenuRepository {
   @override
   Future<List<MenuCategory>> fetchCategoriesOnly({String? status}) async {
     final requestedStatus = (status ?? '').trim().toLowerCase();
-    final normalizedStatus = requestedStatus.isEmpty ? 'active' : requestedStatus;
+    final normalizedStatus = requestedStatus.isEmpty
+        ? 'active'
+        : requestedStatus;
     final categoriesRaw = await _api.fetchCategories(status: normalizedStatus);
     return categoriesRaw
         .where((dto) => _matchesRequestedStatus(dto.status, normalizedStatus))
@@ -170,6 +172,7 @@ class RemoteMenuRepository extends MenuRepository {
           .map(
             (effect) => MenuModifierOptionEffectDto(
               modifierOptionId: effect.modifierOptionId,
+              priceDelta: effect.priceDelta,
               components: effect.components
                   .map(
                     (component) => ModifierDeltaDto(
@@ -201,8 +204,12 @@ class RemoteMenuRepository extends MenuRepository {
   @override
   Future<List<ModifierGroup>> fetchModifierGroupsOnly({String? status}) async {
     final requestedStatus = (status ?? '').trim().toLowerCase();
-    final normalizedStatus = requestedStatus.isEmpty ? 'active' : requestedStatus;
-    final modifiersRaw = await _api.fetchModifierGroups(status: normalizedStatus);
+    final normalizedStatus = requestedStatus.isEmpty
+        ? 'active'
+        : requestedStatus;
+    final modifiersRaw = await _api.fetchModifierGroups(
+      status: normalizedStatus,
+    );
     return modifiersRaw
         .where((dto) => _matchesRequestedStatus(dto.status, normalizedStatus))
         .map(MenuMappers.toGroup)
@@ -265,7 +272,7 @@ class RemoteMenuRepository extends MenuRepository {
       final optionPayload = {
         'groupId': createdGroup.id,
         'label': option.name,
-        'priceDelta': option.priceDelta,
+        'priceDelta': option.isPriceConfigured ? option.priceDelta : 0.0,
         'isDefault': option.isDefault,
         'componentDeltas': option.componentDeltas
             .map((entry) => entry.toJson())
@@ -322,7 +329,7 @@ class RemoteMenuRepository extends MenuRepository {
         try {
           await _api.updateModifierOption(option.id, {
             'label': option.name,
-            'priceDelta': option.priceDelta,
+            'priceDelta': option.isPriceConfigured ? option.priceDelta : 0.0,
             'isDefault': option.isDefault,
             'componentDeltas': option.componentDeltas
                 .map((entry) => entry.toJson())
@@ -339,7 +346,7 @@ class RemoteMenuRepository extends MenuRepository {
           final createdDto = await _api.addModifierOption({
             'groupId': group.id,
             'label': option.name,
-            'priceDelta': option.priceDelta,
+            'priceDelta': option.isPriceConfigured ? option.priceDelta : 0.0,
             'isDefault': option.isDefault,
             'componentDeltas': option.componentDeltas
                 .map((entry) => entry.toJson())
@@ -499,9 +506,7 @@ class RemoteMenuRepository extends MenuRepository {
       };
     }
 
-    final payload = <String, dynamic>{
-      'id': item.id.isEmpty ? null : item.id,
-    };
+    final payload = <String, dynamic>{'id': item.id.isEmpty ? null : item.id};
     if (item.name != previous.name) {
       payload['name'] = item.name;
     }

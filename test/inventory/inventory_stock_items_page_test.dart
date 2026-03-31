@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
 import 'package:modular_pos/features/inventory/ui/view/inventory_stock_items/inventory_stock_items_page.dart';
+import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_controller.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_state.dart';
 
 import '../test_utils/pump_app.dart';
@@ -35,8 +36,56 @@ const _stockPageItem = StockItem(
   isActive: true,
 );
 
+class _SpyStockItemsFilterController extends StockInventoryController {
+  _SpyStockItemsFilterController({required this.onLoad}) : super();
+
+  final ValueChanged<String> onLoad;
+
+  @override
+  StockInventoryState build() =>
+      const StockInventoryState(stockItems: [_stockPageItem]);
+
+  @override
+  Future<void> loadStockItemsPage({
+    String status = 'all',
+    String? search,
+    String? categoryId,
+    int limit = 10,
+    int page = 1,
+    bool pageTransition = false,
+    bool accumulatePages = false,
+  }) async {
+    onLoad(status);
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  testWidgets(
+    'stock items page defaults status filter to Active without All statuses',
+    (tester) async {
+      _setWideViewport(tester);
+      addTearDown(() => _resetViewport(tester));
+
+      String? loadedStatus;
+
+      await pumpApp(
+        tester,
+        const InventoryStockItemsPage(),
+        overrides: inventoryOverrides(
+          stockInventoryController: _SpyStockItemsFilterController(
+            onLoad: (status) => loadedStatus = status,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Active'), findsAtLeastNWidgets(1));
+      expect(find.text('All statuses'), findsNothing);
+      expect(loadedStatus, 'active');
+    },
+  );
 
   testWidgets('desktop stock items page shows numeric pagination', (
     tester,
