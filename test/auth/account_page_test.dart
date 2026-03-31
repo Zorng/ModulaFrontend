@@ -96,31 +96,38 @@ void _setLargeSurface(WidgetTester tester) {
   tester.view.physicalSize = const Size(1280, 1200);
 }
 
+void _setSmallSurface(WidgetTester tester) {
+  tester.view.devicePixelRatio = 1.0;
+  tester.view.physicalSize = const Size(390, 844);
+}
+
 void main() {
-  testWidgets(
-    'Account page shows profile, access, settings, and session sections',
-    (tester) async {
-      _setLargeSurface(tester);
-      addTearDown(() {
-        tester.view.resetPhysicalSize();
-        tester.view.resetDevicePixelRatio();
-      });
+  testWidgets('wide account route shows account sections as a normal page', (
+    tester,
+  ) async {
+    _setLargeSurface(tester);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
 
-      await tester.pumpWidget(_routerHarness());
-      await tester.pumpAndSettle();
+    await tester.pumpWidget(_routerHarness());
+    await tester.pumpAndSettle();
 
-      expect(find.text('Account'), findsOneWidget);
-      expect(find.text('Profile'), findsOneWidget);
-      expect(find.text('Access'), findsOneWidget);
-      expect(find.text('Settings'), findsOneWidget);
-      expect(find.text('Session'), findsOneWidget);
-      expect(find.text('Main Tenant'), findsOneWidget);
-      expect(find.text('Current'), findsOneWidget);
-      expect(find.text('Open settings'), findsOneWidget);
-      expect(find.text('Log out'), findsOneWidget);
-      expect(find.text('Edit'), findsNothing);
-    },
-  );
+    expect(find.byType(Dialog), findsNothing);
+    expect(find.byType(AppBar), findsOneWidget);
+    expect(find.text('Account'), findsOneWidget);
+    expect(find.text('Profile'), findsOneWidget);
+    expect(find.text('Access'), findsOneWidget);
+    expect(find.text('Settings'), findsOneWidget);
+    expect(find.text('Session'), findsOneWidget);
+    expect(find.text('Main Tenant'), findsOneWidget);
+    expect(find.text('Current'), findsOneWidget);
+    expect(find.text('Open settings'), findsOneWidget);
+    expect(find.text('Log out'), findsOneWidget);
+    expect(find.text('Edit'), findsNothing);
+    expect(find.byTooltip('Back'), findsOneWidget);
+  });
 
   testWidgets(
     'Settings entry routes to settings page without edit affordance',
@@ -142,4 +149,23 @@ void main() {
       expect(find.text('Edit'), findsNothing);
     },
   );
+
+  testWidgets('small account route stays a page with a back button', (
+    tester,
+  ) async {
+    _setSmallSurface(tester);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(_routerHarness());
+    await tester.pumpAndSettle();
+
+    expect(find.byType(Dialog), findsNothing);
+    expect(find.byType(AppBar), findsOneWidget);
+    expect(find.byTooltip('Back'), findsOneWidget);
+    expect(find.text('Account'), findsOneWidget);
+    expect(find.text('Profile'), findsOneWidget);
+  });
 }

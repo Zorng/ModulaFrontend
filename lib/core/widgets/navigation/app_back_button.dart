@@ -1,15 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 /// Standard back button used across the app.
 ///
 /// Folder: `lib/core/widgets/navigation/`
 class AppBackButton extends StatelessWidget {
-  const AppBackButton({
-    super.key,
-    this.onPressed,
-    this.icon,
-    this.tooltip,
-  });
+  const AppBackButton({super.key, this.onPressed, this.icon, this.tooltip});
 
   final VoidCallback? onPressed;
   final IconData? icon;
@@ -20,7 +16,15 @@ class AppBackButton extends StatelessWidget {
     return IconButton(
       icon: Icon(icon ?? Icons.chevron_left),
       tooltip: tooltip ?? 'Back',
-      onPressed: onPressed ?? () => Navigator.of(context).maybePop(),
+      onPressed:
+          onPressed ??
+          () {
+            if (context.canPop()) {
+              context.pop();
+              return;
+            }
+            Navigator.of(context).maybePop();
+          },
     );
   }
 }

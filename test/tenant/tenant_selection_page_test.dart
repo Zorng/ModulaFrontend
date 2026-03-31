@@ -118,6 +118,11 @@ void _setWideSurface(WidgetTester tester) {
   tester.view.physicalSize = const Size(1280, 1000);
 }
 
+void _setSmallSurface(WidgetTester tester) {
+  tester.view.devicePixelRatio = 1.0;
+  tester.view.physicalSize = const Size(390, 844);
+}
+
 void main() {
   testWidgets('tenant selection uses inbox plus shared tenant actions', (
     tester,
@@ -158,7 +163,34 @@ void main() {
     await tester.tap(find.byKey(AccountShellAction.actionKey));
     await tester.pumpAndSettle();
 
+    expect(find.byType(Dialog), findsOneWidget);
     expect(find.text('Account'), findsOneWidget);
     expect(find.text('Profile'), findsOneWidget);
+  });
+
+  testWidgets('small tenant selection account page can go back', (
+    tester,
+  ) async {
+    _setSmallSurface(tester);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(_routerHarness());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(AccountShellAction.actionKey));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(Dialog), findsNothing);
+    expect(find.text('Account'), findsOneWidget);
+    expect(find.byTooltip('Back'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Back'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Tenants'), findsOneWidget);
+    expect(find.text('Account'), findsNothing);
   });
 }
