@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -10,7 +12,8 @@ import 'package:modular_pos/core/widgets/media/product_image_picker.dart';
 import 'package:modular_pos/features/auth/domain/active_branch_context_provider.dart';
 import 'package:modular_pos/features/branchV2/ui/viewmodels/branch_controller.dart';
 import 'package:modular_pos/features/branchV2/ui/viewmodels/branch_state.dart';
-import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_controller.dart';
+import 'package:modular_pos/features/inventory/data/stock_item_repository.dart';
+import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_composition.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_branch.dart';
 import 'package:modular_pos/features/menu/domain/models/menu_category.dart';
@@ -38,6 +41,7 @@ class MenuItemFormPage extends ConsumerStatefulWidget {
 enum _MenuItemFormMode { create, view, edit }
 
 class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
+  static const int _stockItemCatalogPageSize = 200;
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameController;
   late final TextEditingController _priceController;
@@ -66,6 +70,9 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
   bool _modifierEffectsDirty = false;
   bool _didHydrateEditBaseline = false;
   bool _hasUserEditedBaseItem = false;
+  bool _isLoadingStockItemCatalog = false;
+  List<StockItem> _stockItemCatalog = const [];
+  String? _stockItemCatalogError;
 
   bool get isCreate => _mode == _MenuItemFormMode.create;
   bool get isView => _mode == _MenuItemFormMode.view;
@@ -85,7 +92,7 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
         : _MenuItemFormMode.view;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(menuViewModelProvider.notifier).loadMenu();
-      ref.read(stockInventoryControllerProvider.notifier).loadStockItems();
+      unawaited(_loadStockItemCatalog());
       _ensureEditBaselineLoaded();
       _bootstrapCompositionState();
       _bootstrapModifierEffectsState();
@@ -113,12 +120,13 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(menuViewModelProvider);
-    final inventoryState = ref.watch(stockInventoryControllerProvider);
     final categories = state.categories;
     final modifierGroups = state.modifierGroups;
     final branches = state.branches;
-    final stockItems = inventoryState.stockItems.toList(growable: false)
+    final stockItems = _stockItemCatalog.toList(growable: false)
       ..sort((a, b) => a.name.compareTo(b.name));
+    final stockItemCatalogLoading =
+        _isLoadingStockItemCatalog && stockItems.isEmpty;
     final compositionItemId = widget.initialItem?.id;
     final detailItem = compositionItemId == null
         ? null
@@ -148,6 +156,17 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
         .toList(growable: false);
     final showModifierEffectsSection =
         !isCreate || selectedModifierGroups.isNotEmpty;
+    final stockItemCatalogError = stockItems.isEmpty
+        ? _stockItemCatalogError
+        : null;
+    final compositionSectionError = _combineSectionErrorText(
+      compositionError,
+      stockItemCatalogError,
+    );
+    final modifierEffectsSectionError = _combineSectionErrorText(
+      modifierEffectsError,
+      stockItemCatalogError,
+    );
     _ensureModifierEffectPriceControllers(selectedModifierGroups);
 
     if (!_didInitializeComposition &&
@@ -419,7 +438,7 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
                   stockItems: stockItems,
                   isEditing: isEditing,
                   isLoading: modifierEffectsLoading,
-                  errorText: modifierEffectsError,
+                  errorText: modifierEffectsSectionError,
                   helperText:
                       'Set item-specific price deltas for each modifier option. Component effects are optional.',
                   emptyText:
@@ -435,8 +454,10 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
                 rows: _compositionRows,
                 stockItems: stockItems,
                 isEditing: isEditing,
-                isLoading: compositionLoading,
-                errorText: compositionError,
+                isLoading:
+                    compositionLoading ||
+                    (!isCreate && stockItemCatalogLoading),
+                errorText: compositionSectionError,
                 helperText: isCreate
                     ? 'Base components become available after you save this item and reopen it.'
                     : 'Base components stay with the menu item. Modifier options can adjust them later.',
@@ -956,6 +977,48 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
         });
       },
     );
+  }
+
+  Future<void> _loadStockItemCatalog() async {
+    if (mounted) {
+      setState(() {
+        _isLoadingStockItemCatalog = true;
+        _stockItemCatalogError = null;
+      });
+    }
+
+    try {
+      final repository = ref.read(stockItemRepositoryProvider);
+      final catalog = <String, StockItem>{};
+      var offset = 0;
+      var hasMore = true;
+
+      while (hasMore) {
+        final page = await repository.fetchMasterStockItems(
+          status: 'all',
+          pageSize: _stockItemCatalogPageSize,
+          offset: offset,
+        );
+        for (final item in page.items) {
+          catalog[item.id] = item;
+        }
+        hasMore = page.hasMore && page.items.isNotEmpty;
+        offset = page.offset + page.items.length;
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _stockItemCatalog = catalog.values.toList(growable: false);
+        _isLoadingStockItemCatalog = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _stockItemCatalog = const [];
+        _stockItemCatalogError = 'Failed to load stock items.';
+        _isLoadingStockItemCatalog = false;
+      });
+    }
   }
 
   Future<void> _bootstrapCompositionState() async {
@@ -1550,6 +1613,17 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
     _priceController.dispose();
     super.dispose();
   }
+}
+
+String? _combineSectionErrorText(String? primary, String? secondary) {
+  final messages = [primary, secondary]
+      .map((message) => message?.trim() ?? '')
+      .where((message) => message.isNotEmpty)
+      .toList(growable: false);
+  if (messages.isEmpty) {
+    return null;
+  }
+  return messages.join('\n');
 }
 
 String _formatDecimalInput(double value) {

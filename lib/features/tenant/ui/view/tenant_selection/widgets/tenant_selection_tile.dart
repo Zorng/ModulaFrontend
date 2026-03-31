@@ -15,8 +15,6 @@ class TenantSelectionTile extends StatelessWidget {
 
   // Placeholder fields — wire up when data is available
   String? get tenantImageUrl => null;
-  int? get employeeCount => null;
-  int? get branchCount => null;
 
   @override
   Widget build(BuildContext context) {
@@ -30,6 +28,7 @@ class TenantSelectionTile extends StatelessWidget {
     final initial = tenantName.substring(0, 1).toUpperCase();
 
     return Card(
+      color: Colors.white,
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: enabled ? onTap : null,
@@ -37,7 +36,6 @@ class TenantSelectionTile extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           child: Row(
             children: [
-              // Logo / Avatar
               _TenantAvatar(
                 imageUrl: tenantImageUrl,
                 initial: initial,
@@ -45,7 +43,6 @@ class TenantSelectionTile extends StatelessWidget {
                 textTheme: textTheme,
               ),
               const SizedBox(width: 16),
-              // Main info
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -59,28 +56,10 @@ class TenantSelectionTile extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 4),
-                    _RoleBadge(role: role, colorScheme: colorScheme, textTheme: textTheme),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        _StatChip(
-                          icon: Icons.account_tree_outlined,
-                          label: branchCount != null
-                              ? '$branchCount ${branchCount == 1 ? 'Branch' : 'Branches'}'
-                              : 'Branches',
-                          colorScheme: colorScheme,
-                          textTheme: textTheme,
-                        ),
-                        const SizedBox(width: 12),
-                        _StatChip(
-                          icon: Icons.people_outline,
-                          label: employeeCount != null
-                              ? '$employeeCount ${employeeCount == 1 ? 'Employee' : 'Employees'}'
-                              : 'Employees',
-                          colorScheme: colorScheme,
-                          textTheme: textTheme,
-                        ),
-                      ],
+                    _RoleBadge(
+                      role: role,
+                      colorScheme: colorScheme,
+                      textTheme: textTheme,
                     ),
                   ],
                 ),
@@ -122,10 +101,7 @@ class _TenantAvatar extends StatelessWidget {
         color: colorScheme.primaryContainer,
         borderRadius: BorderRadius.circular(12),
         image: imageUrl != null
-            ? DecorationImage(
-                image: NetworkImage(imageUrl!),
-                fit: BoxFit.cover,
-              )
+            ? DecorationImage(image: NetworkImage(imageUrl!), fit: BoxFit.cover)
             : null,
       ),
       child: imageUrl == null
@@ -170,37 +146,6 @@ class _RoleBadge extends StatelessWidget {
           letterSpacing: 0.5,
         ),
       ),
-    );
-  }
-}
-
-class _StatChip extends StatelessWidget {
-  const _StatChip({
-    required this.icon,
-    required this.label,
-    required this.colorScheme,
-    required this.textTheme,
-  });
-
-  final IconData icon;
-  final String label;
-  final ColorScheme colorScheme;
-  final TextTheme textTheme;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 14, color: colorScheme.onSurfaceVariant),
-        const SizedBox(width: 4),
-        Text(
-          label,
-          style: textTheme.bodySmall?.copyWith(
-            color: colorScheme.onSurfaceVariant,
-          ),
-        ),
-      ],
     );
   }
 }

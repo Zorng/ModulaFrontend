@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:modular_pos/features/auth/domain/active_branch_context_provider.dart';
+import 'package:modular_pos/features/inventory/data/stock_item_repository.dart';
 import 'package:modular_pos/features/inventory/domain/models/stock_item.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_controller.dart';
 import 'package:modular_pos/features/inventory/ui/viewmodels/stock_inventory_state.dart';
@@ -16,6 +17,7 @@ import 'package:modular_pos/features/menu/ui/view/menu_item_form/menu_item_form_
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_state.dart';
 import 'package:modular_pos/features/menu/ui/viewmodels/menu_viewmodel.dart';
 
+import '../inventory/inventory_test_fakes.dart';
 import '../test_utils/pump_app.dart';
 
 class _StaticMenuViewModel extends MenuViewModel {
@@ -182,6 +184,21 @@ void main() {
         const MenuItemFormPage(initialItem: partialItem),
         overrides: [
           menuViewModelProvider.overrideWith(() => notifier),
+          stockItemRepositoryProvider.overrideWithValue(
+            FakeStockItemRepository(const [
+              StockItem(
+                id: 'stock-1',
+                name: 'Espresso',
+                baseUnit: 'ml',
+                pieceSize: 1,
+                branchId: '',
+                branchName: '',
+                onHand: 0,
+                minThreshold: 0,
+                isActive: true,
+              ),
+            ]),
+          ),
           stockInventoryControllerProvider.overrideWith(
             () => _StaticStockInventoryController(
               const StockInventoryState(
@@ -307,6 +324,32 @@ void main() {
               ),
             ),
           ),
+          stockItemRepositoryProvider.overrideWithValue(
+            FakeStockItemRepository(const [
+              StockItem(
+                id: 'stock-1',
+                name: 'Espresso',
+                baseUnit: 'ml',
+                pieceSize: 1,
+                branchId: '',
+                branchName: '',
+                onHand: 0,
+                minThreshold: 0,
+                isActive: true,
+              ),
+              StockItem(
+                id: 'stock-2',
+                name: 'Oat Milk',
+                baseUnit: 'ml',
+                pieceSize: 1,
+                branchId: '',
+                branchName: '',
+                onHand: 0,
+                minThreshold: 0,
+                isActive: true,
+              ),
+            ]),
+          ),
           stockInventoryControllerProvider.overrideWith(
             () => _StaticStockInventoryController(
               const StockInventoryState(
@@ -357,6 +400,101 @@ void main() {
   );
 
   testWidgets(
+    'MenuItemFormPage resolves composition stock items beyond the first stock catalog page',
+    (tester) async {
+      tester.view.physicalSize = const Size(1440, 2200);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      const item = MenuItem(
+        id: 'item-1',
+        name: 'Latte',
+        categoryId: 'cat-1',
+        price: 2.5,
+        basePrice: 2.5,
+      );
+      const detail = MenuItemDetail(
+        item: item,
+        categoryName: 'Coffee',
+        modifierGroups: [],
+        baseComponents: [
+          MenuComponent(
+            stockItemId: 'stock-201',
+            quantityInBaseUnit: 30,
+            trackingMode: 'TRACKED',
+          ),
+        ],
+        modifierOptionEffects: [],
+      );
+      final stockCatalog = List<StockItem>.generate(
+        201,
+        (index) => StockItem(
+          id: 'stock-${index + 1}',
+          name: index == 200 ? 'Reserve Matcha' : 'Stock ${index + 1}',
+          baseUnit: 'g',
+          pieceSize: 1,
+          branchId: '',
+          branchName: '',
+          onHand: 0,
+          minThreshold: 0,
+          isActive: true,
+        ),
+        growable: false,
+      );
+
+      await pumpApp(
+        tester,
+        const MenuItemFormPage(initialItem: item),
+        overrides: [
+          menuViewModelProvider.overrideWith(
+            () => _StaticMenuViewModel(
+              const MenuState(
+                isLoading: false,
+                allItems: [item],
+                filteredItems: [item],
+                categories: [MenuCategory(id: 'cat-1', name: 'Coffee')],
+                detailByItemId: {'item-1': detail},
+                compositionLoadedByItem: {'item-1': true},
+                compositionByItem: {
+                  'item-1': [
+                    MenuComponent(
+                      stockItemId: 'stock-201',
+                      quantityInBaseUnit: 30,
+                      trackingMode: 'TRACKED',
+                    ),
+                  ],
+                },
+                baseCompositionByItemId: {
+                  'item-1': [
+                    MenuComponent(
+                      stockItemId: 'stock-201',
+                      quantityInBaseUnit: 30,
+                      trackingMode: 'TRACKED',
+                    ),
+                  ],
+                },
+              ),
+            ),
+          ),
+          stockItemRepositoryProvider.overrideWithValue(
+            FakeStockItemRepository(stockCatalog),
+          ),
+          stockInventoryControllerProvider.overrideWith(
+            () => _StaticStockInventoryController(const StockInventoryState()),
+          ),
+        ],
+      );
+
+      await tester.pump();
+      await tester.pumpAndSettle();
+
+      expect(find.text('Reserve Matcha (g)'), findsOneWidget);
+      expect(find.text('Unknown stock item'), findsNothing);
+    },
+  );
+
+  testWidgets(
     'MenuItemFormPage create mode gates deferred composition sections until after create',
     (tester) async {
       tester.view.physicalSize = const Size(1440, 2200);
@@ -376,6 +514,9 @@ void main() {
                 branches: [MenuBranch(id: 'branch-1', name: 'Main')],
               ),
             ),
+          ),
+          stockItemRepositoryProvider.overrideWithValue(
+            FakeStockItemRepository(const []),
           ),
           stockInventoryControllerProvider.overrideWith(
             () => _StaticStockInventoryController(const StockInventoryState()),
