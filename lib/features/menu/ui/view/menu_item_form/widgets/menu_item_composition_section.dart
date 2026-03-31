@@ -53,6 +53,20 @@ class MenuItemCompositionSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final isMobileLayout = MediaQuery.sizeOf(context).width < 640;
+    final canAddComponents = isEditing && onAddRow != null;
+    final hasErrorText = (errorText ?? '').trim().isNotEmpty;
+    final showsNoStockItemsMessage =
+        stockItems.isEmpty && canAddComponents && rows.isEmpty;
+    final showsEmptyText = rows.isEmpty && emptyText.trim().isNotEmpty;
+    final showsRows = rows.isNotEmpty;
+    final showsMobileAddButton = isMobileLayout && canAddComponents;
+    final hasPrimaryContent =
+        (isLoading && rows.isEmpty) ||
+        hasErrorText ||
+        showsNoStockItemsMessage ||
+        showsEmptyText ||
+        showsRows ||
+        showsMobileAddButton;
 
     return Card(
       color: Colors.white,
@@ -75,22 +89,18 @@ class MenuItemCompositionSection extends StatelessWidget {
                     ),
                   ),
                 ),
-                if (!isMobileLayout && isEditing && onAddRow != null)
+                if (!isMobileLayout && canAddComponents)
                   MenuSectionActionButton(
                     label: 'Add component',
                     onPressed: onAddRow!,
                   ),
               ],
             ),
-            if ((helperText ?? '').trim().isNotEmpty) ...[
-              const SizedBox(height: 4),
-              Text(helperText!, style: textTheme.bodyMedium),
-            ],
-            const SizedBox(height: 16),
+            if (hasPrimaryContent) const SizedBox(height: 16),
             if (isLoading && rows.isEmpty)
               const Center(child: CircularProgressIndicator())
             else ...[
-              if (errorText != null && errorText!.trim().isNotEmpty) ...[
+              if (hasErrorText) ...[
                 Text(
                   errorText!,
                   style: textTheme.bodyMedium?.copyWith(
@@ -99,12 +109,12 @@ class MenuItemCompositionSection extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
               ],
-              if (stockItems.isEmpty && isEditing && rows.isEmpty)
+              if (showsNoStockItemsMessage)
                 Text(
                   'No stock items available. Add stock items in Inventory before configuring composition.',
                   style: textTheme.bodyMedium?.copyWith(color: Colors.grey),
                 )
-              else if (rows.isEmpty)
+              else if (showsEmptyText)
                 Text(
                   emptyText,
                   style: textTheme.bodyMedium?.copyWith(color: Colors.grey),
@@ -134,7 +144,7 @@ class MenuItemCompositionSection extends StatelessWidget {
                           ),
                   ),
                 ),
-              if (isMobileLayout && isEditing && onAddRow != null) ...[
+              if (showsMobileAddButton) ...[
                 const SizedBox(height: 4),
                 SizedBox(
                   width: double.infinity,
@@ -144,6 +154,13 @@ class MenuItemCompositionSection extends StatelessWidget {
                   ),
                 ),
               ],
+            ],
+            if ((helperText ?? '').trim().isNotEmpty) ...[
+              if (hasPrimaryContent) const SizedBox(height: 16),
+              Text(
+                helperText!,
+                style: textTheme.bodyMedium?.copyWith(color: Colors.grey[700]),
+              ),
             ],
           ],
         ),

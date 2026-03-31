@@ -88,7 +88,7 @@ class _MenuPageState extends ConsumerState<MenuPage> {
 
     return Scaffold(
       body: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         child: SingleChildScrollView(
           key: const ValueKey('menu-page-scroll-view'),
           child: Column(

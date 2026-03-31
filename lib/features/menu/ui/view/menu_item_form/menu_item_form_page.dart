@@ -56,8 +56,8 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
   bool _isSaving = false;
   bool _isActive = true;
   final List<MenuItemCompositionDraft> _compositionRows = [];
-  final Map<String, List<MenuItemCompositionDraft>> _modifierEffectRowsByOptionId =
-      {};
+  final Map<String, List<MenuItemCompositionDraft>>
+  _modifierEffectRowsByOptionId = {};
   bool _didInitializeComposition = false;
   bool _didInitializeModifierEffects = false;
   bool _compositionDirty = false;
@@ -136,16 +136,20 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
     final baseComposition = compositionItemId == null
         ? const <MenuComponent>[]
         : state.baseCompositionByItemId[compositionItemId] ??
-            const <MenuComponent>[];
+              const <MenuComponent>[];
     final modifierEffects = compositionItemId == null
         ? const <MenuModifierOptionEffect>[]
         : state.modifierOptionEffectsByItemId[compositionItemId] ??
-            const <MenuModifierOptionEffect>[];
+              const <MenuModifierOptionEffect>[];
     final selectedModifierGroups = modifierGroups
         .where((group) => _selectedModifierGroupIds.contains(group.id))
         .toList(growable: false);
+    final showModifierEffectsSection =
+        !isCreate || selectedModifierGroups.isNotEmpty;
     final inheritedEffectsByOptionId = {
-      for (final option in selectedModifierGroups.expand((group) => group.options))
+      for (final option in selectedModifierGroups.expand(
+        (group) => group.options,
+      ))
         if (!_modifierEffectRowsByOptionId.containsKey(option.id) &&
             option.componentDeltas.isNotEmpty)
           option.id: option.componentDeltas,
@@ -322,7 +326,8 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
               child: _MenuSectionCard(
                 title: 'Assign branch',
                 description: 'Select which branches provide this item.',
-                headerAction: isEditing && branches.isNotEmpty && !isMobileLayout
+                headerAction:
+                    isEditing && branches.isNotEmpty && !isMobileLayout
                     ? _SectionHeaderButton(
                         label: 'Select branches',
                         onPressed: () => _showBranchSelection(branches),
@@ -409,27 +414,28 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
                 ],
               ),
             ),
-            _SectionSpacer(
-              child: MenuItemModifierEffectsSection(
-                modifierGroups: selectedModifierGroups,
-                effectRowsByOptionId: _modifierEffectRowsByOptionId,
-                inheritedEffectsByOptionId: inheritedEffectsByOptionId,
-                stockItems: stockItems,
-                isEditing: isEditing,
-                isLoading: modifierEffectsLoading,
-                errorText: modifierEffectsError,
-                helperText: isCreate
-                    ? 'Optional. Save the item first, then open it again if you want to configure item-scoped modifier effects.'
-                    : 'Optional. Use item-scoped option effects only when a modifier option should add or remove components for this menu item.',
-                emptyText: isCreate
-                    ? 'Modifier option effects become available after the item is created.'
-                    : 'No item-scoped modifier effects configured for the selected modifier groups.',
-                onAddRow: _addModifierEffectRow,
-                onRemoveRow: _removeModifierEffectRow,
-                onStockItemChanged: _updateModifierEffectStockItem,
-                onTrackingModeChanged: _updateModifierEffectTrackingMode,
+            if (showModifierEffectsSection)
+              _SectionSpacer(
+                child: MenuItemModifierEffectsSection(
+                  modifierGroups: selectedModifierGroups,
+                  effectRowsByOptionId: _modifierEffectRowsByOptionId,
+                  inheritedEffectsByOptionId: inheritedEffectsByOptionId,
+                  stockItems: stockItems,
+                  isEditing: isEditing,
+                  isLoading: modifierEffectsLoading,
+                  errorText: modifierEffectsError,
+                  helperText: isCreate
+                      ? 'Save the item first, then reopen it to configure item-scoped modifier effects for the selected modifier options.'
+                      : 'Optional. Use item-scoped option effects only when a modifier option should add or remove components for this menu item.',
+                  emptyText: isCreate
+                      ? 'Item-scoped modifier effects become available after the item is created.'
+                      : 'No item-scoped modifier effects configured for the selected modifier groups.',
+                  onAddRow: isCreate ? null : _addModifierEffectRow,
+                  onRemoveRow: _removeModifierEffectRow,
+                  onStockItemChanged: _updateModifierEffectStockItem,
+                  onTrackingModeChanged: _updateModifierEffectTrackingMode,
+                ),
               ),
-            ),
             _SectionSpacer(
               child: MenuItemCompositionSection(
                 rows: _compositionRows,
@@ -438,12 +444,12 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
                 isLoading: compositionLoading,
                 errorText: compositionError,
                 helperText: isCreate
-                    ? 'Optional. Save the item first, then open it again if you want to configure base components.'
-                    : 'Optional. Base components stay with the menu item and modifier options can adjust them later.',
+                    ? 'Base components become available after you save this item and reopen it.'
+                    : 'Base components stay with the menu item. Modifier options can adjust them later.',
                 emptyText: isCreate
-                    ? 'Composition becomes available after the item is created.'
+                    ? ''
                     : 'No base components configured yet.',
-                onAddRow: _addCompositionRow,
+                onAddRow: isCreate ? null : _addCompositionRow,
                 onRemoveRow: _removeCompositionRow,
                 onStockItemChanged: _updateCompositionStockItem,
                 onTrackingModeChanged: _updateCompositionTrackingMode,
@@ -507,10 +513,7 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
             hintText: '0.00',
             prefixIcon: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-              child: Text(
-                '\$',
-                style: Theme.of(context).textTheme.bodyLarge,
-              ),
+              child: Text('\$', style: Theme.of(context).textTheme.bodyLarge),
             ),
             prefixIconConstraints: const BoxConstraints(
               minWidth: 0,
@@ -601,6 +604,7 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
       categoryField,
     ];
   }
+
   Future<void> _save() async {
     final valid = _formKey.currentState?.validate() ?? false;
     if (!valid) return;
@@ -648,7 +652,8 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
       var hasBranchContext = activeBranchContextId.isNotEmpty;
       final trackedModifierEffectsRequireBranch = modifierEffectPayload.any(
         (effect) => effect.components.any(
-          (component) => component.trackingMode.trim().toUpperCase() == 'TRACKED',
+          (component) =>
+              component.trackingMode.trim().toUpperCase() == 'TRACKED',
         ),
       );
       final branchContextNeeded =
@@ -680,8 +685,8 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
           );
           return;
         }
-        activeBranchContextId =
-            (ref.read(activeBranchContextIdProvider) ?? '').trim();
+        activeBranchContextId = (ref.read(activeBranchContextIdProvider) ?? '')
+            .trim();
         hasBranchContext = activeBranchContextId.isNotEmpty;
         if (!hasBranchContext) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -755,9 +760,9 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
       if (!mounted) return;
       final compositionMessage = widget.initialItem == null
           ? null
-          : ref.read(menuViewModelProvider).compositionErrors[
-              widget.initialItem!.id
-            ];
+          : ref
+                .read(menuViewModelProvider)
+                .compositionErrors[widget.initialItem!.id];
       final effectMessage = widget.initialItem == null
           ? null
           : ref
@@ -910,9 +915,7 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
   }
 
   Future<void> _showModifierSelection(List<ModifierGroup> groups) async {
-    final useDialog = AppBreakpoints.isLarge(
-      MediaQuery.of(context).size.width,
-    );
+    final useDialog = AppBreakpoints.isLarge(MediaQuery.of(context).size.width);
     await showCheckboxSelectionSheet<ModifierGroup>(
       context: context,
       title: 'Select modifier groups',
@@ -935,7 +938,9 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
   }
 
   Future<void> _showBranchSelection(List<MenuBranch> branches) async {
-    final useDialog = !AppBreakpoints.isSmall(MediaQuery.of(context).size.width);
+    final useDialog = !AppBreakpoints.isSmall(
+      MediaQuery.of(context).size.width,
+    );
     await showCheckboxSelectionSheet<MenuBranch>(
       context: context,
       title: 'Select branches',
@@ -971,9 +976,9 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
       return;
     }
 
-    final cached = ref.read(menuViewModelProvider).baseCompositionByItemId[
-      item.id
-    ];
+    final cached = ref
+        .read(menuViewModelProvider)
+        .baseCompositionByItemId[item.id];
     if (cached != null) {
       if (!_compositionDirty) {
         _replaceCompositionRows(cached);
@@ -990,7 +995,9 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
     }
 
     try {
-      await ref.read(menuViewModelProvider.notifier).loadItemComposition(item.id);
+      await ref
+          .read(menuViewModelProvider.notifier)
+          .loadItemComposition(item.id);
     } catch (_) {
       // Error state is already stored in the viewmodel for the section UI.
     }
@@ -1022,8 +1029,9 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
       return;
     }
 
-    final cached =
-        ref.read(menuViewModelProvider).modifierOptionEffectsByItemId[item.id];
+    final cached = ref
+        .read(menuViewModelProvider)
+        .modifierOptionEffectsByItemId[item.id];
     if (cached != null) {
       if (!_modifierEffectsDirty) {
         _replaceModifierEffectRows(cached);
@@ -1040,14 +1048,18 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
     }
 
     try {
-      await ref.read(menuViewModelProvider.notifier).loadMenuItemDetail(item.id);
+      await ref
+          .read(menuViewModelProvider.notifier)
+          .loadMenuItemDetail(item.id);
     } catch (_) {
       // Error state is already stored in the viewmodel for the section UI.
     }
 
     if (!mounted) return;
     final nextEffects =
-        ref.read(menuViewModelProvider).modifierOptionEffectsByItemId[item.id] ??
+        ref
+            .read(menuViewModelProvider)
+            .modifierOptionEffectsByItemId[item.id] ??
         const <MenuModifierOptionEffect>[];
     if (!_modifierEffectsDirty) {
       _replaceModifierEffectRows(nextEffects);
@@ -1095,17 +1107,19 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
     _compositionRows
       ..clear()
       ..addAll(
-        components.map(
-          (component) => MenuItemCompositionDraft(
-            stockItemId: component.stockItemId,
-            quantity: component.quantityInBaseUnit.toString(),
-            trackingMode: component.trackingMode.isEmpty
-                ? 'TRACKED'
-                : component.trackingMode == 'UNTRACKED'
+        components
+            .map(
+              (component) => MenuItemCompositionDraft(
+                stockItemId: component.stockItemId,
+                quantity: component.quantityInBaseUnit.toString(),
+                trackingMode: component.trackingMode.isEmpty
+                    ? 'TRACKED'
+                    : component.trackingMode == 'UNTRACKED'
                     ? 'NOT_TRACKED'
                     : component.trackingMode,
-          ),
-        ).map(_attachCompositionDraftListener),
+              ),
+            )
+            .map(_attachCompositionDraftListener),
       );
   }
 
@@ -1129,8 +1143,8 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
                     trackingMode: component.trackingMode.isEmpty
                         ? 'TRACKED'
                         : component.trackingMode == 'UNTRACKED'
-                            ? 'NOT_TRACKED'
-                            : component.trackingMode,
+                        ? 'NOT_TRACKED'
+                        : component.trackingMode,
                   ),
                 )
                 .map(_attachModifierEffectDraftListener)
@@ -1219,8 +1233,9 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
     String? stockItemId,
   ) {
     setState(() {
-      for (final row in _modifierEffectRowsByOptionId[optionId] ??
-          const <MenuItemCompositionDraft>[]) {
+      for (final row
+          in _modifierEffectRowsByOptionId[optionId] ??
+              const <MenuItemCompositionDraft>[]) {
         if (row.id == rowId) {
           row.selectedStockItemId = stockItemId;
           _modifierEffectsDirty = true;
@@ -1236,8 +1251,9 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
     String trackingMode,
   ) {
     setState(() {
-      for (final row in _modifierEffectRowsByOptionId[optionId] ??
-          const <MenuItemCompositionDraft>[]) {
+      for (final row
+          in _modifierEffectRowsByOptionId[optionId] ??
+              const <MenuItemCompositionDraft>[]) {
         if (row.id == rowId) {
           row.trackingMode = trackingMode;
           _modifierEffectsDirty = true;
@@ -1381,9 +1397,9 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
     }
 
     try {
-      final loaded = await ref.read(menuViewModelProvider.notifier).loadMenuItemDetail(
-        itemId,
-      );
+      final loaded = await ref
+          .read(menuViewModelProvider.notifier)
+          .loadMenuItemDetail(itemId);
       if (!mounted) return;
       setState(() {
         if (!_hasUserEditedBaseItem) {
@@ -1406,7 +1422,9 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
     _selectedBranchIds
       ..clear()
       ..addAll(
-        item.visibleBranchIds.isNotEmpty ? item.visibleBranchIds : item.branchIds,
+        item.visibleBranchIds.isNotEmpty
+            ? item.visibleBranchIds
+            : item.branchIds,
       );
     _hasInitializedBranchSelection = _selectedBranchIds.isNotEmpty;
     _existingImageUrl = item.imageUrl;
