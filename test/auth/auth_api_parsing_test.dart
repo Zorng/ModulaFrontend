@@ -70,6 +70,72 @@ void main() {
   });
 
   test(
+    'AuthApi.requestPasswordReset parses reset OTP request result',
+    () async {
+      final payload = readJsonMapFixture(
+        'test/fixtures/auth/password_reset_request.json',
+      );
+
+      final dio = _MockDio();
+      when(
+        () => dio.post(
+          any(),
+          data: any(named: 'data'),
+          options: any(named: 'options'),
+        ),
+      ).thenAnswer(
+        (_) async => Response<dynamic>(
+          data: payload,
+          requestOptions: RequestOptions(
+            path: '/v0/auth/password-reset/request',
+          ),
+        ),
+      );
+
+      final api = AuthApi(dio);
+
+      final result = await api.requestPasswordReset(phone: '+85512345678');
+
+      expect(result.expiresInMinutes, 10);
+    },
+  );
+
+  test(
+    'AuthApi.confirmPasswordReset parses password reset confirmation result',
+    () async {
+      final payload = readJsonMapFixture(
+        'test/fixtures/auth/password_reset_confirm.json',
+      );
+
+      final dio = _MockDio();
+      when(
+        () => dio.post(
+          any(),
+          data: any(named: 'data'),
+          options: any(named: 'options'),
+        ),
+      ).thenAnswer(
+        (_) async => Response<dynamic>(
+          data: payload,
+          requestOptions: RequestOptions(
+            path: '/v0/auth/password-reset/confirm',
+          ),
+        ),
+      );
+
+      final api = AuthApi(dio);
+
+      final result = await api.confirmPasswordReset(
+        phone: '+85512345678',
+        otp: '123456',
+        newPassword: 'NewPass123!',
+      );
+
+      expect(result.reset, isTrue);
+    },
+  );
+
+  test(
     'AuthApi.login returns tenant-selection required session (legacy)',
     () async {
       final payload = readJsonMapFixture(

@@ -55,6 +55,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final isLoggingIn = path == AppRoute.login.path;
       final isSignup = path == AppRoute.signup.path;
       final isOtpVerification = path == AppRoute.otpVerification.path;
+      final isForgotPassword = path == AppRoute.forgotPassword.path;
+      final isForgotPasswordConfirm =
+          path == AppRoute.forgotPasswordConfirm.path;
       final isTenantSelection = path == AppRoute.tenantSelection.path;
       final isInvitationInbox = path == AppRoute.invitationInbox.path;
       final isNotifications = path == AppRoute.notifications.path;
@@ -71,7 +74,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       }
 
       if (session == null) {
-        if (isLoggingIn || isSignup || isOtpVerification) return null;
+        if (isLoggingIn ||
+            isSignup ||
+            isOtpVerification ||
+            isForgotPassword ||
+            isForgotPasswordConfirm) {
+          return null;
+        }
         return AppRoute.login.path;
       }
 
@@ -106,7 +115,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         hasActiveBranchContext: hasActiveBranchContext,
       );
 
-      if (isLoggingIn || isSignup || isOtpVerification) {
+      if (isLoggingIn ||
+          isSignup ||
+          isOtpVerification ||
+          isForgotPassword ||
+          isForgotPasswordConfirm) {
         return homePath;
       }
 

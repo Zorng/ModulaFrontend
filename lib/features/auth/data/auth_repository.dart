@@ -31,6 +31,18 @@ class AuthVerifyOtpResult {
   final bool verified;
 }
 
+class AuthPasswordResetRequestResult {
+  const AuthPasswordResetRequestResult({required this.expiresInMinutes});
+
+  final int expiresInMinutes;
+}
+
+class AuthPasswordResetConfirmResult {
+  const AuthPasswordResetConfirmResult({required this.reset});
+
+  final bool reset;
+}
+
 class AuthBranchContextOption {
   const AuthBranchContextOption({
     required this.branchId,
@@ -73,6 +85,16 @@ abstract class AuthRepository {
   Future<AuthVerifyOtpResult> verifyRegistrationOtp({
     required String phone,
     required String otp,
+  });
+
+  Future<AuthPasswordResetRequestResult> requestPasswordReset({
+    required String phone,
+  });
+
+  Future<AuthPasswordResetConfirmResult> confirmPasswordReset({
+    required String phone,
+    required String otp,
+    required String newPassword,
   });
 
   Future<AuthSession> login(String username, String password);

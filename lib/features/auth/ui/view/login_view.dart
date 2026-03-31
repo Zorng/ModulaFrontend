@@ -78,6 +78,14 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     context.go(route);
   }
 
+  void _goToForgotPassword() {
+    final phone = _phoneCtrl.text.trim();
+    final route = phone.isEmpty
+        ? AppRoute.forgotPassword.path
+        : '${AppRoute.forgotPassword.path}?phone=${Uri.encodeQueryComponent(phone)}';
+    context.go(route);
+  }
+
   @override
   void dispose() {
     _loginSub?.close();
@@ -114,6 +122,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                         passwordCtrl: _passwordCtrl,
                         obscurePassword: _obscurePassword,
                         onVerifyPhone: _goToOtpVerification,
+                        onForgotPassword: _goToForgotPassword,
                         toggleObscure: () {
                           setState(() {
                             _obscurePassword = !_obscurePassword;
@@ -134,6 +143,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             passwordCtrl: _passwordCtrl,
             obscurePassword: _obscurePassword,
             onVerifyPhone: _goToOtpVerification,
+            onForgotPassword: _goToForgotPassword,
             toggleObscure: () {
               setState(() {
                 _obscurePassword = !_obscurePassword;
@@ -155,6 +165,7 @@ class _MobileLoginForm extends StatelessWidget {
     required this.obscurePassword,
     required this.toggleObscure,
     required this.onVerifyPhone,
+    required this.onForgotPassword,
   });
 
   final LoginState state;
@@ -164,6 +175,7 @@ class _MobileLoginForm extends StatelessWidget {
   final bool obscurePassword;
   final VoidCallback toggleObscure;
   final VoidCallback onVerifyPhone;
+  final VoidCallback onForgotPassword;
 
   @override
   Widget build(BuildContext context) {
@@ -203,6 +215,7 @@ class _MobileLoginForm extends StatelessWidget {
             context.go(AppRoute.signup.path);
           },
           onVerifyPhone: onVerifyPhone,
+          onForgotPassword: onForgotPassword,
           useFramedInputs: true,
           phoneHintText: 'your phone number',
           passwordHintText: 'your password',
@@ -224,6 +237,7 @@ class _DesktopLoginForm extends StatelessWidget {
     required this.obscurePassword,
     required this.toggleObscure,
     required this.onVerifyPhone,
+    required this.onForgotPassword,
   });
 
   final LoginState state;
@@ -233,6 +247,7 @@ class _DesktopLoginForm extends StatelessWidget {
   final bool obscurePassword;
   final VoidCallback toggleObscure;
   final VoidCallback onVerifyPhone;
+  final VoidCallback onForgotPassword;
 
   @override
   Widget build(BuildContext context) {
@@ -259,6 +274,7 @@ class _DesktopLoginForm extends StatelessWidget {
                       passwordCtrl: passwordCtrl,
                       obscurePassword: obscurePassword,
                       onVerifyPhone: onVerifyPhone,
+                      onForgotPassword: onForgotPassword,
                       toggleObscure: toggleObscure,
                     ),
                   ),
@@ -314,6 +330,7 @@ class _DesktopFormPanel extends StatelessWidget {
     required this.obscurePassword,
     required this.toggleObscure,
     required this.onVerifyPhone,
+    required this.onForgotPassword,
   });
 
   final LoginState state;
@@ -323,6 +340,7 @@ class _DesktopFormPanel extends StatelessWidget {
   final bool obscurePassword;
   final VoidCallback toggleObscure;
   final VoidCallback onVerifyPhone;
+  final VoidCallback onForgotPassword;
 
   @override
   Widget build(BuildContext context) {
@@ -351,10 +369,10 @@ class _DesktopFormPanel extends StatelessWidget {
             context.go(AppRoute.signup.path);
           },
           onVerifyPhone: onVerifyPhone,
+          onForgotPassword: onForgotPassword,
           showDesktopFieldLabels: true,
           phoneHintText: 'your phone number',
           passwordHintText: 'your password',
-          showForgotPasswordHint: true,
           buttonLabel: 'Log in',
           signupLabel: 'Sign up',
           signupPromptText: 'Don’t have an account ?',

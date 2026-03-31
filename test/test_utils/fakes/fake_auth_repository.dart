@@ -35,6 +35,26 @@ class FakeAuthRepository implements AuthRepository {
   }
 
   @override
+  Future<AuthPasswordResetRequestResult> requestPasswordReset({
+    required String phone,
+  }) {
+    throw UnimplementedError(
+      'FakeAuthRepository.requestPasswordReset is not implemented',
+    );
+  }
+
+  @override
+  Future<AuthPasswordResetConfirmResult> confirmPasswordReset({
+    required String phone,
+    required String otp,
+    required String newPassword,
+  }) {
+    throw UnimplementedError(
+      'FakeAuthRepository.confirmPasswordReset is not implemented',
+    );
+  }
+
+  @override
   Future<AuthSession> login(String username, String password) {
     throw UnimplementedError('FakeAuthRepository.login is not implemented');
   }

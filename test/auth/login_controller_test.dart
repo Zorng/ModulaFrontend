@@ -102,6 +102,26 @@ class _StubAuthRepository implements AuthRepository {
   }
 
   @override
+  Future<AuthPasswordResetRequestResult> requestPasswordReset({
+    required String phone,
+  }) {
+    return Future<AuthPasswordResetRequestResult>.error(
+      UnimplementedError('requestPasswordReset not configured'),
+    );
+  }
+
+  @override
+  Future<AuthPasswordResetConfirmResult> confirmPasswordReset({
+    required String phone,
+    required String otp,
+    required String newPassword,
+  }) {
+    return Future<AuthPasswordResetConfirmResult>.error(
+      UnimplementedError('confirmPasswordReset not configured'),
+    );
+  }
+
+  @override
   Future<AuthRegisterAccountResult> registerAccount({
     required String phone,
     required String password,

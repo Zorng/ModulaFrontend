@@ -50,6 +50,30 @@ class MockAuthRepository implements AuthRepository {
   }
 
   @override
+  Future<AuthPasswordResetRequestResult> requestPasswordReset({
+    required String phone,
+  }) async {
+    final normalizedPhone = phone.trim();
+    _lastOtpByPhone[normalizedPhone] = '123456';
+    return const AuthPasswordResetRequestResult(expiresInMinutes: 10);
+  }
+
+  @override
+  Future<AuthPasswordResetConfirmResult> confirmPasswordReset({
+    required String phone,
+    required String otp,
+    required String newPassword,
+  }) async {
+    final normalizedPhone = phone.trim();
+    final expected = _lastOtpByPhone[normalizedPhone] ?? '123456';
+    if (otp.trim() != expected) {
+      return const AuthPasswordResetConfirmResult(reset: false);
+    }
+    _verifiedPhones.add(normalizedPhone);
+    return const AuthPasswordResetConfirmResult(reset: true);
+  }
+
+  @override
   Future<AuthSession> login(String username, String password) async {
     final isMultiTenant = username.trim().toLowerCase().contains('multi');
     if (isMultiTenant) {

@@ -11,6 +11,7 @@ void main() {
     var loginTapped = 0;
     var signupTapped = 0;
     var verifyTapped = 0;
+    var forgotTapped = 0;
 
     await tester.pumpWidget(
       MaterialApp(
@@ -24,6 +25,7 @@ void main() {
             onLogin: () => loginTapped += 1,
             onSignup: () => signupTapped += 1,
             onVerifyPhone: () => verifyTapped += 1,
+            onForgotPassword: () => forgotTapped += 1,
             footerText: 'login to continue',
           ),
         ),
@@ -36,10 +38,13 @@ void main() {
     await tester.pump();
     await tester.tap(find.text('Verify phone / resend OTP'));
     await tester.pump();
+    await tester.tap(find.text('Forgot password?'));
+    await tester.pump();
 
     expect(loginTapped, 1);
     expect(signupTapped, 1);
     expect(verifyTapped, 1);
+    expect(forgotTapped, 1);
     expect(find.text('login to continue'), findsOneWidget);
   });
 
@@ -111,7 +116,7 @@ void main() {
     expect(find.text('Sign up'), findsOneWidget);
     expect(find.text('Don’t have an account ?'), findsOneWidget);
     expect(find.text('Verify phone / resend OTP'), findsOneWidget);
-    expect(find.text('Forgot password?'), findsNothing);
+    expect(find.text('Forgot password?'), findsOneWidget);
     expect(find.byType(SvgPicture), findsOneWidget);
     expect(find.widgetWithText(FilledButton, 'Log in'), findsOneWidget);
   });

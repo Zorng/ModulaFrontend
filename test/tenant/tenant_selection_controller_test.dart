@@ -52,6 +52,18 @@ class _NoopAuthRepository implements AuthRepository {
   }) => Future<AuthVerifyOtpResult>.error(UnimplementedError());
 
   @override
+  Future<AuthPasswordResetRequestResult> requestPasswordReset({
+    required String phone,
+  }) => Future<AuthPasswordResetRequestResult>.error(UnimplementedError());
+
+  @override
+  Future<AuthPasswordResetConfirmResult> confirmPasswordReset({
+    required String phone,
+    required String otp,
+    required String newPassword,
+  }) => Future<AuthPasswordResetConfirmResult>.error(UnimplementedError());
+
+  @override
   Future<AuthSession> selectTenant({
     required String selectionToken,
     required String tenantId,

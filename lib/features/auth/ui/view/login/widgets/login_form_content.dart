@@ -13,12 +13,12 @@ class LoginFormContent extends StatelessWidget {
     required this.onLogin,
     required this.onSignup,
     this.onVerifyPhone,
+    this.onForgotPassword,
     this.signupLabel = 'Create account',
     this.footerText,
     this.showDesktopFieldLabels = false,
     this.phoneHintText,
     this.passwordHintText,
-    this.showForgotPasswordHint = false,
     this.signupPromptText,
     this.buttonLabel = 'Login',
     this.useFramedInputs = false,
@@ -32,12 +32,12 @@ class LoginFormContent extends StatelessWidget {
   final VoidCallback onLogin;
   final VoidCallback onSignup;
   final VoidCallback? onVerifyPhone;
+  final VoidCallback? onForgotPassword;
   final String signupLabel;
   final String? footerText;
   final bool showDesktopFieldLabels;
   final String? phoneHintText;
   final String? passwordHintText;
-  final bool showForgotPasswordHint;
   final String? signupPromptText;
   final String buttonLabel;
   final bool useFramedInputs;
@@ -89,15 +89,17 @@ class LoginFormContent extends StatelessWidget {
                   ),
           obscureText: obscurePassword,
         ),
-        if (showForgotPasswordHint) ...[
+        if (onForgotPassword != null) ...[
           const SizedBox(height: 8),
           Align(
             alignment: Alignment.centerRight,
-            child: Text(
-              'Forgot password?',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.primary,
-                fontWeight: FontWeight.w600,
+            child: TextButton(
+              onPressed: state.isLoading ? null : onForgotPassword,
+              child: Text(
+                'Forgot password?',
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
               ),
             ),
           ),

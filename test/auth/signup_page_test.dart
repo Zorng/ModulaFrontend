@@ -58,6 +58,18 @@ class _SignupFlowAuthRepository implements AuthRepository {
   }) => throw UnimplementedError();
 
   @override
+  Future<AuthPasswordResetRequestResult> requestPasswordReset({
+    required String phone,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<AuthPasswordResetConfirmResult> confirmPasswordReset({
+    required String phone,
+    required String otp,
+    required String newPassword,
+  }) => throw UnimplementedError();
+
+  @override
   Future<AuthSession> login(String username, String password) =>
       throw UnimplementedError();
 
@@ -180,11 +192,11 @@ void main() {
       },
     );
 
-      final router = GoRouter(
-        initialLocation: AppRoute.signup.path,
-        routes: [
-          GoRoute(
-            path: AppRoute.signup.path,
+    final router = GoRouter(
+      initialLocation: AppRoute.signup.path,
+      routes: [
+        GoRoute(
+          path: AppRoute.signup.path,
           builder: (context, state) => const SignupPage(),
         ),
         GoRoute(

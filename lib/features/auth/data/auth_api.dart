@@ -7,6 +7,7 @@ import 'package:modular_pos/core/network/api_contract.dart';
 import 'package:modular_pos/core/network/dio_client.dart';
 import 'package:modular_pos/features/auth/data/dto/auth_context_dto.dart';
 import 'package:modular_pos/features/auth/data/dto/auth_login_response_dto.dart';
+import 'package:modular_pos/features/auth/data/dto/auth_password_dto.dart';
 import 'package:modular_pos/features/auth/data/dto/auth_signup_dto.dart';
 import 'package:modular_pos/features/auth/data/dto/auth_tokens_dto.dart';
 import 'package:modular_pos/features/auth/data/dto/auth_user_dto.dart';
@@ -471,6 +472,28 @@ class AuthApi {
       data: {'phone': phone, 'otp': otp},
     );
     return AuthOtpVerifyResultDto.fromJson(data);
+  }
+
+  Future<AuthPasswordResetRequestResultDto> requestPasswordReset({
+    required String phone,
+  }) async {
+    final data = await _postData(
+      '$_authPrefix/password-reset/request',
+      data: {'phone': phone},
+    );
+    return AuthPasswordResetRequestResultDto.fromJson(data);
+  }
+
+  Future<AuthPasswordResetConfirmResultDto> confirmPasswordReset({
+    required String phone,
+    required String otp,
+    required String newPassword,
+  }) async {
+    final data = await _postData(
+      '$_authPrefix/password-reset/confirm',
+      data: {'phone': phone, 'otp': otp, 'newPassword': newPassword},
+    );
+    return AuthPasswordResetConfirmResultDto.fromJson(data);
   }
 
   Future<AuthLoginResponseDto> login({

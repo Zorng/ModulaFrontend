@@ -56,6 +56,30 @@ class RemoteAuthRepository implements AuthRepository {
   }
 
   @override
+  Future<AuthPasswordResetRequestResult> requestPasswordReset({
+    required String phone,
+  }) async {
+    final result = await _api.requestPasswordReset(phone: phone);
+    return AuthPasswordResetRequestResult(
+      expiresInMinutes: result.expiresInMinutes,
+    );
+  }
+
+  @override
+  Future<AuthPasswordResetConfirmResult> confirmPasswordReset({
+    required String phone,
+    required String otp,
+    required String newPassword,
+  }) async {
+    final result = await _api.confirmPasswordReset(
+      phone: phone,
+      otp: otp,
+      newPassword: newPassword,
+    );
+    return AuthPasswordResetConfirmResult(reset: result.reset);
+  }
+
+  @override
   Future<AuthSession> login(String username, String password) async {
     final response = await _api.login(username: username, password: password);
     if (response.requiresTenantSelection) {

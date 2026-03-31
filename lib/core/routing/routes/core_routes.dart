@@ -1,6 +1,8 @@
 import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/widgets/widget_gallery_page.dart';
+import 'package:modular_pos/features/auth/ui/view/forgot_password/forgot_password_confirm_page.dart';
+import 'package:modular_pos/features/auth/ui/view/forgot_password/forgot_password_request_page.dart';
 import 'package:modular_pos/features/auth/ui/view/invitation_inbox/invitation_inbox_page.dart';
 import 'package:modular_pos/features/auth/ui/view/login_view.dart';
 import 'package:modular_pos/features/auth/ui/view/otp/otp_verification_page.dart';
@@ -25,6 +27,20 @@ List<RouteBase> buildCoreRoutes() {
       name: AppRoute.otpVerification.name,
       builder: (context, state) =>
           OtpVerificationPage(initialPhone: state.uri.queryParameters['phone']),
+    ),
+    GoRoute(
+      path: AppRoute.forgotPassword.path,
+      name: AppRoute.forgotPassword.name,
+      builder: (context, state) => ForgotPasswordRequestPage(
+        initialPhone: state.uri.queryParameters['phone'],
+      ),
+    ),
+    GoRoute(
+      path: AppRoute.forgotPasswordConfirm.path,
+      name: AppRoute.forgotPasswordConfirm.name,
+      builder: (context, state) => ForgotPasswordConfirmPage(
+        initialPhone: state.uri.queryParameters['phone'],
+      ),
     ),
     GoRoute(
       path: AppRoute.tenantSelection.path,
