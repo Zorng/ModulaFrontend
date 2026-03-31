@@ -73,6 +73,7 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
   bool _isLoadingStockItemCatalog = false;
   List<StockItem> _stockItemCatalog = const [];
   String? _stockItemCatalogError;
+  final Set<String> _resolvingStockItemIds = <String>{};
 
   bool get isCreate => _mode == _MenuItemFormMode.create;
   bool get isView => _mode == _MenuItemFormMode.view;
@@ -177,6 +178,7 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
         if (!_compositionDirty) {
           _replaceCompositionRows(baseComposition);
         }
+        unawaited(_ensureSelectedStockItemsResolved());
         setState(() {
           _didInitializeComposition = true;
           if (!_compositionDirty) {
@@ -191,6 +193,7 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
         if (!_modifierEffectsDirty) {
           _replaceModifierEffectRows(modifierEffects);
         }
+        unawaited(_ensureSelectedStockItemsResolved());
         setState(() {
           _didInitializeModifierEffects = true;
           if (!_modifierEffectsDirty) {
@@ -995,7 +998,7 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
 
       while (hasMore) {
         final page = await repository.fetchMasterStockItems(
-          status: 'all',
+          status: 'active',
           pageSize: _stockItemCatalogPageSize,
           offset: offset,
         );
@@ -1011,6 +1014,7 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
         _stockItemCatalog = catalog.values.toList(growable: false);
         _isLoadingStockItemCatalog = false;
       });
+      unawaited(_ensureSelectedStockItemsResolved());
     } catch (_) {
       if (!mounted) return;
       setState(() {
@@ -1066,6 +1070,7 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
     if (!_compositionDirty) {
       _replaceCompositionRows(nextComponents);
     }
+    unawaited(_ensureSelectedStockItemsResolved());
     setState(() {
       _didInitializeComposition = true;
       if (!_compositionDirty) {
@@ -1121,6 +1126,7 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
     if (!_modifierEffectsDirty) {
       _replaceModifierEffectRows(nextEffects);
     }
+    unawaited(_ensureSelectedStockItemsResolved());
     setState(() {
       _didInitializeModifierEffects = true;
       if (!_modifierEffectsDirty) {
@@ -1141,6 +1147,7 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
         const <MenuComponent>[];
     _replaceCompositionRows(cached);
     _compositionDirty = false;
+    unawaited(_ensureSelectedStockItemsResolved());
   }
 
   void _restoreModifierEffectDrafts() {
@@ -1155,6 +1162,62 @@ class _MenuItemFormPageState extends ConsumerState<MenuItemFormPage> {
         const <MenuModifierOptionEffect>[];
     _replaceModifierEffectRows(cached);
     _modifierEffectsDirty = false;
+    unawaited(_ensureSelectedStockItemsResolved());
+  }
+
+  Future<void> _ensureSelectedStockItemsResolved() async {
+    final selectedStockItemIds = {
+      for (final row in _compositionRows)
+        if ((row.selectedStockItemId ?? '').trim().isNotEmpty)
+          row.selectedStockItemId!.trim(),
+      for (final rows in _modifierEffectRowsByOptionId.values)
+        for (final row in rows)
+          if ((row.selectedStockItemId ?? '').trim().isNotEmpty)
+            row.selectedStockItemId!.trim(),
+    };
+
+    final knownStockItemIds = _stockItemCatalog
+        .map((item) => item.id.trim())
+        .where((id) => id.isNotEmpty)
+        .toSet();
+    final missingStockItemIds = selectedStockItemIds
+        .where(
+          (id) =>
+              !knownStockItemIds.contains(id) &&
+              !_resolvingStockItemIds.contains(id),
+        )
+        .toList(growable: false);
+    if (missingStockItemIds.isEmpty) {
+      return;
+    }
+
+    _resolvingStockItemIds.addAll(missingStockItemIds);
+    final repository = ref.read(stockItemRepositoryProvider);
+    final fetchedItems = <StockItem>[];
+    try {
+      for (final stockItemId in missingStockItemIds) {
+        try {
+          final item = await repository.fetchStockItemById(stockItemId);
+          fetchedItems.add(item);
+        } catch (_) {
+          // Keep the current composition intact even if a historical item
+          // cannot be resolved back into the selector catalog.
+        }
+      }
+    } finally {
+      _resolvingStockItemIds.removeAll(missingStockItemIds);
+    }
+
+    if (!mounted || fetchedItems.isEmpty) {
+      return;
+    }
+    setState(() {
+      final mergedCatalog = {
+        for (final item in _stockItemCatalog) item.id: item,
+        for (final item in fetchedItems) item.id: item,
+      };
+      _stockItemCatalog = mergedCatalog.values.toList(growable: false);
+    });
   }
 
   void _replaceCompositionRows(List<MenuComponent> components) {

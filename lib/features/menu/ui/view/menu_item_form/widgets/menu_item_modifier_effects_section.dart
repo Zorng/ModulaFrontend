@@ -408,7 +408,10 @@ class _EditableModifierEffectRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final stockItemEntries = stockItems
+    final selectableStockItems = stockItems
+        .where((item) => item.isActive || item.id == row.selectedStockItemId)
+        .toList(growable: false);
+    final stockItemEntries = selectableStockItems
         .map(
           (item) => DropdownMenuEntry<String>(
             value: item.id,
@@ -417,7 +420,7 @@ class _EditableModifierEffectRow extends StatelessWidget {
         )
         .toList(growable: false);
     final selectedStockItemId =
-        stockItems.any((item) => item.id == row.selectedStockItemId)
+        selectableStockItems.any((item) => item.id == row.selectedStockItemId)
         ? row.selectedStockItemId
         : null;
     final selectedTrackingMode = row.trackingMode == 'NOT_TRACKED'

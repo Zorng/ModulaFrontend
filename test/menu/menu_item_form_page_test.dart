@@ -495,6 +495,124 @@ void main() {
   );
 
   testWidgets(
+    'MenuItemFormPage composition stock selector only offers active stock items',
+    (tester) async {
+      tester.view.physicalSize = const Size(1440, 2200);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      const item = MenuItem(
+        id: 'item-1',
+        name: 'Latte',
+        categoryId: 'cat-1',
+        price: 2.5,
+        basePrice: 2.5,
+      );
+      const detail = MenuItemDetail(
+        item: item,
+        categoryName: 'Coffee',
+        modifierGroups: [],
+        baseComponents: [
+          MenuComponent(
+            stockItemId: 'stock-1',
+            quantityInBaseUnit: 30,
+            trackingMode: 'TRACKED',
+          ),
+        ],
+        modifierOptionEffects: [],
+      );
+
+      await pumpApp(
+        tester,
+        const MenuItemFormPage(initialItem: item),
+        overrides: [
+          menuViewModelProvider.overrideWith(
+            () => _StaticMenuViewModel(
+              const MenuState(
+                isLoading: false,
+                allItems: [item],
+                filteredItems: [item],
+                categories: [MenuCategory(id: 'cat-1', name: 'Coffee')],
+                detailByItemId: {'item-1': detail},
+                compositionLoadedByItem: {'item-1': true},
+                compositionByItem: {
+                  'item-1': [
+                    MenuComponent(
+                      stockItemId: 'stock-1',
+                      quantityInBaseUnit: 30,
+                      trackingMode: 'TRACKED',
+                    ),
+                  ],
+                },
+                baseCompositionByItemId: {
+                  'item-1': [
+                    MenuComponent(
+                      stockItemId: 'stock-1',
+                      quantityInBaseUnit: 30,
+                      trackingMode: 'TRACKED',
+                    ),
+                  ],
+                },
+              ),
+            ),
+          ),
+          stockItemRepositoryProvider.overrideWithValue(
+            FakeStockItemRepository(const [
+              StockItem(
+                id: 'stock-1',
+                name: 'Fresh Milk',
+                baseUnit: 'ml',
+                pieceSize: 1,
+                branchId: '',
+                branchName: '',
+                onHand: 0,
+                minThreshold: 0,
+                isActive: true,
+              ),
+              StockItem(
+                id: 'stock-2',
+                name: 'Old Syrup',
+                baseUnit: 'ml',
+                pieceSize: 1,
+                branchId: '',
+                branchName: '',
+                onHand: 0,
+                minThreshold: 0,
+                isActive: false,
+              ),
+            ]),
+          ),
+          stockInventoryControllerProvider.overrideWith(
+            () => _StaticStockInventoryController(const StockInventoryState()),
+          ),
+        ],
+      );
+
+      await tester.pump();
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Edit'));
+      await tester.pumpAndSettle();
+
+      final stockDropdown = tester.widget<DropdownMenu<String>>(
+        find
+            .byWidgetPredicate(
+              (widget) =>
+                  widget is DropdownMenu<String> &&
+                  widget.hintText == 'Stock item',
+            )
+            .first,
+      );
+      final labels = stockDropdown.dropdownMenuEntries
+          .map((entry) => entry.label)
+          .toList(growable: false);
+
+      expect(labels, contains('Fresh Milk (ml)'));
+      expect(labels, isNot(contains('Old Syrup (ml)')));
+    },
+  );
+
+  testWidgets(
     'MenuItemFormPage create mode gates deferred composition sections until after create',
     (tester) async {
       tester.view.physicalSize = const Size(1440, 2200);
