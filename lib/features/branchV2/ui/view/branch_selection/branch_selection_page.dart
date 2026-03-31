@@ -173,6 +173,7 @@ class _BranchSelectionPageState extends ConsumerState<BranchSelectionPage> {
     return Scaffold(
       appBar: AppBar(
         scrolledUnderElevation: 0,
+        centerTitle: false,
         leading: isSelectionMode
             ? IconButton(
                 tooltip: 'Back',

@@ -6,7 +6,6 @@ import 'package:modular_pos/core/routing/workspace_route_guard.dart';
 import 'package:modular_pos/core/theme/responsive.dart';
 import 'package:modular_pos/core/widgets/navigation/app_navigation_config.dart';
 import 'package:modular_pos/core/widgets/navigation/navigation_layer_back_button.dart';
-import 'package:modular_pos/core/widgets/navigation/tenant_profile_header.dart';
 import 'package:modular_pos/features/auth/domain/active_branch_context_provider.dart';
 import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
 import 'package:modular_pos/features/auth/domain/auth_role.dart';
@@ -58,9 +57,6 @@ class AppScaffoldShell extends ConsumerWidget {
       activeBranchId: activeBranchId,
       activeBranchNameOverride: activeBranchNameOverride,
     );
-    final tenantInitial = tenantName.isNotEmpty
-        ? tenantName.characters.first.toUpperCase()
-        : '?';
     final hasMatch = _hasMatch(currentPath, sections);
     final defaultRoute = _defaultRoute(
       role: role,
@@ -82,7 +78,8 @@ class AppScaffoldShell extends ConsumerWidget {
       child: Row(
         children: [
           Material(
-            color: Theme.of(context).colorScheme.surface,
+            key: const Key('wide_navigation_rail_surface'),
+            color: Colors.white,
             child: SizedBox(
               width: 280,
               child: ListView(
@@ -91,7 +88,6 @@ class AppScaffoldShell extends ConsumerWidget {
                   _RailHeader(
                     tenantName: tenantName,
                     branchName: branchName,
-                    tenantInitial: tenantInitial,
                     currentPath: currentPath,
                     allowQuickSwitch: isAdminOrOwner && isBranchLayer,
                     availableBranches: _branchOptions(
@@ -250,7 +246,6 @@ class _RailHeader extends ConsumerWidget {
   const _RailHeader({
     required this.tenantName,
     required this.branchName,
-    required this.tenantInitial,
     required this.currentPath,
     required this.allowQuickSwitch,
     required this.availableBranches,
@@ -260,7 +255,6 @@ class _RailHeader extends ConsumerWidget {
 
   final String tenantName;
   final String branchName;
-  final String tenantInitial;
   final String currentPath;
   final bool allowQuickSwitch;
   final List<_BranchOption> availableBranches;
@@ -272,27 +266,15 @@ class _RailHeader extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            if (onLayerBackPressed != null) ...[
-              NavigationLayerBackButton(
-                onPressed: onLayerBackPressed!,
-                tooltip: layerBackTooltip,
-              ),
-              const SizedBox(width: 12),
-            ],
-            Expanded(
-              child: TenantProfileHeader(
-                tenantName: tenantName,
-                branchName: branchName,
-                initial: tenantInitial,
-                onTap: () =>
-                    context.go('${AppRoute.tenantSelection.path}?switch=1'),
-              ),
-            ),
-          ],
-        ),
+        if (onLayerBackPressed != null) ...[
+          NavigationLayerBackButton(
+            onPressed: onLayerBackPressed!,
+            tooltip: layerBackTooltip,
+            framed: false,
+          ),
+          const SizedBox(height: 12),
+        ],
+        _RailWorkspaceCard(tenantName: tenantName, branchName: branchName),
         if (allowQuickSwitch && availableBranches.isNotEmpty) ...[
           const SizedBox(height: 12),
           _BranchQuickSwitchButton(
@@ -302,6 +284,55 @@ class _RailHeader extends ConsumerWidget {
           ),
         ],
       ],
+    );
+  }
+}
+
+class _RailWorkspaceCard extends StatelessWidget {
+  const _RailWorkspaceCard({
+    required this.tenantName,
+    required this.branchName,
+  });
+
+  final String tenantName;
+  final String branchName;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Workspace',
+            style: theme.textTheme.labelLarge?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            tenantName,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            branchName,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

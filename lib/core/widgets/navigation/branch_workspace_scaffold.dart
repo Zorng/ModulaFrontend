@@ -93,11 +93,6 @@ class BranchWorkspaceDrawer extends ConsumerWidget {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
           children: [
-            _DrawerWorkspaceCard(
-              tenantName: tenantName,
-              branchName: branchName,
-            ),
-            const SizedBox(height: 8),
             Align(
               alignment: Alignment.centerLeft,
               child: TextButton.icon(
@@ -108,6 +103,11 @@ class BranchWorkspaceDrawer extends ConsumerWidget {
                 icon: const Icon(Icons.arrow_back_outlined),
                 label: const Text('To tenant'),
               ),
+            ),
+            const SizedBox(height: 8),
+            _DrawerWorkspaceCard(
+              tenantName: tenantName,
+              branchName: branchName,
             ),
             const SizedBox(height: 8),
             for (final section in sections) ...[

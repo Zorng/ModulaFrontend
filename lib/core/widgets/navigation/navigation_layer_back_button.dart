@@ -5,15 +5,27 @@ class NavigationLayerBackButton extends StatelessWidget {
     super.key,
     required this.onPressed,
     this.tooltip,
+    this.framed = true,
   });
 
   final VoidCallback onPressed;
   final String? tooltip;
+  final bool framed;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final borderRadius = BorderRadius.circular(14);
+
+    if (!framed) {
+      return Tooltip(
+        message: tooltip ?? 'Back',
+        child: IconButton(
+          onPressed: onPressed,
+          icon: Icon(Icons.arrow_back, size: 20, color: colorScheme.onSurface),
+        ),
+      );
+    }
 
     return Tooltip(
       message: tooltip ?? 'Back',

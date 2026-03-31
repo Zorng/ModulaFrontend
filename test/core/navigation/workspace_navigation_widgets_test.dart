@@ -289,7 +289,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Tenant'), findsOneWidget);
+    expect(find.text('Tenant 1'), findsOneWidget);
     expect(find.text('Branches'), findsOneWidget);
     expect(find.text('Menu'), findsOneWidget);
     expect(find.text('Inventory'), findsOneWidget);
@@ -364,9 +364,11 @@ void main() {
     expect(find.text('Discounts'), findsOneWidget);
     expect(find.text('Cash Sessions'), findsNothing);
     expect(find.text('Active Discount'), findsNothing);
+    expect(find.text('Workspace'), findsOneWidget);
+    expect(find.text('Tenant 1'), findsOneWidget);
     expect(find.byIcon(Icons.arrow_back), findsOneWidget);
     expect(find.byType(NavigationLayerBackButton), findsOneWidget);
-    expect(find.byType(TenantProfileHeader), findsOneWidget);
+    expect(find.byType(TenantProfileHeader), findsNothing);
     expect(find.byType(GlobalSyncStatusIndicator), findsNothing);
     expect(find.text('Online'), findsNothing);
     expect(
@@ -376,6 +378,15 @@ void main() {
     expect(find.byKey(AccountShellAction.actionKey), findsNothing);
     expect(find.byIcon(Icons.settings_outlined), findsNothing);
     expect(find.text('No branch selected'), findsOneWidget);
+    expect(find.byTooltip('Switch tenant'), findsNothing);
+    expect(
+      tester.getTopLeft(find.byIcon(Icons.arrow_back)).dy,
+      lessThan(tester.getTopLeft(find.text('Workspace')).dy),
+    );
+    final railSurface = tester.widget<Material>(
+      find.byKey(const Key('wide_navigation_rail_surface')),
+    );
+    expect(railSurface.color, Colors.white);
 
     final branchesTile = tester.widget<ListTile>(
       find.widgetWithText(ListTile, 'Branches'),
@@ -445,6 +456,10 @@ void main() {
     expect(find.text('Active Discount'), findsOneWidget);
     expect(find.text('Branch A'), findsOneWidget);
     expect(find.text('To tenant'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('To tenant')).dy,
+      lessThan(tester.getTopLeft(find.text('Workspace')).dy),
+    );
 
     final cashTile = tester.widget<ListTile>(
       find.widgetWithText(ListTile, 'Cash Sessions'),
@@ -556,6 +571,8 @@ void main() {
 
     expect(find.byKey(AccountShellAction.actionKey), findsOneWidget);
     expect(find.byType(TenantWorkspaceAppBarActions), findsOneWidget);
+    expect(find.byType(TenantProfileHeader), findsNothing);
+    expect(find.text('Admin Portal'), findsOneWidget);
     expect(
       find.byKey(const Key('operational_notification_inbox_action')),
       findsOneWidget,
@@ -580,6 +597,9 @@ void main() {
 
     expect(find.byKey(AccountShellAction.actionKey), findsOneWidget);
     expect(find.byType(TenantWorkspaceAppBarActions), findsOneWidget);
+    expect(find.text('Workspace'), findsOneWidget);
+    expect(find.byType(TenantProfileHeader), findsNothing);
+    expect(find.text('Admin Portal'), findsOneWidget);
     expect(
       find.byKey(const Key('operational_notification_inbox_action')),
       findsOneWidget,

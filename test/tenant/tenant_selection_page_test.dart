@@ -180,6 +180,9 @@ void main() {
     await tester.pumpWidget(_routerHarness());
     await tester.pumpAndSettle();
 
+    expect(find.text('Welcome'), findsOneWidget);
+    expect(find.text('Tenant User'), findsNothing);
+
     await tester.tap(find.byKey(AccountShellAction.actionKey));
     await tester.pumpAndSettle();
 

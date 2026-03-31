@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
-import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/widgets/navigation/navigation_layer_back_button.dart';
 import 'package:modular_pos/core/widgets/navigation/tenant_workspace_app_bar_actions.dart';
-import 'package:modular_pos/core/widgets/navigation/tenant_profile_header.dart';
 
 class PortalShell extends StatelessWidget {
   const PortalShell({
@@ -14,7 +11,6 @@ class PortalShell extends StatelessWidget {
     this.tenantName,
     this.branchName,
     this.tenantInitial,
-    this.onTenantTap,
     this.onTenantBackPressed,
     this.tenantBackTooltip,
   });
@@ -25,7 +21,6 @@ class PortalShell extends StatelessWidget {
   final String? tenantName;
   final String? branchName;
   final String? tenantInitial;
-  final VoidCallback? onTenantTap;
   final VoidCallback? onTenantBackPressed;
   final String? tenantBackTooltip;
 
@@ -40,40 +35,22 @@ class PortalShell extends StatelessWidget {
         shadowColor: Colors.black.withValues(alpha: 0.15),
         surfaceTintColor: Colors.transparent,
         scrolledUnderElevation: 4,
-        titleSpacing: 0,
+        titleSpacing: 12,
+        leading: onTenantBackPressed != null
+            ? NavigationLayerBackButton(
+                onPressed: onTenantBackPressed!,
+                tooltip: tenantBackTooltip,
+              )
+            : null,
         title: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 18),
-          child: Row(
-            children: [
-              if (onTenantBackPressed != null) ...[
-                NavigationLayerBackButton(
-                  onPressed: onTenantBackPressed!,
-                  tooltip: tenantBackTooltip,
-                ),
-                const SizedBox(width: 12),
-              ],
-              Expanded(
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: TenantProfileHeader(
-                    tenantName: tenantName ?? title,
-                    branchName: branchName ?? subtitle,
-                    initial:
-                        tenantInitial ??
-                        (tenantName?.characters.first.toUpperCase() ?? '?'),
-                    onTap:
-                        onTenantTap ??
-                        () => context.go(
-                          '${AppRoute.tenantSelection.path}?switch=1',
-                        ),
-                  ),
-                ),
-              ),
-              const Spacer(),
-              const TenantWorkspaceAppBarActions(),
-            ],
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Text(
+            title,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.titleMedium,
           ),
         ),
+        actions: const [TenantWorkspaceAppBarActions()],
       ),
       body: Row(
         children: [

@@ -21,7 +21,6 @@ class TenantSelectionPage extends ConsumerWidget {
       tenantSelectionControllerProvider.notifier,
     );
     final loginController = ref.read(loginControllerProvider.notifier);
-    final user = loginState.user;
     final hasMemberships = tenantState.memberships.isNotEmpty;
     final hasVisibleMemberships = tenantState.visibleMemberships.isNotEmpty;
     final theme = Theme.of(context);
@@ -32,29 +31,7 @@ class TenantSelectionPage extends ConsumerWidget {
         backgroundColor: Colors.white,
         scrolledUnderElevation: 0,
         titleSpacing: 12,
-        title: Row(
-          children: [
-            CircleAvatar(
-              backgroundColor: colorScheme.primaryContainer,
-              child: Text(
-                _initialFromUserName(user?.name),
-                style: theme.textTheme.labelLarge?.copyWith(
-                  color: colorScheme.onPrimaryContainer,
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                (user?.name ?? '').trim().isEmpty
-                    ? 'Account'
-                    : user!.name.trim(),
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.titleMedium,
-              ),
-            ),
-          ],
-        ),
+        title: Text('Welcome', style: theme.textTheme.titleMedium),
         actions: [
           IconButton(
             tooltip: 'Inbox',
@@ -231,10 +208,4 @@ class _SectionHeader extends StatelessWidget {
       ],
     );
   }
-}
-
-String _initialFromUserName(String? name) {
-  final normalized = (name ?? '').trim();
-  if (normalized.isEmpty) return '?';
-  return normalized.substring(0, 1).toUpperCase();
 }

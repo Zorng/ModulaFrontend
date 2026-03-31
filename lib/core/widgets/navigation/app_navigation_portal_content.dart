@@ -7,6 +7,7 @@ import 'package:modular_pos/core/widgets/navigation/app_navigation_config.dart';
 import 'package:modular_pos/core/widgets/navigation/portal_feature_card.dart';
 import 'package:modular_pos/features/auth/domain/active_branch_context_provider.dart';
 import 'package:modular_pos/features/auth/domain/auth_role.dart';
+import 'package:modular_pos/features/auth/domain/models/auth_session.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 
 class AppNavigationPortalContent extends ConsumerWidget {
@@ -16,13 +17,15 @@ class AppNavigationPortalContent extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final role = resolveSessionAuthRole(
-      ref.watch(loginControllerProvider.select((state) => state.session)),
+    final session = ref.watch(
+      loginControllerProvider.select((state) => state.session),
     );
+    final role = resolveSessionAuthRole(session);
     final activeBranchId = ref.watch(activeBranchContextIdProvider);
     final hasActiveBranchContext = (activeBranchId ?? '').trim().isNotEmpty;
     final sections = buildAppNavigationSections(role: role, layer: layer);
     final isWide = MediaQuery.of(context).size.width >= 800;
+    final tenantSectionLabel = _resolveTenantSectionLabel(session);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -30,7 +33,12 @@ class AppNavigationPortalContent extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           for (final section in sections) ...[
-            Text(section.label, style: Theme.of(context).textTheme.titleLarge),
+            Text(
+              layer == AppNavigationLayer.tenant
+                  ? tenantSectionLabel
+                  : section.label,
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
             const SizedBox(height: 8),
             GridView.builder(
               shrinkWrap: true,
@@ -85,4 +93,15 @@ class AppNavigationPortalContent extends ConsumerWidget {
     }
     context.go(destination.route.path);
   }
+}
+
+String _resolveTenantSectionLabel(AuthSession? session) {
+  if (session == null || session.memberships.isEmpty) return 'Tenant';
+  final activeTenantId = (session.activeTenantId ?? '').trim();
+  final membership = session.memberships.firstWhere(
+    (item) => item.tenantId.trim() == activeTenantId,
+    orElse: () => session.memberships.first,
+  );
+  final tenantName = membership.tenantName.trim();
+  return tenantName.isEmpty ? 'Tenant' : tenantName;
 }
