@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:modular_pos/core/sync/sync_freshness.dart';
 import 'package:modular_pos/features/menu/data/menu_repository.dart';
@@ -23,6 +24,34 @@ class _StaticMenuViewModel extends MenuViewModel {
     String? status,
     MenuReadLane readLane = MenuReadLane.management,
   }) async {}
+}
+
+void _setWideViewport(WidgetTester tester) {
+  tester.view.devicePixelRatio = 1.0;
+  tester.view.physicalSize = const Size(1280, 800);
+}
+
+void _setNarrowViewport(WidgetTester tester) {
+  tester.view.devicePixelRatio = 1.0;
+  tester.view.physicalSize = const Size(1000, 800);
+}
+
+void _resetViewport(WidgetTester tester) {
+  tester.view.resetPhysicalSize();
+  tester.view.resetDevicePixelRatio();
+}
+
+List<MenuItem> _menuItems(int count) {
+  return List<MenuItem>.generate(
+    count,
+    (index) => MenuItem(
+      id: 'item-${index + 1}',
+      name: 'Item ${index + 1}',
+      categoryId: 'cat-1',
+      price: index + 1,
+    ),
+    growable: false,
+  );
 }
 
 void main() {
@@ -78,4 +107,168 @@ void main() {
       expect(find.text('Failed to load menu'), findsNothing);
     },
   );
+
+  testWidgets('MenuPage shows numeric pagination on wide screens', (
+    tester,
+  ) async {
+    _setWideViewport(tester);
+    addTearDown(() => _resetViewport(tester));
+
+    final items = _menuItems(21);
+
+    await pumpApp(
+      tester,
+      const MenuPage(),
+      overrides: [
+        menuViewModelProvider.overrideWith(
+          () => _StaticMenuViewModel(
+            MenuState(
+              isLoading: false,
+              filteredItems: items,
+              allItems: items,
+              categories: const [MenuCategory(id: 'cat-1', name: 'Coffee')],
+            ),
+          ),
+        ),
+      ],
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(find.text('Showing 1-10 entries'), findsOneWidget);
+    expect(find.text('Item 1'), findsOneWidget);
+    expect(find.text('Item 10'), findsOneWidget);
+    expect(find.text('Item 11'), findsNothing);
+    expect(find.widgetWithText(FilledButton, '1'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, '2'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, '3'), findsOneWidget);
+  });
+
+  testWidgets('MenuPage page taps update the wide-screen table slice', (
+    tester,
+  ) async {
+    _setWideViewport(tester);
+    addTearDown(() => _resetViewport(tester));
+
+    final items = _menuItems(21);
+
+    await pumpApp(
+      tester,
+      const MenuPage(),
+      overrides: [
+        menuViewModelProvider.overrideWith(
+          () => _StaticMenuViewModel(
+            MenuState(
+              isLoading: false,
+              filteredItems: items,
+              allItems: items,
+              categories: const [MenuCategory(id: 'cat-1', name: 'Coffee')],
+            ),
+          ),
+        ),
+      ],
+    );
+
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.widgetWithText(FilledButton, '2'));
+    await tester.tap(find.widgetWithText(FilledButton, '2'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Showing 11-20 entries'), findsOneWidget);
+    expect(find.text('Item 1'), findsNothing);
+    expect(find.text('Item 11'), findsOneWidget);
+    expect(find.text('Item 20'), findsOneWidget);
+    expect(find.text('Item 21'), findsNothing);
+  });
+
+  testWidgets('MenuPage uses a load-more footer on smaller screens', (
+    tester,
+  ) async {
+    _setNarrowViewport(tester);
+    addTearDown(() => _resetViewport(tester));
+
+    final items = _menuItems(21);
+
+    await pumpApp(
+      tester,
+      const MenuPage(),
+      overrides: [
+        menuViewModelProvider.overrideWith(
+          () => _StaticMenuViewModel(
+            MenuState(
+              isLoading: false,
+              filteredItems: items,
+              allItems: items,
+              categories: const [MenuCategory(id: 'cat-1', name: 'Coffee')],
+            ),
+          ),
+        ),
+      ],
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(find.text('Load more'), findsOneWidget);
+    expect(find.text('Item 1'), findsOneWidget);
+    expect(find.text('Item 10'), findsOneWidget);
+    expect(find.text('Item 11'), findsNothing);
+
+    await tester.ensureVisible(find.text('Load more'));
+    await tester.tap(find.text('Load more'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Item 1'), findsOneWidget);
+    expect(find.text('Item 11'), findsOneWidget);
+  });
+
+  testWidgets('MenuPage filter bar and pagination move with page scroll', (
+    tester,
+  ) async {
+    _setWideViewport(tester);
+    addTearDown(() => _resetViewport(tester));
+
+    final items = _menuItems(21);
+
+    await pumpApp(
+      tester,
+      const MenuPage(),
+      overrides: [
+        menuViewModelProvider.overrideWith(
+          () => _StaticMenuViewModel(
+            MenuState(
+              isLoading: false,
+              filteredItems: items,
+              allItems: items,
+              categories: const [MenuCategory(id: 'cat-1', name: 'Coffee')],
+            ),
+          ),
+        ),
+      ],
+    );
+
+    await tester.pumpAndSettle();
+
+    final scrollView = find.byKey(const ValueKey('menu-page-scroll-view'));
+    final addMenuBefore = tester.getTopLeft(find.text('Add menu')).dy;
+
+    await tester.drag(scrollView, const Offset(0, -220));
+    await tester.pumpAndSettle();
+
+    final addMenuAfter = tester.getTopLeft(find.text('Add menu')).dy;
+    expect(addMenuAfter, lessThan(addMenuBefore));
+
+    await tester.ensureVisible(find.text('Showing 1-10 entries'));
+    await tester.pumpAndSettle();
+    final paginationBefore = tester
+        .getTopLeft(find.text('Showing 1-10 entries'))
+        .dy;
+
+    await tester.drag(scrollView, const Offset(0, 120));
+    await tester.pumpAndSettle();
+
+    final paginationAfter = tester
+        .getTopLeft(find.text('Showing 1-10 entries'))
+        .dy;
+    expect(paginationAfter, greaterThan(paginationBefore));
+  });
 }
