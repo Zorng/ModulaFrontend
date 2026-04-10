@@ -6,6 +6,7 @@ import 'package:modular_pos/core/network/api_contract.dart';
 import 'package:modular_pos/features/auth/data/auth_repository.dart';
 import 'package:modular_pos/features/auth/data/auth_repository_session_utils.dart';
 import 'package:modular_pos/features/auth/domain/auth_branch_provider.dart';
+import 'package:modular_pos/features/auth/domain/phone_input.dart';
 import 'package:modular_pos/features/auth/domain/auth_role.dart';
 import 'package:modular_pos/features/auth/data/auth_session_store.dart';
 import 'package:modular_pos/features/auth/domain/models/auth_session.dart';
@@ -97,6 +98,7 @@ class LoginController extends Notifier<LoginState> {
     String? gender,
     String? dateOfBirth,
   }) async {
+    final normalizedPhone = normalizePhoneInput(phone);
     state = state.copyWith(
       isLoading: true,
       error: null,
@@ -106,7 +108,7 @@ class LoginController extends Notifier<LoginState> {
 
     try {
       final result = await _repository.registerAccount(
-        phone: phone,
+        phone: normalizedPhone,
         password: password,
         firstName: firstName,
         lastName: lastName,
@@ -123,6 +125,7 @@ class LoginController extends Notifier<LoginState> {
   }
 
   Future<void> sendRegistrationOtp({required String phone}) async {
+    final normalizedPhone = normalizePhoneInput(phone);
     state = state.copyWith(
       isLoading: true,
       error: null,
@@ -131,10 +134,12 @@ class LoginController extends Notifier<LoginState> {
     );
 
     try {
-      final result = await _repository.sendRegistrationOtp(phone: phone);
+      final result = await _repository.sendRegistrationOtp(
+        phone: normalizedPhone,
+      );
       state = state.copyWith(
         isLoading: false,
-        pendingVerificationPhone: phone.trim(),
+        pendingVerificationPhone: normalizedPhone,
         otpExpiresInMinutes: result.expiresInMinutes,
       );
     } catch (e, st) {
@@ -146,6 +151,7 @@ class LoginController extends Notifier<LoginState> {
     required String phone,
     required String otp,
   }) async {
+    final normalizedPhone = normalizePhoneInput(phone);
     state = state.copyWith(
       isLoading: true,
       error: null,
@@ -155,7 +161,7 @@ class LoginController extends Notifier<LoginState> {
 
     try {
       final result = await _repository.verifyRegistrationOtp(
-        phone: phone,
+        phone: normalizedPhone,
         otp: otp,
       );
       if (!result.verified) {
@@ -169,7 +175,7 @@ class LoginController extends Notifier<LoginState> {
       }
       state = state.copyWith(
         isLoading: false,
-        pendingVerificationPhone: phone.trim(),
+        pendingVerificationPhone: normalizedPhone,
         otpExpiresInMinutes: null,
       );
     } catch (e, st) {
@@ -178,6 +184,7 @@ class LoginController extends Notifier<LoginState> {
   }
 
   Future<void> login(String username, String password) async {
+    final normalizedUsername = normalizePhoneInput(username);
     state = state.copyWith(
       isLoading: true,
       error: null,
@@ -189,7 +196,7 @@ class LoginController extends Notifier<LoginState> {
 
     try {
       final session = _normalizeLoginSession(
-        await _repository.login(username, password),
+        await _repository.login(normalizedUsername, password),
       );
       // Persist snapshot immediately so refresh/reload keeps auth state and
       // routing state (tenant/branch selection steps).
@@ -207,7 +214,7 @@ class LoginController extends Notifier<LoginState> {
           error: e.message,
           errorCode: e.code,
           errorStatusCode: e.statusCode,
-          pendingVerificationPhone: username.trim(),
+          pendingVerificationPhone: normalizedUsername,
         );
         return;
       }

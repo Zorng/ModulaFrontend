@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
+import 'package:modular_pos/features/auth/domain/phone_input.dart';
 import 'package:modular_pos/features/auth/ui/view/forgot_password/widgets/auth_recovery_shell.dart';
 import 'package:modular_pos/features/auth/ui/view/forgot_password/widgets/forgot_password_confirm_form.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/forgot_password_controller.dart';
@@ -46,7 +47,7 @@ class _ForgotPasswordConfirmPageState
   }
 
   Future<void> _submit() async {
-    final phone = _phoneCtrl.text.trim();
+    final phone = normalizePhoneInput(_phoneCtrl.text);
     final otp = _otpCtrl.text.trim();
     final newPassword = _newPasswordCtrl.text;
     final confirmPassword = _confirmPasswordCtrl.text;
@@ -84,7 +85,7 @@ class _ForgotPasswordConfirmPageState
   }
 
   Future<void> _resendOtp() async {
-    final phone = _phoneCtrl.text.trim();
+    final phone = normalizePhoneInput(_phoneCtrl.text);
     if (phone.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Phone number is required.')),

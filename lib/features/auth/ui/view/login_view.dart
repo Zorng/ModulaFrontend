@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/theme/app_gradient.dart';
 import 'package:modular_pos/core/theme/responsive.dart';
+import 'package:modular_pos/features/auth/domain/phone_input.dart';
 import 'package:modular_pos/features/auth/domain/auth_role.dart';
 import 'package:modular_pos/features/auth/ui/view/login/widgets/login_form_content.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
@@ -71,7 +72,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   }
 
   void _goToOtpVerification() {
-    final phone = _phoneCtrl.text.trim();
+    final phone = normalizePhoneInput(_phoneCtrl.text);
     final route = phone.isEmpty
         ? AppRoute.otpVerification.path
         : '${AppRoute.otpVerification.path}?phone=${Uri.encodeQueryComponent(phone)}';
@@ -79,7 +80,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   }
 
   void _goToForgotPassword() {
-    final phone = _phoneCtrl.text.trim();
+    final phone = normalizePhoneInput(_phoneCtrl.text);
     final route = phone.isEmpty
         ? AppRoute.forgotPassword.path
         : '${AppRoute.forgotPassword.path}?phone=${Uri.encodeQueryComponent(phone)}';
@@ -209,7 +210,10 @@ class _MobileLoginForm extends StatelessWidget {
           obscurePassword: obscurePassword,
           onToggleObscure: toggleObscure,
           onLogin: () {
-            controller.login(phoneCtrl.text.trim(), passwordCtrl.text.trim());
+            controller.login(
+              normalizePhoneInput(phoneCtrl.text),
+              passwordCtrl.text.trim(),
+            );
           },
           onSignup: () {
             context.go(AppRoute.signup.path);
@@ -363,7 +367,10 @@ class _DesktopFormPanel extends StatelessWidget {
           obscurePassword: obscurePassword,
           onToggleObscure: toggleObscure,
           onLogin: () {
-            controller.login(phoneCtrl.text.trim(), passwordCtrl.text.trim());
+            controller.login(
+              normalizePhoneInput(phoneCtrl.text),
+              passwordCtrl.text.trim(),
+            );
           },
           onSignup: () {
             context.go(AppRoute.signup.path);

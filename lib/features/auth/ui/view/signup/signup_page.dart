@@ -5,6 +5,7 @@ import 'package:modular_pos/core/routing/app_router.dart';
 import 'package:modular_pos/core/theme/app_buttons.dart';
 import 'package:modular_pos/core/theme/app_gradient.dart';
 import 'package:modular_pos/core/theme/responsive.dart';
+import 'package:modular_pos/features/auth/domain/phone_input.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 
 class SignupPage extends ConsumerStatefulWidget {
@@ -22,7 +23,6 @@ class _SignupPageState extends ConsumerState<SignupPage> {
   final _dateOfBirthCtrl = TextEditingController();
   bool _obscurePassword = true;
   String? _selectedGender;
-  static final RegExp _e164PhonePattern = RegExp(r'^\+[1-9]\d{7,14}$');
 
   @override
   void dispose() {
@@ -58,12 +58,12 @@ class _SignupPageState extends ConsumerState<SignupPage> {
       );
       return;
     }
-    if (!_e164PhonePattern.hasMatch(phone)) {
+    if (!isAcceptedPhoneInput(phone)) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Phone must be in E.164 format, for example +85512345678.',
+            'Enter a valid phone number, for example 012678990 or +85512678990.',
           ),
         ),
       );
@@ -81,18 +81,17 @@ class _SignupPageState extends ConsumerState<SignupPage> {
     var state = ref.read(loginControllerProvider);
     if (state.error != null) return;
 
-    await controller.sendRegistrationOtp(phone: phone);
+    final canonicalPhone = (state.pendingVerificationPhone ?? phone).trim();
+    await controller.sendRegistrationOtp(phone: canonicalPhone);
 
     if (!mounted) return;
     context.go(
-      '${AppRoute.otpVerification.path}?phone=${Uri.encodeQueryComponent(phone)}',
+      '${AppRoute.otpVerification.path}?phone=${Uri.encodeQueryComponent(canonicalPhone)}',
     );
   }
 
   String _normalizePhone(String value) {
-    final trimmed = value.trim();
-    if (trimmed.isEmpty) return trimmed;
-    return trimmed.replaceAll(RegExp(r'[\s\-\(\)]'), '');
+    return normalizePhoneInput(value);
   }
 
   Future<void> _pickDateOfBirth() async {
@@ -315,7 +314,7 @@ class _SignupFormContent extends StatelessWidget {
           keyboardType: TextInputType.phone,
           decoration: inputDecoration.copyWith(
             labelText: useFramedInputs ? null : 'Phone number',
-            hintText: useFramedInputs ? 'your phone number' : null,
+            hintText: '012 678 990 or +85512678990',
           ),
         ),
         const SizedBox(height: 12),

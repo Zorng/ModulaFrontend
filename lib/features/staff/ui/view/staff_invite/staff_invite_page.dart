@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/feedback/user_error_message.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
+import 'package:modular_pos/features/auth/domain/phone_input.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 import 'package:modular_pos/features/staff/data/repository/membership_command_repository.dart';
 import 'package:modular_pos/features/staff/data/repository/staff_branch_assignment_repository.dart';
@@ -87,12 +88,15 @@ class _StaffInvitePageState extends ConsumerState<StaffInvitePage> {
                               controller: _phoneController,
                               decoration: const InputDecoration(
                                 labelText: 'Phone',
-                                hintText: '+85512345678',
+                                hintText: '012 678 990 or +85512678990',
                                 hintStyle: TextStyle(color: Color(0xFF9CA3AF)),
                               ),
                               validator: (value) {
-                                final phone = (value ?? '').trim();
+                                final phone = normalizePhoneInput(value ?? '');
                                 if (phone.isEmpty) return 'Phone is required.';
+                                if (!isAcceptedPhoneInput(phone)) {
+                                  return 'Enter a valid phone number.';
+                                }
                                 return null;
                               },
                             ),
@@ -251,7 +255,7 @@ class _StaffInvitePageState extends ConsumerState<StaffInvitePage> {
           .read(membershipCommandRepositoryProvider)
           .inviteMember(
             tenantId: tenantId,
-            phone: _phoneController.text.trim(),
+            phone: normalizePhoneInput(_phoneController.text),
             roleKey: _selectedRole,
           );
       await ref

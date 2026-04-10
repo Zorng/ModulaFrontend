@@ -168,6 +168,7 @@ void main() {
       tester.view.resetDevicePixelRatio();
     });
 
+    String? sentOtpPhone;
     final repository = _SignupFlowAuthRepository(
       onRegisterAccount:
           ({
@@ -179,11 +180,12 @@ void main() {
             String? dateOfBirth,
           }) async => AuthRegisterAccountResult(
             accountId: 'account-1',
-            phone: phone,
+            phone: '+85512678990',
             phoneVerified: false,
             completedExistingInviteAccount: false,
           ),
       onSendRegistrationOtp: ({required phone}) async {
+        sentOtpPhone = phone;
         throw const ApiClientException(
           message: 'Too many OTP requests',
           code: 'OTP_RATE_LIMIT',
@@ -216,7 +218,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.enterText(find.byType(TextField).at(0), '+85512345678');
+    await tester.enterText(find.byType(TextField).at(0), '012 678 990');
     await tester.enterText(find.byType(TextField).at(1), 'StrongPass123!');
     await tester.enterText(find.byType(TextField).at(2), 'Test');
     await tester.enterText(find.byType(TextField).at(3), 'User');
@@ -237,7 +239,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Verify phone'), findsOneWidget);
+    expect(sentOtpPhone, '+85512678990');
     expect(find.text('Too many OTP requests'), findsOneWidget);
     expect(find.text('Resend OTP'), findsOneWidget);
+    expect(find.text('+85512678990'), findsOneWidget);
   });
 }

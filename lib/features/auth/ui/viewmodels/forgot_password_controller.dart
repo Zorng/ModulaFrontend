@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:modular_pos/core/logging/app_log.dart';
 import 'package:modular_pos/core/network/api_contract.dart';
 import 'package:modular_pos/features/auth/data/auth_repository.dart';
+import 'package:modular_pos/features/auth/domain/phone_input.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 
 class ForgotPasswordState {
@@ -60,7 +61,7 @@ class ForgotPasswordController extends Notifier<ForgotPasswordState> {
   ForgotPasswordState build() => const ForgotPasswordState();
 
   Future<bool> requestResetOtp({required String phone}) async {
-    final normalizedPhone = phone.trim();
+    final normalizedPhone = normalizePhoneInput(phone);
     state = state.copyWith(
       isLoading: true,
       error: null,
@@ -94,7 +95,7 @@ class ForgotPasswordController extends Notifier<ForgotPasswordState> {
     required String otp,
     required String newPassword,
   }) async {
-    final normalizedPhone = phone.trim();
+    final normalizedPhone = normalizePhoneInput(phone);
     state = state.copyWith(
       isLoading: true,
       error: null,
@@ -137,7 +138,7 @@ class ForgotPasswordController extends Notifier<ForgotPasswordState> {
   }
 
   void setPhoneIfEmpty(String phone) {
-    final normalizedPhone = phone.trim();
+    final normalizedPhone = normalizePhoneInput(phone);
     if (normalizedPhone.isEmpty || (state.phone ?? '').trim().isNotEmpty) {
       return;
     }

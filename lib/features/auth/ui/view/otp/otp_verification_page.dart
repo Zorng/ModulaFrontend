@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:modular_pos/core/routing/app_router.dart';
+import 'package:modular_pos/features/auth/domain/phone_input.dart';
 import 'package:modular_pos/features/auth/ui/viewmodels/login_controller.dart';
 
 class OtpVerificationPage extends ConsumerStatefulWidget {
@@ -37,7 +38,7 @@ class _OtpVerificationPageState extends ConsumerState<OtpVerificationPage> {
   }
 
   Future<void> _sendOtp() async {
-    final phone = _phoneCtrl.text.trim();
+    final phone = normalizePhoneInput(_phoneCtrl.text);
     if (phone.isEmpty) return;
     await ref
         .read(loginControllerProvider.notifier)
@@ -45,7 +46,7 @@ class _OtpVerificationPageState extends ConsumerState<OtpVerificationPage> {
   }
 
   Future<void> _verify() async {
-    final phone = _phoneCtrl.text.trim();
+    final phone = normalizePhoneInput(_phoneCtrl.text);
     final otp = _otpCtrl.text.trim();
     if (phone.isEmpty || otp.isEmpty) return;
 
